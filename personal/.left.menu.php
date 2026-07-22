@@ -1,0 +1,25 @@
+<?
+$aMenuLinks = Array(
+	Array(
+		"1", 
+		"https://t.me/79872624585", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"2", 
+		"https://wa.me/79872624585", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"3", 
+		"mailto:info-lider16@yandex.ru", 
+		Array(), 
+		Array(), 
+		"" 
+	)
+);
+?>

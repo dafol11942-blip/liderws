@@ -1,0 +1,10 @@
+@font-face	{font-family: "Proxima Nova"; src:local("Proxima Nova"), url("ProximaNova-Regular.woff") format("woff"); font-weight: normal; font-style: normal;}
+@font-face	{font-family: "Proxima Nova"; src:local("Proxima Nova Bold"), url("ProximaNova-Bold.woff") format("woff"); font-weight: bold; font-style: normal;}
+@font-face	{font-family: "Proxima Nova"; src:local("Proxima Nova Semibold"), url("ProximaNova-Semibold.woff") format("woff"); font-weight: 600; font-style: normal;}
+@font-face	{font-family: "Proxima Nova"; src:local("Proxima Nova Semibold Italic"), url("ProximaNova-SemiboldIt.woff") format("woff"); font-weight: 600; font-style: italic;}
+@font-face	{font-family: "Proxima Nova"; src:local("Proxima Nova Light"), url("ProximaNova-Light.woff") format("woff"); font-weight: 300; font-style: normal;}
+@font-face	{font-family: "Proxima Nova"; src:local("Proxima Nova Light Italic"), url("ProximaNova-LightIt.woff") format("woff"); font-weight: 300; font-style: italic;}
+@font-face	{font-family: "Proxima Nova"; src:local("Proxima Nova Italic"), url("ProximaNova-RegularIt.woff") format("woff"); font-weight: normal; font-style: italic;}
+@font-face	{font-family: "Proxima Nova Condensed"; src:local("Proxima Nova Condensed"), url("ProximaNovaCond-Regular.woff") format("woff"); font-weight: normal; font-style: normal;}
+@font-face	{font-family: "Proxima Nova Condensed"; src:local("Proxima Nova Condensed Bold"), url("ProximaNovaCond-Bold.woff") format("woff"); font-weight: bold; font-style: normal;}
+@font-face	{font-family: "Proxima Nova Condensed"; src:local("Proxima Nova Condensed Semibold"), url("ProximaNovaCond-Semibold.woff") format("woff"); font-weight: 600; font-style: normal;}

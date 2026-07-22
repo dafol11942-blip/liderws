@@ -1,0 +1,2694 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+</head>
+
+<body id="catalog">
+    <header class="header header_catalog container">
+        <div class="logo">
+            <a href="index.html">
+                <img class="header_logo" src="./img/logo1.png" alt="logo">
+            </a>
+        </div>
+        <div class="header_flex">
+            <div class="header_top">
+                <div class="header_top__left">
+                    <ul class="header_item">
+                        <li><a class="menu_item heading_text" href="#">Спецпредложения</a></li>
+                        <li><a class="menu_item" href="#">Услуги</a></li>
+                        <li><a class="menu_item" href="#">О нас</a></li>
+                        <li><a class="menu_item" href="#">Клиентам</a></li>
+                        <li><a class="menu_item" href="#">Поставщикам</a></li>
+                        <li><a class="menu_item" href="#">Оптовым клиентам</a></li>
+                        <li><a class="menu_item" href="#">Контакты</a></li>
+                    </ul>
+                </div>
+                <div class="header_top__right">
+                    <div class="text_city">Набережные Челны</div>
+                    <div class="contact_top">
+                        <details class="contact">
+                            <summary class="text_contact">8 919 626 03 09
+                                <svg class="text_contact__svg" width="7" height="4" viewBox="0 0 8 6" fill="none"
+                                    xmlns="http://www.w3.org/2000/svg">
+                                    <path
+                                        d="M7.33334 1.1133C7.20843 0.989128 7.03946 0.919434 6.86334 0.919434C6.68722 0.919434 6.51825 0.989128 6.39334 1.1133L4.00001 3.4733L1.64001 1.1133C1.5151 0.989128 1.34613 0.919434 1.17001 0.919434C0.993883 0.919434 0.824915 0.989128 0.700006 1.1133C0.637521 1.17527 0.587925 1.249 0.554079 1.33024C0.520233 1.41148 0.502808 1.49862 0.502808 1.58663C0.502808 1.67464 0.520233 1.76177 0.554079 1.84301C0.587925 1.92425 0.637521 1.99799 0.700006 2.05996L3.52667 4.88663C3.58865 4.94912 3.66238 4.99871 3.74362 5.03256C3.82486 5.0664 3.912 5.08383 4.00001 5.08383C4.08801 5.08383 4.17515 5.0664 4.25639 5.03256C4.33763 4.99871 4.41136 4.94912 4.47334 4.88663L7.33334 2.05996C7.39582 1.99799 7.44542 1.92425 7.47927 1.84301C7.51311 1.76177 7.53054 1.67464 7.53054 1.58663C7.53054 1.49862 7.51311 1.41148 7.47927 1.33024C7.44542 1.249 7.39582 1.17527 7.33334 1.1133Z"
+                                        fill="#668BEA" />
+                                </svg>
+                            </summary>
+                            <div class="contacts">
+                                <p class="text_contact">8 919 626 03 09</p>
+                                <p class="text_contact">8 919 626 03 09</p>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            </div>
+            <div class="header_bottom">
+                <div class="header_bottom__left">
+                    <details class="filter_catalog">
+                        <summary class="filter_btn"><svg class="filter_svg" width="16" height="16" viewBox="0 0 16 16"
+                                fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M1 13H15" stroke="white" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" />
+                                <path d="M1 8H15" stroke="white" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" />
+                                <path d="M1 3H15" stroke="white" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" />
+                            </svg>
+                            <span class="filter_btn__text">Каталог</span> <svg class="header_bottom__svg" width="7"
+                                height="4" viewBox="0 0 8 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M7.33334 1.1133C7.20843 0.989128 7.03946 0.919434 6.86334 0.919434C6.68722 0.919434 6.51825 0.989128 6.39334 1.1133L4.00001 3.4733L1.64001 1.1133C1.5151 0.989128 1.34613 0.919434 1.17001 0.919434C0.993883 0.919434 0.824915 0.989128 0.700006 1.1133C0.637521 1.17527 0.587925 1.249 0.554079 1.33024C0.520233 1.41148 0.502808 1.49862 0.502808 1.58663C0.502808 1.67464 0.520233 1.76177 0.554079 1.84301C0.587925 1.92425 0.637521 1.99799 0.700006 2.05996L3.52667 4.88663C3.58865 4.94912 3.66238 4.99871 3.74362 5.03256C3.82486 5.0664 3.912 5.08383 4.00001 5.08383C4.08801 5.08383 4.17515 5.0664 4.25639 5.03256C4.33763 4.99871 4.41136 4.94912 4.47334 4.88663L7.33334 2.05996C7.39582 1.99799 7.44542 1.92425 7.47927 1.84301C7.51311 1.76177 7.53054 1.67464 7.53054 1.58663C7.53054 1.49862 7.51311 1.41148 7.47927 1.33024C7.44542 1.249 7.39582 1.17527 7.33334 1.1133Z"
+                                    fill="#FFFFFF" />
+                            </svg>
+                        </summary>
+                        <div class="filter_catalog__content">
+                            <ul class="filter_catalog__list">
+                                <li class="filter_item"><a href="#" class="filter_link">Запчасти для технического
+                                        осмотра</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Запчасти</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Масла и автохимия</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">EVA коврики</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Аккумуляторы</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Шины и диски</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Автолампы</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Аксессуары</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Инструмент</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Специальные предложения
+                                        и сикдки</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Другое</a></li>
+                            </ul>
+                        </div>
+                    </details>
+                    <details class="filter_marka">
+                        <summary class="filter_btn__marka">
+                            <span class="filter_btn__text__marka">Марка</span> <svg class="header_bottom__svg__marka"
+                                width="7" height="4" viewBox="0 0 8 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M7.33334 1.1133C7.20843 0.989128 7.03946 0.919434 6.86334 0.919434C6.68722 0.919434 6.51825 0.989128 6.39334 1.1133L4.00001 3.4733L1.64001 1.1133C1.5151 0.989128 1.34613 0.919434 1.17001 0.919434C0.993883 0.919434 0.824915 0.989128 0.700006 1.1133C0.637521 1.17527 0.587925 1.249 0.554079 1.33024C0.520233 1.41148 0.502808 1.49862 0.502808 1.58663C0.502808 1.67464 0.520233 1.76177 0.554079 1.84301C0.587925 1.92425 0.637521 1.99799 0.700006 2.05996L3.52667 4.88663C3.58865 4.94912 3.66238 4.99871 3.74362 5.03256C3.82486 5.0664 3.912 5.08383 4.00001 5.08383C4.08801 5.08383 4.17515 5.0664 4.25639 5.03256C4.33763 4.99871 4.41136 4.94912 4.47334 4.88663L7.33334 2.05996C7.39582 1.99799 7.44542 1.92425 7.47927 1.84301C7.51311 1.76177 7.53054 1.67464 7.53054 1.58663C7.53054 1.49862 7.51311 1.41148 7.47927 1.33024C7.44542 1.249 7.39582 1.17527 7.33334 1.1133Z"
+                                    fill="#FFFFFF" />
+                            </svg>
+                        </summary>
+                        <div class="filter_marka__content">
+                            <ul class="filter_marka__list">
+                                <li class="filter_item"><a href="#" class="filter_link">Shkoda</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Lada</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">KIA</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Toyota</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Ford</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Honda</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Mazda</a></li>
+                            </ul>
+                        </div>
+                    </details>
+                    <div class="search">
+                        <div class="search_text"> Поиск</div>
+                        <div class="vertical_line"></div>
+                        <div>
+                            <form class="search_filter" action="" method="post" name="drop_down_box">
+                                <select class="search_filter_text" size="1">
+                                    <option class="search_filter" selected="first">по номеру детали</option>
+                                    <option class="search_filter" value="selected" value="second">по VIN</option>
+                                    <option class="search_filter" value="third">по названию детали</option>
+                                </select>
+                            </form>
+                        </div>
+                        <input class="search_input" type="text"></input>
+                        <a href="">
+                            <svg class="search_svg" width="16" height="16" viewBox="0 0 16 16" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M7.33333 12.6667C10.2789 12.6667 12.6667 10.2789 12.6667 7.33333C12.6667 4.38781 10.2789 2 7.33333 2C4.38781 2 2 4.38781 2 7.33333C2 10.2789 4.38781 12.6667 7.33333 12.6667Z"
+                                    stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                <path d="M14 14.0001L11.1 11.1001" stroke="white" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </a>
+                    </div>
+                    <div class="account">
+                        <svg class="account_svg" width="16" height="16" viewBox="0 0 16 16" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M13.3334 14V12.6667C13.3334 11.9594 13.0525 11.2811 12.5524 10.781C12.0523 10.281 11.374 10 10.6667 10H5.33341C4.62617 10 3.94789 10.281 3.4478 10.781C2.9477 11.2811 2.66675 11.9594 2.66675 12.6667V14"
+                                stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            <path
+                                d="M7.99992 7.33333C9.47268 7.33333 10.6666 6.13943 10.6666 4.66667C10.6666 3.19391 9.47268 2 7.99992 2C6.52716 2 5.33325 3.19391 5.33325 4.66667C5.33325 6.13943 6.52716 7.33333 7.99992 7.33333Z"
+                                stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <div class="account_btn">
+                            <button class="account_btn1">Кабинет</button> <br>
+                            <button class="account_btn2">Войти</button>
+                        </div>
+                    </div>
+                    <div class="cart">
+                        <svg class="cart_svg" width="16" height="16" viewBox="0 0 16 16" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M1.79682 7.30757C1.58807 6.66174 2.06962 6 2.74835 6H13.2517C13.9304 6 14.4119 6.66174 14.2032 7.30756L12.587 12.3076C12.4536 12.7203 12.0693 13 11.6355 13H4.36451C3.93072 13 3.5464 12.7203 3.41298 12.3076L1.79682 7.30757Z"
+                                stroke="white" stroke-width="2" stroke-linejoin="round" />
+                            <path d="M5 5.33342L8 1.66675L11 5.33342" stroke="white" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+
+                        <div class="cart_btn">
+                            <button class="cart_btn1">Корзина</button> <br>
+                            <button class="cart_btn2">1 567.0</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <header class="header_mobile">
+        <div class="wrap">
+            <div class="header_flex">
+                <details class="filter_catalog">
+                    <summary class="filter_btn"><svg class="filter_svg" width="16" height="16" viewBox="0 0 16 16"
+                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M1 13H15" stroke="white" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                            <path d="M1 8H15" stroke="white" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                            <path d="M1 3H15" stroke="white" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                        </svg>
+                    </summary>
+                    <!-- <div class="filter_catalog__content">
+                        <ul class="filter_catalog__list">
+                            <li class="filter_item"><a href="#" class="filter_link">Запчасти для технического
+                                    осмотра</a></li>
+                            <li class="filter_item"><a href="#" class="filter_link">Запчасти</a></li>
+                            <li class="filter_item"><a href="#" class="filter_link">Масла и автохимия</a></li>
+                            <li class="filter_item"><a href="#" class="filter_link">EVA коврики</a></li>
+                            <li class="filter_item"><a href="#" class="filter_link">Аккумуляторы</a></li>
+                            <li class="filter_item"><a href="#" class="filter_link">Шины и диски</a></li>
+                            <li class="filter_item"><a href="#" class="filter_link">Автолампы</a></li>
+                            <li class="filter_item"><a href="#" class="filter_link">Аксессуары</a></li>
+                            <li class="filter_item"><a href="#" class="filter_link">Инструмент</a></li>
+                            <li class="filter_item"><a href="#" class="filter_link">Специальные предложения
+                                    и сикдки</a></li>
+                            <li class="filter_item"><a href="#" class="filter_link">Другое</a></li>
+                        </ul>
+                    </div> -->
+                </details>
+                <div class="logo">
+                    <a href="index.html">
+                        <img class="header_logo" src="./img/logo1_mobile.png" alt="logo">
+                    </a>
+                </div>
+                <!-- <details class="filter_marka">
+                        <summary class="filter_btn__marka">
+                            <span class="filter_btn__text__marka">Марка</span> <svg class="header_bottom__svg__marka"
+                                width="7" height="4" viewBox="0 0 8 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M7.33334 1.1133C7.20843 0.989128 7.03946 0.919434 6.86334 0.919434C6.68722 0.919434 6.51825 0.989128 6.39334 1.1133L4.00001 3.4733L1.64001 1.1133C1.5151 0.989128 1.34613 0.919434 1.17001 0.919434C0.993883 0.919434 0.824915 0.989128 0.700006 1.1133C0.637521 1.17527 0.587925 1.249 0.554079 1.33024C0.520233 1.41148 0.502808 1.49862 0.502808 1.58663C0.502808 1.67464 0.520233 1.76177 0.554079 1.84301C0.587925 1.92425 0.637521 1.99799 0.700006 2.05996L3.52667 4.88663C3.58865 4.94912 3.66238 4.99871 3.74362 5.03256C3.82486 5.0664 3.912 5.08383 4.00001 5.08383C4.08801 5.08383 4.17515 5.0664 4.25639 5.03256C4.33763 4.99871 4.41136 4.94912 4.47334 4.88663L7.33334 2.05996C7.39582 1.99799 7.44542 1.92425 7.47927 1.84301C7.51311 1.76177 7.53054 1.67464 7.53054 1.58663C7.53054 1.49862 7.51311 1.41148 7.47927 1.33024C7.44542 1.249 7.39582 1.17527 7.33334 1.1133Z"
+                                    fill="#FFFFFF" />
+                            </svg>
+                        </summary>
+                        <div class="filter_marka__content">
+                            <ul class="filter_marka__list">
+                                <li class="filter_item"><a href="#" class="filter_link">Shkoda</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Lada</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">KIA</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Toyota</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Ford</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Honda</a></li>
+                                <li class="filter_item"><a href="#" class="filter_link">Mazda</a></li>
+                            </ul>
+                        </div>
+                    </details> -->
+
+                <!-- <div class="account">
+                        <svg class="account_svg" width="16" height="16" viewBox="0 0 16 16" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M13.3334 14V12.6667C13.3334 11.9594 13.0525 11.2811 12.5524 10.781C12.0523 10.281 11.374 10 10.6667 10H5.33341C4.62617 10 3.94789 10.281 3.4478 10.781C2.9477 11.2811 2.66675 11.9594 2.66675 12.6667V14"
+                                stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            <path
+                                d="M7.99992 7.33333C9.47268 7.33333 10.6666 6.13943 10.6666 4.66667C10.6666 3.19391 9.47268 2 7.99992 2C6.52716 2 5.33325 3.19391 5.33325 4.66667C5.33325 6.13943 6.52716 7.33333 7.99992 7.33333Z"
+                                stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <div class="account_btn">
+                            <button class="account_btn1">Кабинет</button> <br>
+                            <button class="account_btn2">Войти</button>
+                        </div>
+                    </div> -->
+                <div class="cart">
+                    <svg class="cart_svg" width="16" height="16" viewBox="0 0 16 16" fill="none"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M1.79682 7.30757C1.58807 6.66174 2.06962 6 2.74835 6H13.2517C13.9304 6 14.4119 6.66174 14.2032 7.30756L12.587 12.3076C12.4536 12.7203 12.0693 13 11.6355 13H4.36451C3.93072 13 3.5464 12.7203 3.41298 12.3076L1.79682 7.30757Z"
+                            stroke="white" stroke-width="2" stroke-linejoin="round" />
+                        <path d="M5 5.33342L8 1.66675L11 5.33342" stroke="white" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+
+                    <!-- <div class="cart_btn">
+                            <button class="cart_btn1">Корзина</button> <br>
+                            <button class="cart_btn2">1 567.0</button>
+                        </div> -->
+                </div>
+            </div>
+
+        </div>
+        <div class="wrap">
+            <div class="search">
+                <p class="search_text"> Поиск</p>
+
+                <details class="filter_catalog__menu_mobile">
+                    <summary class="">
+                        <p class="search_svg__mobile"><svg width="8" height="6" viewBox="0 0 8 6" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M7.33334 1.1133C7.20843 0.989128 7.03946 0.919434 6.86334 0.919434C6.68722 0.919434 6.51825 0.989128 6.39334 1.1133L4.00001 3.4733L1.64001 1.1133C1.5151 0.989128 1.34613 0.919434 1.17001 0.919434C0.993883 0.919434 0.824915 0.989128 0.700006 1.1133C0.637521 1.17527 0.587925 1.249 0.554079 1.33024C0.520233 1.41148 0.502808 1.49862 0.502808 1.58663C0.502808 1.67464 0.520233 1.76177 0.554079 1.84301C0.587925 1.92425 0.637521 1.99799 0.700006 2.05996L3.52667 4.88663C3.58865 4.94912 3.66238 4.99871 3.74362 5.03256C3.82486 5.0664 3.912 5.08383 4.00001 5.08383C4.08801 5.08383 4.17515 5.0664 4.25639 5.03256C4.33763 4.99871 4.41136 4.94912 4.47334 4.88663L7.33334 2.05996C7.39582 1.99799 7.44542 1.92425 7.47927 1.84301C7.51311 1.76177 7.53054 1.67464 7.53054 1.58663C7.53054 1.49862 7.51311 1.41148 7.47927 1.33024C7.44542 1.249 7.39582 1.17527 7.33334 1.1133Z"
+                                    fill="white" />
+                            </svg> </p>
+
+
+
+                    </summary>
+                    <!-- <div class="filter_catalog__content">
+                        <div class="filter_catalog__list_mobile">
+                            <input class="search_mobile__text" placeholder="Введите запрос" type="text" minlength="3"
+                                maxlength="40" required="">
+                            <svg width="30" height="30" viewBox="0 0 30 30" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <rect width="30" height="30" rx="6" fill="#465B90" />
+                                <path
+                                    d="M14.3333 19.6667C17.2789 19.6667 19.6667 17.2789 19.6667 14.3333C19.6667 11.3878 17.2789 9 14.3333 9C11.3878 9 9 11.3878 9 14.3333C9 17.2789 11.3878 19.6667 14.3333 19.6667Z"
+                                    stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                <path d="M21 21L18.1 18.1" stroke="white" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" />
+                            </svg>
+
+
+                        </div>
+                    </div>
+                    <div class="flex">
+                        <p class="search_mobile__number">по номеру детали</p>
+                        <p class="search_mobile__VIN">по vin-номеру</p>
+                    </div> -->
+
+            </div>
+            </details>
+        </div>
+        </div>
+    </header>
+    <div class="wrap catalog">
+        <ul class="catalog_menu catalog_menu__catalog">
+            <li class="catalog_menu__item"><a class="catalog_menu__link" href="#">ТЕХОСМОТР</a></li>
+            <li class="catalog_menu__item"><a class="catalog_menu__link" href="#">ЗАПЧАСТИ ДЛЯ ТО</a></li>
+            <li class="catalog_menu__item"><a class="catalog_menu__link" href="#">ЗАПЧАСТИ</a></li>
+            <li class="catalog_menu__item"><a class="catalog_menu__link" href="#" id="masla">МАСЛА И АВТОХИМИЯ</a></li>
+            <li class="catalog_menu__item"><a class="catalog_menu__link" href="#">EVA КОВРИКИ</a></li>
+            <li class="catalog_menu__item"><a class="catalog_menu__link" href="#">АККУМУЛЯТОРЫ</a></li>
+            <li class="catalog_menu__item"><a class="catalog_menu__link" href="#">ШИНЫ И ДИСКИ</a></li>
+            <li class="catalog_menu__item">
+                <details class="filter_catalog__menu">
+                    <summary class="">
+
+                        <span class="filter_catalog__btn__text">еще</span>
+                        <svg class="header_bottom__svg catalog_svg" width="7" height="4" viewBox="0 0 8 6"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M7.33334 1.1133C7.20843 0.989128 7.03946 0.919434 6.86334 0.919434C6.68722 0.919434 6.51825 0.989128 6.39334 1.1133L4.00001 3.4733L1.64001 1.1133C1.5151 0.989128 1.34613 0.919434 1.17001 0.919434C0.993883 0.919434 0.824915 0.989128 0.700006 1.1133C0.637521 1.17527 0.587925 1.249 0.554079 1.33024C0.520233 1.41148 0.502808 1.49862 0.502808 1.58663C0.502808 1.67464 0.520233 1.76177 0.554079 1.84301C0.587925 1.92425 0.637521 1.99799 0.700006 2.05996L3.52667 4.88663C3.58865 4.94912 3.66238 4.99871 3.74362 5.03256C3.82486 5.0664 3.912 5.08383 4.00001 5.08383C4.08801 5.08383 4.17515 5.0664 4.25639 5.03256C4.33763 4.99871 4.41136 4.94912 4.47334 4.88663L7.33334 2.05996C7.39582 1.99799 7.44542 1.92425 7.47927 1.84301C7.51311 1.76177 7.53054 1.67464 7.53054 1.58663C7.53054 1.49862 7.51311 1.41148 7.47927 1.33024C7.44542 1.249 7.39582 1.17527 7.33334 1.1133Z" />
+                        </svg>
+                    </summary>
+                    <div class="filter_catalog__content">
+                        <ul class="filter_catalog__list">
+                            <li class="filter_catalog__item"><a href="#" class="filter_catalog__link">Автолампы</a></li>
+                            <li class="filter_catalog__item"><a href="#" class="filter_catalog__link">Аксессуары</a>
+                            </li>
+                            <li class="filter_catalog__item"><a href="#" class="filter_catalog__link">Инструмент</a>
+                            </li>
+                            <li class="filter_catalog__item"><a href="#" class="filter_catalog__link">Специальные
+                                    предложения
+                                    и сикдки</a></li>
+                            <li class="filter_catalog__item"><a href="#" class="filter_catalog__link">Другое</a></li>
+                        </ul>
+                    </div>
+                </details>
+            </li>
+        </ul>
+    </div>
+    <div class="border container"></div>
+
+    <div class=" wrap breadcrumb">
+        <a href="index.html">Главная</a>
+        <a href="#"> &#8212; Каталог</a>
+        <a href="#"> &#8212; Масла и автохимия &#8212;</a>
+        <a href="#" id="masla_text"> Моторные масла</a>
+    </div>
+
+    <div class="wrap tabs_catalog">
+        <input type="radio" name="tab-btn" id="tab-btn-1" value="" checked>
+        <label class="tab_btn__catalog" for="tab-btn-1">МОТОРНЫЕ МАСЛА</label>
+        <input type="radio" name="tab-btn" id="tab-btn-2" value="">
+        <label class="tab_btn__catalog" for="tab-btn-2">МОТОРНЫЕ МАСЛА</label>
+        <input type="radio" name="tab-btn" id="tab-btn-3" value="">
+        <label class="tab_btn__catalog" for="tab-btn-3">ГИДРАВЛИЧЕСКИЕ</label>
+        <input type="radio" name="tab-btn" id="tab-btn-4" value="">
+        <label class="tab_btn__catalog" for="tab-btn-4">РЕДУКТОРНЫЕ</label>
+        <input type="radio" name="tab-btn" id="tab-btn-5" value="">
+        <label class="tab_btn__catalog" for="tab-btn-5">АНТИФРИЗ</label>
+        <input type="radio" name="tab-btn" id="tab-btn-6" value="">
+        <label class="tab_btn__catalog" for="tab-btn-6">СМАЗКИ</label>
+        <input type="radio" name="tab-btn" id="tab-btn-7" value="">
+        <label class="tab_btn__catalog" for="tab-btn-7">ОМЫВАТЕЛЬ СТЕКЛА</label>
+        <input type="radio" name="tab-btn" id="tab-btn-8" value="">
+        <label class="tab_btn__catalog" for="tab-btn-8">ТОРМОЗНАЯ ЖИДКОСТЬ</label>
+        <input type="radio" name="tab-btn" id="tab-btn-9" value="">
+        <label class="tab_btn__catalog" for="tab-btn-9">СРЕДСТВА ДЛЯ ОЧИСТКИ</label>
+        <input type="radio" name="tab-btn" id="tab-btn-10" value="">
+        <label class="tab_btn__catalog" for="tab-btn-10">ПРИСАДКИ</label>
+        <div id="content-1">
+            <div class="flex_justify">
+                <h4 class="catalog_heading">
+                    Моторные масла
+                </h4>
+                <div class="catalog_sort__main flex_justify align_items">
+                    <form class="sort_filter" action="" method="post" name="drop_down_box">
+                        <select class="sort_filter_text" size="1">
+                            <option class="sort_filter" selected="first">по умолчанию</option>
+                            <option class="sort_filter" value="selected" value="second">по возрастанию цены
+                            </option>
+                            <option class="sort_filter" value="third">по убыванию цены</option>
+                        </select>
+
+                    </form>
+                    <svg class="catalog_sort__left" width="20" height="20" viewBox="0 0 20 20" fill="none"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 12H12V17H18V12Z" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                        <path d="M8 12H2V17H8V12Z" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                        <path d="M18 3H12V8H18V3Z" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                        <path d="M8 3H2V8H8V3Z" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                    <svg class="catalog_sort__right" width="20" height="20" viewBox="0 0 20 20" fill="none"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M16.4 12H3.6C2.71634 12 2 12.5596 2 13.25V15.75C2 16.4404 2.71634 17 3.6 17H16.4C17.2837 17 18 16.4404 18 15.75V13.25C18 12.5596 17.2837 12 16.4 12Z"
+                            stroke="#C4C4C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        <path
+                            d="M16.4 3H3.6C2.71634 3 2 3.55964 2 4.25V6.75C2 7.44036 2.71634 8 3.6 8H16.4C17.2837 8 18 7.44036 18 6.75V4.25C18 3.55964 17.2837 3 16.4 3Z"
+                            stroke="#C4C4C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </div>
+            </div>
+            <div class="flex_justify">
+                <div class="catalog_filter__main">
+                    <div class="filter_top">
+                        <div class="price_filter">
+                            <div class="flex_justify">
+                                <p class="filter_heading">ФИЛЬТРЫ</p>
+                                <svg class="filter_top__svg" width="16" height="16" viewBox="0 0 16 16" fill="none"
+                                    xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M11 8H15" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round" />
+                                    <path d="M1 8L5 8" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round" />
+                                    <path
+                                        d="M7.99992 10.6666C9.47268 10.6666 10.6666 9.47268 10.6666 7.99992C10.6666 6.52716 9.47268 5.33325 7.99992 5.33325C6.52716 5.33325 5.33325 6.52716 5.33325 7.99992C5.33325 9.47268 6.52716 10.6666 7.99992 10.6666Z"
+                                        stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round" />
+                                </svg>
+                            </div>
+                            <p class="filter_heading">Цена</p>
+                            <div class="flex_justify">
+                                <div class="price_box_left">99</div>
+                                <div class="price_box_right">6990</div>
+                            </div>
+                            <div class="range_flex align_items">
+                                <p class="left_range"></p>
+                                <p class="center_range"></p>
+                                <p class="right_range"></p>
+                                <p class="end_range"></p>
+
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Производитель</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top">
+                        <div class="flex_justify">
+                            <p class="filter_heading filter_heading__padding">Тип масла</p>
+                            <svg class="filter_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path d="M1 1H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                            </svg>
+                        </div>
+                        <div class="flex_justify align_items filter_top_margin">
+                            <p class="text filter_text">Синтетические</p>
+                            <svg class="filter_check" width="28" height="14" viewBox="0 0 28 14" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <rect width="28" height="14" rx="6" fill="#668BEA" />
+                                <path
+                                    d="M12.5 6C12.5 2.96243 14.9624 0.5 18 0.5H22C25.0376 0.5 27.5 2.96243 27.5 6V8C27.5 11.0376 25.0376 13.5 22 13.5H18C14.9624 13.5 12.5 11.0376 12.5 8V6Z"
+                                    fill="white" stroke="#E2E2E2" />
+                            </svg>
+                        </div>
+                        <div class="flex_justify align_items filter_top_margin">
+                            <p class="text filter_text">Полусинтетические</p>
+                            <svg class="filter_check" width="28" height="14" viewBox="0 0 28 14" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <rect width="28" height="14" rx="6" fill="#E2E2E2" />
+                                <path
+                                    d="M0.5 6C0.5 2.96243 2.96243 0.5 6 0.5H10C13.0376 0.5 15.5 2.96243 15.5 6V8C15.5 11.0376 13.0376 13.5 10 13.5H6C2.96243 13.5 0.5 11.0376 0.5 8V6Z"
+                                    fill="white" stroke="#E2E2E2" />
+                            </svg>
+                        </div>
+                        <div class="flex_justify align_items filter_top_margin">
+                            <p class="text filter_text">Минеральные</p>
+                            <svg class="filter_check" width="28" height="14" viewBox="0 0 28 14" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <rect width="28" height="14" rx="6" fill="#E2E2E2" />
+                                <path
+                                    d="M0.5 6C0.5 2.96243 2.96243 0.5 6 0.5H10C13.0376 0.5 15.5 2.96243 15.5 6V8C15.5 11.0376 13.0376 13.5 10 13.5H6C2.96243 13.5 0.5 11.0376 0.5 8V6Z"
+                                    fill="white" stroke="#E2E2E2" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Вязкость SAE</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Объем</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Применяемость</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Стандарты ILSAC</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Тип трансмиссии</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Допуск GM</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Тара</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Цвет антифриза</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">ГОСТ</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Стандарт DIN</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Класс вязкости</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Типы двигателей</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Типы автомобилей</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Стандарты API</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Стандарты ACEA</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top filter_bottom flex_justify">
+                        <p class="filter_heading filter_heading__bottom">Сбросить все параметры</p>
+                        <button class="catalog_filter__btn"><svg class="filter_plus" width="10" height="10"
+                                viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M8.53542 1L4.99989 4.53553M4.99989 4.53553L1.46436 8.07107M4.99989 4.53553L1.46436 1M4.99989 4.53553L8.53542 8.07107"
+                                    stroke="white" stroke-width="2" stroke-linecap="round" />
+                            </svg></button>
+                    </div>
+                </div>
+                <div>
+                    <div class="catalog_products">
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-1.jpg" alt="img">
+                            <p class="product_name">Масло моторное Ford Formula F 5W-30, синтетическое, 5L</p>
+                            <div class="flex_justify">
+                                <div class="price">2 290.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-2.jpg" alt="img">
+                            <p class="product_name">Синтетическое моторное масло MOBIL 1 ESP 5W-30, 1L</p>
+                            <div class="flex_justify">
+                                <div class="price">490.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-3.jpg" alt="img">
+                            <p class="product_name">Синтетическое моторное масло IDEMITSU Zepro Touring 5W-30, 1L</p>
+                            <div class="flex_justify">
+                                <div class="price">1 190.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-5.jpg" alt="img">
+                            <p class="product_name">Синтетическое моторное масло MOBIL Super 3000 X1 5W-40, 1L</p>
+                            <div class="flex_justify">
+                                <div class="price">2 290.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-6.jpg" alt="img">
+                            <p class="product_name">Синтетическое моторное масло TOTAL Quartz 9000 Energy HKS...</p>
+                            <div class="flex_justify">
+                                <div class="price">2 290.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-7.jpg" alt="img">
+                            <p class="product_name">Масло моторное Ford Formula F 5W-30, синтетическое, 5L</p>
+                            <div class="flex_justify">
+                                <div class="price">2 290.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-4.jpg" alt="img">
+                            <p class="product_name">Синтетическое моторное масло IDEMITSU 5W-30 SN/GF-5, 4L</p>
+                            <div class="flex_justify">
+                                <div class="price">2 290.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-8.jpg" alt="img">
+                            <p class="product_name">Масло моторное Ford Formula F 5W-30, синтетическое, 5L</p>
+                            <div class="flex_justify">
+                                <div class="price">2 290.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-9.jpg" alt="img">
+                            <p class="product_name">Масло моторное Ford Formula F 5W-30, синтетическое, 5L</p>
+                            <div class="flex_justify">
+                                <div class="price">2 290.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-10.jpg" alt="img">
+                            <p class="product_name">Синтетическое моторное масло IDEMITSU 5W-30 SN/GF-5, 4L</p>
+                            <div class="flex_justify">
+                                <div class="price">2 290.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-11.jpg" alt="img">
+                            <p class="product_name">Масло моторное Ford Formula F 5W-30, синтетическое, 5L</p>
+                            <div class="flex_justify">
+                                <div class="price">2 290.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-12.jpg" alt="img">
+                            <p class="product_name">Масло моторное Ford Formula F 5W-30, синтетическое, 5L</p>
+                            <div class="flex_justify">
+                                <div class="price">2 290.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-13.jpg" alt="img">
+                            <p class="product_name">Синтетическое моторное масло IDEMITSU 5W-30 SN/GF-5, 4L</p>
+                            <div class="flex_justify">
+                                <div class="price">2 290.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-14.jpg" alt="img">
+                            <p class="product_name">Масло моторное Ford Formula F 5W-30, синтетическое, 5L</p>
+                            <div class="flex_justify">
+                                <div class="price">2 290.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation_item">
+                            <img class="recommendation_item__img" src="./img/recom-img-15.jpg" alt="img">
+                            <p class="product_name">Масло моторное Ford Formula F 5W-30, синтетическое, 5L</p>
+                            <div class="flex_justify">
+                                <div class="price">2 290.0</div>
+                                <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex_justify">
+                                <p class="status_text">Статус</p>
+                                <p class="stock_text">В наличии</p>
+                            </div>
+                            <div class="products_overlay">
+                                <div class="flex_justify">
+                                    <p class="status_text">Артикул</p>
+                                    <p class="status_text__name">155D3A</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Производитель</p>
+                                    <p class="status_text__name">Ford</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Вязкость</p>
+                                    <p class="status_text__name">5W-30</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Объем, л</p>
+                                    <p class="status_text__name">5</p>
+                                </div>
+                                <div class="flex_justify">
+                                    <p class="status_text">Состав</p>
+                                    <p class="status_text__name">Синтетическое</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="paginate">
+                        <ul>
+                            <li><a class="active_link" href="catalog.html">1</a></li>
+                            <li><a href="#">2</a> </li>
+                            <li><a href="#">3</a> </li>
+                            <li><a href="#">4</a> </li>
+                            <li><a href="#">5</a> </li>
+                            <li><a href="#" class="more">…</a></li>
+                            <li><a href="#">17</a></li>
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <div id="content-2">
+            <div class="flex_justify">
+                <h4 class="catalog_heading">
+                    Моторные масла
+                </h4>
+                <div class="catalog_sort__main flex_justify align_items">
+                    <form class="sort_filter" action="" method="post" name="drop_down_box">
+                        <select class="sort_filter_text" size="1">
+                            <option class="sort_filter" selected="first">по умолчанию</option>
+                            <option class="sort_filter" value="selected" value="second">по возрастанию цены
+                            </option>
+                            <option class="sort_filter" value="third">по убыванию цены</option>
+                        </select>
+
+                    </form>
+                    <svg class="catalog_sort__left" width="20" height="20" viewBox="0 0 20 20" fill="none"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 12H12V17H18V12Z" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                        <path d="M8 12H2V17H8V12Z" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                        <path d="M18 3H12V8H18V3Z" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                        <path d="M8 3H2V8H8V3Z" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                    <svg class="catalog_sort__right" width="20" height="20" viewBox="0 0 20 20" fill="none"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M16.4 12H3.6C2.71634 12 2 12.5596 2 13.25V15.75C2 16.4404 2.71634 17 3.6 17H16.4C17.2837 17 18 16.4404 18 15.75V13.25C18 12.5596 17.2837 12 16.4 12Z"
+                            stroke="#C4C4C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        <path
+                            d="M16.4 3H3.6C2.71634 3 2 3.55964 2 4.25V6.75C2 7.44036 2.71634 8 3.6 8H16.4C17.2837 8 18 7.44036 18 6.75V4.25C18 3.55964 17.2837 3 16.4 3Z"
+                            stroke="#C4C4C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </div>
+            </div>
+            <div class="flex_justify">
+                <div class="catalog_filter__main">
+                    <div class="filter_top">
+                        <div class="price_filter">
+                            <div class="flex_justify">
+                                <p class="filter_heading">ФИЛЬТРЫ</p>
+                                <svg class="filter_top__svg" width="16" height="16" viewBox="0 0 16 16" fill="none"
+                                    xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M11 8H15" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round" />
+                                    <path d="M1 8L5 8" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round" />
+                                    <path
+                                        d="M7.99992 10.6666C9.47268 10.6666 10.6666 9.47268 10.6666 7.99992C10.6666 6.52716 9.47268 5.33325 7.99992 5.33325C6.52716 5.33325 5.33325 6.52716 5.33325 7.99992C5.33325 9.47268 6.52716 10.6666 7.99992 10.6666Z"
+                                        stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round" />
+                                </svg>
+                            </div>
+                            <p class="filter_heading">Цена</p>
+                            <div class="flex_justify">
+                                <div class="price_box_left">99</div>
+                                <div class="price_box_right">6990</div>
+                            </div>
+                            <div class="range_flex align_items">
+                                <p class="left_range"></p>
+                                <p class="center_range"></p>
+                                <p class="right_range"></p>
+                                <p class="end_range"></p>
+
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Производитель</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top">
+                        <div class="flex_justify">
+                            <p class="filter_heading filter_heading__padding">Тип масла</p>
+                            <svg class="filter_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path d="M1 1H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                            </svg>
+                        </div>
+                        <div class="flex_justify align_items filter_top_margin">
+                            <p class="text filter_text">Синтетические</p>
+                            <svg class="filter_check" width="28" height="14" viewBox="0 0 28 14" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <rect width="28" height="14" rx="6" fill="#668BEA" />
+                                <path
+                                    d="M12.5 6C12.5 2.96243 14.9624 0.5 18 0.5H22C25.0376 0.5 27.5 2.96243 27.5 6V8C27.5 11.0376 25.0376 13.5 22 13.5H18C14.9624 13.5 12.5 11.0376 12.5 8V6Z"
+                                    fill="white" stroke="#E2E2E2" />
+                            </svg>
+                        </div>
+                        <div class="flex_justify align_items filter_top_margin">
+                            <p class="text filter_text">Полусинтетические</p>
+                            <svg class="filter_check" width="28" height="14" viewBox="0 0 28 14" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <rect width="28" height="14" rx="6" fill="#E2E2E2" />
+                                <path
+                                    d="M0.5 6C0.5 2.96243 2.96243 0.5 6 0.5H10C13.0376 0.5 15.5 2.96243 15.5 6V8C15.5 11.0376 13.0376 13.5 10 13.5H6C2.96243 13.5 0.5 11.0376 0.5 8V6Z"
+                                    fill="white" stroke="#E2E2E2" />
+                            </svg>
+                        </div>
+                        <div class="flex_justify align_items filter_top_margin">
+                            <p class="text filter_text">Минеральные</p>
+                            <svg class="filter_check" width="28" height="14" viewBox="0 0 28 14" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <rect width="28" height="14" rx="6" fill="#E2E2E2" />
+                                <path
+                                    d="M0.5 6C0.5 2.96243 2.96243 0.5 6 0.5H10C13.0376 0.5 15.5 2.96243 15.5 6V8C15.5 11.0376 13.0376 13.5 10 13.5H6C2.96243 13.5 0.5 11.0376 0.5 8V6Z"
+                                    fill="white" stroke="#E2E2E2" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Вязкость SAE</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Объем</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Применяемость</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Стандарты ILSAC</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Тип трансмиссии</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Допуск GM</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Тара</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Цвет антифриза</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">ГОСТ</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Стандарт DIN</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Класс вязкости</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Типы двигателей</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Типы автомобилей</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Стандарты API</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top flex_justify">
+                        <p class="filter_heading">Стандарты ACEA</p>
+                        <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="filter_top filter_bottom flex_justify">
+                        <p class="filter_heading filter_heading__bottom">Сбросить все параметры</p>
+                        <button class="catalog_filter__btn"><svg class="filter_plus" width="10" height="10"
+                                viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M8.53542 1L4.99989 4.53553M4.99989 4.53553L1.46436 8.07107M4.99989 4.53553L1.46436 1M4.99989 4.53553L8.53542 8.07107"
+                                    stroke="white" stroke-width="2" stroke-linecap="round" />
+                            </svg></button>
+                    </div>
+                </div>
+                <div>
+                    <div class="catalog_item_top">
+                        <p class="catalog_item_text catalog_item_text1">Фото</p>
+                        <p class="catalog_item_text catalog_item_text2">Описание</p>
+                        <p class="catalog_item_text catalog_item_text3">Артикул</p>
+                        <p class="catalog_item_text catalog_item_text4">Кол-во</p>
+                        <p class="catalog_item_text catalog_item_text5">Цена</p>
+                        <p class="catalog_item_text catalog_item_text6">В корзину</p>
+                    </div>
+                    <div class="catalog_products__list">
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-1.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">155D3A</p>
+                            <p class="art_text">8</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-2.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">121D3A</p>
+                            <p class="art_text">18</p>
+                            <div class="price_list__div">
+                                <p class="price_list">1 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-5.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">1123Ап</p>
+                            <p class="art_text">30</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-6.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">1123Ап</p>
+                            <p class="art_text">30</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-5.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">1123Ап</p>
+                            <p class="art_text">30</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-6.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">1123Ап</p>
+                            <p class="art_text">30</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-7.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">1123Ап</p>
+                            <p class="art_text">30</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-8.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">1123Ап</p>
+                            <p class="art_text">30</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-9.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">1123Ап</p>
+                            <p class="art_text">30</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-10.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">1123Ап</p>
+                            <p class="art_text">30</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-11.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">1123Ап</p>
+                            <p class="art_text">30</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-12.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">1123Ап</p>
+                            <p class="art_text">30</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-13.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">1123Ап</p>
+                            <p class="art_text">30</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-14.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">1123Ап</p>
+                            <p class="art_text">30</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                        <div class="recommendation_item__list">
+                            <img class="recommendation_item__img__list" src="./img/recom-img-list-15.jpg" alt="img">
+                            <p class="product_name product_name__list">Масло моторное Ford Formula F 5W-30,
+                                синтетическое, 5L</p>
+                            <p class="art_text">1123Ап</p>
+                            <p class="art_text">30</p>
+                            <div class="price_list__div">
+                                <p class="price_list">2 290.0</p>
+                                <p class="price_list__last"> 2 390.0</p>
+                            </div>
+                            <div>
+                                <img class="cart_img__list" src="./img/cart.jpg" alt="img">
+                                <div class="quantity_block">
+                                    <button class="quantity-arrow-minus">
+                                        <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                            xmlns="http://www.w3.org/2000/svg">
+                                            <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                    <input class="quantity_num" type="number" value="1" />
+                                    <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                            fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                                stroke-linecap="round" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="stock_text stock_text__list">В наличии</p>
+                            </div>
+
+
+                        </div>
+                    </div>
+                    <div class="paginate">
+                        <ul>
+                            <li><a class="active_link" href="catalog.html">1</a></li>
+                            <li><a href="#">2</a> </li>
+                            <li><a href="#">3</a> </li>
+                            <li><a href="#">4</a> </li>
+                            <li><a href="#">5</a> </li>
+                            <li><a href="#" class="more">…</a></li>
+                            <li><a href="#">17</a></li>
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <div id="content-3">
+            Содержимое 3...
+        </div>
+        <div id="content-4">
+            Содержимое 4...
+        </div>
+        <div id="content-5">
+            Содержимое 5...
+        </div>
+        <div id="content-6">
+            Содержимое 6...
+        </div>
+        <div id="content-7">
+            Содержимое 7...
+        </div>
+        <div id="content-8">
+            Содержимое 8...
+        </div>
+        <div id="content-9">
+            Содержимое 9...
+        </div>
+        <div id="content-10">
+            Содержимое 10...
+        </div>
+    </div>
+    <div class="wrap tabs_catalog__mobile">
+        <div id="content-1">
+            <div class="filter_top__main">
+                <p class="filter_heading">ФИЛЬТРЫ</p>
+                <div class="flex_justify">
+                    <p class="catalog_filter__quantity">4</p>
+                    <a href="filter.html">
+                        <svg class="filter_catalog_mobile_svg" width="16" height="16" viewBox="0 0 16 16" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path d="M11 8H15" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                            <path d="M1 8L5 8" stroke="#668BEA" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                            <path
+                                d="M7.99992 10.6666C9.47268 10.6666 10.6666 9.47268 10.6666 7.99992C10.6666 6.52716 9.47268 5.33325 7.99992 5.33325C6.52716 5.33325 5.33325 6.52716 5.33325 7.99992C5.33325 9.47268 6.52716 10.6666 7.99992 10.6666Z"
+                                stroke="#668BEA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
+            <div>
+                <div class="catalog_products">
+                    <div class="recommendation_item">
+                        <img class="recommendation_item__img" src="./img/recom-img-1-mobile.jpg" alt="img">
+                        <p class="product_name">Синтетическое моторное масло MOBIL 1 ESP 5W-30, 1L</p>
+                        <div class="flex_justify">
+                            <div class="price">490.0</div>
+                            <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                            <div class="quantity_block">
+                                <button class="quantity-arrow-minus">
+                                    <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                        xmlns="http://www.w3.org/2000/svg">
+                                        <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+
+                                </button>
+                                <input class="quantity_num" type="number" value="1" />
+                                <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                        fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex_justify">
+                            <p class="status_text">Статус</p>
+                            <p class="stock_text">В наличии</p>
+                        </div>
+
+                    </div>
+                    <div class="recommendation_item">
+                        <img class="recommendation_item__img" src="./img/recom-img-2-mobile.jpg" alt="img">
+                        <p class="product_name">Синтетическое моторное масло MOBIL 1 ESP 5W-30, 1L</p>
+                        <div class="flex_justify">
+                            <div class="price">490.0</div>
+                            <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                            <div class="quantity_block">
+                                <button class="quantity-arrow-minus">
+                                    <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                        xmlns="http://www.w3.org/2000/svg">
+                                        <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+
+                                </button>
+                                <input class="quantity_num" type="number" value="1" />
+                                <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                        fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex_justify">
+                            <p class="status_text">Статус</p>
+                            <p class="stock_text">В наличии</p>
+                        </div>
+
+                    </div>
+                    <div class="recommendation_item">
+                        <img class="recommendation_item__img" src="./img/recom-img-3-mobile.jpg" alt="img">
+                        <p class="product_name">Синтетическое моторное масло IDEMITSU Zepro Touring 5W-30, 1L</p>
+                        <div class="flex_justify">
+                            <div class="price">490.0</div>
+                            <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                            <div class="quantity_block">
+                                <button class="quantity-arrow-minus">
+                                    <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                        xmlns="http://www.w3.org/2000/svg">
+                                        <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+
+                                </button>
+                                <input class="quantity_num" type="number" value="1" />
+                                <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                        fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex_justify">
+                            <p class="status_text">Статус</p>
+                            <p class="stock_text">В наличии</p>
+                        </div>
+
+                    </div>
+                    <div class="recommendation_item">
+                        <img class="recommendation_item__img" src="./img/recom-img-5-mobile.jpg" alt="img">
+                        <p class="product_name">Синтетическое моторное масло IDEMITSU Zepro Touring 5W-30, 1L</p>
+                        <div class="flex_justify">
+                            <div class="price">490.0</div>
+                            <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                            <div class="quantity_block">
+                                <button class="quantity-arrow-minus">
+                                    <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                        xmlns="http://www.w3.org/2000/svg">
+                                        <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+
+                                </button>
+                                <input class="quantity_num" type="number" value="1" />
+                                <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                        fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex_justify">
+                            <p class="status_text">Статус</p>
+                            <p class="stock_text">В наличии</p>
+                        </div>
+
+                    </div>
+                    <div class="recommendation_item">
+                        <img class="recommendation_item__img" src="./img/recom-img-6-mobile.jpg" alt="img">
+                        <p class="product_name">Синтетическое моторное масло IDEMITSU Zepro Touring 5W-30, 1L</p>
+                        <div class="flex_justify">
+                            <div class="price">490.0</div>
+                            <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                            <div class="quantity_block">
+                                <button class="quantity-arrow-minus">
+                                    <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                        xmlns="http://www.w3.org/2000/svg">
+                                        <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+
+                                </button>
+                                <input class="quantity_num" type="number" value="1" />
+                                <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                        fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex_justify">
+                            <p class="status_text">Статус</p>
+                            <p class="stock_text">В наличии</p>
+                        </div>
+
+                    </div>
+                    <div class="recommendation_item">
+                        <img class="recommendation_item__img" src="./img/recom-img-6-mobile.jpg" alt="img">
+                        <p class="product_name">Синтетическое моторное масло IDEMITSU Zepro Touring 5W-30, 1L</p>
+                        <div class="flex_justify">
+                            <div class="price">490.0</div>
+                            <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                            <div class="quantity_block">
+                                <button class="quantity-arrow-minus">
+                                    <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                        xmlns="http://www.w3.org/2000/svg">
+                                        <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+
+                                </button>
+                                <input class="quantity_num" type="number" value="1" />
+                                <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                        fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex_justify">
+                            <p class="status_text">Статус</p>
+                            <p class="stock_text">В наличии</p>
+                        </div>
+
+                    </div>
+                    <div class="recommendation_item">
+                        <img class="recommendation_item__img" src="./img/recom-img-7-mobile.jpg" alt="img">
+                        <p class="product_name">Синтетическое моторное масло IDEMITSU Zepro Touring 5W-30, 1L</p>
+                        <div class="flex_justify">
+                            <div class="price">490.0</div>
+                            <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                            <div class="quantity_block">
+                                <button class="quantity-arrow-minus">
+                                    <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                        xmlns="http://www.w3.org/2000/svg">
+                                        <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+
+                                </button>
+                                <input class="quantity_num" type="number" value="1" />
+                                <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                        fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex_justify">
+                            <p class="status_text">Статус</p>
+                            <p class="stock_text">В наличии</p>
+                        </div>
+
+                    </div>
+                    <div class="recommendation_item">
+                        <img class="recommendation_item__img" src="./img/recom-img-8-mobile.jpg" alt="img">
+                        <p class="product_name">Синтетическое моторное масло IDEMITSU Zepro Touring 5W-30, 1L</p>
+                        <div class="flex_justify">
+                            <div class="price">490.0</div>
+                            <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                            <div class="quantity_block">
+                                <button class="quantity-arrow-minus">
+                                    <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                        xmlns="http://www.w3.org/2000/svg">
+                                        <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+
+                                </button>
+                                <input class="quantity_num" type="number" value="1" />
+                                <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                        fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex_justify">
+                            <p class="status_text">Статус</p>
+                            <p class="stock_text">В наличии</p>
+                        </div>
+
+                    </div>
+                    <div class="recommendation_item">
+                        <img class="recommendation_item__img" src="./img/recom-img-9-mobile.jpg" alt="img">
+                        <p class="product_name">Синтетическое моторное масло IDEMITSU Zepro Touring 5W-30, 1L</p>
+                        <div class="flex_justify">
+                            <div class="price">490.0</div>
+                            <div><img class="cart_img" src="./img/cart.jpg" alt="img"></div>
+                            <div class="quantity_block">
+                                <button class="quantity-arrow-minus">
+                                    <svg class="svg_minus" width="12" height="2" viewBox="0 0 12 2" fill="none"
+                                        xmlns="http://www.w3.org/2000/svg">
+                                        <line x1="1" y1="1" x2="11" y2="1" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+
+                                </button>
+                                <input class="quantity_num" type="number" value="1" />
+                                <button class="quantity-arrow-plus"> <svg width="12" height="12" viewBox="0 0 12 12"
+                                        fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 1L6 11M1 6H11" stroke="white" stroke-width="2"
+                                            stroke-linecap="round" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex_justify">
+                            <p class="status_text">Статус</p>
+                            <p class="stock_text">В наличии</p>
+                        </div>
+
+                    </div>
+                </div>
+                <div class="paginate">
+                    <ul>
+                        <li><a class="active_link" href="catalog.html">1</a></li>
+                        <li><a href="#">2</a> </li>
+                        <li><a href="#">3</a> </li>
+                        <li><a href="#">4</a> </li>
+                        <li><a href="#">5</a> </li>
+                        <li><a href="#" class="more">…</a></li>
+                        <li><a href="#">17</a></li>
+                    </ul>
+                </div>
+            </div>
+
+
+        </div>
+
+    </div>
+    <div class="wrap questions flex_justify">
+        <div class="questions_left">
+            <p class="questions_text__1">Остались вопросы? </p>
+            <p class="questions_text__2">Получите профессианальную консультацию у наших специалистов. </p>
+        </div>
+        <div class="questions_right">
+            <p class="questions_text__3">Укажите ваш контактный номер</p>
+            <div class="subscribe_question">
+                <form class="subscribe_form submit">
+                    <input class="subscribe-form-field_question" placeholder="+7 900 123 90 00" type="tel"
+                        minlength="10" maxlength="15" required=""><input
+                        class="subscribe-form-btn subscribe-form-btn_question" type="submit" value="Заказать звонок">
+                </form>
+            </div>
+            <div class="questions_right__flex">
+                <svg class="filter_check__question" width="28" height="14" viewBox="0 0 28 14" fill="none"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <rect width="28" height="14" rx="6" fill="#668BEA"></rect>
+                    <path
+                        d="M12.5 6C12.5 2.96243 14.9624 0.5 18 0.5H22C25.0376 0.5 27.5 2.96243 27.5 6V8C27.5 11.0376 25.0376 13.5 22 13.5H18C14.9624 13.5 12.5 11.0376 12.5 8V6Z"
+                        fill="white" stroke="#E2E2E2"></path>
+                </svg>
+                <p class="questions_text__3">Согласие на обработку <span class="questions_text__4">персональных
+                        данных</span></p>
+            </div>
+        </div>
+    </div>
+    <div class="wrap questions_mobile flex_justify">
+        <div class="questions_left">
+            <p class="questions_text__1">Остались вопросы? </p>
+            <p class="questions_text__2">Получите профессианальную консультацию у наших специалистов. </p>
+            <div class="subscribe_question">
+                <form class="subscribe_form submit">
+                    <input class="subscribe-form-btn subscribe-form-btn_question" type="submit" value="Заказать звонок">
+                </form>
+            </div>
+        </div>
+    </div>
+    <footer class="footer container">
+        <div class="wrap footer_flex">
+            <div>
+                <h3 class="footer_heading">Каталог продукции</h3>
+                <ul class="footer_catalog__flex">
+                    <div class="display_column">
+                        <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Запачсти для ТО</a>
+                        </li>
+                        <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Запчасти</a></li>
+                        <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Масла и автохимия</a>
+                        </li>
+                        <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">EVA коврики</a></li>
+                        <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Автолампы</a></li>
+                    </div>
+                    <div class="display_column">
+                        <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Аккумуляторы</a></li>
+                        <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Шины и диски</a></li>
+                        <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Аксессуары</a></li>
+                        <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Инструмент</a></li>
+                        <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Спецпредложения</a>
+                        </li>
+                    </div>
+                </ul>
+            </div>
+            <div class="footer_services">
+                <h3 class="footer_heading">Услуги</h3>
+                <ul>
+                    <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Техосмотр</a></li>
+                    <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Диагностика авто</a></li>
+                    <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Рулевое управление</a>
+                    </li>
+                    <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Установка
+                            доп.оборудования</a></li>
+                    <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Подвеска</a></li>
+                    <li class="footer_catalog__item"><a class="footer_catalog__link" href="#">Шномонтаж</a></li>
+                </ul>
+            </div>
+            <div>
+                <a class="footer_heading__link" href="#">
+                    <h3 class="footer_heading">О нас</h3>
+                </a>
+                <a class="footer_heading__link" href="#">
+                    <h3 class="footer_heading">Клиентам</h3>
+                </a>
+                <a class="footer_heading__link" href="#">
+                    <h3 class="footer_heading">Поставщикам</h3>
+                </a>
+                <a class="footer_heading__link" href="#">
+                    <h3 class="footer_heading">Оптовым клиентам</h3>
+                </a>
+
+            </div>
+            <div class="footer_contacts">
+                <h3 class="footer_heading">Контакты</h3>
+                <div class="address">
+                    <div class="flex_justify">
+                        <p class="footer_city__name">РТ, Елабуга, пр-т Нефтяников 4</p><svg class="footer_contact__svg"
+                            width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M2.66659 2.66663H13.3333C14.0666 2.66663 14.6666 3.26663 14.6666 3.99996V12C14.6666 12.7333 14.0666 13.3333 13.3333 13.3333H2.66659C1.93325 13.3333 1.33325 12.7333 1.33325 12V3.99996C1.33325 3.26663 1.93325 2.66663 2.66659 2.66663Z"
+                                stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            <path d="M14.6666 4L7.99992 8.66667L1.33325 4" stroke="white" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </div>
+                    <div class="footer_contact__info">
+                        <details class="footer_contact_tel">
+                            <summary class="footer_text_contact"><span class="footer_span__auto">Иномарки</span> 8 987
+                                262 45 85
+                                <svg class="footer_text_contact__svg" width="7" height="4" viewBox="0 0 8 6" fill="none"
+                                    xmlns="http://www.w3.org/2000/svg">
+                                    <path
+                                        d="M7.33334 1.1133C7.20843 0.989128 7.03946 0.919434 6.86334 0.919434C6.68722 0.919434 6.51825 0.989128 6.39334 1.1133L4.00001 3.4733L1.64001 1.1133C1.5151 0.989128 1.34613 0.919434 1.17001 0.919434C0.993883 0.919434 0.824915 0.989128 0.700006 1.1133C0.637521 1.17527 0.587925 1.249 0.554079 1.33024C0.520233 1.41148 0.502808 1.49862 0.502808 1.58663C0.502808 1.67464 0.520233 1.76177 0.554079 1.84301C0.587925 1.92425 0.637521 1.99799 0.700006 2.05996L3.52667 4.88663C3.58865 4.94912 3.66238 4.99871 3.74362 5.03256C3.82486 5.0664 3.912 5.08383 4.00001 5.08383C4.08801 5.08383 4.17515 5.0664 4.25639 5.03256C4.33763 4.99871 4.41136 4.94912 4.47334 4.88663L7.33334 2.05996C7.39582 1.99799 7.44542 1.92425 7.47927 1.84301C7.51311 1.76177 7.53054 1.67464 7.53054 1.58663C7.53054 1.49862 7.51311 1.41148 7.47927 1.33024C7.44542 1.249 7.39582 1.17527 7.33334 1.1133Z"
+                                        fill="#FFFFFF" />
+                                </svg>
+                            </summary>
+                            <div class="footer_contacts">
+                                <div class="footer_contacts__flex">
+                                    <span class="footer_span__auto">Иномарки</span>
+                                    <p class="footer_text_contact footer_text_contact__padding">8 987
+                                        262 45 85</p>
+                                </div>
+                                <div class="footer_contacts__flex">
+                                    <span class="footer_span__auto">Иномарки</span>
+                                    <p class="footer_text_contact footer_text_contact__padding">8 987
+                                        262 45 85</p>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+
+                </div>
+                <div class="address">
+                    <div class="flex_justify">
+                        <p class="footer_city__name">РТ, Елабуга, ул. Баки Урманче, 17а</p><svg
+                            class="footer_contact__svg" width="16" height="16" viewBox="0 0 16 16" fill="none"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M2.66659 2.66663H13.3333C14.0666 2.66663 14.6666 3.26663 14.6666 3.99996V12C14.6666 12.7333 14.0666 13.3333 13.3333 13.3333H2.66659C1.93325 13.3333 1.33325 12.7333 1.33325 12V3.99996C1.33325 3.26663 1.93325 2.66663 2.66659 2.66663Z"
+                                stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            <path d="M14.6666 4L7.99992 8.66667L1.33325 4" stroke="white" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </div>
+                    <div class="footer_contact__info">
+                        <details class="footer_contact_tel">
+                            <summary class="footer_text_contact"><span class="footer_span__auto">Иномарки</span> 8 919
+                                626 03 09
+                                <svg class="footer_text_contact__svg" width="7" height="4" viewBox="0 0 8 6" fill="none"
+                                    xmlns="http://www.w3.org/2000/svg">
+                                    <path
+                                        d="M7.33334 1.1133C7.20843 0.989128 7.03946 0.919434 6.86334 0.919434C6.68722 0.919434 6.51825 0.989128 6.39334 1.1133L4.00001 3.4733L1.64001 1.1133C1.5151 0.989128 1.34613 0.919434 1.17001 0.919434C0.993883 0.919434 0.824915 0.989128 0.700006 1.1133C0.637521 1.17527 0.587925 1.249 0.554079 1.33024C0.520233 1.41148 0.502808 1.49862 0.502808 1.58663C0.502808 1.67464 0.520233 1.76177 0.554079 1.84301C0.587925 1.92425 0.637521 1.99799 0.700006 2.05996L3.52667 4.88663C3.58865 4.94912 3.66238 4.99871 3.74362 5.03256C3.82486 5.0664 3.912 5.08383 4.00001 5.08383C4.08801 5.08383 4.17515 5.0664 4.25639 5.03256C4.33763 4.99871 4.41136 4.94912 4.47334 4.88663L7.33334 2.05996C7.39582 1.99799 7.44542 1.92425 7.47927 1.84301C7.51311 1.76177 7.53054 1.67464 7.53054 1.58663C7.53054 1.49862 7.51311 1.41148 7.47927 1.33024C7.44542 1.249 7.39582 1.17527 7.33334 1.1133Z"
+                                        fill="#FFFFFF" />
+                                </svg>
+                            </summary>
+                            <div class="footer_contacts">
+                                <div class="footer_contacts__flex">
+                                    <span class="footer_span__auto">Иномарки</span>
+                                    <p class="footer_text_contact footer_text_contact__padding">8 919 626 03 09</p>
+                                </div>
+                                <div class="footer_contacts__flex">
+                                    <span class="footer_span__auto">Иномарки</span>
+                                    <p class="footer_text_contact footer_text_contact__padding">8 919 626 03 09</p>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+        <div class="wrap subscribe">
+            <p class="subscribe_text">Подписка на новости и акции компании</p>
+            <form class="subscribe_form submit">
+                <input class="subscribe-form-field" placeholder="Электронная почта" type="email" minlength="3"
+                    maxlength="40" required><input class="subscribe-form-btn" type="submit" value="Подписаться">
+            </form>
+        </div>
+        <div class="wrap flex_justify copyright_flex">
+
+            <p class="copyright_text">© 2021 Лидер <br> <a class="peronal_data__link" href="#">Правила обработки
+                    персональных данных</a></p>
+            <div class="social_links">
+                <a href="#"><img src="./img/facebook.png" alt="img"></a>
+                <a href="#"><img src="./img/vkontakte.png" alt="img"></a>
+                <a href="#"><img src="./img/Instagram.png" alt="img"></a>
+                <a href="#"><img src="./img/youTube.png" alt="img"></a>
+                <a href="#"><img src="./img/telegram.png" alt="img"></a>
+                <a href="#"><img src="./img/whatsApp.png" alt="img"></a>
+            </div>
+            <a class="copyright_text" href="#">
+                <p class="peronal_data__link"><span class="copyright_text">Создание сайтов —</span> Неткам</p>
+            </a>
+        </div>
+    </footer>
+
+
+
+
+    <script>
+        $(function () {
+
+            (function quantityProducts() {
+                var $quantityArrowMinus = $(".quantity-arrow-minus");
+                var $quantityArrowPlus = $(".quantity-arrow-plus");
+                var $quantityNum = $(".quantity_num");
+
+                $quantityArrowMinus.click(quantityMinus);
+                $quantityArrowPlus.click(quantityPlus);
+
+                function quantityMinus() {
+                    if ($quantityNum.val() > 1) {
+                        $quantityNum.val(+$quantityNum.val() - 1);
+                    }
+                }
+
+                function quantityPlus() {
+                    $quantityNum.val(+$quantityNum.val() + 1);
+                }
+            })();
+
+        });
+    </script>
+
+</body>

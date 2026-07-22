@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+</head>
+
+<body>
+    <div class="filter_catalog__content filter_catalog__content__open">
+        <div class="filter_top__main filter_top__main__open">
+            <p class="filter_heading">ФИЛЬТРЫ</p>
+            <div class="flex_justify">
+                <p class="catalog_filter__quantity">4</p>
+                <a href="catalog.html">
+                    <svg class="filter_catalog_mobile_svg" width="10" height="10" viewBox="0 0 10 10" fill="none"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 1L5 5M5 5L1 9M5 5L1 1M5 5L9 9" stroke="#668BEA" stroke-width="2"
+                            stroke-linecap="round" />
+                    </svg>
+                </a>
+            </div>
+        </div>
+        <p class="filter_heading filter_heading__margin">Показывать</p>
+        <div class="catalog_sort__main catalog_sort__main__mobile flex_justify align_items">
+            <form class="sort_filter" action="" method="post" name="drop_down_box">
+                <select class="sort_filter_text" size="1">
+                    <option class="sort_filter" selected="first">по умолчанию</option>
+                    <option class="sort_filter" value="selected" value="second">по возрастанию цены
+                    </option>
+                    <option class="sort_filter" value="third">по убыванию цены</option>
+                </select>
+            </form>
+        </div>
+        <p class="filter_heading filter_heading__margin">Цена, руб.</p>
+        <div class="filter_heading__margin">
+            <div class="price_filter">
+                <div class="flex_justify">
+                    <div class="price_box_left">99</div>
+                    <div class="price_box_right">6990</div>
+                </div>
+            </div>
+        </div>
+        <div class="filter_heading__margin range_flex align_items">
+            <p class="left_range"></p>
+            <p class="center_range"></p>
+            <p class="right_range"></p>
+            <p class="end_range"></p>
+
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Производитель</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Тип масла</p>
+            <div class="flex_justify">
+                <p class="catalog_filter__quantity">2</p>
+                <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+                </svg>
+            </div>
+        </div>
+
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Вязкость SAE</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Объем</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Применяемость</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Стандарты ILSAC</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Тип трансмиссии</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Допуск GM</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Тара</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Цвет антифриза</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">ГОСТ</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Стандарт DIN</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Класс вязкости</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Типы двигателей</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Типы автомобилей</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Стандарты API</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top flex_justify">
+            <p class="filter_heading">Стандарты ACEA</p>
+            <svg class="filter_plus" width="12" height="12" viewBox="0 0 12 12" fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 1L6 11M1 6H11" stroke="#668BEA" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        </div>
+        <div class="filter_top filter_bottom flex_justify">
+            <p class="filter_heading filter_heading__bottom">Сбросить все параметры</p>
+            <button class="catalog_filter__btn"><svg class="filter_plus" width="10" height="10" viewBox="0 0 10 10"
+                    fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M8.53542 1L4.99989 4.53553M4.99989 4.53553L1.46436 8.07107M4.99989 4.53553L1.46436 1M4.99989 4.53553L8.53542 8.07107"
+                        stroke="white" stroke-width="2" stroke-linecap="round" />
+                </svg></button>
+        </div>
+    </div>
+</body>

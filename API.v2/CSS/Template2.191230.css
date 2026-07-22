@@ -1,0 +1,383 @@
+@charset "utf-8";
+
+html, body, div, span, applet, object, iframe, table, caption, tbody, tfoot, thead, tr, th, td,
+del, dfn, em, font, img, ins, kbd, q, s, samp, small, strike, strong, sub, sup, tt, var,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre, a, abbr, acronym, address, big, cite, code,
+dl, dt, dd, ol, ul, li, fieldset, form, label, legend,
+input, textarea, button
+{vertical-align:baseline; font-family:inherit; font-weight:inherit; font-style:inherit; outline:0; padding:0; margin:0; border:0; box-sizing:border-box; background-repeat:no-repeat !important;}
+article, aside, details, figcaption, figure, footer, header, hgroup, menu, nav, section {display: block;}
+body 			{font-family:'Segoe UI', "Proxima Nova", "Helvetica Neue",Helvetica,Arial,sans-serif;}
+:focus 			{outline:0;}
+ol, ul, li		{list-style:none;}
+table 			{border-collapse:separate; border-spacing:0;}
+caption, th, td	{font-weight:normal; text-align:center;}
+blockquote:before,
+blockquote:after,
+q:before,
+q:after 		{content:"";}
+blockquote, q	{quotes:"" "";}
+.Hidden 		{display: none;}
+.Clear 			{clear: both;}
+
+html 		{height:100%;}
+label		{cursor:pointer;}
+a			{color:rgb(59, 168, 243);}
+img			{position:relative;}
+input 			{padding:7px 12px; border:solid 1px #CCC; color:#666; border-radius: 3px;}
+select 			{padding:2px 5px; border:solid 1px #CCC; color:#333; border-radius: 3px;}
+button 			{padding:7px 12px; color:#FFF; background-color: rgb(59, 168, 243); border-radius: 3px; font-size: 1.1em; cursor: pointer;}
+button:hover 	{background-color:#ff7000;}
+button:disabled 	{background-color:#EEE;}
+h1 			{font-size: 1.45em; margin:5px 0 15px 0px; text-align: center;}
+h2			{font-size: 1.2em; padding:20px 0; text-align: center;}
+
+table		{color:#333; max-width:100%;}
+table th		{padding:6px 8px; font-size:0.85em; font-weight:bold; border:solid 1px #DDD;}
+table td		{padding:4px 5px; text-align:left; vertical-align:top; font-size:0.85em; border:solid 1px #DDD;}
+
+body 		{display: flex; flex-direction: column; justify-content:space-between; padding: 5px 0px 10px 0px; font-size: 15px; color:#666; width: 100%; min-height: 100%; background-color: #FFF;}
+
+header 		{}
+header .Top 		{display: flex; justify-content:space-between; text-transform: uppercase;}
+.PageHeader .Top 		{display: flex; justify-content:space-between; text-transform: uppercase; width: 100%;}
+
+#MainMenu 				{font-size:0.9em;}
+#MainMenu li 			{display: inline-block; margin:5px 20px;}
+#MainMenu li a 			{text-decoration: none;}
+#MainMenu li.Image		{display: none;}
+
+#Languages  			{text-align: right; white-space: nowrap;}
+#Languages li 			{display: inline-block; padding:0 10px;}
+#Languages li a 		{opacity:0.4;}
+#Languages li a:hover 	{opacity:1;}
+
+#Vins 				{margin-top: 3px; border-top: solid 1px #CCC;  border-bottom: solid 1px #CCC;}
+#Vins input 		{flex-grow: 1; height:36px; font-size: 1.1em; border: solid 1px #CCC; border-right: none; border-top-right-radius: 0; border-bottom-right-radius: 0;}
+#Vins button 		{border-top-left-radius: 0; height:36px; border-bottom-left-radius: 0;}
+#Vins div.SearchMessage 	{min-height: 15px; margin:5px 0 0 10px; font-size: 0.75em;}
+#Vins div.SearchMessage a 	{}
+
+#VinSearchForm 		{display: flex; min-height: 75px; padding:12px 30px 7px 30px; background-color: #DDD;}
+#VinSearchForm>form {display: flex; align-content: flex-start; flex-wrap: wrap; flex-basis: 440px; margin-right: 30px;}
+
+#Vins .CurrentVin 	{color:rgb(59, 168, 243); cursor: pointer;}
+
+#Vins .CurrentVin.Opened	span 		{display: none;}
+#Vins .CurrentVin.Opened	span.Hide 	{display: block;}
+
+#Vins div.VinInfo 				{display: non;}
+#Vins div.VinInfo div.VinCard 	{display: flex; justify-content:flex-start; align-items: flex-start; margin:20px 40px 30px 40px; padding:20px 40px; color:#777;}
+
+#Vins div.VinInfo div.VinCard table 		{min-width: 420px; max-width: 600px; margin:0;}
+#Vins div.VinInfo div.VinCard table td  	{text-align: left; font-size: 13px; border:none;}
+#Vins div.VinInfo div.VinCard table th 		{text-align: left; font-size: 15px;border:none;}
+#Vins div.VinInfo div.VinCard table td.Left 			{width:170px; text-align: right;}
+#Vins div.VinInfo div.VinCard table td.Center 			{padding: 25px 15px 15px 100px;}
+#Vins div.VinInfo div.VinCard table a 		{font-size: 17px; text-decoration: none; margin:5px; padding:8px 20px;  border-radius: 3px;}
+#Vins div.VinInfo div.VinCard table select 		{position: relative; top:-5px;}
+
+#Vins div.VinInfo div.VinCard div.Options 				{padding:10px 20px; border-radius: 3px; display: inline-block;}
+#Vins div.VinInfo div.VinCard div.Options.Wide 			{width:100%;}
+#Vins div.VinInfo div.VinCard div.Options ul 			{margin:10px 0; display: none;  font-size: 13px; -webkit-columns:300px auto; -moz-columns:300px auto; columns:300px auto;}
+#Vins div.VinInfo div.VinCard div.Options ul li span  	{display: inline-block; min-width: 35px; font-weight: bold; text-align: left;}
+
+#Vins div.VinInfo div.VinCard div.Options div.Header 	{ cursor:pointer; height: auto; font-size: 16px; color:rgb(59, 168, 243);}
+
+#Vins .Hide								 {display: none;}
+#Vins .Options .Header.Opened span  	{display: none;}
+#Vins .Options .Header.Opened span.Hide {display: block;}
+#Vins.NoVin 							{border-bottom: none; height: 3px}
+#Vins.NoVin div 						{display: none;}
+
+footer 		{display:flex; font-size:0.8em; justify-content:space-around; flex-wrap:wrap}
+footer>div 	{padding:0 2em;}
+footer a	{text-decoration: none;}
+.PageFooter 	{display:flex; font-size:0.8em; justify-content:space-around; flex-wrap:wrap}
+.PageFooter>div {padding:0 2em;}
+.PageFooter a	{text-decoration: none;}
+
+#Body 		{flex-grow: 1; padding:10px 20px; margin-bottom:7px;  border-bottom: solid 3px #CCC;}
+
+div.Column 		{display:inline-block; margin-right: 20px; vertical-align: top;}
+div.Column:last-child 		{margin-right: 0;}
+
+#Body>div 							{display: flex;}
+
+#Body>div.List div.List 			{margin:0 0 10px 0; padding:10px 20px; border: solid 1px #DDD; border-radius: 3px; background-color: #FFF;}
+#Body>div.List div.List>div 		{display:inline-block; margin-right:10px;}
+#Body>div.List div.List>div:last-child 		{margin-right:0;}
+
+#Body div.List.Multilist div.List div.Header 					{display: block; cursor:pointer; color:rgb(59, 168, 243);}
+#Body div.List.Multilist div.List div.Header>* 					{display: inline-block; margin-right:10px;}
+#Body div.List.Multilist div.List div.Header>*:last-child 		{margin-right:0;}
+#Body div.List.Multilist div.List div.List 						{display: block; margin:5px 0 0 10px; padding:0; border: none; font-size: 0.95em;}
+#Body div.List.Multilist div.Column>div.List>div.List 			{display: none;}
+
+#Body div.List.Multilist div.description {font-size: 0.8em; color:#666 !important; font-style: italic; padding-left: 20px !important;}
+#Body div.List.Multilist div.usage {margin:5px 0;}
+
+#Body div.Tiles							{justify-content: center;}
+#Body div.Tiles>div.List 				{display: flex; justify-content: space-around; flex-wrap: wrap; text-align: center; }
+#Body div.Tiles>div.List>div.List		{display: inline-block; display: flex; justify-content: space-between; flex-direction: column; vertical-align: top; width:300px; heigh: 240px; margin:20px; padding: 5px; text-align: center; border:solid 1px #DDD; border-radius: 3px; box-shadow1: 0 0 3px #DDD;background-color: #FFF;}
+#Body div.Tiles>div.List>div.List>div img 		{max-width: 90%; max-height: 150px;}
+#Body div.Tiles>div.List>div.List>div:nth-child(2) 		{flex-grow: 2; display: flex; flex-direction: column; justify-content: center;}
+#Body div.Tiles>div.List>div.List>div:nth-child(3) 		{font-size: 0.8em;}
+
+
+
+
+
+.ifImage  							{height: 100%; display: flex; justify-content: center;}
+.ifImage div.Images 				{position: relative; flex-grow: 2; max-width: 70%;}
+#Body.ifImageBody 					{display: flex; flex-direction: column; }
+
+.ifImage div.Images div.ImageArea 		{position: relative; overflow: auto; text-align: center; margin-top: 0px; overflow: hidden;}
+.ifImage div.Images div.ImageArea .AnimatedWaiting 		{background: rgba(0,0,0,0.07) url("AnimatedWaiting.gif") no-repeat center; position:absolute; width:100%; height:100%;}
+.ifImage div.Images div.ImageArea img 	{cursor: grab; max-width: none !important;}
+.ifImage div.Images div.Image 			{margin:auto;}
+
+.ifImage div.Info  				{min-width:30%; max-width:45%;  margin:0 0 0 30px; overflow: auto;}
+.ifImage table 					{margin-bottom:5px; width:100%; background-color: #FFF;}
+.ifImage table tr.Active		{cursor: pointer;}
+.ifImage table tr td:nth-child(1)		{text-align: center;}
+
+
+div.ImageMap 	{position: relative;}
+map			{position:absolute; width:100px; left:0; top:0;}
+map div		{width:36px; height:25px; position:absolute; border:solid 1px #BBB; border-radius:2px; cursor:pointer; color:#000; display: flex; justify-content: center; align-content: center;}
+map div.NotUsable	{border:solid 1px #AAA; background-color:#FBB; opacity:0.5; cursor:auto;}
+
+#ImagesControlPanel 				{display: inline-block; text-align: left; position: absolute; top:-60px; left:40px; padding:10px; z-index: 1000; font-size:0.8em;}
+#ImagesControlPanel div 			{display: block; margin: 10px 0 20px 0;}
+#ImagesControlPanel div>*			{text-decoration: none; padding:5px 10px; color:#FFF; border-radius: 0; border-top:solid 1px rgb(59, 168, 243); border-bottom:solid 1px rgb(59, 168, 243); border-right:solid 1px rgb(90, 220, 255); background-color: rgb(59, 168, 243); font-size: 1.1em; cursor: pointer; text-shadow1: 0 0 4px rgb(0, 0, 150); }
+#ImagesControlPanel div a.Disabled, #ImagesControlPanel button:disabled 		{color:#666; background-color: #FFF;}
+#ImagesControlPanel div>*:first-child 	{border-bottom-left-radius: 3px; border-top-left-radius: 3px; border-left:solid 1px rgb(59, 168, 243);}
+#ImagesControlPanel div>*:last-child 	{border-bottom-right-radius: 3px; border-top-right-radius: 3px; border-right:solid 1px rgb(59, 168, 243);}
+
+#ImagesControlPanel button 				{padding:4px 7px;}
+#ImagesControlPanel button.CurrentScale {padding:4px 7px;}
+
+.ifImage .Images .Move				{line-height: 1.3em; display: flex;font-size: 0.8em; justify-content: center; margin-top: 1em; align-items: center;}
+.ifImage .Images .Move span 		{}
+.ifImage .Images .Move button		{width:2em; height: 2em; margin-right: 0.5em; padding:5px 10px; border-radius: 3px; border:solid 1px rgb(59, 168, 243); background: rgb(59, 168, 243) url('//static.ilcats.ru/API.v2/Icons/Move.png') center;}
+
+.HighLighted	{	}
+map .HighLighted	{border: solid 1px #777; background-color:rgba(255,255,200,0.5) !important;}
+map .HighLighted.Opacity1	{border: solid 1px #777; background-color:rgba(255,255,200,1) !important;}
+.Choosen		{background-color:#FFC;}
+map div.NotUsable	{border:solid 1px #AAA; background-color:#FBB; opacity:0.5; cursor:auto;}
+map div.Choosen		{background-color:rgba(255,255,222,0.5); border:solid 2px #0B68DF;}
+#Dialog 		{display: none;}
+.ui-dialog 		{z-index: 1100;}
+
+#Body.ifFormBody>div 					{display: block;}
+#Body .Form .Field 						{margin:10px 0;}
+#Body .Form .Field .Header				{font-size: 1.3em; margin:0 0 10px 0;}
+#Body .Form .Field input				{position: relative; top:1px;}
+#Body .Form .Field label 				{margin:0 10px 0 0;}
+#Body .Form .Field label span			{margin:0 5px;}
+#Body .Form button						{margin:5px 0 0 0;}
+#Body .Form .Field select 				{background-color: #FFF;}
+#Body .Form .Field select option 				{background-color: transparent; border:solid 1px #00FF00; color:#000000;}
+
+
+.ifButtonsSetBody .CatalogGroup 			{margin-bottom: 30px; flex-wrap: wrap; justify-content: center;}
+.ifButtonsSetBody h2 			 			{font-size: 1.5em; text-align: center;}
+.ifButtonsSetBody .CatalogGroup a 			{display: inline-block; text-align: center; margin:0 10px 10px 0;}
+.ifButtonsSetBody .CatalogGroup img 		{display: block;}
+
+.Advert 				{display: block !important; text-align: center; margin:20px 0 25px 0;}
+.Advert2 				{margin:25px 0 20px 0;}
+
+.ifImage .Info table   	{font-size: 1.1em; font-family: "Proxima Nova Condensed", 'Segoe UI', "Helvetica Neue", Helvetica, Arial, sans-serif;}
+.ifImage .Info table .name {font-weight: 600; font-size: 1.1em;}
+.ifImage .Info table .number {font-size: 1.1em;}
+
+.ifImage .Info table .partAdditionalInfo {text-align: right; margin-top: 0.5em;}
+.ifImage .Info table .partAdditionalInfo a {margin-left: 0.5em; }
+.ifImage .Info table .partAdditionalInfo img {width: 18px;}
+.ifImage .Info table .FlexCell {display: flex; flex-direction: column; justify-content: space-between;}
+
+#Dialog .PartAdditionalInfoLinks 		{display: flex; justify-content: space-around; padding-bottom: 7px;  margin-bottom: 15px; border-bottom: solid 1px #EEE;}
+#Dialog .PartAdditionalInfoLinks a 		{text-decoration: none;font-weight: bold; cursor: pointer; -webkit-filter: grayscale(100%);-moz-filter: grayscale(100%);-ms-filter: grayscale(100%);-o-filter: grayscale(100%);filter: grayscale(100%);filter: gray;}
+#Dialog .PartAdditionalInfoLinks a.Active 		{cursor: default; -webkit-filter: none;
+	-moz-filter: none;
+	-ms-filter: none;
+	-o-filter: none;
+	filter: none;
+	-webkit-transition: all 0.5s;
+	-moz-transition: all 0.5s;
+	-o-transition: all 0.5s;
+	transition: all 0.5s;}
+#Dialog .PartAdditionalInfoLinks a:not(.Active):hover span 		{text-decoration: underline;}
+#Dialog .PartAdditionalInfoLinks a img 	{top:5px; }
+.ifImage .Info table a img 	{-webkit-filter: grayscale(100%);-moz-filter: grayscale(100%);-ms-filter: grayscale(100%);-o-filter: grayscale(100%);filter: grayscale(100%);filter: gray;}
+.ifImage .Info table a:hover img 	{
+	-webkit-filter: none;
+	-moz-filter: none;
+	-ms-filter: none;
+	-o-filter: none;
+	filter: none;
+	-webkit-transition: all 0.5s;
+	-moz-transition: all 0.5s;
+	-o-transition: all 0.5s;
+	transition: all 0.5s;
+}
+
+#Dialog .PartAdditionalInfoBody 		{text-align: center;}
+#Dialog .PartAdditionalInfoBody>* 		{margin:0 auto 7px auto; width: 100%;}
+#Dialog .PartAdditionalInfoBody .Image  {height:400px;}
+#Dialog .PartAdditionalInfoBody .Image img  	{height:100%; width: auto;}
+
+.ui-tooltip           {width:24em; border:solid 1px #CCC; box-shadow: 0px 0px 3px #666666;}
+
+.MagnifiedTitle       {height:20em;width:19em; background-position: center; background-size: contain;}
+
+.PageSelector          {display: flex; justify-content: center;}
+.PageSelector li       { border: solid 1px #DDD; border-right: none; }
+.PageSelector li.Empty {min-width: 2em;text-align: center; padding-top: 0.7em; font-size: 0.8em;}
+.PageSelector li.Active {min-width: 2em;text-align: center;  padding: 0.3em 0.5em;}
+.PageSelector li.Arrow {}
+.PageSelector li a     {display: inline-block; padding: 0.3em 0.5em; min-width: 2em;text-decoration: none; text-align: center; }
+.PageSelector li:first-of-type     {border-top-left-radius: 0.2em;border-bottom-left-radius: 0.2em;}
+.PageSelector li:last-of-type     {border-top-right-radius: 0.2em;border-bottom-right-radius: 0.2em; border-right: solid 1px #DDD;}
+
+
+
+.ifAdvancedForm {display:block !important; margin-bottom: 2em;}
+.ifAdvancedForm .PopGroup       {margin:1em 0;}
+
+.ifAdvancedForm .FilterHeader {border1: solid 1px #DDD; background-color: rgba(59, 168, 243, 0.8); padding: 0.5em 0.8em; font-size: 1.1em; cursor: pointer; text-align: center;}
+.ifAdvancedForm .FilterHeader .FilterSwitch {color:#FFF; font-weight: 600;}
+.ifAdvancedForm .FilterHeader:hover {text-decoration: underline;}
+.ifAdvancedForm .PopFieldsButtons       {font-size: 1.1em; font-weight: bold; text-align: center;}
+.ifAdvancedForm .PopFieldsButtons span {display: inline-block; margin:0.5em 0.8em 0em 1em; cursor: pointer; color:rgb(59, 168, 243);}
+.ifAdvancedForm .PopFieldsButtons span:hover {text-decoration: underline;}
+.ifAdvancedForm .PopFieldsButtons span.Active {color:#666; cursor:auto; text-decoration: underline;}
+
+
+
+
+.AdvancedFormField       {text-align: center; border: solid 1px #DDD; width: 100%;}
+.AdvancedFormField .FieldHeader             {display: flex; align-items: center; background-color: #EEE; cursor: pointer;}
+.AdvancedFormField .FieldHeader .Name       {text-align: left; padding: 0.3em 0.8em; font-size: 1.1em; font-weight: bold;}
+.AdvancedFormField .FieldHeader .PopGroupButtons       {}
+.AdvancedFormField .FieldHeader .PopGroupButtons span {display: inline-block; margin:0 0.5em; cursor: pointer; color:rgb(59, 168, 243);}
+.AdvancedFormField .FieldHeader .PopGroupButtons span:hover {text-decoration: underline;}
+.AdvancedFormField .FieldHeader .PopGroupButtons span.Active {color:#666; cursor:auto; text-decoration: underline;}
+
+.AdvancedFormField .ValuePopGroup  {display:flex; flex-wrap: wrap; padding: 1em 2em;}
+.AdvancedFormField .ValuePopGroup label  {width: 13em; text-align: left; margin-right: 2.5em;}
+.AdvancedFormField .ValuePopGroup label input  {margin-right: 0.5em;}
+.AdvancedFormField .ValuePopGroup:first-child { border-top: solid 1px #DDD;}
+
+.AdvancedFormField .Range                      {padding:1em 1em; align-items: center;}
+.AdvancedFormField .Range input                {width:6em; text-align: center; border:none; padding:0;}
+.AdvancedFormField .Range input:disabled       {background-color: transparent; }
+.AdvancedFormField .Range .Slider              {width:100%; margin:0 1em; cursor: pointer;}
+.AdvancedFormField .Range .Slider span         {cursor: pointer;}
+.AdvancedFormField .Range .Slider .ui-slider-range      {background-color:rgb(59, 168, 243);}
+.AdvancedFormField .Range .Slider .ui-slider-handle     {border:solid 2px rgb(59, 168, 243);}
+
+.AdvancedFormField .PopGroupButtons            {display: none;}
+.AdvancedFormField.Active .PopGroupButtons     {display: block;}
+.AdvancedFormField .ValuePopGroup                   {display: none;}
+.AdvancedFormField.Active .ValuePopGroup       {display: flex;}
+.AdvancedFormField.Active .ValuePopGroup + .ValuePopGroup   {display: none;}
+.AdvancedFormField.Active.ShowAll .ValuePopGroup + .ValuePopGroup   {display: flex;}
+.AdvancedFormField .Range                           {display: none;}
+.AdvancedFormField.Active .Range                    {display: flex;}
+.ifAdvancedForm .Filters                            {display: none;}
+.ifAdvancedForm .Filters .PopGroup.NotPopular       {display: none;}
+
+.Tiles.AdvancedTiles .additionalInfoText			{display:none;}
+#Dialog .AdvancedTilePopup			{display:block;}
+#Dialog .AdvancedTilePopup .image 	{max-width:50%; text-align:center; order:2; float:right; margin-left:1em; margin-bottom:0.5em; padding:0.5em 1em 1em 2em; borde:solid 1px #DDD;}
+#Dialog .AdvancedTilePopup .image img 	{max-width:100%;}
+#Dialog .AdvancedTilePopup .additionalInfoText 	{margin-top: 1em;}
+#Dialog .AdvancedTilePopup .mainInfoText 	{margin-top: 0.5em;}
+#Dialog .AdvancedTilePopup .fullName 	{display:none;}
+#Dialog .AdvancedTilePopup .number 		{margin:1em 0 0 0; text-align:center;}
+#Dialog .AdvancedTilePopup .number a	{font-size:1.2em; color:rgb(59, 168, 243);}
+#Dialog .AdvancedTilePopup .number a:hover	{text-decoration:none;}
+
+.Animated       {background: url('/API.v2/CSS/AnimatedBG.gif') repeat !important;}
+
+
+#ErrorFoundDialog {display:none;}
+#ErrorFoundDialog textarea {border: solid 1px #CCC; border-radius:3px; width:100%; height:170px; padding:0.5em;}
+#ErrorFoundDialog input {width:100%; font-size:0.8em; margin-top:0.7em;}
+#ErrorFoundDialog .MessageSend {text-align:center; margin: 3em 0; display:none;}
+#ErrorFoundDialog #g-recaptcha-response {display:none;}
+#ErrorFoundDialog .g-recaptcha {width:100%; margin:0.5em auto 0 auto;}
+#ErrorFoundDialog .g-recaptcha>div {width:100%; margin:0 auto;}
+
+#CatSetupDialog {display:none;}
+#CatSetupDialog textarea {border: solid 1px #CCC; border-radius:3px; width:100%; height:170px; padding:0.5em; margin-top: 0.7em;}
+#CatSetupDialog input {width:100%; font-size:0.8em; margin-top:0.7em;}
+#CatSetupDialog .MessageSend {text-align:center; margin: 3em 0; display:none;}
+#CatSetupDialog #g-recaptcha-response {display:none;}
+#CatSetupDialog .g-recaptcha {width:100%; margin:0.5em auto 0 auto;}
+#CatSetupDialog .g-recaptcha>div {width:100%; margin:0 auto;}
+
+.Highlited		{border-color:#A00 !important;}
+
+.ApiError 	{font-weight: bold; margin:50px auto; display: block !important; text-align: center; padding:20px 40px; border:solid 4px #FF0000;}
+
+
+
+
+
+@media screen and (max-width: 1000px) {
+	body 					{padding: 0; }
+	header .Top 			{padding: 0px 0 0 0; min-height: 40px;}
+
+	#Languages 						{position:absolute; z-index: 1000; right:0; top:0; padding:10px;}
+	#Languages.Opened 				{right:0; padding:10px; border-bottom: solid 1px #DDD; border-left: solid 1px #DDD; background-color: #FFF;}
+	#Languages li					{display:none; padding:0 5px 0px 5px;}
+	#Languages li.Selected			{display:inline-block;}
+	#Languages li a 				{opacity: 1;}
+
+	#MainMenu 						{position:absolute; z-index: 1000; margin-right:50px; padding:0;}
+	#MainMenu.Opened				{padding:0 0 15px 0; border-bottom: solid 1px #DDD; border-right: solid 1px #DDD; background-color: #FFF;}
+	#MainMenu li.Image 				{display: block; margin:10px; padding:0;}
+	#MainMenu img 					{width: 24px; }
+	#MainMenu li 					{display: none; padding:5px 15px;}
+	h1 								{margin-left: 30px; font-size: 1.2em;}
+
+
+
+	#Body 							{border:none; padding:10px 0 0 0 !important; margin: 0 10px;}
+	#Body .ifImage 					{flex-wrap: wrap;}
+	#Body .ifImage>div 				{width:100% !important; max-width:100% !important; margin:0 5px !important;}
+	#Body .ifImage div.Images div.ImageArea {margin-bottom: 10px;}
+	table 							{min-width: 400px;}
+
+	#Body>.Tiles 			{justify-content: center;}
+	#Body>h2 			{text-align: center;}
+
+	#Vins 				{display: non; min-width: 480px; border-radius: 0;}
+	#Vins input 		{}
+	#Vins div.VinInfo div.VinCard 	{margin:20px 0 20px 0px; padding:10px 10px; color:#777;}
+	#VinSearchForm 							{flex-wrap: wrap;}
+	#VinSearchForm div.CurrentVin 			{margin: 5px 0 0 10px; color:rgb(59, 168, 243); cursor: pointer; clear: both; font-size: 0.8em;}
+	#VinSearchForm>*  						{float:none;}
+	#Vins div.VinInfo div.VinCard table td.Center 			{padding: 0px 15px 15px 15px; text-align: center;}
+	#Vins div.VinInfo div.VinCard table td.Center a			{margin:10px 0 0px 0; display: inline-block;}
+
+	#Vins div.VinInfo div.VinCard div.Options 				{text-align: center; padding:10px 0 0 0;}
+	#Vins div.VinInfo div.VinCard div.Options div.Header 	{display: inline-block; margin:0 auto 10px auto; cursor:pointer; height: auto; font-size: 15px; color:rgb(59, 168, 243); padding:0px 20px; border-radius: 0px; box-shado: 0 0 3px #AAA; text-decoration: underline;}
+	#Vins div.VinInfo div.VinCard div.Options ul 			{margin:10px 0; display: none; min-width: auto; font-size: 13px; text-align: left; -webkit-columns:350px auto; -moz-columns:350px auto; columns:350px auto;}
+
+ 	footer 				{text-align: center; padding:10px 0 10px 0; border-top: solid 1px #CCC;}
+	.PageFooter 		{text-align: center; padding:10px 0 10px 0; border-top: solid 1px #CCC;}
+
+	.ifButtonsSetBody .CatalogGroup 			{margin-bottom: 30px; flex-wrap: wrap; justify-content: center;}
+
+}
+
+.TempAppend {color:#777; font-size: 0.9em;}
+.TempAppend span {font-weight: 600;}
+div.ui-dialog {position:fixed;}
+.ui-widget-overlay{opacity: 0.5;}

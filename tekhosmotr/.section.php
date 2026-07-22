@@ -1,0 +1,6 @@
+<?
+$sSectionName = "Техосмотр";
+$arDirProperties = Array(
+
+);
+?>

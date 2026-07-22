@@ -1,0 +1,53 @@
+<?
+$aMenuLinks = Array(
+	Array(
+		"Доставка", 
+		"/klientam/delivery/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"Оплата", 
+		"/klientam/oplata/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"Гарантия и возврат", 
+		"/klientam/garantiya-i-vozvrat/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"Образцы документов", 
+		"/klientam/obrazets-dokumentam/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"Реквизиты", 
+		"/klientam/rekvizity/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"Оптовым клиентам", 
+		"/klientam/optovym-klientam/", 
+		Array(), 
+		Array(), 
+		"" 
+	),
+	Array(
+		"Поставщикам", 
+		"/klientam/postavshchikam/", 
+		Array(), 
+		Array(), 
+		"" 
+	)
+);
+?>

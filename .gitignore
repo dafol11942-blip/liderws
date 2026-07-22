@@ -1,0 +1,43 @@
+# Ядро Битрикс — НЕ храним в репозитории
+/bitrix/
+
+# Бэкапы
+*_backup*/
+*.bak
+*.bak_*
+*.bak_debug
+
+# Временные файлы
+*.log
+*.tmp
+/tmp/
+/cache/
+
+# Конфиденциальное (пароли, ключи API)
+/access/
+.htpasswd
+*.my.cnf
+*config*.php
+
+# Загруженные прайс-листы
+/local/cron/data/*.csv
+/local/cron/data/*.xls*
+/local/cron/data/*.xlsx
+
+# Загрузки пользователей
+/upload/
+/upload_1c/
+
+# Composer (если используется)
+/vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Системное
+.DS_Store
+Thumbs.db

@@ -1,0 +1,82 @@
+/* Плитка марок/моделей */
+.to-brands-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    margin-bottom: 20px;
+}
+.to-brand-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--transition);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 90px;
+    text-decoration: none !important;
+}
+.to-brand-card:hover {
+    border-color: var(--blue);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+}
+.to-brand-name {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--black);
+    line-height: 1.2;
+}
+
+/* Таблицы результатов */
+.to-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+.to-table th {
+    background: var(--bg);
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--gray);
+    border-bottom: 2px solid var(--border);
+}
+.to-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.to-table tr:last-child td { border-bottom: none; }
+.to-table code {
+    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: var(--radius);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--blue-dark);
+}
+
+/* Адаптив */
+@media (max-width: 768px) {
+    .to-brands-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .to-brand-card { padding: 12px 6px; min-height: 70px; }
+    .to-brand-name { font-size: 11px; }
+}
+@media (max-width: 480px) {
+    .to-brands-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+    .to-brand-card { padding: 10px 4px; min-height: 60px; }
+}
