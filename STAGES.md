@@ -123,96 +123,190 @@ autoeuro=2322, ixora=855, tatparts=643, berg=196,
 rossko=171, moskvorechie=72, partkom=7
 Крон: работает, 0.109 сек
 
-Код
+## Этап 3 — Аналоги LC331 LYNXauto (ЗАВЕРШЁН ЧАСТИЧНО)
 
-
-
-Этап 3 — СЛЕДУЮЩИЙ (не начат)
-
-Задача
-
-Аналоги теряются: LC331 LYNXauto — 1 поставщик вместо 6+
-
-С чего начать
-
-# 1. Что в кэше по LC331
-mysql -u u3564357_liderws -p"S)'uAp]3.\$@wWd-" u3564357_liderws_db -e "
-SELECT supplier_code, article, brand, price, quantity
-FROM b_supplier_stock
-WHERE article LIKE '%LC331%'
-ORDER BY supplier_code, price LIMIT 30;"
-
-# 2. Смотрим SearchCacheManager
-cat /var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Search/SearchCacheManager.php
-
-# 3. Смотрим OfferAggregator
-cat /var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Search/Stage2/OfferAggregator.php
+### Дата: 2026-07-23
+### Коммиты: c082790, 6d1251e, (fix-stage2-commit)
+### Ветка: fix/cache-pipeline-bugs
 
 ---
 
-## Этап 3: LC331 LYNXauto — 1 поставщик вместо 6+ (ЗАВЕРШЁН ЧАСТИЧНО)
-
-### Коммиты этапа:
-- c082790 — fix: normalize article in cache (LC-331→lc331), reload on verify done, fastcgi early response
-- 6d1251e — debug: log cache search params
-
-### Найденные баги:
-
-#### Баг #1 — ИСПРАВЛЕН ✅
-**Файл:** `local/php_interface/lib/Search/InstantSearcher.php`
-**Проблема:** `WHERE article = ?` — точное совпадение. Поставщики хранят `LC-331`, запрос ищет `lc331` → 5 из 6 не находило.
-**Фикс:** `WHERE REPLACE(REPLACE(REPLACE(LOWER(article),'-',''),' ',''),'.','') = ?`
-**Плюс:** `saveResults()` теперь сохраняет нормализованный артикул (`$articleNorm`) вместо сырого.
-**Плюс:** `deactivateStmt` тоже использует нормализованный артикул.
-
-#### Баг #2 — ИСПРАВЛЕН ✅
-**Файл:** `local/php_interface/ajax/verify_start.php`
-**Проблема:** Браузер ждал 15 сек пока идёт live-поиск (блокирующий).
-**Фикс:** Добавлен `fastcgi_finish_request()` — ответ браузеру отправляется немедленно, поиск продолжается в фоне.
-
-#### Баг #3 — НЕ ИСПРАВЛЕН ⏳
-**Файл:** `parts-search/index.php` строка 134
-**Проблема:** `require "stage2_search.php"` — подключается СТАРЫЙ файл без гибридной логики. Все правки в `stage2_search_v2.php` не работают.
-**Нужно:** заменить на `require __DIR__ . "/stage2_search_v2.php";`
-**Внимание:** Правильный `index.php` лежит в `/parts-search/index.php` (не в корне).
-
-#### Баг #4 — НЕ ИСПРАВЛЕН ⏳
-**Файл:** `parts-search/stage2_search_v2.php` (JS блок)
-**Проблема:** После `verify done` JS только меняет текст, не делает `window.location.reload()`.
-**Нужно:** добавить `setTimeout(function(){ window.location.reload(); }, 500);`
-
-### SQL исправления применены ✅:
-- 3480 строк нормализованы: `LC-331` → `lc331`
-- Запрос: `UPDATE b_supplier_stock SET article = LOWER(REPLACE(REPLACE(REPLACE(article,'-',''),' ',''),'.','')) WHERE article REGEXP '[^a-z0-9]';`
-
-### Структура таблицы b_supplier_stock (ключевые поля):
-- UNIQUE KEY: `(supplier_code, stock_id)`
-- INDEX: `article`, `brand_normalized`, `supplier_code`, `last_updated`
-- Колонка нормализованного артикула **отсутствует** (поиск через REPLACE в WHERE)
-
-### Архитектура гибридного поиска:
+### Рабочий процесс (важно для следующих диалогов)
+- Локально: **VS Code** → `C:\Users\user\Documents\GitHub\liderws`
+- Все правки делаются в **VS Code**, затем:
 
 markdown
 
 
 
 
-index.php → stage2_search_v2.php (надо переключить!)
-→ InstantSearcher::search() — кэш из b_supplier_stock
-→ если пусто: FullSearchLauncher (live API)
-→ JS: POST verify_start.php → live-поиск → saveResults()
-→ JS: GET verify_poll.php каждые 500мс → при done: reload()
+git add ... → git commit -m "..." → git push origin fix/cache-pipeline-bugs
 
 
 
-### Первоочередные задачи следующего этапа:
-1. Исправить `parts-search/index.php` строка 134: `stage2_search.php` → `stage2_search_v2.php`
-2. Добавить `window.location.reload()` в JS блок `stage2_search_v2.php`
-3. Убедиться что гибридный баннер `⚡ из кэша` появляется при повторном поиске
-4. Проверить что 6+ поставщиков показываются из кэша
+- На сервере:
 
-### Credentials (для нового диалога):
-- Репо: https://github.com/dafol11942-blip/liderws
-- Ветка: fix/cache-pipeline-bugs
-- Сервер: u3564357@server17, путь: /var/www/u3564357/data/www/liderws.ru
-- БД: u3564357_liderws_db, таблица кэша: b_supplier_stock (4266+ строк)
+
+
+git pull --rebase origin fix/cache-pipeline-bugs
+
+
+
+- Python-патчи на сервере НЕ используем — только git
+- PHP на сервере: `which php` (не `/usr/bin/php8.2` — путь неверный)
+
+---
+
+### Найденные и исправленные баги ✅
+
+| # | Файл | Баг | Фикс |
+|---|------|-----|------|
+| #1 | InstantSearcher.php | `WHERE article = ?` — точное совпадение, не находило `LC-331` → `lc331` | `WHERE REPLACE(REPLACE(REPLACE(LOWER(article),'-',''),' ',''),'.','') = ?` |
+| #2 | verify_start.php | Браузер ждал 15 сек пока идёт live-поиск | `fastcgi_finish_request()` — ответ немедленно, поиск в фоне |
+| #3 | parts-search/index.php | `require "stage2_search.php"` (старый файл) | Уже был исправлен ранее — `stage2_search_v2.php` стр. 134 ✅ |
+| #4 | stage2_search_v2.php | Нет `window.location.reload()` после verify done | Уже был исправлен ранее ✅ |
+| #5 | stage2_search_v2.php | Дублирующий `echo` блок (div#instant-notice + JS) — параллельно с `_hybrid_notice.php` | Удалён блок 3707 символов |
+| #6 | stage2_search_v2.php | `$instantCacheMs` не определена в `_hybrid_notice.php` | Добавлен алиас `$instantCacheMs = $instantMs` |
+
+### SQL исправления применены ✅
+```sql
+-- 3480 строк нормализованы: LC-331 → lc331
+UPDATE b_supplier_stock 
+SET article = LOWER(REPLACE(REPLACE(REPLACE(article,'-',''),' ',''),'.',''))
+WHERE article REGEXP '[^a-z0-9]';
+
+
+Баги НЕ исправлены ⏳ — начать с них в Этапе 4
+
+
+Баг #9 — КРИТИЧНЫЙ: JS lazy-loader перезаписывает аналоги
+
+
+
+Файл: parts-search/index.php, JS-блок внизу
+
+Проблема: через 800мс после загрузки срабатывает старый AJAX:
+
+
+
+fetch('/local/ajax/analog_search.php?...')
+    .then(data => { analogContainer.innerHTML = data.html; }) // перезаписывает гибридные результаты
+
+javascript
+
+
+
+
+Фикс: в начало IIFE добавить guard:
+
+
+
+if (<?= !empty($verifyTaskHash) ? 'true' : 'false' ?>) return;
+
+
+Баг #10 — $skipLive не инициализирована
+
+
+
+Файл: parts-search/stage2_search_v2.php
+
+Проблема: $skipLive появляется только внутри if ($useHybrid) → PHP Notice если $useHybrid = false
+
+Фикс: добавить рядом с $verifyTaskHash = '':
+
+
+
+$skipLive = false;
+
+
+Баг #11 — pending задачи при каждом ?verified=1
+
+
+
+Файл: parts-search/stage2_search_v2.php
+
+Проблема: каждый reload (включая ?verified=1) создаёт новый task_hash в БД → зависшие pending засоряют таблицу
+
+Фикс: обернуть блок создания задачи:
+
+
+
+if (!isset($_GET['verified'])) {
+    $verifyTaskHash = md5(...);
+    // INSERT INTO b_search_verify_tasks ...
+}
+
+php
+
+
+
+
+
+Текущее состояние кэша
+
+
+## b_supplier_stock для LC331 LYNXauto:
+  autoeuro  = 150 строк (brand_normalized = lynxauto)
+  tatparts  =  78 строк
+  ixora     =  20 строк
+  berg      =   2 строки
+  ИТОГО: 245 активных строк, age = 0 мин ✅
+
+## b_search_verify_tasks:
+  Последние задачи: status=done, saved=1751~2707 ✅
+
+Код
+
+
+
+Результат в UI
+
+
+Найдено: 1 позиция (32 предложения от всех поставщиков) ✅
+Аналоги: НЕ показываются (Баг #9 — lazy-loader перезаписывает пустым)
+⚡ баннер "из кэша": НЕ показывается (echo-блок удалён, но _hybrid_notice
+                      не отображается — нужна диагностика)
+
+Код
+
+
+
+
+
+Этап 4 — СЛЕДУЮЩИЙ (не начат)
+
+
+Приоритеты:
+
+
+
+
+1.Баг #9 — отключить старый analog lazy-loader в гибридном режиме
+
+
+2.Баг #10 — инициализировать $skipLive = false
+
+
+3.Баг #11 — guard для ?verified=1
+
+
+4.Диагностика: почему ⚡ баннер не показывается
+
+
+5.Убедиться что аналоги отображаются корректно
+
+
+
+
+Стартовые команды диагностики:
+
+
+# 1. Что рендерит _hybrid_notice.php — проверить переменные
+grep -n "verifyTaskHash\|cachedItems\|instantCacheMs" \
+  /var/www/u3564357/data/www/liderws.ru/parts-search/stage2_search_v2.php | head -20
+
+# 2. Лог гибридного поиска
+tail -10 /var/www/u3564357/data/www/liderws.ru/upload/logs/hybrid_$(date +%Y-%m-%d).log
+
+# 3. analog_search.php — что возвращает старый эндпоинт
+head -50 /var/www/u3564357/data/www/liderws.ru/local/ajax/analog_search.php
