@@ -199,19 +199,16 @@ try {
     $instantSearcher = new \Lider\Search\InstantSearcher();
     $cachedItems = $instantSearcher->search($normTargetArt, $normTargetBrand);
 
-    if (!empty($cachedItems)) {
-        // Кэш есть — не делаем запросы к поставщикам
-        $allResults = $cachedItems;
-    } else {
-        // Кэш пуст — идём к поставщикам
-        $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
-        // Сохраняем в MySQL для следующих запросов
-        if (!empty($allResults)) {
-            try {
-                $instantSearcher->saveResults($allResults);
-            } catch (\Throwable $saveEx) {
-                error_log('[analog_search] saveResults failed: ' . $saveEx->getMessage());
-            }
+        // Аналоги: всегда live-поиск.
+    // Кэш b_supplier_stock содержит только точные совпадения по артикулу.
+    // Кросс-номера (Mann WK692, Bosch 0451103...) — только от поставщиков live.
+    // Финальный JSON кэшируется SearchCacheManager на 300 сек выше.
+    $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
+    if (!empty($allResults)) {
+        try {
+            $instantSearcher->saveResults($allResults);
+        } catch (\Throwable $saveEx) {
+            error_log('[analog_search] saveResults failed: ' . $saveEx->getMessage());
         }
     }
 
