@@ -31,6 +31,15 @@ $db = new \mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357
 $db->query("UPDATE b_search_verify_tasks SET status = 'running', updated_at = NOW() WHERE task_hash = '{$db->real_escape_string($taskHash)}'");
 $db->close();
 
+// Отправляем ответ браузеру немедленно, продолжаем в фоне
+echo json_encode(['ok' => true, 'queued' => true]);
+if (function_exists('fastcgi_finish_request')) {
+    fastcgi_finish_request();
+} else {
+    ob_end_flush();
+    flush();
+}
+
 try {
     $launcher = new FullSearchLauncher(getSupplierFactory());
     $allResults = $launcher->launch($brand, $article, $brandMap, $exactKey, $targetEntry, 15.0);

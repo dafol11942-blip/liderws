@@ -23,7 +23,7 @@ class InstantSearcher
         if ($brand !== '') {
             $stmt = $this->db->prepare(
                 "SELECT * FROM b_supplier_stock 
-                 WHERE article = ? AND brand_normalized = ? AND is_active = 1
+                 WHERE REPLACE(REPLACE(REPLACE(LOWER(article),'-',''),' ',''),'.','') = ? AND brand_normalized = ? AND is_active = 1
                  AND last_updated > NOW() - INTERVAL 4 HOUR
                  ORDER BY is_sched ASC, price ASC"
             );
@@ -32,7 +32,7 @@ class InstantSearcher
         } else {
             $stmt = $this->db->prepare(
                 "SELECT * FROM b_supplier_stock 
-                 WHERE article = ? AND is_active = 1
+                 WHERE REPLACE(REPLACE(REPLACE(LOWER(article),'-',''),' ',''),'.','') = ? AND is_active = 1
                  AND last_updated > NOW() - INTERVAL 4 HOUR
                  ORDER BY is_sched ASC, price ASC"
             );
@@ -96,7 +96,8 @@ class InstantSearcher
             $_key = $_itm->source . '|' . $_itm->article . '|' . $_bn;
             if (!isset($seenKeys[$_key])) {
                 $seenKeys[$_key] = true;
-                $deactivateStmt->bind_param('sss', $_itm->source, $_itm->article, $_bn);
+                $_an = BrandNormalizer::normalizeArticle($_itm->article);
+                $deactivateStmt->bind_param('sss', $_itm->source, $_an, $_bn);
                 $deactivateStmt->execute();
             }
         }
@@ -107,7 +108,8 @@ class InstantSearcher
             if (!($item instanceof SearchResultItem)) continue;
             if ($item->price <= 0 && $item->quantity <= 0) continue;
 
-            $brandNorm = BrandNormalizer::normalize($item->brand);
+            $brandNorm   = BrandNormalizer::normalize($item->brand);
+            $articleNorm = BrandNormalizer::normalizeArticle($item->article);
             $whCode  = substr(md5($item->warehouse ?? ''), 0, 8);
             $isSched = $item->isSched ? 1 : 0;
             $multi   = (int)($item->multiplicity ?: 1);
@@ -120,7 +122,7 @@ class InstantSearcher
 
             $stmt->bind_param(
                 'sssssdissiiis',
-                $item->source, $item->article, $item->brand, $brandNorm,
+                $item->source, $articleNorm, $item->brand, $brandNorm,
                 $item->name, $item->price, $item->quantity,
                 $item->warehouse, $whCode, $delDays,
                 $isSched, $multi, $stockId
