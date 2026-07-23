@@ -48,6 +48,7 @@ class ResultBuilder
             } else {
             $analogGroups[$key] = $g;
         }
+        }    
 
         $fpmin = (int)($filters['price_min'] ?? 0); $fpmax = (int)($filters['price_max'] ?? 0);
         $fb = trim((string)($filters['brand'] ?? ''));
