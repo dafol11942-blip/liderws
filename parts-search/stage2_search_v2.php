@@ -107,24 +107,23 @@ file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . "
         
         // Генерируем task_hash только при первом показе (не при ?verified=1)
         if (!isset($_GET['verified'])) {
-            $verifyTaskHash = md5($normTargetArt . '|' . $normTargetBrand . '|' . microtime(true));
+        $verifyTaskHash = md5($normTargetArt . '|' . $normTargetBrand . '|' . microtime(true));
 
-           // Сохраняем задачу в БД (Баг #11: не создаём повторно при ?verified=1)
-        if (!isset($_GET['verified'])) {
-            $db = new \mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.$@wWd-", 'u3564357_liderws_db');
-            $db->query("INSERT INTO b_search_verify_tasks (task_hash, article, brand, status)
-                         VALUES ('{$verifyTaskHash}', '{$db->real_escape_string($displayArticle)}', '{$db->real_escape_string($displayBrand)}', 'pending')");
-            $db->close();
-        }
-            // Лог
-            @file_put_contents(
-                __DIR__ . '/../upload/logs/hybrid_' . date('Y-m-d') . '.log',
-                '[' . date('H:i:s') . '] INSTANT article=' . $normTargetArt . ' brand=' . $normTargetBrand
-                . ' items=' . count($cachedItems) . ' ms=' . $instantMs
-                . ' task=' . $verifyTaskHash . "\n",
-                FILE_APPEND
-            );
-        }
+        // Сохраняем задачу в БД (Баг #11: защита уже в родительском if)
+        $db = new \mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.$@wWd-", 'u3564357_liderws_db');
+        $db->query("INSERT INTO b_search_verify_tasks (task_hash, article, brand, status)
+                    VALUES ('{$verifyTaskHash}', '{$db->real_escape_string($displayArticle)}', '{$db->real_escape_string($displayBrand)}', 'pending')");
+        $db->close();
+
+        // Лог
+        @file_put_contents(
+            __DIR__ . '/../upload/logs/hybrid_' . date('Y-m-d') . '.log',
+            '[' . date('H:i:s') . '] INSTANT article=' . $normTargetArt . ' brand=' . $normTargetBrand
+            . ' items=' . count($cachedItems) . ' ms=' . $instantMs
+            . ' task=' . $verifyTaskHash . "\n",
+            FILE_APPEND
+        );
+    }   
      
         // НЕ возвращаемся — продолжаем и показываем кэш
         // но НЕ запускаем FullSearchLauncher ниже
