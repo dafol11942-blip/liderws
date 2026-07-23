@@ -27,6 +27,7 @@ require_once $base . '/Supplier/BergConnector.php';
 require_once $base . '/Supplier/IxoraConnector.php';
 require_once $base . '/Supplier/ShateMConnector.php';
 require_once $base . '/Supplier/TatpartsConnector.php';
+require_once $base . '/Search/InstantSearcher.php';
 
 use Lider\Search\BrandNormalizer;
 use Lider\Search\Stage2\FullSearchLauncher;
@@ -164,7 +165,7 @@ try {
     }
 
     $cache = new SearchCacheManager('/search/ajax_analog', 300);
-    $cacheKey = md5(implode('|', [$q, $brand, $number, $filterPriceMin, $filterPriceMax, $filterBrand]));
+    $cacheKey = md5(implode('|', [$q, $brand, $number, $filterPriceMin, $filterPriceMax, $filterBrand, isManager() ? 'mgr' : 'usr']));
     $cached = $cache->get($cacheKey);
     if (is_array($cached) && !empty($cached['ok'])) {
         echo json_encode($cached);
@@ -194,7 +195,25 @@ try {
 
     $factory = getAjaxFactory();
     $launcher = new FullSearchLauncher($factory);
-    $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
+    // === CACHE-FIRST: сначала MySQL-кэш (<100ms), затем live API ===
+    $instantSearcher = new \Lider\Search\InstantSearcher();
+    $cachedItems = $instantSearcher->search($normTargetArt, $normTargetBrand);
+
+    if (!empty($cachedItems)) {
+        // Кэш есть — не делаем запросы к поставщикам
+        $allResults = $cachedItems;
+    } else {
+        // Кэш пуст — идём к поставщикам
+        $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
+        // Сохраняем в MySQL для следующих запросов
+        if (!empty($allResults)) {
+            try {
+                $instantSearcher->saveResults($allResults);
+            } catch (\Throwable $saveEx) {
+                error_log('[analog_search] saveResults failed: ' . $saveEx->getMessage());
+            }
+        }
+    }
 
     $aggregator = new OfferAggregator(50, 1000);
     $groupedItems = $aggregator->aggregate($allResults);

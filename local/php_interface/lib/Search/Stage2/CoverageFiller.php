@@ -1,7 +1,6 @@
 <?php
 namespace Lider\Search\Stage2;
 
-use Lider\Search\Common\MultiCurlExecutor;
 use Lider\Supplier\SupplierFactory;
 use Lider\Supplier\SupplierInterface;
 use Lider\Search\SearchResultItem;
@@ -20,7 +19,7 @@ class CoverageFiller
         array $groupedItems,
         string $exactKey,
         array $brandMap,
-        float $deadline = 6.0
+        float $deadline = 10.0
     ): array {
         $analyzer = new CoverageAnalyzer($this->factory);
         $coverage = $analyzer->analyze($groupedItems, $exactKey);
@@ -31,9 +30,7 @@ class CoverageFiller
         }
 
         $this->log("FILL: " . count($coverage) . " groups need filling");
-
-        // Берём топ-15 с наихудшим покрытием
-        $toFill = array_slice($coverage, 0, 15, true);
+        $toFill = array_slice($coverage, 0, 50, true);
 
         $allRequests  = [];
         $requestMeta  = [];
@@ -44,13 +41,10 @@ class CoverageFiller
             $missing = $info['missing'];
             $bmInfo  = $brandMap[$gk] ?? null;
 
-            $this->log("FILL group [{$gk}] {$brand}|{$article} missing=" . implode(',', $missing));
-
             foreach ($missing as $supCode) {
                 $sup = $this->factory->get($supCode);
                 if (!$sup) continue;
 
-                // Пробуем получить бренд+артикул из brandmap
                 $supBrand = $brand;
                 $supArt   = $article;
                 if ($bmInfo) {
@@ -60,33 +54,20 @@ class CoverageFiller
                         ? (string)$bmInfo['articles'][$supCode] : $article;
                 }
 
-                // Попытка 1: поиск с брендом
                 $req = $sup->buildSearchRequest($supBrand, $supArt, false);
-
-                // Попытка 2: если бренд нестандартный — поиск только по артикулу
                 if (!$req) {
                     $req = $sup->buildSearchRequest('', $supArt, false);
                 }
-
-                if (!$req) {
-                    $this->log("  FILL [{$supCode}] no request for {$supBrand}|{$supArt}");
-                    continue;
-                }
+                if (!$req) continue;
 
                 $key = $supCode . ':fill:' . $gk;
-                $req['_key']      = $key;
-                $req['_timeout']  = 4;
-                $req['_priority'] = 3;
-                $allRequests[]    = $req;
+                $allRequests[$key] = $req;
                 $requestMeta[$key] = [
                     'sup'      => $sup,
                     'groupKey' => $gk,
                     'brand'    => $supBrand,
                     'article'  => $supArt,
-                    'bmInfo'   => $bmInfo,
                 ];
-
-                $this->log("  FILL req [{$supCode}] {$supBrand}|{$supArt}");
             }
         }
 
@@ -95,37 +76,47 @@ class CoverageFiller
             return $groupedItems;
         }
 
-        $this->log("FILL: executing " . count($allRequests) . " requests");
-        $executor  = new MultiCurlExecutor();
-        $responses = $executor->executeAll($allRequests, $deadline);
+        $this->log("FILL: executing " . count($allRequests) . " requests IN PARALLEL, deadline={$deadline}s");
+        $responses = $this->executeAllParallel($allRequests, $deadline);
 
         $addedCount = 0;
         foreach ($responses as $key => $resp) {
             $meta = $requestMeta[$key] ?? null;
-            if (!$meta || empty($resp['body'])) continue;
+            if (!$meta || empty($resp['body'])) {
+                if ($meta) {
+                    $this->log("  FILL EMPTY [{$meta['sup']->getCode()}] [{$meta['groupKey']}] {$meta['brand']}|{$meta['article']} err=" . ($resp['error'] ?? 'empty'));
+                }
+                continue;
+            }
 
             /** @var SupplierInterface $sup */
             $sup = $meta['sup'];
             $gk  = $meta['groupKey'];
+            $supCode = $sup->getCode();
+            $supName = $sup->getName();
 
             try {
                 $items = $sup->parseSearchResponse($resp['body'], $meta['brand'], $meta['article']);
-
                 $matched = 0;
                 foreach ($items as $item) {
                     if (!($item instanceof SearchResultItem)) continue;
                     if ($item->price <= 0 && $item->quantity <= 0) continue;
 
-                    // Проверяем, что item принадлежит нужной группе
                     $itemKey = BrandNormalizer::groupKey($item->brand, $item->article);
                     if ($itemKey !== $gk) continue;
 
+                    $itemSupplierName = $item->supplierName ?: $supName;
+                    $priceBase = round((float)$item->price, 2);
                     $priceDisplay = function_exists('getDisplayPrice')
-                        ? getDisplayPrice(round((float)$item->price, 2))
-                        : round((float)$item->price, 2);
+                        ? getDisplayPrice($priceBase) : $priceBase;
 
-                    $stockName = $item->isSched ? 'Под заказ'
-                        : (function_exists('maskWarehouse') ? maskWarehouse($item) : ($item->warehouse ?: '—'));
+                    if ($item->isSched) {
+                        $stockName = 'Под заказ';
+                    } elseif (function_exists('maskWarehouse')) {
+                        $stockName = maskWarehouse($item);
+                    } else {
+                        $stockName = $item->warehouse ?: '—';
+                    }
 
                     $delivery = function_exists('calcDelivery')
                         ? calcDelivery($item)
@@ -145,7 +136,7 @@ class CoverageFiller
                     $groupedItems[$gk]['_by_sup'][$src][] = [
                         'stock'       => $stockName,
                         'price'       => $priceDisplay,
-                        'price_base'  => round((float)$item->price, 2),
+                        'price_base'  => $priceBase,
                         'qty'         => $item->quantity,
                         'multiplicity'=> $item->multiplicity ?? 1,
                         'unit'        => $item->unit ?? 'шт.',
@@ -153,22 +144,82 @@ class CoverageFiller
                         'is_sched'    => $item->isSched,
                         'returnable'  => $item->returnable,
                         'source'      => $src,
-                        'supplier'    => $item->supplierName,
+                        'supplier'    => $itemSupplierName,
                     ];
                     $matched++;
                 }
 
                 if ($matched > 0) {
-                    $this->log("  FILL OK [{$sup->getCode()}] [{$gk}] +{$matched} items");
+                    $this->log("  FILL OK [{$supCode}] [{$gk}] +{$matched} items");
                     $addedCount += $matched;
+                } else {
+                    $this->log("  FILL ZERO [{$supCode}] [{$gk}] parsed but 0 matched");
                 }
             } catch (\Throwable $e) {
-                $this->log("  FILL ERR [{$sup->getCode()}] [{$gk}]: " . $e->getMessage());
+                $this->log("  FILL ERR [{$supCode}] [{$gk}]: " . $e->getMessage());
             }
         }
 
         $this->log("FILL DONE: added {$addedCount} items across all groups");
         return $groupedItems;
+    }
+
+    private function executeAllParallel(array $requests, float $deadline): array
+    {
+        $results = [];
+        $startTime = microtime(true);
+        if (empty($requests)) return $results;
+
+        $mh = curl_multi_init();
+        $handles = [];
+
+        foreach ($requests as $key => $req) {
+            $ch = curl_init($req['url']);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER     => $req['headers'] ?? [],
+                CURLOPT_TIMEOUT        => max(15, (int)ceil($deadline)),
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => 0,
+                CURLOPT_ENCODING       => '',
+            ]);
+
+            if (($req['method'] ?? 'GET') === 'POST') {
+                curl_setopt($ch, CURLOPT_POST, true);
+                if (!empty($req['body'])) {
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, $req['body']);
+                }
+            }
+
+            curl_multi_add_handle($mh, $ch);
+            $handles[$key] = $ch;
+        }
+
+        $active = null;
+        do {
+            $status = curl_multi_exec($mh, $active);
+            if ($status !== CURLM_OK) break;
+            $elapsed = microtime(true) - $startTime;
+            if ($elapsed >= $deadline) break;
+            curl_multi_select($mh, min(0.2, max(0.05, $deadline - $elapsed)));
+        } while ($active > 0);
+
+        foreach ($handles as $key => $ch) {
+            $body = curl_multi_getcontent($ch);
+            $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $errMsg = curl_error($ch);
+            $results[$key] = [
+                'body'  => ($httpCode === 200 && is_string($body) && $body !== '') ? $body : null,
+                'http'  => $httpCode,
+                'error' => $errMsg ?: ($httpCode === 200 ? '' : "HTTP {$httpCode}"),
+            ];
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+
+        curl_multi_close($mh);
+        return $results;
     }
 
     private function log(string $message): void

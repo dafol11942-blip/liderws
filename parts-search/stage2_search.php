@@ -4,6 +4,7 @@
 use Lider\Search\BrandNormalizer;
 use Lider\Search\Stage2\FullSearchLauncher;
 use Lider\Search\Stage2\OfferAggregator;
+use Lider\Search\Stage2\CoverageFiller;
 use Lider\Search\Stage2\ResultBuilder;
 use Lider\Search\SearchCacheManager;
 
@@ -79,10 +80,14 @@ $analogToken = md5($q . '|' . $displayBrand . '|' . $displayArticle . '|analog_v
 $launcher   = new FullSearchLauncher(getSupplierFactory());
 $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 10.0);
 
-$aggregator   = new OfferAggregator(10, 80);
+$aggregator   = new OfferAggregator(20, 120);
 $groupedItems = $aggregator->aggregate($allResults);
 
-$builder = new ResultBuilder(200, 10, 80);
+// Дозагрузка отсутствующих поставщиков через CoverageFiller
+$filler = new CoverageFiller(getSupplierFactory());
+$groupedItems = $filler->fill($groupedItems, $exactKey, $cachedBrandMap, 20.0);
+
+$builder = new ResultBuilder(200, 20, 120);
 $result  = $builder->build($groupedItems, $exactKey, $normTargetBrand, $normTargetArt, $displayBrand, $displayArticle, $cachedBrandMap, ['price_min'=>(int)$filterPriceMin,'price_max'=>(int)$filterPriceMax,'brand'=>trim((string)$filterBrand)], (string)$sortExact, (string)$sortAnalog);
 
 $exactGroups = $result['exactGroups']; $analogGroups = $result['analogGroups'];

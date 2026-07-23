@@ -67,7 +67,7 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
 
         $factory->register(new \Lider\Supplier\TatpartsConnector([
             'LOGIN' => 'lider-16@bk.ru',
-            'PASSWORD' => '8dTpDU8}Myr)*&',
+            'PASSWORD' => "'8dTpDU8}Myr)*&",
             'TIMEOUT' => 10,
         ]));
     }

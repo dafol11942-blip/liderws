@@ -15,11 +15,13 @@ class TatpartsConnector implements SupplierInterface
 
     public function __construct(array $config = [])
     {
+        // USER и PASSWORD — это авторизация API Tradesoft
         $this->user     = $config['USER']     ?? $this->user;
         $this->password = $config['PASSWORD'] ?? $this->password;
-        $this->provider = $config['PROVIDER'] ?? $this->provider;
-        $this->supLogin = $config['SUP_LOGIN'] ?? $this->supLogin;
+        // SUP_LOGIN и SUP_PASS — авторизация конкретного поставщика внутри контейнера
+        $this->supLogin = $config['SUP_LOGIN'] ?? $config['LOGIN'] ?? $this->supLogin;
         $this->supPass  = $config['SUP_PASS']  ?? $this->supPass;
+        $this->provider = $config['PROVIDER'] ?? $this->provider;
         $this->baseUrl  = $config['BASE_URL']  ?? $this->baseUrl;
         $this->timeout  = $config['TIMEOUT']   ?? $this->timeout;
     }
@@ -29,8 +31,6 @@ class TatpartsConnector implements SupplierInterface
     public function getWarehousePrefix(): string { return 'ttp'; }
     public function maskWarehouseName(string $realName): string { return $this->generateWarehouseCode($realName); }
     public function isAvailable(): bool     { return true; }
-
-    // ==================== ЭТАП 1: БРЕНДЫ ====================
 
     public function searchBrands(string $article): array
     {
@@ -86,17 +86,13 @@ class TatpartsConnector implements SupplierInterface
         return array_values($brands);
     }
 
-    // ==================== ЭТАП 2: ПРЕДЛОЖЕНИЯ ====================
-
     public function searchByBrandArticle(string $brand, string $article): array
     {
-        // Пробуем с переданным брендом
         $body = $this->buildSearchBody($brand, $article);
         $resp = $this->execPost($body);
         $items = $resp !== null ? $this->parseSearchResponse($resp, $brand, $article) : [];
         if (!empty($items)) return $items;
 
-        // Не сработало — ищем настоящий бренд через searchBrands
         if ($brand !== '' || $article !== '') {
             $brands = $this->searchBrands($article);
             $brandLower = mb_strtolower(trim($brand));
@@ -137,24 +133,9 @@ class TatpartsConnector implements SupplierInterface
         ];
     }
 
-    /**
-     * buildSearchRequest с авто-подбором бренда.
-     * Если бренд непустой — сначала делает пробный запрос. Если 0 результатов —
-     * ищет правильный бренд через searchBrands и возвращает запрос с правильным брендом.
-     */
     public function buildSearchRequest(string $brand, string $article, bool $withCrosses = false): ?array
     {
-        // Прямой запрос с переданным брендом
         $body = $this->buildSearchBody($brand, $article);
-        
-        // Если бренд пустой — API Татпартс не сможет найти, пробуем подобрать
-        if ($brand === '') {
-            $brands = $this->searchBrands($article);
-            if (!empty($brands)) {
-                $body = $this->buildSearchBody($brands[0]['brand'], $article);
-            }
-        }
-        
         return [
             'url'     => $this->baseUrl,
             'headers' => ['Content-Type: application/json', 'Accept: application/json'],
@@ -193,6 +174,7 @@ class TatpartsConnector implements SupplierInterface
         if (mb_strlen($query) < 2) return $results;
         $brands = $this->searchBrands($query);
         $seed = []; foreach (array_slice($brands,0,10) as $br) $seed[]=$br;
+        $seen = [];
         foreach ($seed as $br) {
             $items = $this->searchByBrandArticle($br['brand'], $br['article_fix']);
             foreach ($items as $r) { $dk=$r->getDedupeKey(); if (!isset($seen[$dk])) { $seen[$dk]=true; $results[]=$r; } }

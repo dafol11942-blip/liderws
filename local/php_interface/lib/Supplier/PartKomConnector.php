@@ -342,7 +342,13 @@ class PartKomConnector implements SupplierInterface
         $data = json_decode((string)$resp, true);
         if (is_array($data)) {
             foreach ($data as $item) {
-                $this->brandsCache[(int)$item['id']] = $item['name'];
+                // API может вернуть массив строк (только имена) или массив объектов {id, name}
+                if (is_array($item) && isset($item['id'], $item['name'])) {
+                    $this->brandsCache[(int)$item['id']] = $item['name'];
+                } elseif (is_string($item)) {
+                    // Строка — используем как название бренда, id = хеш
+                    $this->brandsCache[crc32($item)] = $item;
+                }
             }
         }
         @mkdir(dirname($cacheFile), 0755, true);
