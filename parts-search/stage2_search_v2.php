@@ -89,8 +89,8 @@ file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . "
     $instantCacheMs = $instantMs; // alias for _hybrid_notice.php
     
     if (!empty($cachedItems)) {
-        $aggregator = new OfferAggregator();
-        $builder = new ResultBuilder();
+        $aggregator = new OfferAggregator(50, 500);
+        $builder = new ResultBuilder(300, 50, 500);
         $cachedGroups = $aggregator->aggregate($cachedItems);
         $instantResult = $builder->build(
             $cachedGroups, $exactKey, $normTargetBrand, $normTargetArt,
