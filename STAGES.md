@@ -6,7 +6,7 @@
 
 - **ата**: 2026-07-23
 - **етка**: `fix/cache-pipeline-bugs`
-- **оммит**: TBD (см. ниже)
+- **оммит**: `798fae9`
 
 ### то сделано
 1. рочитан весь код цепочки поиска (14 файлов): SearchService, MultiCurlExecutor, HybridStage2Orchestrator, CachingFullSearchLauncher, FullSearchLauncher, InstantSearcher, BrandNormalizer, SupplierFactory, RosskoConnector + ajax-файлы
@@ -32,4 +32,4 @@
 - шибки парсинга коннекторов видны в PHP error_log
 
 ### люч для следующего диалога
-СЩ : репо https://github.com/dafol11942-blip/liderws ветка fix/cache-pipeline-bugs коммит TBD
+СЩ : репо https://github.com/dafol11942-blip/liderws ветка fix/cache-pipeline-bugs коммит 798fae9
