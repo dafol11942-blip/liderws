@@ -267,46 +267,190 @@ php
 ⚡ баннер "из кэша": НЕ показывается (echo-блок удалён, но _hybrid_notice
                       не отображается — нужна диагностика)
 
+STAGES — Дополнение: Этап 4 (завершён)
+
+
+
+
+✅ Что сделано в Этапе 4
+
+
+
+Баг #9 — JS lazy-loader (ЗАКРЫТ)
+
+
+
+Добавлен guard в IIFE:
+
+
+if (<?= (!empty($verifyTaskHash) && !empty($analogGroups)) ? 'true' : 'false' ?>) return;
+
+
+
+Баг #10 — $skipLive не инициализирована (ЗАКРЫТ)
+
+
+
+$skipLive = false; // рядом с $verifyTaskHash = '';
+
+
+
+Баг #11 — pending задачи при ?verified=1 (ЗАКРЫТ)
+INSERT обёрнут в if (!isset($_GET['verified'])) { ... }
+
+
+
+
+Баг #12 — ResultBuilder дропал LYNX/lc331 (ЗАКРЫТ)
+
+
+
+} elseif ($gan === $normTargetArt && $gbn !== $normTargetBrand) {
+    $exactGroups[$key] = $g; // тот же артикул, другой бренд → exact
+} else {
+    $analogGroups[$key] = $g;
+}
+
+php
+
+
+
+
+Баг #13 — analog_search.php брал кэш вместо live (ЗАКРЫТ)
+Убран cache-first блок, всегда live через FullSearchLauncher
+
+
+
+
+Баг #14 — Контейнер аналогов не рендерился при пустом $analogGroups (ЗАКРЫТ)
+Добавлен fallback-div с шапкой
+
+
+
+
+Баг #15 — Мало складов (лимиты OfferAggregator) (ЗАКРЫТ)
+
+
+
+$aggregator = new OfferAggregator(50, 500);
+$builder = new ResultBuilder(300, 50, 500);
+
+STAGES — Этап 5 (завершён)
+
+
+
+
+## Этап 5 — Не все поставщики в блоках точного совпадения и аналогов
+
+### Дата: 2026-07-23
+### Ветка: fix/cache-pipeline-bugs
+
+---
+
+### Задачи
+1. В блоке с искомым бренд+артикул не все поставщики
+2. В блоке аналогов не все поставщики
+
+---
+
+### Диагностика — что выяснили
+
+#### Кэш LC331 LYNXauto на момент этапа:
+| Поставщик | Строк в кэше | Причина выпадения |
+|-----------|-------------|-------------------|
+| autoeuro | 150 | лимит 50 обрезал до 50 |
+| tatparts | 69 | лимит 50 обрезал до 50 |
+| ixora | 19 | проходил в лимит |
+| berg | 2 | проходил в лимит |
+| moskvorechie | 0 по lc331 | нет LC331 в каталоге (есть Bosch 0451103316 → аналог) |
+| rossko | 0 по lc331 | нет LC331 в каталоге (есть Bosch 0451103316 → аналог) |
+| partkom | 0 по lc331 | нет LC331 в каталоге |
+| shatem | 0 всего | не зарегистрирован в init.php — отложено |
+
+#### Москворечье и Росско в аналогах — норма ✅
+Bosch 0451103316 = аналог LC331. Оба поставщика правильно
+попадают в блок "Аналоги (149 поз.)", а не в точное совпадение.
+
+---
+
+### Найденные и исправленные баги ✅
+
+#### Баг #16 — Live-ветка: OfferAggregator и ResultBuilder без параметров
+
+Файл: parts-search/stage2_search_v2.php, строки ~151-153
+
+Было два пути в одном файле с разными лимитами:
+```php
+## // Гибридная ветка (строки ~92-93) — было правильно:
+$aggregator = new OfferAggregator(50, 500);
+$builder    = new ResultBuilder(300, 50, 500);
+
+## // Live-ветка (строки ~151-153) — БАГ: дефолтные параметры:
+$aggregator  = new OfferAggregator();   // 10/поставщик, 40 всего
+$builder     = new ResultBuilder();     // 15/поставщик, 60 всего
+
 Код
 
 
 
 
-
-Этап 4 — СЛЕДУЮЩИЙ (не начат)
-
-
-Приоритеты:
+Эффект: live-поиск показывал только 121 склад из 240 доступных.
+autoeuro обрезался с 150 до 50 (-100), tatparts с 69 до 50 (-19).
 
 
 
 
-1.Баг #9 — отключить старый analog lazy-loader в гибридном режиме
+Фикс: унифицировали оба места — увеличили лимиты:
 
 
-2.Баг #10 — инициализировать $skipLive = false
 
+## // Обе ветки теперь одинаково:
+$aggregator  = new OfferAggregator(200, 1000);
+$offerGroups = $aggregator->aggregate($allResults);
+$builder     = new ResultBuilder(300, 200, 1000);
 
-3.Баг #11 — guard для ?verified=1
-
-
-4.Диагностика: почему ⚡ баннер не показывается
-
-
-5.Убедиться что аналоги отображаются корректно
+php
 
 
 
 
-Стартовые команды диагностики:
+Результат: 240 складов вместо 121 (+119) ✅
 
 
-# 1. Что рендерит _hybrid_notice.php — проверить переменные
-grep -n "verifyTaskHash\|cachedItems\|instantCacheMs" \
-  /var/www/u3564357/data/www/liderws.ru/parts-search/stage2_search_v2.php | head -20
 
-# 2. Лог гибридного поиска
-tail -10 /var/www/u3564357/data/www/liderws.ru/upload/logs/hybrid_$(date +%Y-%m-%d).log
 
-# 3. analog_search.php — что возвращает старый эндпоинт
-head -50 /var/www/u3564357/data/www/liderws.ru/local/ajax/analog_search.php
+
+НЕ решено — перенесено в Этап 6
+
+
+#	Проблема	Причина
+shatem	Не зарегистрирован в init.php	Отложено, требует ShatempConnector
+berg	2 строки в кэше, но не виден в списке	Возможно is_sched=1 (под заказ → в конец)
+
+
+
+
+Состояние кэша на конец этапа
+
+
+autoeuro:     17722 active (150 по lc331)
+tatparts:      3460 active  (69 по lc331)
+ixora:         5556 active  (19 по lc331)
+berg:           305 active   (2 по lc331)
+moskvorechie:   101 active   (0 по lc331 — норма)
+rossko:         262 active   (0 по lc331 — норма)
+partkom:          7 active   (0 по lc331 — норма)
+shatem:           0          (не зарегистрирован)
+
+sql
+
+
+
+UI на конец этапа
+
+
+
+✅ LC331 LYNXauto: 1 позиция, 240 складов
+✅ Аналоги: 149 позиций
+✅ Москворечье и Росско корректно в блоке аналогов (Bosch 0451103316)
+✅ Мгновенный кэш ~5-9 мс
