@@ -1,4 +1,3 @@
-
 <?php
 namespace Lider\Search\Stage2;
 
