@@ -148,9 +148,9 @@ if (!$skipLive) {
         }
     }
     
-    $aggregator  = new OfferAggregator();
+    $aggregator  = new OfferAggregator(50, 500);
     $offerGroups = $aggregator->aggregate($allResults);
-    $builder     = new ResultBuilder();
+    $builder     = new ResultBuilder(300, 50, 500);
     $result      = $builder->build(
         $offerGroups, $exactKey, $normTargetBrand, $normTargetArt,
         $displayBrand, $displayArticle, $cachedBrandMap,
