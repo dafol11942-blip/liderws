@@ -24,6 +24,7 @@ class InstantSearcher
             $stmt = $this->db->prepare(
                 "SELECT * FROM b_supplier_stock 
                  WHERE article = ? AND brand_normalized = ? AND is_active = 1
+                 AND last_updated > NOW() - INTERVAL 4 HOUR
                  ORDER BY is_sched ASC, price ASC"
             );
             $brandNorm = BrandNormalizer::normalize($brand);
@@ -32,6 +33,7 @@ class InstantSearcher
             $stmt = $this->db->prepare(
                 "SELECT * FROM b_supplier_stock 
                  WHERE article = ? AND is_active = 1
+                 AND last_updated > NOW() - INTERVAL 4 HOUR
                  ORDER BY is_sched ASC, price ASC"
             );
             $stmt->bind_param('s', $article);
@@ -79,6 +81,27 @@ class InstantSearcher
              price = VALUES(price), quantity = VALUES(quantity), 
              name = VALUES(name), last_updated = NOW(), is_active = 1"
         );
+
+        // FIX TTL: деактивируем старые строки перед вставкой свежих —
+        // исчезнувшие позиции не остаются is_active=1 вечно
+        $deactivateStmt = $this->db->prepare(
+            "UPDATE b_supplier_stock SET is_active = 0
+             WHERE supplier_code = ? AND article = ? AND brand_normalized = ?"
+        );
+        $seenKeys = [];
+        foreach ($items as $_itm) {
+            if (!($_itm instanceof SearchResultItem)) continue;
+            if ($_itm->price <= 0 && $_itm->quantity <= 0) continue;
+            $_bn  = BrandNormalizer::normalize($_itm->brand);
+            $_key = $_itm->source . '|' . $_itm->article . '|' . $_bn;
+            if (!isset($seenKeys[$_key])) {
+                $seenKeys[$_key] = true;
+                $deactivateStmt->bind_param('sss', $_itm->source, $_itm->article, $_bn);
+                $deactivateStmt->execute();
+            }
+        }
+        $deactivateStmt->close();
+        unset($seenKeys, $_itm, $_bn, $_key);
 
         foreach ($items as $item) {
             if (!($item instanceof SearchResultItem)) continue;
