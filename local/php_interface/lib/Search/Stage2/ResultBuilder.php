@@ -1,3 +1,4 @@
+
 <?php
 namespace Lider\Search\Stage2;
 
@@ -41,9 +42,11 @@ class ResultBuilder
             $gbn = BrandNormalizer::normalize($g['brand']); $gan = BrandNormalizer::normalizeArticle($g['article']);
             if (($gbn === $normTargetBrand && $gan === $normTargetArt) || $key === $exactKey) {
                 $exactGroups[$key] = $g;
-            } elseif (!($gan === $normTargetArt && $gbn !== $normTargetBrand)) {
-                $analogGroups[$key] = $g;
-            }
+        } elseif ($gan === $normTargetArt && $gbn !== $normTargetBrand) {
+            // Тот же артикул, другой бренд (LYNX vs LYNXauto) → в exactGroups
+            $exactGroups[$key] = $g;
+            } else {
+            $analogGroups[$key] = $g;
         }
 
         $fpmin = (int)($filters['price_min'] ?? 0); $fpmax = (int)($filters['price_max'] ?? 0);
