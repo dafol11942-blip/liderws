@@ -23,6 +23,7 @@ $exactGroups = []; $analogGroups = []; $allBrands = [];
 $totalGroups = 0; $totalWarehouses = 0; $searchNumber = $searchNumberRaw;
 $analogToken = '';
 $verifyTaskHash = ''; // Для фронтенда
+$skipLive = false;    // Баг #10: инициализация до if ($useHybrid)
 
 if ($searchNumberRaw === '' || $normTargetBrand === '') return;
 
@@ -104,23 +105,25 @@ file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . "
         $totalWarehouses = $instantResult['totalWarehouses'] ?? 0;
         $searchNumber = $displayArticle;
         
-        // Генерируем task_hash для последующей верификации
-        $verifyTaskHash = md5($normTargetArt . '|' . $normTargetBrand . '|' . microtime(true));
-        
-        // Сохраняем задачу в БД
-        $db = new \mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
-        $db->query("INSERT INTO b_search_verify_tasks (task_hash, article, brand, status) 
-                     VALUES ('{$verifyTaskHash}', '{$db->real_escape_string($displayArticle)}', '{$db->real_escape_string($displayBrand)}', 'pending')");
-        $db->close();
-        
-        // Лог
-        @file_put_contents(
-            __DIR__ . '/../upload/logs/hybrid_' . date('Y-m-d') . '.log',
-            '[' . date('H:i:s') . '] INSTANT article=' . $normTargetArt . ' brand=' . $normTargetBrand 
-            . ' items=' . count($cachedItems) . ' ms=' . $instantMs 
-            . ' task=' . $verifyTaskHash . "\n",
-            FILE_APPEND
-        );
+        // Генерируем task_hash только при первом показе (не при ?verified=1)
+        if (!isset($_GET['verified'])) {
+            $verifyTaskHash = md5($normTargetArt . '|' . $normTargetBrand . '|' . microtime(true));
+
+            // Сохраняем задачу в БД
+            $db = new \mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
+            $db->query("INSERT INTO b_search_verify_tasks (task_hash, article, brand, status)
+                         VALUES ('{$verifyTaskHash}', '{$db->real_escape_string($displayArticle)}', '{$db->real_escape_string($displayBrand)}', 'pending')");
+            $db->close();
+
+            // Лог
+            @file_put_contents(
+                __DIR__ . '/../upload/logs/hybrid_' . date('Y-m-d') . '.log',
+                '[' . date('H:i:s') . '] INSTANT article=' . $normTargetArt . ' brand=' . $normTargetBrand
+                . ' items=' . count($cachedItems) . ' ms=' . $instantMs
+                . ' task=' . $verifyTaskHash . "\n",
+                FILE_APPEND
+            );
+        }
      
         // НЕ возвращаемся — продолжаем и показываем кэш
         // но НЕ запускаем FullSearchLauncher ниже

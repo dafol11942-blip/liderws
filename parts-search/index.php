@@ -248,8 +248,10 @@ function orderFromSupplier(btn,article,brand){if(btn.disabled)return;btn.disable
 function escapeHtml(str){var d=document.createElement('div');d.textContent=str;return d.innerHTML;}
 function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
 
-// === ЛЕНИВАЯ ЗАГРУЗКА АНАЛОГОВ (исправленная) ===
+// === ЛЕНИВАЯ ЗАГРУЗКА АНАЛОГОВ ===
 (function(){
+    // Баг #9: гибридный поиск уже загрузил аналоги — старый AJAX не нужен
+    if (<?= !empty($verifyTaskHash) ? 'true' : 'false' ?>) return;
     var analogBlock = document.querySelector(".result-block--analog");
     if (!analogBlock) return;
     var analogContainer = analogBlock.querySelector(".supplier-list");
