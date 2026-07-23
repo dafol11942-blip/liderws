@@ -147,3 +147,72 @@ cat /var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Search/SearchC
 
 # 3. Смотрим OfferAggregator
 cat /var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Search/Stage2/OfferAggregator.php
+
+---
+
+## Этап 3: LC331 LYNXauto — 1 поставщик вместо 6+ (ЗАВЕРШЁН ЧАСТИЧНО)
+
+### Коммиты этапа:
+- c082790 — fix: normalize article in cache (LC-331→lc331), reload on verify done, fastcgi early response
+- 6d1251e — debug: log cache search params
+
+### Найденные баги:
+
+#### Баг #1 — ИСПРАВЛЕН ✅
+**Файл:** `local/php_interface/lib/Search/InstantSearcher.php`
+**Проблема:** `WHERE article = ?` — точное совпадение. Поставщики хранят `LC-331`, запрос ищет `lc331` → 5 из 6 не находило.
+**Фикс:** `WHERE REPLACE(REPLACE(REPLACE(LOWER(article),'-',''),' ',''),'.','') = ?`
+**Плюс:** `saveResults()` теперь сохраняет нормализованный артикул (`$articleNorm`) вместо сырого.
+**Плюс:** `deactivateStmt` тоже использует нормализованный артикул.
+
+#### Баг #2 — ИСПРАВЛЕН ✅
+**Файл:** `local/php_interface/ajax/verify_start.php`
+**Проблема:** Браузер ждал 15 сек пока идёт live-поиск (блокирующий).
+**Фикс:** Добавлен `fastcgi_finish_request()` — ответ браузеру отправляется немедленно, поиск продолжается в фоне.
+
+#### Баг #3 — НЕ ИСПРАВЛЕН ⏳
+**Файл:** `parts-search/index.php` строка 134
+**Проблема:** `require "stage2_search.php"` — подключается СТАРЫЙ файл без гибридной логики. Все правки в `stage2_search_v2.php` не работают.
+**Нужно:** заменить на `require __DIR__ . "/stage2_search_v2.php";`
+**Внимание:** Правильный `index.php` лежит в `/parts-search/index.php` (не в корне).
+
+#### Баг #4 — НЕ ИСПРАВЛЕН ⏳
+**Файл:** `parts-search/stage2_search_v2.php` (JS блок)
+**Проблема:** После `verify done` JS только меняет текст, не делает `window.location.reload()`.
+**Нужно:** добавить `setTimeout(function(){ window.location.reload(); }, 500);`
+
+### SQL исправления применены ✅:
+- 3480 строк нормализованы: `LC-331` → `lc331`
+- Запрос: `UPDATE b_supplier_stock SET article = LOWER(REPLACE(REPLACE(REPLACE(article,'-',''),' ',''),'.','')) WHERE article REGEXP '[^a-z0-9]';`
+
+### Структура таблицы b_supplier_stock (ключевые поля):
+- UNIQUE KEY: `(supplier_code, stock_id)`
+- INDEX: `article`, `brand_normalized`, `supplier_code`, `last_updated`
+- Колонка нормализованного артикула **отсутствует** (поиск через REPLACE в WHERE)
+
+### Архитектура гибридного поиска:
+
+markdown
+
+
+
+
+index.php → stage2_search_v2.php (надо переключить!)
+→ InstantSearcher::search() — кэш из b_supplier_stock
+→ если пусто: FullSearchLauncher (live API)
+→ JS: POST verify_start.php → live-поиск → saveResults()
+→ JS: GET verify_poll.php каждые 500мс → при done: reload()
+
+
+
+### Первоочередные задачи следующего этапа:
+1. Исправить `parts-search/index.php` строка 134: `stage2_search.php` → `stage2_search_v2.php`
+2. Добавить `window.location.reload()` в JS блок `stage2_search_v2.php`
+3. Убедиться что гибридный баннер `⚡ из кэша` появляется при повторном поиске
+4. Проверить что 6+ поставщиков показываются из кэша
+
+### Credentials (для нового диалога):
+- Репо: https://github.com/dafol11942-blip/liderws
+- Ветка: fix/cache-pipeline-bugs
+- Сервер: u3564357@server17, путь: /var/www/u3564357/data/www/liderws.ru
+- БД: u3564357_liderws_db, таблица кэша: b_supplier_stock (4266+ строк)
