@@ -85,17 +85,28 @@ class InstantSearcher
             if ($item->price <= 0 && $item->quantity <= 0) continue;
 
             $brandNorm = BrandNormalizer::normalize($item->brand);
-            $whCode = substr(md5($item->warehouse ?? ''), 0, 8);
+            $whCode  = substr(md5($item->warehouse ?? ''), 0, 8);
             $isSched = $item->isSched ? 1 : 0;
+            $multi   = (int)($item->multiplicity ?: 1);
+            $delDays = (int)($item->deliveryDays ?: 0);
+
+            // FIX #2: пустой stock_id → коллизия UNIQUE KEY → теряем все строки кроме первой
+            $stockId = !empty($item->stockId)
+                ? (string)$item->stockId
+                : md5($item->source . '|' . $item->article . '|' . $item->brand . '|' . ($item->warehouse ?? '') . '|' . $item->price);
 
             $stmt->bind_param(
-                'sssssdissiis',
+                'sssssdissiiis',
                 $item->source, $item->article, $item->brand, $brandNorm,
                 $item->name, $item->price, $item->quantity,
-                $item->warehouse, $whCode, $item->deliveryDays,
-                $isSched, $item->multiplicity, $item->stockId
+                $item->warehouse, $whCode, $delDays,
+                $isSched, $multi, $stockId
             );
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                error_log('[InstantSearcher] execute failed: ' . $stmt->error .
+                    ' | supplier=' . $item->source . ' article=' . $item->article);
+                continue;
+            }
             if ($stmt->affected_rows >= 0) $saved++;
         }
 

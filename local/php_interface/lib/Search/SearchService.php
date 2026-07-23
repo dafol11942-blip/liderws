@@ -144,7 +144,7 @@ class SearchService
             $supplier = $this->supplierFactory->get($code);
             if (!$supplier) continue;
 
-            $brands = array_slice($brands, 0, 3); // топ-3 бренда
+            $brands = array_slice($brands, 0, 10); // FIX: было 3 → теряли поставщиков если нужный бренд на позиции 4+
             foreach ($brands as $br) {
                 $b = $br['brand'] ?? '';
                 $a = $br['article_fix'] ?? $br['article'] ?? '';
@@ -157,8 +157,10 @@ class SearchService
                     // ShateM — последовательный fallback
                     try {
                         $items = $supplier->searchByBrandArticle($b, $a);
-                        $allResults = array_merge($allResults, array_slice($items, 0, 3));
-                    } catch (\Throwable $e) {}
+                        $allResults = array_merge($allResults, $items); // FIX: убран array_slice(3)
+                    } catch (\Throwable $e) {
+                        error_log('[SearchService] searchByBrandArticle error supplier=' . $code . ' : ' . $e->getMessage());
+                    }
                 }
             }
         }
@@ -201,8 +203,11 @@ class SearchService
                             $searchRequests[$idx]['brand'],
                             $searchRequests[$idx]['article']
                         );
-                        $allResults = array_merge($allResults, array_slice($items, 0, 3));
-                    } catch (\Throwable $e) {}
+                        $allResults = array_merge($allResults, $items); // FIX: убран array_slice(3)
+                    } catch (\Throwable $e) {
+                        error_log('[SearchService] parseSearchResponse error supplier=' .
+                            $searchRequests[$idx]['supplier']->getCode() . ' : ' . $e->getMessage());
+                    }
                 }
             }
             curl_multi_close($mh);
