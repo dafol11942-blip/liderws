@@ -85,6 +85,7 @@ if ($useHybrid) {
 $cachedItems = $cache->search($normTargetArt, $normTargetBrand);
 file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . " found=" . count($cachedItems) . "\n", FILE_APPEND);
     $instantMs = round((microtime(true) - $instantStart) * 1000, 1);
+    $instantCacheMs = $instantMs; // alias for _hybrid_notice.php
     
     if (!empty($cachedItems)) {
         $aggregator = new OfferAggregator();
@@ -120,71 +121,7 @@ file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . "
             . ' task=' . $verifyTaskHash . "\n",
             FILE_APPEND
         );
-        
-        // Показываем предупреждение что данные из кэша
-        echo '<div class="instant-notice" id="instant-notice" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:14px;display:flex;align-items:center;gap:10px;">';
-        echo '<span style="font-size:20px;">⚡</span>';
-        echo '<span>Показаны результаты из кэша (' . count($cachedItems) . ' складов, ' . number_format($instantMs, 1, ',', ' ') . ' мс). ';
-        echo '<span id="verify-status" style="color:#0066ff;">Обновляем актуальные цены...</span></span>';
-        echo '</div>';
-        
-        // JS для фоновой верификации
-        echo '<script>
-        (function() {
-            var taskHash = "' . $verifyTaskHash . '";
-            var statusEl = document.getElementById("verify-status");
-            var noticeEl = document.getElementById("instant-notice");
-            var checked = 0;
-            var maxChecks = 30; // макс 15 секунд
-            
-            function pollVerify() {
-                checked++;
-                fetch("/local/php_interface/ajax/verify_poll.php?task_hash=" + taskHash)
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.status === "done" || data.status === "failed") {
-                            if (data.status === "done") {
-                                statusEl.innerHTML = "✅ Обновляем страницу...";
-                                setTimeout(function(){ window.location.reload(); }, 500);
-                                noticeEl.style.background = "#f0fdf4";
-                                noticeEl.style.border = "1px solid #bbf7d0";
-                            } else {
-                                statusEl.innerHTML = "⚠️ Не удалось обновить";
-                                noticeEl.style.background = "#fff7ed";
-                                noticeEl.style.border = "1px solid #fed7aa";
-                            }
-                        } else if (checked >= maxChecks) {
-                            statusEl.innerHTML = "⏱️ Обновление затянулось, данные из кэша";
-                            noticeEl.style.background = "#fff7ed";
-                            noticeEl.style.border = "1px solid #fed7aa";
-                        } else {
-                            setTimeout(pollVerify, 500);
-                        }
-                    })
-                    .catch(() => {
-                        if (checked < maxChecks) setTimeout(pollVerify, 500);
-                        else statusEl.innerHTML = "⏱️ Обновление затянулось, данные из кэша";
-                    });
-            }
-            
-            // Запускаем верификацию на сервере
-            fetch("/local/php_interface/ajax/verify_start.php", {
-                method: "POST",
-                headers: {"Content-Type": "application/x-www-form-urlencoded"},
-                body: "task_hash=" + taskHash 
-                    + "&article=" + encodeURIComponent("' . addslashes($displayArticle) . '")
-                    + "&brand=" + encodeURIComponent("' . addslashes($displayBrand) . '")
-                    + "&brandMap=" + encodeURIComponent(\'' . addslashes(json_encode($cachedBrandMap, JSON_UNESCAPED_UNICODE)) . '\')
-                    + "&exactKey=" + encodeURIComponent("' . addslashes($exactKey) . '")
-                    + "&targetEntry=" + encodeURIComponent(\'' . addslashes(json_encode($targetEntry, JSON_UNESCAPED_UNICODE)) . '\')
-            }).then(function() {
-                setTimeout(pollVerify, 300);
-            }).catch(function() {
-                statusEl.innerHTML = "⚠️ Ошибка запуска обновления";
-            });
-        })();
-        </script>';
-        
+     
         // НЕ возвращаемся — продолжаем и показываем кэш
         // но НЕ запускаем FullSearchLauncher ниже
         $skipLive = true;
