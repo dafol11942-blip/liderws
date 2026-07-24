@@ -164,5 +164,5 @@ class FullSearchLauncher
         return $results;
     }
 
-    private function log(string $msg):void
+  private function log(string $msg):void{@file_put_contents('/var/www/u3564357/data/www/liderws.ru/upload/logs/fullsearch_'.date('Y-m-d').'.log','['.date('H:i:s').'] '.$msg."\n",FILE_APPEND);}
 }
