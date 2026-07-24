@@ -656,3 +656,111 @@ Lazy-loader → analog_search.php — единственный путь загр
    но duplicates из-за разного stockId — это ложные дубли
 2. Лог в analog_search.php: какие бренды собраны, сколько строк из MySQL, сколько добавлено
 3. Рассмотреть: для каждого кросс-номера из BrandMap делать launch(бренд, артикул) вместо MySQL
+
+## Этап 8 — Дедупликация, Phase 2, прогрессивная загрузка (ЗАВЕРШЁН)
+
+### Дата: 2026-07-24
+### Коммиты: (последние)
+### Ветка: fix/cache-pipeline-bugs
+
+---
+
+### Задачи
+1. Починить дедупликацию в analog_search.php — ключ стал слишком агрессивным
+2. SUFIX SP1041 должен показывать всех поставщиков
+3. Двойная надпись «Догружаем» — косметика
+
+---
+
+### Найденные и исправленные баги ✅
+
+#### Баг #21 — `$r` (leftover) вместо `$row` в ключе дедупликации
+Файл: `local/ajax/analog_search.php`, строка 232
+Переменная `$r` — leftover от предыдущего `foreach ($allResults as $r)`.
+Все MySQL-строки получали одинаковый `$dk` → проходила только первая.
+Фикс: `$r->source` → `$row['supplier_code']`, все поля берутся из `$row`.
+
+#### Баг #22 — `$seenKeys` не инициализирован
+Файл: `local/ajax/analog_search.php`
+Массив `$seenKeys` не создавался перед MySQL-дозагрузкой.
+Фикс: инициализация + заполнение из launch-результатов до MySQL-цикла.
+
+#### Баг #23 — Посторонние запчасти в аналогах
+Файл: `local/ajax/analog_search.php`
+MySQL-запрос брал ВСЕ артикулы брендов из BrandMap (TATSUMI TEA115 попадал в аналоги к MANN W81180).
+Фикс: фильтр `$crossArticles` — добавлена проверка `if (!isset($crossArticles[$na])) continue;`
+в MySQL-цикле. Пропускаются только артикулы, реально фигурирующие в BrandMap как кросс-номера.
+
+#### Баг #24 — curl_multi захлёбывался на 1200+ запросах (P2: +0)
+Файл: `local/php_interface/lib/Search/Common/MultiCurlExecutor.php`
+1264 запроса в одном curl_multi_exec → большинство не успевали → P2 всегда +0.
+Фикс: чанкинг по 100 запросов, каждый чанк со своим `$chunkTime`.
+
+#### Баг #25 — FullSearchLauncher: разделение на launchPhase1 + executePhase2
+Файл: `local/php_interface/lib/Search/Stage2/FullSearchLauncher.php`
+Добавлены методы `launchPhase1()` и `executePhase2()` для прогрессивной загрузки.
+`launch()` теперь вызывает оба метода. Phase 2 state сериализуется в файл.
+
+#### Баг #26 — example: объект → массив для JSON-сериализации
+Файл: `FullSearchLauncher.php`
+`$analogMap[$na]['example'] = $item` — SearchResultItem не сериализуется.
+Фикс: `['brand'=>$item->brand, 'article'=>$item->article]`
+
+#### Баг #27 — execute в вебе нестабилен
+Файлы: `analog_search.php`, `analog_poll.php`
+`register_shutdown_function` + `exec` не срабатывали из веба.
+Фикс: `analog_poll.php` при первом вызове сам запускает Phase 2 через `flock`.
+
+---
+
+### Прогрессивная загрузка аналогов (новая архитектура)
+
+markdown
+
+
+
+
+Пользователь → поиск
+│
+├─ 0мс: ⚡ Мгновенный кэш (InstantSearcher)
+│
+├─ 800мс: JS lazy-loader → analog_search.php?phase=fast
+│   ├─ Phase 1 (launchPhase1) + MySQL-дозагрузка → 3-5 сек
+│   ├─ Рендерит HTML → аналоги видны СРАЗУ
+│   ├─ Сохраняет P1 + P2-state в JSON-файл (upload/cache/search/p2/)
+│   └─ JSON: {p2_hash, p2_pending: true}
+│
+├─ JS polling каждые 2 сек → analog_poll.php?hash=xxx
+│   └─ Первый вызов: сам запускает Phase 2 → 10-15 сек → {ready: true}
+│
+└─ JS: fetch analog_search.php?phase=final&p2_hash=xxx
+├─ Читает P1 + P2 из state-файла
+├─ Рендерит ПОЛНЫЙ HTML (все хелперы, цены, доставка, маскировка)
+└─ Заменяет таблицу + обновляет счётчики
+
+
+
+### Новые файлы
+| Файл | Назначение |
+|------|-----------|
+| `local/ajax/analog_p2_exec.php` | CLI-запуск Phase 2 (для отладки) |
+| `local/ajax/analog_poll.php` | Polling + автозапуск Phase 2 через flock |
+
+### Изменённые файлы
+| Файл | Что изменено |
+|------|-------------|
+| `analog_search.php` | Режимы phase=fast / phase=final, P1 state после MySQL, дедупликация |
+| `FullSearchLauncher.php` | launchPhase1(), executePhase2(), example→массив |
+| `MultiCurlExecutor.php` | Чанкинг по 100 |
+| `parts-search/index.php` | JS: phase=fast + polling + final fetch |
+
+### Результат
+- P2: было +0 → стало +1758, +3692, +6821 складов
+- Аналоги: видны через 3-5 сек, полные через 10-15 сек
+- Баннеры: «Догружаем остальных поставщиков...» → «✅ Загружены все поставщики»
+- Посторонние запчасти (TATSUMI TEA115) больше не попадают
+
+### НЕ решено ⏳ — на Этап 9
+1. Холодный первый поиск сбоит — не всегда включается live-поиск
+   (проверено: Москворечье для GOODWILL AG290 есть в live API, но не в кэше → не показывается)
+2. Ускорение первого холодного поиска
