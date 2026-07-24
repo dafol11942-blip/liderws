@@ -79,6 +79,21 @@ class FullSearchLauncher
             } catch (\Throwable $e) {}
         }
         $this->log("P1: results=".count($results)." analogArts=".count($analogMap));
+        // Этап 7: добавляем brandMap в analogMap для Фазы 2
+        foreach ($brandMap as $gk => $info) {
+            [$gkBrand, $gkArt] = array_pad(explode('|', $gk, 2), 2, '');
+            $na = BrandNormalizer::normalizeArticle($gkArt);
+            $nb = BrandNormalizer::normalize($gkBrand);
+            if (($nb === $normExactBrand && $na === $normExactArt) || $gk === $exactKey) continue;
+            if (!isset($analogMap[$na])) {
+                $analogMap[$na] = ['brands' => [], 'articles' => [], 'sources' => [], 'example' => null];
+            }
+            foreach (($info['sources'] ?? []) as $src) {
+                $analogMap[$na]['sources'][$src] = true;
+                $analogMap[$na]['brands'][$gk] = $info['brands'][$src] ?? $gkBrand;
+                $analogMap[$na]['articles'][$gk] = $info['articles'][$src] ?? $gkArt;
+            }
+        }
 
         // ФАЗА 2
         uasort($analogMap, fn($a,$b)=>count($a['sources'])<=>count($b['sources']));
