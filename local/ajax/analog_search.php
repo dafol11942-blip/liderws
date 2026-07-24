@@ -407,12 +407,9 @@ try {
     }
     $cache->set($cacheKey, $response, 300);
 
-    // Запускаем Phase 2 в фоне
+// Запускаем Phase 2 в фоне — ДО вывода, без shutdown
     if ($phase === 'fast' && !empty($p2Hash)) {
-        register_shutdown_function(function() use ($p2Hash) {
-            $cmd = '/usr/bin/php ' . $_SERVER['DOCUMENT_ROOT'] . '/local/ajax/analog_p2_exec.php ' . escapeshellarg($p2Hash) . ' > /dev/null 2>&1 &';
-            exec($cmd);
-        });
+        exec('/usr/bin/php /var/www/u3564357/data/www/liderws.ru/local/ajax/analog_p2_exec.php ' . escapeshellarg($p2Hash) . ' > /dev/null 2>&1 &');
     }
     echo json_encode($response, JSON_UNESCAPED_UNICODE);
 
