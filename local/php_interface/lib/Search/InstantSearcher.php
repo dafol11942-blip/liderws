@@ -117,9 +117,7 @@ class InstantSearcher
             $delDays = (int)($item->deliveryDays ?: 0);
 
             // FIX #2: пустой stock_id → коллизия UNIQUE KEY → теряем все строки кроме первой
-                $stockId = !empty($item->stockId)
-                ? (string)$item->stockId . '|' . $articleNorm . '|' . substr(md5($item->warehouse ?? ''), 0, 6)
-                : md5($item->source . '|' . $item->article . '|' . $item->brand . '|' . ($item->warehouse ?? '') . '|' . $item->price);
+            $stockId = md5($item->source . '|' . $articleNorm . '|' . $brandNorm . '|' . ($item->warehouse ?? '') . '|' . round($item->price, 2) . '|' . ($item->stockId ?? ''));
 
             $stmt->bind_param(
                 'sssssdissiiis',
