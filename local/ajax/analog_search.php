@@ -211,13 +211,20 @@ try {
         $bn = BrandNormalizer::normalize($r->brand);
         if ($bn && $bn !== $normTargetBrand) $allBrandNorms[$bn] = true;
     }
-    // Добавляем бренды из BrandMap
+// Собираем кросс-артикулы из результатов launch()
+    $crossArticles = [];
+    foreach ($allResults as $r) {
+        $na = BrandNormalizer::normalizeArticle($r->article);
+        if ($na !== $normTargetArt) $crossArticles[$na] = true;
+    }
+    // Добавляем бренды и кросс-артикулы из BrandMap
     foreach ($cachedBrandMap as $gk => $info) {
         [$gb, $ga] = array_pad(explode('|', $gk, 2), 2, '');
         $nb = BrandNormalizer::normalize($gb);
         $na = BrandNormalizer::normalizeArticle($ga);
         if ($na === $normTargetArt || $nb === $normTargetBrand) continue;
         $allBrandNorms[$nb] = true;
+        $crossArticles[$na] = true;
     }
     // Инициализируем $seenKeys из результатов launch() для дедупликации с MySQL
     $seenKeys = [];
@@ -235,6 +242,8 @@ try {
         while ($row = $res->fetch_assoc()) {
             $na = BrandNormalizer::normalizeArticle($row['article']);
             if ($na === $normTargetArt) continue;
+            if (!isset($crossArticles[$na])) continue; // только кросс-номера
+            // Дубли: source|article_norm|brand_norm|price|warehouse
             // Дубли: source|article_norm|brand_norm|price|warehouse
             $dk = $row['supplier_code'] . '|' . BrandNormalizer::normalizeArticle($row['article']) . '|' . BrandNormalizer::normalize($row['brand']) . '|' . round((float)$row['price'], 2) . '|' . ($row['warehouse_name'] ?? '');
             if (isset($seenKeys[$dk])) continue;
