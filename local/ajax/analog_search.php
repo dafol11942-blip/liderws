@@ -204,6 +204,17 @@ try {
     // Кросс-номера (Mann WK692, Bosch 0451103...) — только от поставщиков live.
     // Финальный JSON кэшируется SearchCacheManager на 300 сек выше.
     $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
+
+    // Этап 7: дозагружаем аналоги из MySQL-кэша
+    foreach ($cachedBrandMap as $gk => $info) {
+        [$gb, $ga] = array_pad(explode('|', $gk, 2), 2, '');
+        if (BrandNormalizer::normalize($ga) === $normTargetArt && BrandNormalizer::normalize($gb) === $normTargetBrand) continue;
+        $cachedAnalog = $instantSearcher->search(BrandNormalizer::normalizeArticle($ga), BrandNormalizer::normalize($gb));
+        if (!empty($cachedAnalog)) {
+            $allResults = array_merge($allResults, $cachedAnalog);
+        }
+    }
+
     if (!empty($allResults)) {
         try {
             $instantSearcher->saveResults($allResults);
