@@ -10,6 +10,8 @@
 define('NO_KEEP_STATISTIC', true);
 define('NOT_CHECK_PERMISSIONS', true);
 
+$_SERVER['DOCUMENT_ROOT'] = '/var/www/u3564357/data/www/liderws.ru';
+
 // Этот скрипт запускается только из shutdown function — тихо
 if (php_sapi_name() === 'cli') {
     $p2Hash = $argv[1] ?? '';
