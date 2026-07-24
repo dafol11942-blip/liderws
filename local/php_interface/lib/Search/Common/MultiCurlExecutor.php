@@ -32,21 +32,8 @@ class MultiCurlExecutor
             return ($a['_timeout'] ?? 6) <=> ($b['_timeout'] ?? 6);
         });
 
-        $chunks = array_chunk($requests, 20, true);
-
-        foreach ($chunks as $chunk) {
-            $remaining = $this->globalDeadline - (microtime(true) - $this->startTime);
-            if ($remaining <= 0.5) {
-                foreach ($chunk as $req) {
-                    $key = (string)($req['_key'] ?? '');
-                    $this->results[$key] = ['body' => null, 'http' => 0, 'error' => 'deadline_exceeded'];
-                    $this->completedRequests++;
-                }
-                continue;
-            }
-            $this->executeChunk($chunk, $remaining);
-        }
-
+        $this->executeChunk($requests, $this->globalDeadline);
+        
         return $this->results;
     }
 
