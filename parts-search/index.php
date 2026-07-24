@@ -270,7 +270,7 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
         if (loaded) return;
         loaded = true;
 
-        var url = "/local/ajax/analog_search.php?q=" + encodeURIComponent("<?=urlencode($q)?>")
+        var url = "/local/ajax/analog_search.php?phase=fast&q=" + encodeURIComponent("<?=urlencode($q)?>")
             + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
             + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>")
             + "&token=" + analogToken
