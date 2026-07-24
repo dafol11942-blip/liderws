@@ -212,10 +212,10 @@ try {
         }
     }
 
-    $aggregator = new OfferAggregator(50, 1000);
+    $aggregator = new OfferAggregator(200, 1000);
     $groupedItems = $aggregator->aggregate($allResults);
 
-    $builder = new ResultBuilder(800, 50, 1000);
+    $builder = new ResultBuilder(800,200, 1000);
     $result = $builder->build(
         $groupedItems, $exactKey, $normTargetBrand, $normTargetArt,
         $displayBrand, $displayArticle, $cachedBrandMap,
