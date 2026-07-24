@@ -24,7 +24,10 @@ $totalGroups = 0; $totalWarehouses = 0; $searchNumber = $searchNumberRaw;
 $analogToken = '';
 $verifyTaskHash = ''; // Для фронтенда
 $skipLive = false;    // Баг #10: инициализация до if ($useHybrid)
-if (isset($_GET['verified'])) $skipLive = false; // Всегда live при перезагрузке после верификации
+// Этап 7: при ?verified=1 всегда делаем live-поиск (кэш не отдаёт кросс-номера)
+if (isset($_GET['verified'])) {
+    $useHybrid = false;
+}
 
 if ($searchNumberRaw === '' || $normTargetBrand === '') return;
 
