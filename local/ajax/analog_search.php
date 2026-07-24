@@ -205,21 +205,22 @@ try {
     // Финальный JSON кэшируется SearchCacheManager на 300 сек выше.
     $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
 
-    // Этап 7: дозагружаем аналоги из MySQL-кэша
+    // Этап 7: дозагружаем аналоги из MySQL-кэша (без дублей)
+    $seenKeys = [];
+    foreach ($allResults as $r) {
+        $dk = $r->source . '|' . ($r->stockId ?: '') . '|' . round($r->price, 2) . '|' . ($r->warehouse ?? '');
+        $seenKeys[$dk] = true;
+    }
     foreach ($cachedBrandMap as $gk => $info) {
         [$gb, $ga] = array_pad(explode('|', $gk, 2), 2, '');
         if (BrandNormalizer::normalize($ga) === $normTargetArt && BrandNormalizer::normalize($gb) === $normTargetBrand) continue;
         $cachedAnalog = $instantSearcher->search(BrandNormalizer::normalizeArticle($ga), BrandNormalizer::normalize($gb));
-        if (!empty($cachedAnalog)) {
-            $allResults = array_merge($allResults, $cachedAnalog);
-        }
-    }
-
-    if (!empty($allResults)) {
-        try {
-            $instantSearcher->saveResults($allResults);
-        } catch (\Throwable $saveEx) {
-            error_log('[analog_search] saveResults failed: ' . $saveEx->getMessage());
+        foreach ($cachedAnalog as $item) {
+            $dk = $item->source . '|' . ($item->stockId ?: '') . '|' . round($item->price, 2) . '|' . ($item->warehouse ?? '');
+            if (!isset($seenKeys[$dk])) {
+                $seenKeys[$dk] = true;
+                $allResults[] = $item;
+            }
         }
     }
 
