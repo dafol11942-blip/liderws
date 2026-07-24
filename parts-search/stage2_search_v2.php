@@ -140,7 +140,7 @@ file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . "
 // === ШАГ 2: LIVE-поиск (если кэш пустой) ===
 if (!$skipLive) {
     $launcher   = new FullSearchLauncher(getSupplierFactory());
-    $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 10.0);
+    $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
     
     // Сохраняем результаты в кэш (если есть что сохранять)
     if (!empty($allResults)) {
