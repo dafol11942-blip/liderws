@@ -203,6 +203,48 @@ try {
     // Кэш b_supplier_stock содержит только точные совпадения по артикулу.
     // Кросс-номера (Mann WK692, Bosch 0451103...) — только от поставщиков live.
     $phase = $_REQUEST['phase'] ?? 'full';
+    $p2Hash = trim($_REQUEST['p2_hash'] ?? '');
+
+    // Режим final: P2 завершён, читаем P1 из кэша + P2 из state-файла
+    if ($phase === 'final' && !empty($p2Hash)) {
+        $p2File = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2/' . $p2Hash . '.json';
+        if (!file_exists($p2File)) {
+            echo json_encode(['success'=>false, 'error'=>'State file not found']);
+            exit;
+        }
+        $p2Data = json_decode(file_get_contents($p2File), true);
+        if (empty($p2Data['done'])) {
+            echo json_encode(['success'=>false, 'error'=>'P2 not done yet']);
+            exit;
+        }
+        // Читаем P1 из state
+        $allResults = [];
+        if (!empty($p2Data['p1_results'])) {
+            foreach ($p2Data['p1_results'] as $r) {
+                $item = new \Lider\Search\SearchResultItem();
+                foreach ($r as $k => $v) { $item->$k = $v; }
+                $allResults[] = $item;
+            }
+        }
+        // Добавляем P2
+        if (!empty($p2Data['p2_results'])) {
+            foreach ($p2Data['p2_results'] as $r) {
+                $item = new \Lider\Search\SearchResultItem();
+                foreach ($r as $k => $v) { $item->$k = $v; }
+                $allResults[] = $item;
+            }
+        }
+        // Восстанавливаем переменные из state
+        $normTargetBrand = $p2Data['normTargetBrand'] ?? $normTargetBrand;
+        $normTargetArt = $p2Data['normTargetArt'] ?? $normTargetArt;
+        $displayBrand = $p2Data['brand'] ?? $displayBrand;
+        $displayArticle = $p2Data['article'] ?? $displayArticle;
+        $cachedBrandMap = $p2Data['cachedBrandMap'] ?? $cachedBrandMap;
+        $exactKey = $p2Data['exactKey'] ?? $exactKey;
+        // Пропускаем launch и MySQL, сразу к агрегации
+        goto finalRender;
+    }
+    $phase = $_REQUEST['phase'] ?? 'full';
     $p2Hash = '';
 
     if ($phase === 'fast') {
@@ -310,7 +352,7 @@ try {
         $existing['p1_results'] = $p1Serialized;
         file_put_contents($p2File, json_encode($existing, JSON_UNESCAPED_UNICODE));
     }
-
+    finalRender:
     $aggregator = new OfferAggregator(200, 1000);
     $groupedItems = $aggregator->aggregate($allResults);
 

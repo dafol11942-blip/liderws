@@ -299,20 +299,32 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
                     fetch("/local/ajax/analog_poll.php?hash=" + data.p2_hash)
                         .then(function(r) { return r.json(); })
                         .then(function(p2) {
-                            if (p2.ready && p2.html) {
+                            if (p2.ready) {
                                 clearInterval(p2Timer);
                                 var pb = document.getElementById("p2-progress");
-                                if (pb) pb.remove();
-                                analogContainer.innerHTML = p2.html;
-                                if (p2.totalGroups) {
-                                    var countEl = analogBlock.querySelector(".result-block__count");
-                                    if (countEl) countEl.textContent = p2.totalGroups + " поз.";
-                                }
-                                // Показываем финальный баннер
-                                var doneBanner = document.createElement("div");
-                                doneBanner.className = "search-notice search-notice--done";
-                                doneBanner.textContent = "✅ Загружены все поставщики (" + (p2.totalGroups || "?") + " поз., " + (p2.totalWarehouses || "?") + " складов)";
-                                analogBlock.insertBefore(doneBanner, analogBlock.firstChild);
+                                if (pb) pb.textContent = "⏳ Обновляем результаты...";
+                                // Перезапрашиваем analog_search в режиме final
+                                var finalUrl = "/local/ajax/analog_search.php?phase=final&p2_hash=" + data.p2_hash
+                                    + "&q=" + encodeURIComponent("<?=urlencode($q)?>")
+                                    + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
+                                    + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>")
+                                    + "&token=" + analogToken;
+                                fetch(finalUrl).then(function(r){ return r.json(); }).then(function(d){
+                                    if (pb) pb.remove();
+                                    if (d.success && d.html) {
+                                        analogContainer.innerHTML = d.html;
+                                        var countEl = analogBlock.querySelector(".result-block__count");
+                                        if (countEl && d.totalGroups) countEl.textContent = d.totalGroups + " поз.";
+                                        var whCount = document.querySelector(".wh-count");
+                                        if (whCount && d.totalWarehouses) whCount.textContent = d.totalWarehouses;
+                                        var totalStrong = document.querySelector(".search-hint strong");
+                                        if (totalStrong && d.totalGroups) totalStrong.textContent = d.totalGroups;
+                                        var doneBanner = document.createElement("div");
+                                        doneBanner.className = "search-notice search-notice--done";
+                                        doneBanner.textContent = "✅ Загружены все поставщики (" + (d.totalGroups || "?") + " поз., " + (d.totalWarehouses || "?") + " складов)";
+                                        analogBlock.insertBefore(doneBanner, analogBlock.firstChild);
+                                    }
+                                });
                             } else if (p2PollCount > 20) {
                                 // Таймаут через 40 сек
                                 clearInterval(p2Timer);
