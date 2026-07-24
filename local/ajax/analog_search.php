@@ -202,8 +202,34 @@ try {
         // Аналоги: всегда live-поиск.
     // Кэш b_supplier_stock содержит только точные совпадения по артикулу.
     // Кросс-номера (Mann WK692, Bosch 0451103...) — только от поставщиков live.
-    // Финальный JSON кэшируется SearchCacheManager на 300 сек выше.
-    $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
+    $phase = $_REQUEST['phase'] ?? 'full';
+    $p2Hash = '';
+
+    if ($phase === 'fast') {
+        [$allResults, $phase2State] = $launcher->launchPhase1($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
+        if ($phase2State !== null) {
+            $p2Hash = md5($cacheKey . '_p2_' . time());
+            // Сериализуем: 'example' уже массив, проблем нет
+            $p2Dir = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2';
+            if (!is_dir($p2Dir)) mkdir($p2Dir, 0755, true);
+            $p2File = $p2Dir . '/' . $p2Hash . '.json';
+            file_put_contents($p2File, json_encode([
+                'hash' => $p2Hash,
+                'state' => $phase2State,
+                'brand' => $displayBrand,
+                'article' => $displayArticle,
+                'exactKey' => $exactKey,
+                'normTargetBrand' => $normTargetBrand,
+                'normTargetArt' => $normTargetArt,
+                'cachedBrandMap' => $cachedBrandMap,
+                'cacheKey' => $cacheKey,
+                'created' => time()
+            ], JSON_UNESCAPED_UNICODE));
+        }
+    } else {
+        $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
+    }
+    
 
 // Этап 7: дозагружаем кросс-номера из MySQL (бренды из launch + BrandMap)
     $allBrandNorms = [];
@@ -371,7 +397,23 @@ try {
     $html = ob_get_clean();
 
     $response = ['success'=>true, 'html'=>$html, 'totalGroups'=>count($analogGroups), 'totalWarehouses'=>$result['totalWarehouses'], 'ok'=>1];
+    if (!empty($p2Hash)) {
+        $response['p2_hash'] = $p2Hash;
+        $response['p2_pending'] = true;
+    }
+    // Сохраняем fast_html для polling
+    if ($phase === 'fast') {
+        $response['fast_html'] = true;
+    }
     $cache->set($cacheKey, $response, 300);
+
+    // Запускаем Phase 2 в фоне
+    if ($phase === 'fast' && !empty($p2Hash)) {
+        register_shutdown_function(function() use ($p2Hash) {
+            $cmd = '/usr/bin/php ' . $_SERVER['DOCUMENT_ROOT'] . '/local/ajax/analog_p2_exec.php ' . escapeshellarg($p2Hash) . ' > /dev/null 2>&1 &';
+            exec($cmd);
+        });
+    }
     echo json_encode($response, JSON_UNESCAPED_UNICODE);
 
 } catch (\Throwable $e) {

@@ -78,7 +78,7 @@ class FullSearchLauncher
                     $isExact = ($itemNormArt === $normExactArt && $gkbNorm === $normExactBrand);
                     if (!$isExact) {
                         if (!isset($analogMap[$itemNormArt])) {
-                            $analogMap[$itemNormArt] = ['brands' => [$gk => $item->brand], 'articles' => [$gk => $item->article], 'sources' => [$src => true], 'example' => $item];
+                            $analogMap[$itemNormArt] = ['brands'=>[$gk=>$item->brand],'articles'=>[$gk=>$item->article],'sources'=>[$src=>true],'example'=>['brand'=>$item->brand,'article'=>$item->article]];
                         } else {
                             $analogMap[$itemNormArt]['sources'][$src] = true;
                             if (!isset($analogMap[$itemNormArt]['brands'][$gk])) $analogMap[$itemNormArt]['brands'][$gk] = $item->brand;
@@ -123,8 +123,9 @@ class FullSearchLauncher
             $missing = array_diff($allCodes, array_keys($am['sources']));
             if (empty($missing)) continue;
             $firstGk = array_key_first($am['brands']);
-            $fb = $am['brands'][$firstGk] ?? $am['example']->brand;
-            $fa = $am['articles'][$firstGk] ?? $am['example']->article;
+            $ex=$am['example']??null;
+            $fb=$am['brands'][$firstGk]??(is_array($ex)?$ex['brand']:($ex?$ex->brand:''));
+            $fa=$am['articles'][$firstGk]??(is_array($ex)?$ex['article']:($ex?$ex->article:''));
             $bmFound = null;
             foreach ($am['brands'] as $gk => $b) { if (isset($brandMap[$gk])) { $bmFound = $brandMap[$gk]; break; } }
             foreach ($missing as $supCode) {
