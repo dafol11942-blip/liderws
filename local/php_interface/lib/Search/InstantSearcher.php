@@ -77,9 +77,10 @@ class InstantSearcher
              (supplier_code, article, brand, brand_normalized, name, price, quantity, 
               warehouse_name, warehouse_code, delivery_days, is_sched, multiplicity, stock_id, last_updated)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-             ON DUPLICATE KEY UPDATE 
-             price = VALUES(price), quantity = VALUES(quantity), 
-             name = VALUES(name), last_updated = NOW(), is_active = 1"
+            ON DUPLICATE KEY UPDATE 
+            article = VALUES(article), brand = VALUES(brand), brand_normalized = VALUES(brand_normalized),
+            price = VALUES(price), quantity = VALUES(quantity), 
+            name = VALUES(name), last_updated = NOW(), is_active = 1
         );
 
         // FIX TTL: деактивируем старые строки перед вставкой свежих —
@@ -117,8 +118,8 @@ class InstantSearcher
 
             // FIX #2: пустой stock_id → коллизия UNIQUE KEY → теряем все строки кроме первой
             $stockId = !empty($item->stockId)
-                ? (string)$item->stockId
-                : md5($item->source . '|' . $item->article . '|' . $item->brand . '|' . ($item->warehouse ?? '') . '|' . $item->price);
+            ? (string)$item->stockId . '|' . $articleNorm
+            : md5($item->source . '|' . $item->article . '|' . $item->brand . '|' . ($item->warehouse ?? '') . '|' . $item->price);
 
             $stmt->bind_param(
                 'sssssdissiiis',
