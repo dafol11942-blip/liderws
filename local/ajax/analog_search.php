@@ -205,25 +205,50 @@ try {
     // Финальный JSON кэшируется SearchCacheManager на 300 сек выше.
     $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
 
-    // Этап 7: дозагружаем аналоги из MySQL-кэша (без дублей)
+// Этап 7: дозагружаем кросс-номера из MySQL
     $seenKeys = [];
     foreach ($allResults as $r) {
         $dk = $r->source . '|' . ($r->stockId ?: '') . '|' . round($r->price, 2) . '|' . ($r->warehouse ?? '');
         $seenKeys[$dk] = true;
     }
-    foreach ($cachedBrandMap as $gk => $info) {
-        [$gb, $ga] = array_pad(explode('|', $gk, 2), 2, '');
-        if (BrandNormalizer::normalize($ga) === $normTargetArt && BrandNormalizer::normalize($gb) === $normTargetBrand) continue;
-        $cachedAnalog = $instantSearcher->search(BrandNormalizer::normalizeArticle($ga), BrandNormalizer::normalize($gb));
-        foreach ($cachedAnalog as $item) {
-            $dk = $item->source . '|' . ($item->stockId ?: '') . '|' . round($item->price, 2) . '|' . ($item->warehouse ?? '');
-            if (!isset($seenKeys[$dk])) {
-                $seenKeys[$dk] = true;
-                $allResults[] = $item;
-            }
-        }
+    $foundBrands = [];
+    foreach ($allResults as $r) {
+        $bn = BrandNormalizer::normalize($r->brand);
+        if ($bn && $bn !== $normTargetBrand) $foundBrands[$bn] = true;
     }
-
+    if (!empty($foundBrands)) {
+        $db = new \mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
+        $db->set_charset('utf8mb4');
+        $placeholders = implode(',', array_fill(0, count($foundBrands), '?'));
+        $types = str_repeat('s', count($foundBrands));
+        $stmt = $db->prepare("SELECT * FROM b_supplier_stock WHERE brand_normalized IN ($placeholders) AND is_active = 1 AND last_updated > NOW() - INTERVAL 4 HOUR ORDER BY is_sched ASC, price ASC");
+        $stmt->bind_param($types, ...array_values($foundBrands));
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $na = BrandNormalizer::normalizeArticle($row['article']);
+            if ($na === $normTargetArt) continue;
+            $dk = $row['supplier_code'] . '|' . ($row['stock_id'] ?: '') . '|' . round($row['price'], 2) . '|' . ($row['warehouse_name'] ?? '');
+            if (isset($seenKeys[$dk])) continue;
+            $seenKeys[$dk] = true;
+            $item = new \Lider\Search\SearchResultItem();
+            $item->source = $row['supplier_code'];
+            $item->article = $row['article'];
+            $item->brand = $row['brand'];
+            $item->name = $row['name'];
+            $item->price = (float)$row['price'];
+            $item->quantity = (int)$row['quantity'];
+            $item->warehouse = $row['warehouse_name'];
+            $item->stockId = $row['stock_id'];
+            $item->supplierName = $row['supplier_code'];
+            $item->isSched = (bool)$row['is_sched'];
+            $item->deliveryDays = (int)$row['delivery_days'];
+            $item->multiplicity = (int)$row['multiplicity'];
+            $allResults[] = $item;
+        }
+        $stmt->close();
+        $db->close();
+    }
     $aggregator = new OfferAggregator(200, 1000);
     $groupedItems = $aggregator->aggregate($allResults);
 
