@@ -205,27 +205,31 @@ try {
     // Финальный JSON кэшируется SearchCacheManager на 300 сек выше.
     $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
 
-// Этап 7: дозагружаем кросс-номера из MySQL
-    $seenKeys = [];
-    foreach ($allResults as $r) {
-        $dk = $r->source . '|' . ($r->stockId ?: '') . '|' . round($r->price, 2) . '|' . ($r->warehouse ?? '');
-        $seenKeys[$dk] = true;
-    }
-    $foundBrands = [];
+// Этап 7: дозагружаем кросс-номера из MySQL (бренды из launch + BrandMap)
+    $allBrandNorms = [];
     foreach ($allResults as $r) {
         $bn = BrandNormalizer::normalize($r->brand);
-        if ($bn && $bn !== $normTargetBrand) $foundBrands[$bn] = true;
+        if ($bn && $bn !== $normTargetBrand) $allBrandNorms[$bn] = true;
     }
-    if (!empty($foundBrands)) {
+    // Добавляем бренды из BrandMap
+    foreach ($cachedBrandMap as $gk => $info) {
+        [$gb, $ga] = array_pad(explode('|', $gk, 2), 2, '');
+        $nb = BrandNormalizer::normalize($gb);
+        $na = BrandNormalizer::normalizeArticle($ga);
+        if ($na === $normTargetArt || $nb === $normTargetBrand) continue;
+        $allBrandNorms[$nb] = true;
+    }
+    if (!empty($allBrandNorms)) {
         $db = new \mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
         $db->set_charset('utf8mb4');
-        $escaped = array_map(fn($b) => "'" . $db->real_escape_string($b) . "'", array_keys($foundBrands));
+        $escaped = array_map(fn($b) => "'" . $db->real_escape_string($b) . "'", array_keys($allBrandNorms));
         $sql = "SELECT * FROM b_supplier_stock WHERE brand_normalized IN (" . implode(',', $escaped) . ") AND is_active = 1 AND last_updated > NOW() - INTERVAL 4 HOUR ORDER BY is_sched ASC, price ASC";
         $res = $db->query($sql);
         while ($row = $res->fetch_assoc()) {
             $na = BrandNormalizer::normalizeArticle($row['article']);
             if ($na === $normTargetArt) continue;
-            $dk = $row['supplier_code'] . '|' . ($row['stock_id'] ?: '') . '|' . round($row['price'], 2) . '|' . ($row['warehouse_name'] ?? '');
+            // Дубли: source|article_norm|brand_norm|price|warehouse
+            $dk = $r->source . '|' . BrandNormalizer::normalizeArticle($r->article) . '|' . BrandNormalizer::normalize($r->brand) . '|' . round($r->price, 2) . '|' . ($r->warehouse ?? '');
             if (isset($seenKeys[$dk])) continue;
             $seenKeys[$dk] = true;
             $item = new \Lider\Search\SearchResultItem();
