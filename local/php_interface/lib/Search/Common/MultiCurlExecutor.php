@@ -32,8 +32,18 @@ class MultiCurlExecutor
             return ($a['_timeout'] ?? 6) <=> ($b['_timeout'] ?? 6);
         });
 
-        $this->executeChunk($requests, $this->globalDeadline);
-        
+        // Чанкинг по 100: curl_multi не тянет 1200+ одновременных соединений
+        $chunkSize = 100;
+        $chunks = array_chunk($requests, $chunkSize);
+        $numChunks = count($chunks);
+        foreach ($chunks as $i => $chunk) {
+            $elapsed = microtime(true) - $this->startTime;
+            $remaining = $this->globalDeadline - $elapsed;
+            if ($remaining <= 0.5) break;
+            $chunkTime = $remaining / max(1, $numChunks - $i);
+            $this->executeChunk($chunk, $chunkTime);
+        }
+
         return $this->results;
     }
 
