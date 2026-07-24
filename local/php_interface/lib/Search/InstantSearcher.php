@@ -80,7 +80,7 @@ class InstantSearcher
             ON DUPLICATE KEY UPDATE 
             article = VALUES(article), brand = VALUES(brand), brand_normalized = VALUES(brand_normalized),
             price = VALUES(price), quantity = VALUES(quantity), 
-            name = VALUES(name), last_updated = NOW(), is_active = 1
+            name = VALUES(name), last_updated = NOW(), is_active = 1"
         );
 
         // FIX TTL: деактивируем старые строки перед вставкой свежих —
