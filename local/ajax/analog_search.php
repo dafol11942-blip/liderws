@@ -209,27 +209,12 @@ try {
         [$allResults, $phase2State] = $launcher->launchPhase1($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
         if ($phase2State !== null) {
             $p2Hash = md5($cacheKey . '_p2_' . time());
-            // Сериализуем: 'example' уже массив, проблем нет
             $p2Dir = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2';
             if (!is_dir($p2Dir)) mkdir($p2Dir, 0755, true);
             $p2File = $p2Dir . '/' . $p2Hash . '.json';
-            // Сериализуем P1 результаты для последующего мёрджа
-            $p1Serialized = array_map(function($item) {
-                return [
-                    'source' => $item->source, 'article' => $item->article, 'brand' => $item->brand,
-                    'name' => $item->name, 'price' => $item->price, 'quantity' => $item->quantity,
-                    'warehouse' => $item->warehouse, 'stockId' => $item->stockId,
-                    'supplierName' => $item->supplierName, 'isSched' => $item->isSched,
-                    'deliveryDays' => $item->deliveryDays, 'deliveryPeriod' => $item->deliveryPeriod ?? 0,
-                    'multiplicity' => $item->multiplicity ?? 1, 'unit' => $item->unit ?? 'шт.',
-                    'raw' => $item->raw ?? [],
-                ];
-            }, $allResults);
             file_put_contents($p2File, json_encode([
                 'hash' => $p2Hash,
                 'state' => $phase2State,
-                'p1_count' => count($allResults),
-                'p1_results' => $p1Serialized,
                 'brand' => $displayBrand,
                 'article' => $displayArticle,
                 'exactKey' => $exactKey,
@@ -304,6 +289,26 @@ try {
             $allResults[] = $item;
         }
         $db->close();
+    }
+
+        // Дописываем P1 результаты в state-файл (уже с MySQL-дозагрузкой)
+    if ($phase === 'fast' && !empty($p2File) && file_exists($p2File)) {
+        $p1Serialized = [];
+        foreach ($allResults as $item) {
+            $p1Serialized[] = [
+                'source' => $item->source, 'article' => $item->article, 'brand' => $item->brand,
+                'name' => $item->name, 'price' => $item->price, 'quantity' => $item->quantity,
+                'warehouse' => $item->warehouse, 'stockId' => $item->stockId,
+                'supplierName' => $item->supplierName, 'isSched' => $item->isSched,
+                'deliveryDays' => $item->deliveryDays, 'deliveryPeriod' => $item->deliveryPeriod ?? 0,
+                'multiplicity' => $item->multiplicity ?? 1, 'unit' => $item->unit ?? 'шт.',
+                'raw' => $item->raw ?? [],
+            ];
+        }
+        $existing = json_decode(file_get_contents($p2File), true) ?: [];
+        $existing['p1_count'] = count($allResults);
+        $existing['p1_results'] = $p1Serialized;
+        file_put_contents($p2File, json_encode($existing, JSON_UNESCAPED_UNICODE));
     }
 
     $aggregator = new OfferAggregator(200, 1000);

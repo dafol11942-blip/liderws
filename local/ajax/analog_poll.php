@@ -58,7 +58,7 @@ try {
             $allResults[] = $item;
         }
     }
-    
+
     if (!empty($data['p2_results'])) {
         foreach ($data['p2_results'] as $r) {
             $item = new \Lider\Search\SearchResultItem();
@@ -82,6 +82,21 @@ try {
     // Рендерим HTML (упрощённо — только группы аналогов)
     ob_start();
     $ri = 0;
+    if (!empty($analogGroups)):
+    ?>
+    <div class="supplier-list__header">
+    <div class="sl-cell sl-cell--expand"></div>
+    <div class="sl-cell sl-cell--brand">Бренд</div>
+    <div class="sl-cell sl-cell--desc">Описание</div>
+    <div class="sl-cell sl-cell--article">Артикул</div>
+    <div class="sl-cell sl-cell--mult">Кратность</div>
+    <div class="sl-cell sl-cell--stock">Наличие</div>
+    <div class="sl-cell sl-cell--delivery">Доставка</div>
+    <div class="sl-cell sl-cell--price">Цена</div>
+    <div class="sl-cell sl-cell--order"></div>
+    </div>
+    <?php
+    endif;
     foreach ($analogGroups as $group):
         $ri++;
         $inStock = $group['has_instock'];
