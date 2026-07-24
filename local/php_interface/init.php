@@ -57,7 +57,7 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
 
         $factory->register(new \Lider\Supplier\PartKomConnector([
             'LOGIN' => 'lider16',
-            'PASSWORD' => '8dTpDU8}Myr)*&',
+            'PASSWORD' => 'LidGates16',
         ]));
 
         $factory->register(new \Lider\Supplier\IxoraConnector([
