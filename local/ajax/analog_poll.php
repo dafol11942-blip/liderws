@@ -49,12 +49,16 @@ try {
         exit;
     }
 
-    // Восстанавливаем P1 результаты из InstantSearcher
-    $instantSearcher = new \Lider\Search\InstantSearcher();
-    $p1Results = $instantSearcher->search($normTargetArt, $normTargetBrand);
-
-    // Добавляем P2 результаты
-    $allResults = $p1Results;
+// Восстанавливаем P1 результаты из state-файла
+    $allResults = [];
+    if (!empty($data['p1_results'])) {
+        foreach ($data['p1_results'] as $r) {
+            $item = new \Lider\Search\SearchResultItem();
+            foreach ($r as $k => $v) { $item->$k = $v; }
+            $allResults[] = $item;
+        }
+    }
+    
     if (!empty($data['p2_results'])) {
         foreach ($data['p2_results'] as $r) {
             $item = new \Lider\Search\SearchResultItem();

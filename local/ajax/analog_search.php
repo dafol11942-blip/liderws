@@ -213,9 +213,23 @@ try {
             $p2Dir = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2';
             if (!is_dir($p2Dir)) mkdir($p2Dir, 0755, true);
             $p2File = $p2Dir . '/' . $p2Hash . '.json';
+            // Сериализуем P1 результаты для последующего мёрджа
+            $p1Serialized = array_map(function($item) {
+                return [
+                    'source' => $item->source, 'article' => $item->article, 'brand' => $item->brand,
+                    'name' => $item->name, 'price' => $item->price, 'quantity' => $item->quantity,
+                    'warehouse' => $item->warehouse, 'stockId' => $item->stockId,
+                    'supplierName' => $item->supplierName, 'isSched' => $item->isSched,
+                    'deliveryDays' => $item->deliveryDays, 'deliveryPeriod' => $item->deliveryPeriod ?? 0,
+                    'multiplicity' => $item->multiplicity ?? 1, 'unit' => $item->unit ?? 'шт.',
+                    'raw' => $item->raw ?? [],
+                ];
+            }, $allResults);
             file_put_contents($p2File, json_encode([
                 'hash' => $p2Hash,
                 'state' => $phase2State,
+                'p1_count' => count($allResults),
+                'p1_results' => $p1Serialized,
                 'brand' => $displayBrand,
                 'article' => $displayArticle,
                 'exactKey' => $exactKey,
