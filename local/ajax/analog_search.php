@@ -219,6 +219,13 @@ try {
         if ($na === $normTargetArt || $nb === $normTargetBrand) continue;
         $allBrandNorms[$nb] = true;
     }
+    // Инициализируем $seenKeys из результатов launch() для дедупликации с MySQL
+    $seenKeys = [];
+    foreach ($allResults as $r) {
+        $dk = $r->source . '|' . BrandNormalizer::normalizeArticle($r->article) . '|' . BrandNormalizer::normalize($r->brand) . '|' . round($r->price, 2) . '|' . ($r->warehouse ?? '');
+        $seenKeys[$dk] = true;
+    }
+
     if (!empty($allBrandNorms)) {
         $db = new \mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
         $db->set_charset('utf8mb4');
@@ -229,7 +236,7 @@ try {
             $na = BrandNormalizer::normalizeArticle($row['article']);
             if ($na === $normTargetArt) continue;
             // Дубли: source|article_norm|brand_norm|price|warehouse
-            $dk = $r->source . '|' . BrandNormalizer::normalizeArticle($r->article) . '|' . BrandNormalizer::normalize($r->brand) . '|' . round($r->price, 2) . '|' . ($r->warehouse ?? '');
+            $dk = $row['supplier_code'] . '|' . BrandNormalizer::normalizeArticle($row['article']) . '|' . BrandNormalizer::normalize($row['brand']) . '|' . round((float)$row['price'], 2) . '|' . ($row['warehouse_name'] ?? '');
             if (isset($seenKeys[$dk])) continue;
             $seenKeys[$dk] = true;
             $item = new \Lider\Search\SearchResultItem();
