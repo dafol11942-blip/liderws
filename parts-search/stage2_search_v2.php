@@ -24,6 +24,7 @@ $totalGroups = 0; $totalWarehouses = 0; $searchNumber = $searchNumberRaw;
 $analogToken = '';
 $verifyTaskHash = ''; // Для фронтенда
 $skipLive = false;    // Баг #10: инициализация до if ($useHybrid)
+if (isset($_GET['verified'])) $skipLive = false; // Всегда live при перезагрузке после верификации
 
 if ($searchNumberRaw === '' || $normTargetBrand === '') return;
 
