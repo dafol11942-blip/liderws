@@ -219,12 +219,9 @@ try {
     if (!empty($foundBrands)) {
         $db = new \mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
         $db->set_charset('utf8mb4');
-        $placeholders = implode(',', array_fill(0, count($foundBrands), '?'));
-        $types = str_repeat('s', count($foundBrands));
-        $stmt = $db->prepare("SELECT * FROM b_supplier_stock WHERE brand_normalized IN ($placeholders) AND is_active = 1 AND last_updated > NOW() - INTERVAL 4 HOUR ORDER BY is_sched ASC, price ASC");
-        $stmt->bind_param($types, ...array_values($foundBrands));
-        $stmt->execute();
-        $res = $stmt->get_result();
+        $escaped = array_map(fn($b) => "'" . $db->real_escape_string($b) . "'", array_keys($foundBrands));
+        $sql = "SELECT * FROM b_supplier_stock WHERE brand_normalized IN (" . implode(',', $escaped) . ") AND is_active = 1 AND last_updated > NOW() - INTERVAL 4 HOUR ORDER BY is_sched ASC, price ASC";
+        $res = $db->query($sql);
         while ($row = $res->fetch_assoc()) {
             $na = BrandNormalizer::normalizeArticle($row['article']);
             if ($na === $normTargetArt) continue;
@@ -246,9 +243,9 @@ try {
             $item->multiplicity = (int)$row['multiplicity'];
             $allResults[] = $item;
         }
-        $stmt->close();
         $db->close();
     }
+
     $aggregator = new OfferAggregator(200, 1000);
     $groupedItems = $aggregator->aggregate($allResults);
 
