@@ -454,3 +454,131 @@ UI на конец этапа
 ✅ Аналоги: 149 позиций
 ✅ Москворечье и Росско корректно в блоке аналогов (Bosch 0451103316)
 ✅ Мгновенный кэш ~5-9 мс
+
+## Этап 6 — Коллизия UNIQUE KEY stock_id + пропавшие поставщики
+
+### Дата: 2026-07-24
+### Ветка: fix/cache-pipeline-bugs
+
+---
+
+### Проблема
+Берг, Москворечье и Росско не показывались в выдаче LC331 LYNXauto.
+ПартКом — только 3 склада из 115 для W7008 MANN-FILTER.
+
+---
+
+### Диагностика
+
+#### 1. Берг: 2 строки в кэше вместо 79
+- `UNIQUE KEY (supplier_code, stock_id)` — Берг переиспользует `warehouse.id`
+- `BERG KZN` (id=46) используется и для `w811/80` (MANN) и для `lc331` (LYNX)
+- `ON DUPLICATE KEY UPDATE` обновлял только price/quantity/name, не трогая article/brand
+- 76 из 79 строк Берга перезаписывали чужие строки → терялись
+
+#### 2. ПартКом: 3 строки в кэше вместо 115
+- `placementId=136` одинаков для 81 позиции на складе «МСК склад: Наб. Челны»
+- Даже с `|article` в stock_id получалось `136|w7008` для всех → коллизия
+- Дополнительно: неверный пароль в `init.php` (`8dTpDU8}Myr)*&` вместо `LidGates16`)
+
+#### 3. Москворечье и Росско — та же проблема коллизий
+
+---
+
+### Исправления
+
+#### Баг #17 — stock_id не уникален (коллизия UNIQUE KEY)
+Файл: `InstantSearcher.php`
+
+Было:
+```php
+$stockId = !empty($item->stockId)
+    ? (string)$item->stockId . '|' . $articleNorm
+    : md5(...);
+
+markdown
+
+
+
+
+Стало:
+
+
+
+$stockId = md5($item->source . '|' . $articleNorm . '|' . $brandNorm . '|' .
+    ($item->warehouse ?? '') . '|' . round($item->price, 2) . '|' . ($item->stockId ?? ''));
+
+php
+
+
+
+
+MD5-хеш гарантирует уникальность для каждой комбинации поставщик+артикул+бренд+склад+цена+stockId.
+
+
+
+Баг #18 — ON DUPLICATE KEY UPDATE не обновлял article/brand
+
+
+
+Файл: InstantSearcher.php
+
+
+
+
+Было:
+
+
+
+# ON DUPLICATE KEY UPDATE
+price = VALUES(price), quantity = VALUES(quantity), 
+name = VALUES(name), last_updated = NOW(), is_active = 1
+
+sql
+
+
+
+
+Стало:
+
+
+
+# ON DUPLICATE KEY UPDATE
+article = VALUES(article), brand = VALUES(brand), brand_normalized = VALUES(brand_normalized),
+price = VALUES(price), quantity = VALUES(quantity), 
+name = VALUES(name), last_updated = NOW(), is_active = 1
+
+sql
+
+
+
+Баг #19 — Неверный пароль PartKom в init.php
+
+
+
+Файл: local/php_interface/init.php
+
+
+
+
+Было: 'PASSWORD' => '8dTpDU8}Myr)*&'
+Стало: 'PASSWORD' => 'LidGates16'
+
+
+
+
+
+Результат
+
+
+Поставщик	Было в кэше (w7008)	Стало
+autoeuro	150	150 ✅
+berg	2	118 ✅
+partkom	3	115 ✅
+moskvorechie	0	26 ✅
+rossko	0	5 ✅
+ixora	21	21 ✅
+
+
+
+Общий кэш: 21363 + 2213 + 1182 + 1033 + 414 + 330 + 251 = ~26786 активных строк
