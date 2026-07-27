@@ -301,12 +301,27 @@ class AutopiterConnector implements SupplierInterface
         $brands = $this->searchBrands($article);
         $norm = BrandNormalizer::normalize($brand);
 
+        // 1. Exact match
         foreach ($brands as $br) {
             if (BrandNormalizer::normalize($br['brand']) === $norm) {
-                // Нет ArticleId в parseBrandsResponse? Нужно добавить!
                 return $br['article_id'] ?? null;
             }
         }
+
+        // 2. Fuzzy match (substring)
+        $raw = mb_strtolower(trim($brand));
+        foreach ($brands as $br) {
+            $b = mb_strtolower(trim($br['brand']));
+            if ($b === $raw || mb_stripos($b, $raw) !== false || mb_stripos($raw, $b) !== false) {
+                return $br['article_id'] ?? null;
+            }
+        }
+
+        // 3. Fallback: first FindCatalog result for this article
+        if (!empty($brands[0]['article_id'])) {
+            return $brands[0]['article_id'];
+        }
+
         return null;
     }
 
