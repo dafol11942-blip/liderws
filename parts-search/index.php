@@ -61,7 +61,7 @@ function calcDelivery(\Lider\Search\SearchResultItem $item): array {
             elseif ($hms < 1402) return ['days'=>0,'is_approx'=>false,'date_from'=>strtotime('today 15:00'),'date_to'=>strtotime('today 17:00'),'deadline'=>strtotime('today 14:02')];
             else return ['days'=>1,'is_approx'=>false,'date_from'=>strtotime('tomorrow 09:00'),'date_to'=>strtotime('tomorrow 11:00'),'deadline'=>strtotime('tomorrow 14:02')];
         }
-        if ($stockId === '10') return ['days'=>1,'is_approx'=>false,'date_from'=>strtotime('tomorrow 09:00'),'date_to'=>strtomorrow('tomorrow 11:00'),'deadline'=>strtotime('tomorrow 07:02')];
+        if ($stockId === '10') return ['days'=>1,'is_approx'=>false,'date_from'=>strtotime('tomorrow 09:00'),'date_to'=>strtotime('tomorrow 11:00'),'deadline'=>strtotime('tomorrow 07:02')];
         if ($hours > 0) { $deliveryTs = $now + $hours * 3600; $deliveryDay = strtotime(date('Y-m-d',$deliveryTs)); $h = (int)date('H',$deliveryTs); $waveHour = $h < 9 ? 7 : ($h < 12 ? 11 : 14); $waveTs = $deliveryDay + $waveHour * 3600; $resultDays = max(0,(int)ceil(($waveTs - strtotime("today",$now)) / 86400)); return ['days'=>$resultDays,'is_approx'=>false,'date_from'=>$waveTs,'date_to'=>$waveTs+3*3600,'deadline'=>$waveTs+120]; }
     }
     if ($item->deliveryDays !== null) { $result = ['days'=>$item->deliveryDays,'is_approx'=>false]; $raw = $item->raw; if(!empty($raw['deliveryDateFrom']))$result['date_from']=strtotime($raw['deliveryDateFrom']); if(!empty($raw['deliveryDateTo']))$result['date_to']=strtotime($raw['deliveryDateTo']); if(!empty($raw['deliveryCheckout']))$result['deadline']=strtotime($raw['deliveryCheckout']); return $result; }
