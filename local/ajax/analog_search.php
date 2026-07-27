@@ -46,6 +46,10 @@ function getAjaxFactory(): \Lider\Supplier\SupplierFactory {
     $f->register(new \Lider\Supplier\PartKomConnector(['LOGIN'=>'lider16','PASSWORD'=>'LidGates16']));
     $f->register(new \Lider\Supplier\IxoraConnector(['AUTH_CODE'=>'460880B0988C8C204B2DD392EC81611D','TIMEOUT'=>8]));
     $f->register(new \Lider\Supplier\TatpartsConnector());
+    $f->register(new \Lider\Supplier\AutorussConnector([
+        'LOGIN' => 'Lider-16@bk.ru',
+        'PASSWORD_MD5' => '00fd3781d2cfdf0d971b57fa7397cfac',
+    ]));
     return $f;
 }
 
