@@ -39,7 +39,7 @@ class ResultBuilder
         foreach ($groupedItems as $key => $g) {
             if (empty($g['warehouses'])) continue;
             $gbn = BrandNormalizer::normalize($g['brand']); $gan = BrandNormalizer::normalizeArticle($g['article']);
-            if (($gbn === $normTargetBrand && $gan === $normTargetArt) || $key === $exactKey) {
+        if (($gbn === $normTargetBrand && $gan === $normTargetArt) || $key === $exactKey) {
                 $exactGroups[$key] = $g;
         } elseif ($gan === $normTargetArt && $gbn !== $normTargetBrand) {
             // Только варианты ТОГО ЖЕ бренда (LYNX ⊂ LYNXauto), не посторонние
@@ -48,7 +48,9 @@ class ResultBuilder
             } else {
                 $analogGroups[$key] = $g;
             }
-        }    
+        } else {
+            $analogGroups[$key] = $g;
+        } 
 
         $fpmin = (int)($filters['price_min'] ?? 0); $fpmax = (int)($filters['price_max'] ?? 0);
         $fb = trim((string)($filters['brand'] ?? ''));
