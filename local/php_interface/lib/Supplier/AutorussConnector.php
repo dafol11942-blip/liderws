@@ -164,18 +164,19 @@ class AutorussConnector implements SupplierInterface
                 }
             }
 
-            // availability: >0 = кол-во; -1,-2,-3 = неточное; -10 = под заказ
+            // availability: >0 = кол-во; -1,-2,-3 = неточное; -10 = под заказ; 0 = нет
             $avail = (int)($item['availability'] ?? 0);
             if ($avail > 0) {
                 $qty     = $avail;
                 $isSched = false;
-            } elseif ($avail <= -10) {
-                $qty     = 0;
-                $isSched = true;  // под заказ
-            } else {
+            } elseif ($avail < 0 && $avail > -10) {
                 // -1, -2, -3 — неточное наличие, считаем как 1+
                 $qty     = max(1, abs($avail));
                 $isSched = false;
+            } else {
+                // -10 (под заказ), 0, или другое → под заказ
+                $qty     = 0;
+                $isSched = true;
             }
 
             $deliveryPeriod = (int)($item['deliveryPeriod'] ?? 0);
@@ -199,20 +200,31 @@ class AutorussConnector implements SupplierInterface
             // Срок доставки
             if ($deliveryPeriod > 0) {
                 $r->deliveryPeriod = $deliveryPeriod;
-                $r->deliveryDays   = max(1, (int)ceil($deliveryPeriod / 24));
+                $now = time();
+                if ($isSched) {
+                    // Под заказ: только примерный срок
+                    $r->deliveryDays = max(1, (int)ceil($deliveryPeriod / 24));
+                } else {
+                    // В наличии: точный срок
+                    $r->deliveryDays = (int)ceil($deliveryPeriod / 24);
+                    $r->raw['deliveryDateFrom'] = date('Y-m-d H:i:s', $now + $deliveryPeriod * 3600);
+                    if ($deliveryPeriodMax > $deliveryPeriod) {
+                        $r->raw['deliveryDateTo'] = date('Y-m-d H:i:s', $now + $deliveryPeriodMax * 3600);
+                    }
+                }
             }
 
-            $r->raw = [
-                'deliveryPeriod'    => $deliveryPeriod,
-                'deliveryPeriodMax' => $deliveryPeriodMax,
-                'supplierCode'      => $item['supplierCode'] ?? null,
-                'itemKey'           => $item['itemKey'] ?? null,
-                'distributorId'     => $item['distributorId'] ?? null,
-                'lastUpdateTime'    => $item['lastUpdateTime'] ?? null,
-                'deliveryProbability' => $item['deliveryProbability'] ?? null,
-                'noReturn'          => $item['noReturn'] ?? null,
-                'isAnalog'          => $item['isAnalog'] ?? null,
-            ];
+            $r->raw = array_merge($r->raw ?? [], [
+                'deliveryPeriod'     => $deliveryPeriod,
+                'deliveryPeriodMax'  => $deliveryPeriodMax,
+                'supplierCode'       => $item['supplierCode'] ?? null,
+                'itemKey'            => $item['itemKey'] ?? null,
+                'distributorId'      => $item['distributorId'] ?? null,
+                'lastUpdateTime'     => $item['lastUpdateTime'] ?? null,
+                'deliveryProbability'=> $item['deliveryProbability'] ?? null,
+                'noReturn'           => $item['noReturn'] ?? null,
+                'isAnalog'           => $item['isAnalog'] ?? null,
+            ]);
 
             if ($r->price <= 0 && $r->quantity <= 0) continue;
             $results[] = $r;
