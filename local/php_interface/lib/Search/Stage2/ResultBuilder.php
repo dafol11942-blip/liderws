@@ -42,11 +42,12 @@ class ResultBuilder
             if (($gbn === $normTargetBrand && $gan === $normTargetArt) || $key === $exactKey) {
                 $exactGroups[$key] = $g;
         } elseif ($gan === $normTargetArt && $gbn !== $normTargetBrand) {
-            // Тот же артикул, другой бренд (LYNX vs LYNXauto) → в exactGroups
-            $exactGroups[$key] = $g;
+            // Только варианты ТОГО ЖЕ бренда (LYNX ⊂ LYNXauto), не посторонние
+            if (stripos($gbn, $normTargetBrand) !== false || stripos($normTargetBrand, $gbn) !== false) {
+                $exactGroups[$key] = $g;
             } else {
-            $analogGroups[$key] = $g;
-        }
+                $analogGroups[$key] = $g;
+            }
         }    
 
         $fpmin = (int)($filters['price_min'] ?? 0); $fpmax = (int)($filters['price_max'] ?? 0);

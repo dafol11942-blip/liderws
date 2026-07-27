@@ -142,9 +142,35 @@ else:
 $renderTable = function(array $groups, string $blockClass, string $blockTitle, string $badgeClass) { static $ri=0; if(empty($groups))return;?>
 <div class="result-block <?=$blockClass?>"><div class="result-block__header"><span class="result-block__badge <?=$badgeClass?>"><?=$blockTitle?></span><span class="result-block__count"><?=count($groups)?> поз.</span></div><div class="supplier-list"><div class="supplier-list__header"><div class="sl-cell sl-cell--expand"></div><div class="sl-cell sl-cell--brand">Бренд</div><div class="sl-cell sl-cell--desc">Описание</div><div class="sl-cell sl-cell--article">Артикул</div><div class="sl-cell sl-cell--mult">Кратность</div><div class="sl-cell sl-cell--stock">Наличие</div><div class="sl-cell sl-cell--delivery">Доставка</div><div class="sl-cell sl-cell--price">Цена</div><div class="sl-cell sl-cell--order"></div></div><?php foreach($groups as $group):$ri++;$inStock=$group['has_instock'];$rc=$inStock?'sl-row--instock':'sl-row--order';$pl=$group['min_price']==$group['max_price']?number_format($group['min_price'],2,',',' '):'от '.number_format($group['min_price'],2,',',' ');$dl=formatDelivery($group['min_delivery']);$dq=$group['in_stock_qty']>0?$group['in_stock_qty']:$group['total_qty'];$ql=formatQty($dq);?>
 <div class="supplier-list__group"><div class="supplier-list__row <?=$rc?> sl-main-row" onclick="toggleWarehouses(this)" data-group="<?=$ri?>"><div class="sl-cell sl-cell--expand"><span class="sl-expand-icon">▶</span></div><div class="sl-cell sl-cell--brand"><strong><?=htmlspecialchars($group['brand'])?></strong></div><div class="sl-cell sl-cell--desc"><div class="sl-desc-text"><?=htmlspecialchars($group['description'])?></div></div><div class="sl-cell sl-cell--article"><code><?=htmlspecialchars($group['article'])?></code></div><div class="sl-cell sl-cell--stock"><?php if($inStock):?><span class="sl-badge sl-badge--green"><?=$ql?></span><?php else:?><span class="sl-badge sl-badge--yellow"><?=$ql?></span><?php endif;?></div><div class="sl-cell sl-cell--delivery"><?=$dl?></div><div class="sl-cell sl-cell--price"><strong><?=$pl?> ₽</strong><div class="sl-warehouse-count"><?=count($group['warehouses'])?> складов</div></div><div class="sl-cell sl-cell--order"></div></div><div class="sl-warehouses" id="wh-group-<?=$ri?>" style="display:none;"><?php foreach($group['warehouses'] as $wh):$retIcon=$wh['returnable']?'<span class="ret-icon ret-icon--yes" title="Возвратный товар">↻</span>':'<span class="ret-icon ret-icon--no" title="Невозвратный товар">✕</span>';$sourceTag=isManager()?'<span class="source-tag source-tag--'.htmlspecialchars($wh['source']).'">'.htmlspecialchars($wh['supplier']).'</span>':'';?><div class="sl-warehouse-row <?=$wh['is_sched']?'sl-wh--order':'sl-wh--instock'?>"><div class="sl-cell sl-cell--expand"><?=$retIcon?></div><div class="sl-cell sl-cell--brand"><?=$sourceTag?></div><div class="sl-cell sl-cell--desc"><span class="sl-wh-stock">📍 <?=htmlspecialchars($wh['stock'])?></span></div><div class="sl-cell sl-cell--mult"><?php if(($wh['multiplicity']??1)>1):?><span class="sl-mult-badge" title="Минимальная партия: <?=$wh['multiplicity']?> <?=htmlspecialchars($wh['unit']??'шт.')?>">×<?=$wh['multiplicity']?> <?=htmlspecialchars($wh['unit']??'шт.')?></span><?php else:?><span class="sl-mult-text"><?=htmlspecialchars($wh['unit']??'шт.')?></span><?php endif;?></div><div class="sl-cell sl-cell--stock"><?php if($wh['is_sched']):?><span class="sl-badge sl-badge--yellow"><?=formatQty($wh['qty'])?></span><?php else:?><span class="sl-badge sl-badge--green"><?=formatQty($wh['qty'])?></span><?php endif;?></div><div class="sl-cell sl-cell--delivery"><?=formatDelivery($wh['delivery'])?></div><div class="sl-cell sl-cell--price"><strong><?=number_format($wh['price'],2,',',' ')?> ₽</strong><?php if(isManager()&&$wh['price']!==$wh['price_base']):?><div class="sl-price-base">Закуп: <?=number_format($wh['price_base'],2,',',' ')?> ₽</div><?php endif;?></div><div class="sl-cell sl-cell--order"><button class="btn btn--order-supplier btn--order-supplier-sm" data-article="<?=htmlspecialchars($group['article'])?>" data-brand="<?=htmlspecialchars($group['brand'])?>" data-supplier="<?=htmlspecialchars($wh['source'])?>" data-delivery-days="<?=$wh['delivery']['days']?>" data-delivery-text="<?=strip_tags(formatDelivery($wh['delivery']))?>" onclick="event.stopPropagation();orderFromSupplier(this,'<?=htmlspecialchars($group['article'])?>','<?=htmlspecialchars($group['brand'])?>')">🛒</button></div></div><?php endforeach;?></div></div><?php endforeach;?></div></div><?php };
-$renderTable($exactGroups, 'result-block--exact', '🎯 ' . htmlspecialchars($selectedBrand) . ' / ' . htmlspecialchars($searchNumber), 'badge--exact');
-$renderTable($analogGroups, 'result-block--analog', '📋 Аналоги (' . htmlspecialchars($searchNumber) . ')', 'badge--analog');
-if (empty($analogGroups)) { echo '<div class="result-block result-block--analog"><div class="result-block__header"><span class="result-block__badge badge--analog">📋 Аналоги (' . htmlspecialchars($searchNumber) . ')</span><span class="result-block__count">0 поз.</span></div><div class="supplier-list"></div></div>'; }
+<?php if (!empty($exactGroups) && isset($exactGroups['__pending__'])): ?>
+    <!-- Холодный поиск: показываем спиннер -->
+    <div class="result-block result-block--exact">
+        <div class="result-block__header">
+            <span class="result-block__badge badge--exact">📍 <?=htmlspecialchars($selectedBrand)?> / <?=htmlspecialchars($searchNumber)?></span>
+            <span class="result-block__count">Загрузка...</span>
+        </div>
+        <div class="supplier-list" style="text-align:center;padding:40px">
+            <div class="search-spinner"></div>
+            <p style="margin-top:16px;color:var(--gray)">Ищем предложения у всех поставщиков...</p>
+            <p style="font-size:12px;color:var(--gray)">Страница обновится автоматически через 5-10 секунд</p>
+        </div>
+    </div>
+    <script>
+    // Авто-перезагрузка при холодном поиске
+    var coldCheck = setInterval(function() {
+        fetch('/local/ajax/analog_poll.php?hash=<?=urlencode($verifyTaskHash)?>&cold=1')
+            .then(r => r.json())
+            .then(d => {
+                if (d.ready) { clearInterval(coldCheck); location.reload(); }
+            });
+    }, 3000);
+    setTimeout(function() { clearInterval(coldCheck); }, 45000);
+    </script>
+<?php else: ?>
+    <?php $renderTable($exactGroups, 'result-block--exact', '📍 ' . htmlspecialchars($selectedBrand) . ' / ' . htmlspecialchars($searchNumber), 'badge--exact'); ?>
+    <?php $renderTable($analogGroups, 'result-block--analog', '🛒 Аналоги (' . htmlspecialchars($searchNumber) . ')', 'badge--analog'); ?>
+    <?php if (empty($analogGroups)) { echo '<div class="result-block result-block--analog"><div class="result-block__header"><span class="result-block__badge badge--analog">📋 Аналоги (' . htmlspecialchars($searchNumber) . ')</span><span class="result-block__count">0 поз.</span></div><div class="supplier-list"></div></div>'; } ?>
+<?php endif; ?>
 ?>
 <?php else: ?><div style="text-align:center;padding:40px;color:var(--gray);"><p>Нет доступных предложений</p><a href="?q=<?=urlencode($q)?>" class="back-link">← Назад</a></div><?php endif;?>
 <?php endif;?>
