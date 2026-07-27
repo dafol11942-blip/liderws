@@ -39,18 +39,19 @@ class ResultBuilder
         foreach ($groupedItems as $key => $g) {
             if (empty($g['warehouses'])) continue;
             $gbn = BrandNormalizer::normalize($g['brand']); $gan = BrandNormalizer::normalizeArticle($g['article']);
-        if (($gbn === $normTargetBrand && $gan === $normTargetArt) || $key === $exactKey) {
+            if (($gbn === $normTargetBrand && $gan === $normTargetArt) || $key === $exactKey) {
                 $exactGroups[$key] = $g;
-        } elseif ($gan === $normTargetArt && $gbn !== $normTargetBrand) {
-            // Только варианты ТОГО ЖЕ бренда (LYNX ⊂ LYNXauto), не посторонние
-            if (stripos($gbn, $normTargetBrand) !== false || stripos($normTargetBrand, $gbn) !== false) {
-                $exactGroups[$key] = $g;
+            } elseif ($gan === $normTargetArt && $gbn !== $normTargetBrand) {
+                // Только варианты ТОГО ЖЕ бренда (LYNX ⊂ LYNXauto), не посторонние
+                if (stripos($gbn, $normTargetBrand) !== false || stripos($normTargetBrand, $gbn) !== false) {
+                    $exactGroups[$key] = $g;
+                } else {
+                    $analogGroups[$key] = $g;
+                }
             } else {
                 $analogGroups[$key] = $g;
             }
-        } else {
-            $analogGroups[$key] = $g;
-        } 
+        }
 
         $fpmin = (int)($filters['price_min'] ?? 0); $fpmax = (int)($filters['price_max'] ?? 0);
         $fb = trim((string)($filters['brand'] ?? ''));
@@ -58,19 +59,13 @@ class ResultBuilder
         $exactGroups = array_filter($exactGroups, $flt);
         $analogGroups = array_filter($analogGroups, $flt);
 
-        // СОРТИРОВКА ГРУПП АНАЛОГОВ: доставка → цена
         uasort($analogGroups, function ($a, $b) {
-            // 1. В наличии выше заказных
             $ai = !empty($a['has_instock']) ? 1 : 0;
             $bi = !empty($b['has_instock']) ? 1 : 0;
             if ($ai !== $bi) return $bi <=> $ai;
-
-            // 2. Доставка: быстрее → выше
             $ad = $a['min_delivery']['days'] ?? 999;
             $bd = $b['min_delivery']['days'] ?? 999;
             if ($ad !== $bd) return $ad <=> $bd;
-
-            // 3. Цена: дешевле → выше (0 = заказной → в конец)
             $ap = ($a['min_price'] ?? 0) > 0 ? $a['min_price'] : PHP_FLOAT_MAX;
             $bp = ($b['min_price'] ?? 0) > 0 ? $b['min_price'] : PHP_FLOAT_MAX;
             return $ap <=> $bp;
