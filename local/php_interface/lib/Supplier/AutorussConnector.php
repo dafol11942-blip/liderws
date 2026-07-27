@@ -197,20 +197,28 @@ class AutorussConnector implements SupplierInterface
             $r->unit         = 'шт.';
             $r->returnable   = empty($item['noReturn']);
 
-            // Срок доставки (+48 часов запас)
-            $deliveryPeriod += 48;
-            $deliveryPeriodMax += 48;
-            if ($deliveryPeriod > 0) {
+            // Срок доставки: 0 = в наличии (ставим 48-72ч), >0 = +48ч запаса
+            if ($deliveryPeriod <= 0) {
+                $deliveryPeriod    = 48;
+                $deliveryPeriodMax = 72;
+            } else {
+                $deliveryPeriod    += 48;
+                $deliveryPeriodMax += 48;
+            }
+            if ($deliveryPeriodMax <= $deliveryPeriod) {
+                $deliveryPeriodMax = $deliveryPeriod + 24;
+            }
+
+            $now = time();
+            if ($isSched) {
                 $r->deliveryPeriod = $deliveryPeriod;
-                $now = time();
-                if ($isSched) {
-                    $r->deliveryDays = max(1, (int)ceil($deliveryPeriod / 24));
-                } else {
-                    $r->deliveryDays = (int)ceil($deliveryPeriod / 24);
-                    $r->raw['deliveryDateFrom'] = date('Y-m-d H:i:s', $now + $deliveryPeriod * 3600);
-                    if ($deliveryPeriodMax > $deliveryPeriod) {
-                        $r->raw['deliveryDateTo'] = date('Y-m-d H:i:s', $now + $deliveryPeriodMax * 3600);
-                    }
+                $r->deliveryDays   = max(1, (int)ceil($deliveryPeriod / 24));
+            } else {
+                $r->deliveryPeriod = $deliveryPeriod;
+                $r->deliveryDays   = (int)ceil($deliveryPeriod / 24);
+                $r->raw['deliveryDateFrom'] = date('Y-m-d H:i:s', $now + $deliveryPeriod * 3600);
+                if ($deliveryPeriodMax > $deliveryPeriod) {
+                    $r->raw['deliveryDateTo'] = date('Y-m-d H:i:s', $now + $deliveryPeriodMax * 3600);
                 }
             }    
 
