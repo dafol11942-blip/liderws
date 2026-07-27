@@ -811,3 +811,231 @@ analog_search.php через CLI выдаёт 368KB HTML. Через nginx — 0
 
 Рекомендация: обратиться в поддержку REG.RU с вопросом,
 почему nginx не исполняет PHP в /local/ajax/*.php
+
+Задачи Этапа 9
+
+
+
+
+1.Исправить «левые» бренды в блоке точного совпадения при холодном поиске
+
+
+2.Ускорить холодный поиск (отложено — слишком рискованно)
+
+
+
+
+
+
+Диагностика
+
+
+Проблема «левых» брендов
+
+
+
+При холодном поиске (например MANN W81180) в блок точного совпадения попадают
+посторонние бренды с тем же артикулом: Big Filter, Clean Filters, Alco Filter.
+
+
+
+
+Поток данных при холодном поиске:
+
+
+
+Пользователь → выбор бренда → stage2_search_v2.php
+  → InstantSearcher::search() → кэш пуст
+  → $skipLive = false
+  → FullSearchLauncher::launch("MANN FILTER", "W81180")
+  → API поставщиков возвращают ВСЕ результаты по артикулу w81180
+     (Big Filter W81180, Clean Filters W81180, ...)
+  → OfferAggregator::aggregate() → группировка по brand|article
+  → ResultBuilder::build() → БАГ в строке 44
+
+Код
+
+
+
+
+При тёплом поиске:
+
+
+
+→ InstantSearcher::search() → фильтр WHERE brand_normalized = 'mannfilter'
+  → ТОЛЬКО MANN-FILTER → проблема не видна
+
+Код
+
+
+
+
+
+Найденный и исправленный баг ✅
+
+
+Баг #28 — ResultBuilder: elseif слишком широкий — все бренды с тем же артикулом попадают в exact
+
+
+
+Файл: local/php_interface/lib/Search/Stage2/ResultBuilder.php, строки 42-48
+
+
+
+
+Проблема:
+
+
+
+if (($gbn === $normTargetBrand && $gan === $normTargetArt) || $key === $exactKey) {
+    $exactGroups[$key] = $g;
+} elseif ($gan === $normTargetArt && $gbn !== $normTargetBrand) {
+    // Тот же артикул, другой бренд → в exactGroups
+    $exactGroups[$key] = $g;  // ← ЛЮБОЙ бренд с тем же артикулом!
+}
+
+php
+
+
+
+
+Это условие (добавлено в Баге #12 для случая LYNX ↔ LYNXauto) захватывало ВСЕ бренды
+с одинаковым артикулом. Clean Filters с артикулом W81180 попадал в точное совпадение MANN.
+
+
+
+
+Исправление:
+
+
+
+if (($gbn === $normTargetBrand && $gan === $normTargetArt) || $key === $exactKey) {
+    $exactGroups[$key] = $g;
+} elseif ($gan === $normTargetArt && $gbn !== $normTargetBrand) {
+    // Только варианты ТОГО ЖЕ бренда (LYNX ⊂ LYNXauto), не посторонние
+    if (stripos($gbn, $normTargetBrand) !== false || stripos($normTargetBrand, $gbn) !== false) {
+        $exactGroups[$key] = $g;
+    } else {
+        $analogGroups[$key] = $g;
+    }
+} else {
+    $analogGroups[$key] = $g;
+}
+
+php
+
+
+
+
+Логика: stripos проверяет, является ли один бренд подстрокой другого:
+
+
+
+
+
+lynxauto содержит lynx → exact ✅
+
+
+cleanfilters не содержит mannfilter → analog ✅
+
+
+
+
+
+
+Попутные исправления
+
+
+Опечатка strtomorrow → strtotime
+
+
+
+Файл: parts-search/index.php, строка 64
+В функции calcDelivery() была опечатка в вызове strtomorrow('tomorrow 11:00').
+Исправлено на strtotime('tomorrow 11:00').
+
+
+
+Восстановление index.php после неудачной правки __pending__
+
+
+
+Файл: parts-search/index.php
+В процессе Этапа 9 была попытка добавить спиннер для холодного поиска через флаг __pending__.
+Правка сломала PHP-синтаксис (смешение <?php if(): ?> с if(){}). Файл восстановлен
+до рабочего состояния через git checkout.
+
+
+
+
+
+Что НЕ сделано (отложено на Этап 10)
+
+
+
+
+1.
+
+
+Ускорение холодного поиска через fastcgi_finish_request() — слишком рискованно
+для одного коммита. Текущий холодный поиск: BrandMap (3-6 сек) + FullSearchLauncher (15-25 сек)
+= 20-30 сек. После первого поиска данные в кэше → тёплый поиск < 100 мс.
+
+
+
+
+
+2.
+
+
+Спиннер вместо пустых блоков — попытка реализации через __pending__ флаг провалилась
+из-за конфликта синтаксисов PHP. Нужен другой подход.
+
+
+
+
+
+
+
+
+
+Изменённые файлы в Этапе 9
+
+
+Файл	Изменение
+local/php_interface/lib/Search/Stage2/ResultBuilder.php	Баг #28: сужен elseif — проверка stripos для вариантов бренда; добавлен else для настоящих аналогов
+parts-search/index.php	Исправлена опечатка strtomorrow → strtotime; восстановлен после неудачной правки
+
+
+
+
+Результат
+
+
+
+
+✅ «Левые» бренды (Clean Filters, Big Filter) больше не попадают в блок точного совпадения
+
+
+✅ Варианты одного бренда (LYNX/LYNXauto) корректно остаются в exact
+
+
+✅ Настоящие кросс-номера уходят в блок аналогов
+
+
+✅ Сайт работает без ошибок (проверено: MANN-FILTER W81180, 773KB HTML)
+
+
+⏳ Скорость холодного поиска — отложено на Этап 10
+
+
+
+
+
+
+Направление для Этапа 10
+
+
+
+
+1.Подключение нового поставщика с учётом накопленного опыта
