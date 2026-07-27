@@ -1,13 +1,4 @@
 <?php
-// Этап 9: AJAX-шлюз (хостинг блокирует прямое выполнение .php)
-if (($_REQUEST['ajax'] ?? '') === 'analog_search') {
-    require __DIR__ . '/analog_search.php';
-    return;
-}
-if (($_REQUEST['ajax'] ?? '') === 'analog_poll') {
-    require __DIR__ . '/analog_poll.php';
-    return;
-}
 @ini_set('memory_limit', '512M');
 @ini_set('max_execution_time', '120');
 require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
@@ -155,13 +146,9 @@ $renderTable($exactGroups, 'result-block--exact', '🎯 ' . htmlspecialchars($se
 $renderTable($analogGroups, 'result-block--analog', '📋 Аналоги (' . htmlspecialchars($searchNumber) . ')', 'badge--analog');
 if (empty($analogGroups)) { echo '<div class="result-block result-block--analog"><div class="result-block__header"><span class="result-block__badge badge--analog">📋 Аналоги (' . htmlspecialchars($searchNumber) . ')</span><span class="result-block__count">0 поз.</span></div><div class="supplier-list"></div></div>'; }
 ?>
-<?php else: ?>
-<div class="result-block result-block--analog" style="min-height:200px">
-<div class="result-block__header"><span class="result-block__badge badge--analog">📋 Аналоги (<?=htmlspecialchars($searchNumber)?>)</span><span class="result-block__count">⏳ Загрузка...</span></div>
-<div class="supplier-list"><div style="text-align:center;padding:60px 20px;color:var(--gray);"><p>⏳ Загружаем предложения от всех поставщиков...</p></div></div>
-</div>
+<?php else: ?><div style="text-align:center;padding:40px;color:var(--gray);"><p>Нет доступных предложений</p><a href="?q=<?=urlencode($q)?>" class="back-link">← Назад</a></div><?php endif;?>
 <?php endif;?>
-<?php endif;?><?php else: ?><div style="text-align:center;padding:80px 20px;color:var(--gray);"><div style="font-size:48px;margin-bottom:12px;">🔍</div><p>Введите артикул, название запчасти или VIN-номер</p></div><?php endif;?>
+<?php else: ?><div style="text-align:center;padding:80px 20px;color:var(--gray);"><div style="font-size:48px;margin-bottom:12px;">🔍</div><p>Введите артикул, название запчасти или VIN-номер</p></div><?php endif;?>
 </div>
 <style>
 .manager-badge{display:inline-block;background:#fef3c7;color:#92400e;font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;}
@@ -283,7 +270,7 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
         if (loaded) return;
         loaded = true;
 
-        var url = "/parts-search/?ajax=analog_search&phase=fast&q=" + encodeURIComponent("<?=urlencode($q)?>")
+        var url = "/local/ajax/analog_search.php?phase=fast&q=" + encodeURIComponent("<?=urlencode($q)?>")
             + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
             + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>")
             + "&token=" + analogToken
@@ -309,7 +296,7 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
                 var p2PollCount = 0;
                 var p2Timer = setInterval(function() {
                     p2PollCount++;
-                    fetch("/parts-search/?ajax=analog_poll&hash=" + data.p2_hash)
+                    fetch("/local/ajax/analog_poll.php?hash=" + data.p2_hash)
                         .then(function(r) { return r.json(); })
                         .then(function(p2) {
                             if (p2.ready) {
@@ -317,7 +304,7 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
                                 var pb = document.getElementById("p2-progress");
                                 if (pb) pb.textContent = "⏳ Обновляем результаты...";
                                 // Перезапрашиваем analog_search в режиме final
-                                var finalUrl = "/parts-search/?ajax=analog_search&phase=final&p2_hash=" + data.p2_hash
+                                var finalUrl = "/local/ajax/analog_search.php?phase=final&p2_hash=" + data.p2_hash
                                     + "&q=" + encodeURIComponent("<?=urlencode($q)?>")
                                     + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
                                     + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>")

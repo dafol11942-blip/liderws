@@ -40,7 +40,7 @@ if (!is_array($cachedBrandMap) || empty($cachedBrandMap)) {
         if ($r) { $breqs[$s->getCode()] = $r; $bsups[$s->getCode()] = $s; }
     }
     $e = new \Lider\Search\Common\MultiCurlExecutor();
-    foreach ($e->executeAll($breqs, 15.0) as $code => $resp) {
+    foreach ($e->executeAll($breqs, 6.0) as $code => $resp) {
         if (empty($resp['body'])) continue;
         try { foreach ($bsups[$code]->parseBrandsResponse($resp['body'], $q) as $br) { $br['source'] = $code; $raw[] = $br; } } catch (\Throwable $e) {}
     }
@@ -129,14 +129,12 @@ file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . "
         // но НЕ запускаем FullSearchLauncher ниже
         $skipLive = true;
     } else {
-        $skipLive = true; // Этап 9: brandMap пуст → FullSearchLauncher покажет неверные результаты. Lazy-loader сделает правильно.
+        $skipLive = false;
     }
 }
 
 // === ШАГ 2: LIVE-поиск (если кэш пустой) ===
 if (!$skipLive) {
-    // Этап 9: холодный поиск — 7 поставщиков × API, нужно больше 30 сек
-    set_time_limit(120);
     $launcher   = new FullSearchLauncher(getSupplierFactory());
     $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
     
