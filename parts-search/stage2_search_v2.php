@@ -126,17 +126,46 @@ file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . "
     }   
      
         // НЕ возвращаемся — продолжаем и показываем кэш
-                // но НЕ запускаем FullSearchLauncher ниже
-                $skipLive = true;
-            } else {
-                $skipLive = false;
-            }
+        // но НЕ запускаем FullSearchLauncher ниже
+        $skipLive = true;
+    } else {
+        $skipLive = false;
     }
+}
 
-        // === ШАГ 2: LIVE-поиск (если кэш пустой) ===
-        // Этап 9: не запускаем тяжёлый синхронный поиск — max_execution_time=30 убивает процесс.
-        // Вместо этого отдаём пустой контейнер: lazy-loader в index.php вызовет analog_search.php
-        // и асинхронно заполнит всё через Phase 1 + Phase 2.
-        if (!$skipLive) {
-            // Ничего не делаем — lazy-loader всё сделает
+// === ШАГ 2: LIVE-поиск (если кэш пустой) ===
+if (!$skipLive) {
+    $launcher   = new FullSearchLauncher(getSupplierFactory());
+    $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
+    
+    // Сохраняем результаты в кэш (если есть что сохранять)
+    if (!empty($allResults)) {
+        try {
+            $cache = new InstantSearcher();
+            $saved = $cache->saveResults($allResults);
+        } catch (\Throwable $ex) {
+            // Тихо пропускаем ошибки кэша
+        }
     }
+    
+    $aggregator  = new OfferAggregator(200, 1000);
+    $offerGroups = $aggregator->aggregate($allResults);
+    $builder     = new ResultBuilder(300, 200, 1000);
+    $result      = $builder->build(
+        $offerGroups, $exactKey, $normTargetBrand, $normTargetArt,
+        $displayBrand, $displayArticle, $cachedBrandMap,
+        [
+            'price_min' => (int)($filterPriceMin ?? 0),
+            'price_max' => (int)($filterPriceMax ?? 0),
+            'brand' => (string)($filterBrand ?? ''),
+        ],
+        (string)$sortExact, (string)$sortAnalog
+    );
+    
+    $exactGroups = $result['exactGroups'] ?? [];
+    $analogGroups = $result['analogGroups'] ?? [];
+    $allBrands = $result['allBrands'] ?? [];
+    $totalGroups = $result['totalGroups'] ?? 0;
+    $totalWarehouses = $result['totalWarehouses'] ?? 0;
+    $searchNumber = $displayArticle;
+}
