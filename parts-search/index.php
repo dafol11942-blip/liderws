@@ -152,7 +152,7 @@ if (empty($analogGroups)) { echo '<div class="result-block result-block--analog"
 <div class="supplier-list"><div style="text-align:center;padding:60px 20px;color:var(--gray);"><p>⏳ Загружаем предложения от всех поставщиков...</p></div></div>
 </div>
 <?php endif;?>
-<?php else: ?><div style="text-align:center;padding:80px 20px;color:var(--gray);"><div style="font-size:48px;margin-bottom:12px;">🔍</div><p>Введите артикул, название запчасти или VIN-номер</p></div><?php endif;?>
+<?php endif;?><?php else: ?><div style="text-align:center;padding:80px 20px;color:var(--gray);"><div style="font-size:48px;margin-bottom:12px;">🔍</div><p>Введите артикул, название запчасти или VIN-номер</p></div><?php endif;?>
 </div>
 <style>
 .manager-badge{display:inline-block;background:#fef3c7;color:#92400e;font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;}
