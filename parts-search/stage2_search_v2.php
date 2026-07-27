@@ -135,6 +135,8 @@ file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . "
 
 // === ШАГ 2: LIVE-поиск (если кэш пустой) ===
 if (!$skipLive) {
+    // Этап 9: холодный поиск — 7 поставщиков × API, нужно больше 30 сек
+    set_time_limit(120);
     $launcher   = new FullSearchLauncher(getSupplierFactory());
     $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
     
