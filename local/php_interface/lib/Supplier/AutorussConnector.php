@@ -197,22 +197,22 @@ class AutorussConnector implements SupplierInterface
             $r->unit         = 'шт.';
             $r->returnable   = empty($item['noReturn']);
 
-            // Срок доставки
+            // Срок доставки (+48 часов запас)
+            $deliveryPeriod += 48;
+            $deliveryPeriodMax += 48;
             if ($deliveryPeriod > 0) {
                 $r->deliveryPeriod = $deliveryPeriod;
                 $now = time();
                 if ($isSched) {
-                    // Под заказ: только примерный срок
                     $r->deliveryDays = max(1, (int)ceil($deliveryPeriod / 24));
                 } else {
-                    // В наличии: точный срок
                     $r->deliveryDays = (int)ceil($deliveryPeriod / 24);
                     $r->raw['deliveryDateFrom'] = date('Y-m-d H:i:s', $now + $deliveryPeriod * 3600);
                     if ($deliveryPeriodMax > $deliveryPeriod) {
                         $r->raw['deliveryDateTo'] = date('Y-m-d H:i:s', $now + $deliveryPeriodMax * 3600);
                     }
                 }
-            }
+            }    
 
             $r->raw = array_merge($r->raw ?? [], [
                 'deliveryPeriod'     => $deliveryPeriod,
