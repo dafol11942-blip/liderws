@@ -146,7 +146,11 @@ $renderTable($exactGroups, 'result-block--exact', '🎯 ' . htmlspecialchars($se
 $renderTable($analogGroups, 'result-block--analog', '📋 Аналоги (' . htmlspecialchars($searchNumber) . ')', 'badge--analog');
 if (empty($analogGroups)) { echo '<div class="result-block result-block--analog"><div class="result-block__header"><span class="result-block__badge badge--analog">📋 Аналоги (' . htmlspecialchars($searchNumber) . ')</span><span class="result-block__count">0 поз.</span></div><div class="supplier-list"></div></div>'; }
 ?>
-<?php else: ?><div style="text-align:center;padding:40px;color:var(--gray);"><p>Нет доступных предложений</p><a href="?q=<?=urlencode($q)?>" class="back-link">← Назад</a></div><?php endif;?>
+<?php else: ?>
+<div class="result-block result-block--analog" style="min-height:200px">
+<div class="result-block__header"><span class="result-block__badge badge--analog">📋 Аналоги (<?=htmlspecialchars($searchNumber)?>)</span><span class="result-block__count">⏳ Загрузка...</span></div>
+<div class="supplier-list"><div style="text-align:center;padding:60px 20px;color:var(--gray);"><p>⏳ Загружаем предложения от всех поставщиков...</p></div></div>
+</div>
 <?php endif;?>
 <?php else: ?><div style="text-align:center;padding:80px 20px;color:var(--gray);"><div style="font-size:48px;margin-bottom:12px;">🔍</div><p>Введите артикул, название запчасти или VIN-номер</p></div><?php endif;?>
 </div>
