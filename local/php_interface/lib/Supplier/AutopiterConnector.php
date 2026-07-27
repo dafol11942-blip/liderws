@@ -65,6 +65,7 @@ class AutopiterConnector implements SupplierInterface
 
     public function searchBrands(string $article): array
     {
+        if (!$this->ensureAuth()) return [];    
         $req = $this->buildBrandsRequest($article);
         if (!$req) return [];
         $resp = $this->execSoap($req['body']);
@@ -127,6 +128,7 @@ class AutopiterConnector implements SupplierInterface
 
     public function searchByBrandArticle(string $brand, string $article): array
     {
+        if (!$this->ensureAuth()) return [];    
         $req = $this->buildSearchRequest($brand, $article);
         if (!$req) return [];
         $resp = $this->execSoap($req['body']);
@@ -261,6 +263,7 @@ class AutopiterConnector implements SupplierInterface
     {
         $results = [];
         if (!$this->isAvailable()) return $results;
+        if (!$this->ensureAuth()) return $results;
         $query = trim($query);
         if (mb_strlen($query) < 2) return $results;
 
