@@ -70,6 +70,11 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
             'PASSWORD' => "'8dTpDU8}Myr)*&",
             'TIMEOUT' => 10,
         ]));
+
+        $factory->register(new \Lider\Supplier\AutorussConnector([
+            'LOGIN' => 'Lider-16@bk.ru',
+            'PASSWORD_MD5' => '00fd3781d2cfdf0d971b57fa7397cfac',
+        ]));
     }
     return $factory;
 }
