@@ -84,9 +84,14 @@ class AutopiterConnector implements SupplierInterface
             . '</soap:Body>'
             . '</soap:Envelope>';
 
+        $headers = ['Content-Type: text/xml; charset=utf-8'];
+        if ($this->authCookie) {
+            $headers[] = 'Cookie: ' . $this->authCookie;
+        }
+
         return [
             'url'     => $this->baseUrl,
-            'headers' => ['Content-Type: text/xml; charset=utf-8'],
+            'headers' => $headers,
             'method'  => 'POST',
             'body'    => $xml,
         ];
@@ -154,9 +159,14 @@ class AutopiterConnector implements SupplierInterface
             . '</soap:Body>'
             . '</soap:Envelope>';
 
+        $headers = ['Content-Type: text/xml; charset=utf-8'];
+        if ($this->authCookie) {
+            $headers[] = 'Cookie: ' . $this->authCookie;
+        }
+
         return [
             'url'     => $this->baseUrl,
-            'headers' => ['Content-Type: text/xml; charset=utf-8'],
+            'headers' => $headers,
             'method'  => 'POST',
             'body'    => $xml,
         ];
