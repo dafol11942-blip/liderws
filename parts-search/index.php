@@ -252,7 +252,7 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
 // === ЛЕНИВАЯ ЗАГРУЗКА АНАЛОГОВ ===
 (function(){
     // Баг #9: гибридный поиск уже загрузил аналоги — старый AJAX не нужен
-    if (<?= (!empty($verifyTaskHash) && !empty($analogGroups)) ? 'true' : 'false' ?>) return;
+    // Этап 9: всегда разрешаем lazy-loader (догружает поставщиков, которых нет в кэше)
     var analogBlock = document.querySelector(".result-block--analog");
     if (!analogBlock) return;
     var analogContainer = analogBlock.querySelector(".supplier-list");
