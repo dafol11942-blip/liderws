@@ -50,6 +50,10 @@ function getAjaxFactory(): \Lider\Supplier\SupplierFactory {
         'LOGIN' => 'Lider-16@bk.ru',
         'PASSWORD_MD5' => '00fd3781d2cfdf0d971b57fa7397cfac',
     ]));
+    $f->register(new \Lider\Supplier\AutopiterConnector([
+        'USER_ID' => '165286',
+        'PASSWORD' => 'LidGates16',
+    ]));
     return $f;
 }
 

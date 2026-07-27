@@ -182,6 +182,7 @@ if (empty($analogGroups)) { echo '<div class="result-block result-block--analog"
 .source-tag--ixora{background:#ede7f6;color:#5e35b1;}
 .source-tag--tatparts{background:#e0f7fa;color:#006064;}
 .source-tag--autoruss{background:#fff7ed;color:#c2410c;}
+.source-tag--autopiter{background:#e8eaf6;color:#283593;}
 .btn--brand-select{display:inline-block;padding:8px 20px;background:#0066ff;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;cursor:pointer;transition:background 0.2s;white-space:nowrap;}
 .btn--brand-select:hover{background:#0052cc;color:#fff;text-decoration:none;}.btn--brand-select-sm{padding:6px 14px;font-size:12px;}
 .analogs-details{margin:0 0 32px;}.analogs-summary{cursor:pointer;font-size:14px;font-weight:600;color:#0066ff;padding:10px 0;user-select:none;}
