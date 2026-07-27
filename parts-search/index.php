@@ -283,7 +283,7 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
         if (loaded) return;
         loaded = true;
 
-        var url = "/parts-search/?ajax=analog_search?phase=fast&q=" + encodeURIComponent("<?=urlencode($q)?>")
+        var url = "/parts-search/?ajax=analog_search&phase=fast&q=" + encodeURIComponent("<?=urlencode($q)?>")
             + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
             + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>")
             + "&token=" + analogToken
@@ -309,7 +309,7 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
                 var p2PollCount = 0;
                 var p2Timer = setInterval(function() {
                     p2PollCount++;
-                    fetch("/parts-search/?ajax=analog_poll?hash=" + data.p2_hash)
+                    fetch("/parts-search/?ajax=analog_poll&hash=" + data.p2_hash)
                         .then(function(r) { return r.json(); })
                         .then(function(p2) {
                             if (p2.ready) {
@@ -317,7 +317,7 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
                                 var pb = document.getElementById("p2-progress");
                                 if (pb) pb.textContent = "⏳ Обновляем результаты...";
                                 // Перезапрашиваем analog_search в режиме final
-                                var finalUrl = "/parts-search/?ajax=analog_search?phase=final&p2_hash=" + data.p2_hash
+                                var finalUrl = "/parts-search/?ajax=analog_search&phase=final&p2_hash=" + data.p2_hash
                                     + "&q=" + encodeURIComponent("<?=urlencode($q)?>")
                                     + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
                                     + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>")
