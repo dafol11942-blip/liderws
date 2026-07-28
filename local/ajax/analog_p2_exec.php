@@ -1,7 +1,7 @@
 <?php
 /**
- * Фоновое выполнение Phase 2.
- * Вызывается через register_shutdown_function из analog_search.php.
+ * Фоновое выполнение Phase 2 (UMAPI-кроссы).
+ * Вызывается через exec из analog_search.php.
  */
 @ini_set('memory_limit', '512M');
 @ini_set('max_execution_time', '60');
@@ -12,7 +12,6 @@ define('NOT_CHECK_PERMISSIONS', true);
 
 $_SERVER['DOCUMENT_ROOT'] = '/var/www/u3564357/data/www/liderws.ru';
 
-// Этот скрипт запускается только из shutdown function — тихо
 if (php_sapi_name() === 'cli') {
     $p2Hash = $argv[1] ?? '';
 } else {
@@ -25,26 +24,20 @@ $p2File = '/var/www/u3564357/data/www/liderws.ru/upload/cache/search/p2/' . $p2H
 if (!file_exists($p2File)) exit;
 
 $data = json_decode(file_get_contents($p2File), true);
-if (!$data || empty($data['state'])) exit;
+if (!$data || empty($data['umapiAnalogs'])) exit;
 
 require_once '/var/www/u3564357/data/www/liderws.ru/bitrix/modules/main/include/prolog_before.php';
 require_once '/var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Search/BrandNormalizer.php';
 require_once '/var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Search/SearchResultItem.php';
 require_once '/var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Search/Stage2/FullSearchLauncher.php';
-require_once '/var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Search/Stage2/OfferAggregator.php';
-require_once '/var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Search/Stage2/ResultBuilder.php';
-require_once '/var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Search/InstantSearcher.php';
 require_once '/var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Search/Common/MultiCurlExecutor.php';
 require_once '/var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Supplier/SupplierInterface.php';
 require_once '/var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Supplier/SupplierFactory.php';
-foreach (['Moskvorechie','Rossko','PartKom','Autoeuro','Berg','Ixora','ShateM','Tatparts'] as $c) {
+foreach (['Moskvorechie','Rossko','PartKom','Autoeuro','Berg','Ixora','ShateM','Tatparts','Autoruss','Autopiter'] as $c) {
     require_once '/var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Supplier/' . $c . 'Connector.php';
 }
 
-use Lider\Search\BrandNormalizer;
 use Lider\Search\Stage2\FullSearchLauncher;
-use Lider\Search\Stage2\OfferAggregator;
-use Lider\Search\Stage2\ResultBuilder;
 
 function getP2Factory(): \Lider\Supplier\SupplierFactory {
     $f = new \Lider\Supplier\SupplierFactory();
@@ -55,14 +48,18 @@ function getP2Factory(): \Lider\Supplier\SupplierFactory {
     $f->register(new \Lider\Supplier\PartKomConnector(['LOGIN'=>'lider16','PASSWORD'=>'LidGates16']));
     $f->register(new \Lider\Supplier\IxoraConnector(['AUTH_CODE'=>'460880B0988C8C204B2DD392EC81611D','TIMEOUT'=>8]));
     $f->register(new \Lider\Supplier\TatpartsConnector());
+    $f->register(new \Lider\Supplier\AutorussConnector(['LOGIN'=>'Lider-16@bk.ru','PASSWORD_MD5'=>'00fd3781d2cfdf0d971b57fa7397cfac']));
+    $f->register(new \Lider\Supplier\AutopiterConnector(['USER_ID'=>'165286','PASSWORD'=>'LidGates16']));
     return $f;
 }
 
 try {
     $launcher = new FullSearchLauncher(getP2Factory());
-    $p2Results = $launcher->executePhase2($data['state']);
 
-    // Сохраняем результат в тот же файл
+    // Новый сигнатура: executePhase2(array $umapiAnalogs, float $deadline)
+    $p2Results = $launcher->executePhase2($data['umapiAnalogs']);
+
+    // Сохраняем результат
     $data['p2_results'] = array_map(function($item) {
         return [
             'source' => $item->source,
@@ -85,7 +82,6 @@ try {
     $data['p2_count'] = count($p2Results);
     file_put_contents($p2File, json_encode($data, JSON_UNESCAPED_UNICODE));
 
-    // Лог
     @file_put_contents(
         '/var/www/u3564357/data/www/liderws.ru/upload/logs/p2_exec_' . date('Y-m-d') . '.log',
         '[' . date('H:i:s') . '] ' . $p2Hash . ' done: +' . count($p2Results) . " items\n",
