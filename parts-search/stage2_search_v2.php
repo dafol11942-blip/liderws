@@ -35,7 +35,7 @@ $umapi = new \Lider\Search\UmapiClient('52606cd0-b1fd-4a5e-a8e3-ad9fbef16435');
 
 // brandMap для обратной совместимости с ResultBuilder
 $cachedBrandMap = [];
-$umapiAnalogs = $umapi->getAnalogs($displayArticle, $displayBrand);
+$umapiAnalogs = $umapi->getAnalogs($searchNumberRaw, $selectedBrand);
 foreach ($umapiAnalogs as $a) {
     $ab = trim((string)($a['brand'] ?? ''));
     $aa = trim((string)($a['article'] ?? ''));
@@ -88,7 +88,7 @@ file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . "
         $cachedGroups = $aggregator->aggregate($cachedItems);
         $instantResult = $builder->build(
             $cachedGroups, $exactKey, $normTargetBrand, $normTargetArt,
-            $displayBrand, $displayArticle, $cachedBrandMap,
+            $displayBrand, $displayArticle, [],
             [], 'default', 'default'
         );
         
@@ -165,7 +165,7 @@ if (!$skipLive) {
         $builder     = new ResultBuilder(300, 200, 1000);
         $result      = $builder->build(
             $offerGroups, $exactKey, $normTargetBrand, $normTargetArt,
-            $displayBrand, $displayArticle, $cachedBrandMap,
+            $displayBrand, $displayArticle, [],
             [
                 'price_min' => (int)($filterPriceMin ?? 0),
                 'price_max' => (int)($filterPriceMax ?? 0),
