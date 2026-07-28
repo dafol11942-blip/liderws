@@ -1127,3 +1127,368 @@ grep -n "INTERVAL\|is_active\|last_updated\|TTL\|4 HOUR" /var/www/u3564357/data/
 
 # 2. Как сейчас работает холодный/тёплый поиск в stage2_search_v2.php
 grep -n "skipLive\|InstantSearcher\|cachedItems\|FullSearchLauncher" /var/www/u3564357/data/www/liderws.ru/parts-search/stage2_search_v2.php | head -30
+
+Этап 11 — Подключение прайс-листов (ETL-каталог)
+
+
+Дата: 2026-07-27
+
+
+Ветка: fix/cache-pipeline-bugs
+
+
+Статус: ПЛАНИРОВАНИЕ
+
+
+
+
+Цель
+
+
+
+Заменить live-запросы к API поставщиков на локальную БД, наполняемую из прайс-листов.
+
+
+
+
+Суть: 5 из 9 поставщиков предоставляют прайс-листы с артикулами, брендами, ценами и остатками. Вместо того чтобы спрашивать их API при каждом поиске (3-6 сек на BrandMap + 3-5 сек на curl), мы раз в сутки загружаем их прайс-листы в свою MySQL и отдаём данные мгновенно (50 мс).
+
+
+
+
+Результат: холодный поиск с 20-30 сек → 50-200 мс для 5 поставщиков, ~5 сек для оставшихся 4.
+
+
+
+
+
+Какие поставщики покрываем
+
+
+#	Поставщик	Платформа	Формат прайс-листа	Частота
+1	Москворечье	ABCP	CSV	раз в сутки
+2	ПартКом	ABCP	YML/CSV	раз в сутки
+3	Авторусь	ABCP	YML/CSV	раз в сутки
+4	Rossko	собственный	CSV	4 раза в день
+5	Autoeuro	собственный API v2	справочник	раз в сутки
+
+
+
+Оставшиеся (live-поиск как fallback): Berg, Ixora, Tatparts, Autopiter
+
+
+
+
+
+Архитектура
+
+
+НОЧНОЙ ETL (cron, раз в сутки, ~5-10 мин)
+  Москворечье CSV ─┐
+  ПартКом CSV ─────┤
+  Авторусь CSV ────┼── parse → normalize → UPSERT → local_price_catalog
+  Rossko CSV ──────┤    (article_norm, brand_norm, supplier_code,
+  Autoeuro API ────┘     warehouse, price, quantity, name)
+
+ПОИСКОВЫЙ ЗАПРОС (каждый раз)
+  → SQL: SELECT * FROM local_price_catalog
+    WHERE article_norm = ? AND brand_norm = ?  → 5-50 мс
+  → Для поставщиков БЕЗ прайс-листов:
+    старый FullSearchLauncher → 3-5 сек
+  → Объединение результатов → OfferAggregator → ResultBuilder
+
+Код
+
+
+
+
+
+Пошаговый план
+
+
+Шаг 1. Новая таблица b_price_catalog
+
+
+CREATE TABLE b_price_catalog (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  supplier_code VARCHAR(20) NOT NULL,
+  article VARCHAR(100) NOT NULL,
+  article_normalized VARCHAR(100) NOT NULL,
+  brand VARCHAR(100) NOT NULL,
+  brand_normalized VARCHAR(100) NOT NULL,
+  name VARCHAR(500),
+  price DECIMAL(10,2),
+  quantity INT DEFAULT 0,
+  warehouse_name VARCHAR(200),
+  warehouse_code VARCHAR(100),
+  stock_id VARCHAR(32) NOT NULL,
+  last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  is_active TINYINT(1) DEFAULT 1,
+  UNIQUE KEY uk_stock (stock_id),
+  INDEX idx_search (article_normalized, brand_normalized, supplier_code),
+  INDEX idx_supplier (supplier_code)
+) ENGINE=InnoDB;
+
+sql
+
+
+
+Шаг 2. Базовый класс PriceListImporter
+
+
+
+Файл: local/php_interface/lib/Catalog/PriceListImporter.php
+
+
+
+
+
+import(string $supplierCode, string $filePath): int — читает CSV, парсит, upsert'ит
+
+
+normalizeArticle(string $art): string — нижний регистр, убрать тире/пробелы/точки
+
+
+normalizeBrand(string $brand): string — через BrandNormalizer
+
+
+upsertRow(array $data): void — INSERT ... ON DUPLICATE KEY UPDATE
+
+
+
+
+Шаг 3. CSV-парсер для ABCP (Москворечье, ПартКом, Авторусь)
+
+
+
+Файл: local/php_interface/lib/Catalog/AbcpPriceListParser.php
+
+
+
+Формат CSV (как в файле НабережныеЧелны.csv):
+
+
+Инв.Номер | Производитель | Номер производителя | Наименование | ... | Наличие | Цена | Склад
+
+
+Логика:
+
+
+
+
+Производитель → brand
+
+
+Номер производителя → article
+
+
+Наименование → name
+
+
+Наличие → quantity («-» → 0)
+
+
+Цена → price
+
+
+Склад → warehouse_name
+
+
+
+
+Шаг 4. CSV-парсер для Rossko
+
+
+
+Файл: local/php_interface/lib/Catalog/RosskoPriceListParser.php
+
+
+
+
+Аналогично ABCP, но с форматом Rossko (нужно посмотреть реальный файл).
+
+
+
+Шаг 5. API-загрузчик для Autoeuro
+
+
+
+Файл: local/php_interface/lib/Catalog/AutoeuroCatalogLoader.php
+
+
+
+
+
+Использует существующий AutoeuroConnector для получения справочника товаров
+
+
+Обходит страницы через API
+
+
+Сохраняет в b_price_catalog
+
+
+
+
+Шаг 6. Крон-скрипт загрузки прайс-листов
+
+
+
+Файл: local/php_interface/cron/price_import.php
+
+
+
+// 1. Скачать CSV Москворечье (scp/ftp или URL)
+// 2. Скачать CSV ПартКом
+// 3. Скачать CSV Авторусь
+// 4. Скачать CSV Rossko
+// 5. Вызвать Autoeuro API
+// 6. Для каждого: parse → normalize → upsert в b_price_catalog
+
+php
+
+
+
+
+Крон: 0 3 * * * (раз в сутки ночью). Для Rossko дополнительно: 0 9,13,17,21 * * *.
+
+
+
+Шаг 7. InstantSearcher — добавить новый метод searchCatalog()
+
+
+
+Файл: local/php_interface/lib/Search/InstantSearcher.php
+
+
+
+Новый публичный метод:
+
+
+public function searchCatalog(string $article, string $brand): array
+
+
+
+
+SQL-запрос к b_price_catalog
+
+
+Возвращает массив SearchResultItem
+
+
+Используется для поставщиков, у которых есть прайс-листы
+
+
+
+
+Шаг 8. Модификация FullSearchLauncher
+
+
+
+Файл: local/php_interface/lib/Search/Stage2/FullSearchLauncher.php
+
+
+
+
+
+Добавить флаг $useCatalog — список поставщиков с прайс-листами
+
+
+В launch(): для $useCatalog — вызвать searchCatalog() вместо curl
+
+
+Для остальных (Berg, Ixora, Tatparts, Autopiter) — старый live-запрос
+
+
+BrandMap больше не нужен для поставщиков из каталога
+
+
+
+
+Шаг 9. analog_search.php — поддержка каталога
+
+
+
+Файл: local/ajax/analog_search.php
+
+
+
+
+
+Для поставщиков из каталога: данные берутся из b_price_catalog
+
+
+Для остальных: старый путь через FullSearchLauncher
+
+
+Объединение результатов перед OfferAggregator
+
+
+
+
+Шаг 10. Тестирование и метрики
+
+
+
+
+Загрузить прайс-лист Москворечье (Набережные Челны) как тестовый
+
+
+Проверить: W81180 MANN-FILTER → мгновенный ответ
+
+
+Сравнить количество результатов (live vs каталог)
+
+
+Замерить время: должно быть < 100 мс для каталога
+
+
+
+
+
+
+Риски
+
+
+Риск	Меры
+Цены устаревают	Rossko обновляется 4 раза в день; для критичных заказов — кнопка «Запросить актуальную цену» через live API
+Размер прайс-листов	Rossko может быть > 1M строк → первые загрузки медленные → инкрементальное обновление
+Несовпадение форматов	Каждый парсер тестируется на реальном файле отдельно
+Отключение прайс-листа поставщиком	Fallback на live-поиск автоматически
+
+
+
+
+Ожидаемый результат
+
+
+Метрика	До	После
+Холодный поиск (MANN W81180)	20-30 сек	50-200 мс (5 поставщиков) + 3-5 сек (4 live)
+Нагрузка на API поставщиков	~1200 запросов/поиск	0 для 5 поставщиков, ~500 для 4 live
+BrandMap	3-6 сек каждый раз	0 мс для каталога
+Кэш b_supplier_stock	26K строк, TTL 4ч	заменяется b_price_catalog — всегда актуален в пределах суток
+
+
+
+
+Порядок реализации
+
+
+
+
+1.Шаг 1-2 — таблица + базовый импортер (фундамент)
+
+
+2.Шаг 3 — ABCP CSV-парсер (3 поставщика сразу)
+
+
+3.Шаг 6 — крон загрузки
+
+
+4.Шаг 7-9 — интеграция в поиск
+
+
+5.Шаг 10 — тестирование на Москворечье
+
+
+6.Шаги 4-5 — Rossko + Autoeuro (отдельные итерации)
