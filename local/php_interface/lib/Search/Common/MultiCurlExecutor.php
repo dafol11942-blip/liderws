@@ -66,7 +66,7 @@ class MultiCurlExecutor
                 CURLOPT_ENCODING       => '',
             ]);
 
-            if (($req['method'] ?? 'GET') === 'POST') {
+            if (($req['method'] ?? (empty($req['body']) ? 'GET' : 'POST')) === 'POST') {
                 curl_setopt($ch, CURLOPT_POST, true);
                 if (!empty($req['body'])) {
                     curl_setopt($ch, CURLOPT_POSTFIELDS, $req['body']);
