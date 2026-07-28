@@ -32,9 +32,11 @@ if (empty($data['done']) && empty($data['running'])) {
         require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/SearchResultItem.php';
         require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/Stage2/FullSearchLauncher.php';
         require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/Common/MultiCurlExecutor.php';
-        foreach (['SupplierInterface','SupplierFactory','Moskvorechie','Rossko','PartKom','Autoeuro','Berg','Ixora','ShateM','Tatparts','Autoruss','Autopiter'] as $c) {
-            require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Supplier/' . $c . 'Connector.php';
-        }
+        require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Supplier/SupplierInterface.php';
+        require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Supplier/SupplierFactory.php';
+        foreach (['Moskvorechie','Rossko','PartKom','Autoeuro','Berg','Ixora','ShateM','Tatparts','Autoruss','Autopiter'] as $c) {
+                require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Supplier/' . $c . 'Connector.php';
+            }
 
         try {
             $f = new \Lider\Supplier\SupplierFactory();
