@@ -229,7 +229,7 @@ try {
         $allResults = $launcher->launchPhase1($displayBrand, $displayArticle, 30.0);
 
         if (!empty($umapiAnalogs)) {
-            $p2Hash = md5($cacheKey . '_p2_' . time());
+            $p2Hash = md5($cacheKey . '_p2');
             $p2Dir = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2';
             if (!is_dir($p2Dir)) mkdir($p2Dir, 0755, true);
             $p2File = $p2Dir . '/' . $p2Hash . '.json';
