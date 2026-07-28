@@ -8,7 +8,6 @@ define('NOT_CHECK_PERMISSIONS', true);
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php';
 
-// Классы
 $base = '/var/www/u3564357/data/www/liderws.ru/local/php_interface/lib';
 require_once $base . '/Search/BrandNormalizer.php';
 require_once $base . '/Search/SearchResultItem.php';
@@ -17,6 +16,7 @@ require_once $base . '/Search/Common/MultiCurlExecutor.php';
 require_once $base . '/Search/Stage2/FullSearchLauncher.php';
 require_once $base . '/Search/Stage2/OfferAggregator.php';
 require_once $base . '/Search/Stage2/ResultBuilder.php';
+require_once $base . '/Search/UmapiClient.php';
 require_once $base . '/Supplier/SupplierInterface.php';
 require_once $base . '/Supplier/SupplierFactory.php';
 require_once $base . '/Supplier/MoskvorechieConnector.php';
@@ -27,13 +27,13 @@ require_once $base . '/Supplier/BergConnector.php';
 require_once $base . '/Supplier/IxoraConnector.php';
 require_once $base . '/Supplier/ShateMConnector.php';
 require_once $base . '/Supplier/TatpartsConnector.php';
-require_once $base . '/Search/InstantSearcher.php';
 
 use Lider\Search\BrandNormalizer;
 use Lider\Search\Stage2\FullSearchLauncher;
 use Lider\Search\Stage2\OfferAggregator;
 use Lider\Search\Stage2\ResultBuilder;
 use Lider\Search\SearchCacheManager;
+use Lider\Search\UmapiClient;
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -41,19 +41,13 @@ function getAjaxFactory(): \Lider\Supplier\SupplierFactory {
     $f = new \Lider\Supplier\SupplierFactory();
     $f->register(new \Lider\Supplier\MoskvorechieConnector(['API_KEY'=>'2Ek7PUswoRDK:x1W5M70Y3KF8vZ52ETr2zi53d6SUOoPf']));
     $f->register(new \Lider\Supplier\RosskoConnector(['KEY1'=>'d6907f0f857524815255b74cda86fe9b','KEY2'=>'a514b4c11299686d7cfe8fd3563d1c58','DELIVERY_ID'=>'000000002','ADDRESS_ID'=>'71520']));
-    $f->register(new \Lider\Supplier\BergConnector(['API_KEY'=>'9e1cc5aea546e263e54c8ba687757a6515de9c78f52c5a9b435bd7ad8303ef36','ADDRESS_ID'=>31173]));
+    $f->register(new \Lider\Supplier\BergConnector(['API_KEY'=>'9e1cc5aea546e263e54c8ba757757a6515de9c78f52c5a9b435bd7ad8303ef36','ADDRESS_ID'=>31173]));
     $f->register(new \Lider\Supplier\AutoeuroConnector(['API_KEY'=>'wK435HUkjTAbJL4RF4F5z9NBXWYqpFhSorfpVkRLFNYI60T21ksYvVQNawkX','DELIVERY_KEY'=>'q53qrkblKN8GviqxHAUlgA0vlUZgRhN04SG01sixtCpoTjC99FJ165xxzGta89mwhLNonRBxH1vlOg8rjL2xPxAdurElATA']));
     $f->register(new \Lider\Supplier\PartKomConnector(['LOGIN'=>'lider16','PASSWORD'=>'LidGates16']));
     $f->register(new \Lider\Supplier\IxoraConnector(['AUTH_CODE'=>'460880B0988C8C204B2DD392EC81611D','TIMEOUT'=>8]));
     $f->register(new \Lider\Supplier\TatpartsConnector());
-    $f->register(new \Lider\Supplier\AutorussConnector([
-        'LOGIN' => 'Lider-16@bk.ru',
-        'PASSWORD_MD5' => '00fd3781d2cfdf0d971b57fa7397cfac',
-    ]));
-    $f->register(new \Lider\Supplier\AutopiterConnector([
-        'USER_ID' => '165286',
-        'PASSWORD' => 'LidGates16',
-    ]));
+    $f->register(new \Lider\Supplier\AutorussConnector(['LOGIN' => 'Lider-16@bk.ru','PASSWORD_MD5' => '00fd3781d2cfdf0d971b57fa7397cfac']));
+    $f->register(new \Lider\Supplier\AutopiterConnector(['USER_ID' => '165286','PASSWORD' => 'LidGates16']));
     return $f;
 }
 
@@ -82,20 +76,14 @@ function fmtQty(int $qty): string {
     return $qty . ' шт.';
 }
 
-
-/**
- * Вычисляет сроки доставки с отсечками для каждого поставщика.
- */
 function calcDelivery(\Lider\Search\SearchResultItem $item): array {
     $isSched = $item->isSched;
     $hours   = $item->deliveryPeriod ?? 0;
     $days    = $item->deliveryDays ?? 0;
-
     if ($isSched) {
         $d = $days > 0 ? $days : max(1, (int)ceil($hours / 24));
         return ['days' => $d, 'is_approx' => true];
     }
-
     if ($item->source === 'moskvorechie') {
         $flags   = (array)($item->raw['flags'] ?? []);
         $stockId = (string)($item->raw['stock_id'] ?? '');
@@ -116,13 +104,11 @@ function calcDelivery(\Lider\Search\SearchResultItem $item): array {
             return ['days'=>max(0,(int)ceil(($wave-strtotime('today',$now))/86400)),'is_approx'=>false,'date_from'=>$wave,'date_to'=>$wave+10800,'deadline'=>$wave+120];
         }
     }
-
     if ($item->source === 'berg') {
         if (!empty($item->raw['deliveryDateTo']) && !empty($item->raw['deliveryCheckout'])) {
             return ['days'=>$item->deliveryDays??0,'is_approx'=>false,'date_from'=>strtotime($item->raw['deliveryDateTo']),'date_to'=>strtotime($item->raw['deliveryDateTo'])+7200,'deadline'=>strtotime($item->raw['deliveryCheckout'])];
         }
     }
-
     if ($item->source === 'rossko') {
         $cutoff = $item->raw['deliveryCheckout'] ?? null;
         $from = $item->raw['deliveryDateFrom'] ?? null;
@@ -133,7 +119,6 @@ function calcDelivery(\Lider\Search\SearchResultItem $item): array {
             return $r;
         }
     }
-
     if ($item->deliveryDays !== null) {
         $r = ['days' => $item->deliveryDays, 'is_approx' => false];
         if (!empty($item->raw['deliveryDateFrom'])) $r['date_from'] = strtotime($item->raw['deliveryDateFrom']);
@@ -180,52 +165,40 @@ try {
         exit;
     }
 
-    $bmCache = new SearchCacheManager('/search/supplier', 900);
-    $bmKey = 'brandmap_' . md5(mb_strtolower($q));
-    $cachedBrandMap = $bmCache->get($bmKey) ?: [];
-
     $normTargetBrand = BrandNormalizer::normalize($brand);
     $canonBrand = BrandNormalizer::displayBrand($brand);
     $normQArt = BrandNormalizer::normalizeArticle($number);
-    $targetKey = BrandNormalizer::groupKey($brand, $number);
-    $targetEntry = $cachedBrandMap[$targetKey] ?? null;
-
     $displayArticle = $number;
     $displayBrand = $canonBrand;
-    if ($targetEntry) {
-        $arts = $targetEntry['articles'] ?? [];
-        $displayArticle = BrandNormalizer::pickDisplayArticle($arts, $targetEntry['article_nr'] ?? $number);
-        $displayBrand = $canonBrand ?: BrandNormalizer::displayBrand((string)reset($targetEntry['brands']));
-    }
-
-    $normTargetArt = BrandNormalizer::normalizeArticle($displayArticle);
+    $normTargetArt = $normQArt;
     $exactKey = $normTargetBrand . '|' . $normTargetArt;
 
     $factory = getAjaxFactory();
     $launcher = new FullSearchLauncher($factory);
-    // === CACHE-FIRST: сначала MySQL-кэш (<100ms), затем live API ===
-    $instantSearcher = new \Lider\Search\InstantSearcher();
-    $cachedItems = $instantSearcher->search($normTargetArt, $normTargetBrand);
 
-        // Аналоги: всегда live-поиск.
-    // Кэш b_supplier_stock содержит только точные совпадения по артикулу.
-    // Кросс-номера (Mann WK692, Bosch 0451103...) — только от поставщиков live.
+    // UMAPI: единый источник кроссов
+    $umapi = new UmapiClient('52606cd0-b1fd-4a5e-a8e3-ad9fbef16435');
+    $umapiAnalogs = $umapi->getAnalogs($displayArticle, $displayBrand);
+
     $phase = $_REQUEST['phase'] ?? 'full';
-    $p2Hash = trim($_REQUEST['p2_hash'] ?? '');
+    $p2Hash = '';
 
-    // Режим final: P2 завершён, читаем P1 из кэша + P2 из state-файла
-    if ($phase === 'final' && !empty($p2Hash)) {
+    if ($phase === 'final' && !empty($_REQUEST['p2_hash'])) {
+        // Режим final: читаем P1 из кэша + P2 из state-файла
+        $p2Hash = trim($_REQUEST['p2_hash']);
         $p2File = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2/' . $p2Hash . '.json';
+
         if (!file_exists($p2File)) {
             echo json_encode(['success'=>false, 'error'=>'State file not found']);
             exit;
         }
+
         $p2Data = json_decode(file_get_contents($p2File), true);
         if (empty($p2Data['done'])) {
             echo json_encode(['success'=>false, 'error'=>'P2 not done yet']);
             exit;
         }
-        // Читаем P1 из state
+
         $allResults = [];
         if (!empty($p2Data['p1_results'])) {
             foreach ($p2Data['p1_results'] as $r) {
@@ -234,7 +207,6 @@ try {
                 $allResults[] = $item;
             }
         }
-        // Добавляем P2
         if (!empty($p2Data['p2_results'])) {
             foreach ($p2Data['p2_results'] as $r) {
                 $item = new \Lider\Search\SearchResultItem();
@@ -242,132 +214,67 @@ try {
                 $allResults[] = $item;
             }
         }
-        // Восстанавливаем переменные из state
-        $normTargetBrand = $p2Data['normTargetBrand'] ?? $normTargetBrand;
-        $normTargetArt = $p2Data['normTargetArt'] ?? $normTargetArt;
-        $displayBrand = $p2Data['brand'] ?? $displayBrand;
+
+        $displayBrand   = $p2Data['brand'] ?? $displayBrand;
         $displayArticle = $p2Data['article'] ?? $displayArticle;
-        $cachedBrandMap = $p2Data['cachedBrandMap'] ?? $cachedBrandMap;
-        $exactKey = $p2Data['exactKey'] ?? $exactKey;
-        // Пропускаем launch и MySQL, сразу к агрегации
+        $exactKey       = $p2Data['exactKey'] ?? $exactKey;
+        $normTargetBrand = $p2Data['normTargetBrand'] ?? $normTargetBrand;
+        $normTargetArt  = $p2Data['normTargetArt'] ?? $normTargetArt;
+
         goto finalRender;
     }
-    $phase = $_REQUEST['phase'] ?? 'full';
-    $p2Hash = '';
 
     if ($phase === 'fast') {
-        [$allResults, $phase2State] = $launcher->launchPhase1($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
-        if ($phase2State !== null) {
+        // Phase 1: только exact поиск
+        $allResults = $launcher->launchPhase1($displayBrand, $displayArticle, 30.0);
+
+        if (!empty($umapiAnalogs)) {
             $p2Hash = md5($cacheKey . '_p2_' . time());
             $p2Dir = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2';
             if (!is_dir($p2Dir)) mkdir($p2Dir, 0755, true);
             $p2File = $p2Dir . '/' . $p2Hash . '.json';
+
+            $p1Serialized = [];
+            foreach ($allResults as $item) {
+                $p1Serialized[] = [
+                    'source' => $item->source, 'article' => $item->article, 'brand' => $item->brand,
+                    'name' => $item->name, 'price' => $item->price, 'quantity' => $item->quantity,
+                    'warehouse' => $item->warehouse, 'stockId' => $item->stockId,
+                    'supplierName' => $item->supplierName, 'isSched' => $item->isSched,
+                    'deliveryDays' => $item->deliveryDays, 'deliveryPeriod' => $item->deliveryPeriod ?? 0,
+                    'multiplicity' => $item->multiplicity ?? 1, 'unit' => $item->unit ?? 'шт.',
+                    'raw' => $item->raw ?? [],
+                ];
+            }
+
             file_put_contents($p2File, json_encode([
                 'hash' => $p2Hash,
-                'state' => $phase2State,
+                'umapiAnalogs' => $umapiAnalogs,
                 'brand' => $displayBrand,
                 'article' => $displayArticle,
                 'exactKey' => $exactKey,
                 'normTargetBrand' => $normTargetBrand,
                 'normTargetArt' => $normTargetArt,
-                'cachedBrandMap' => $cachedBrandMap,
                 'cacheKey' => $cacheKey,
+                'p1_count' => count($allResults),
+                'p1_results' => $p1Serialized,
                 'created' => time()
             ], JSON_UNESCAPED_UNICODE));
         }
     } else {
-        $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
-    }
-    
-
-// Этап 7: дозагружаем кросс-номера из MySQL (бренды из launch + BrandMap)
-    $allBrandNorms = [];
-    foreach ($allResults as $r) {
-        $bn = BrandNormalizer::normalize($r->brand);
-        if ($bn && $bn !== $normTargetBrand) $allBrandNorms[$bn] = true;
-    }
-// Собираем кросс-артикулы из результатов launch()
-    $crossArticles = [];
-    foreach ($allResults as $r) {
-        $na = BrandNormalizer::normalizeArticle($r->article);
-        if ($na !== $normTargetArt) $crossArticles[$na] = true;
-    }
-    // Добавляем бренды и кросс-артикулы из BrandMap
-    foreach ($cachedBrandMap as $gk => $info) {
-        [$gb, $ga] = array_pad(explode('|', $gk, 2), 2, '');
-        $nb = BrandNormalizer::normalize($gb);
-        $na = BrandNormalizer::normalizeArticle($ga);
-        if ($na === $normTargetArt || $nb === $normTargetBrand) continue;
-        $allBrandNorms[$nb] = true;
-        $crossArticles[$na] = true;
-    }
-    // Инициализируем $seenKeys из результатов launch() для дедупликации с MySQL
-    $seenKeys = [];
-    foreach ($allResults as $r) {
-        $dk = $r->source . '|' . BrandNormalizer::normalizeArticle($r->article) . '|' . BrandNormalizer::normalize($r->brand) . '|' . round($r->price, 2) . '|' . ($r->warehouse ?? '');
-        $seenKeys[$dk] = true;
+        // Полный поиск: Phase1 + Phase2
+        $allResults = $launcher->launch($displayBrand, $displayArticle, $umapiAnalogs, 30.0);
     }
 
-    if (!empty($allBrandNorms)) {
-        $db = new \mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
-        $db->set_charset('utf8mb4');
-        $escaped = array_map(fn($b) => "'" . $db->real_escape_string($b) . "'", array_keys($allBrandNorms));
-        $sql = "SELECT * FROM b_supplier_stock WHERE brand_normalized IN (" . implode(',', $escaped) . ") AND is_active = 1 AND last_updated > NOW() - INTERVAL 4 HOUR ORDER BY is_sched ASC, price ASC";
-        $res = $db->query($sql);
-        while ($row = $res->fetch_assoc()) {
-            $na = BrandNormalizer::normalizeArticle($row['article']);
-            if ($na === $normTargetArt) continue;
-            if (!isset($crossArticles[$na])) continue; // только кросс-номера
-            // Дубли: source|article_norm|brand_norm|price|warehouse
-            // Дубли: source|article_norm|brand_norm|price|warehouse
-            $dk = $row['supplier_code'] . '|' . BrandNormalizer::normalizeArticle($row['article']) . '|' . BrandNormalizer::normalize($row['brand']) . '|' . round((float)$row['price'], 2) . '|' . ($row['warehouse_name'] ?? '');
-            if (isset($seenKeys[$dk])) continue;
-            $seenKeys[$dk] = true;
-            $item = new \Lider\Search\SearchResultItem();
-            $item->source = $row['supplier_code'];
-            $item->article = $row['article'];
-            $item->brand = $row['brand'];
-            $item->name = $row['name'];
-            $item->price = (float)$row['price'];
-            $item->quantity = (int)$row['quantity'];
-            $item->warehouse = $row['warehouse_name'];
-            $item->stockId = $row['stock_id'];
-            $item->supplierName = $row['supplier_code'];
-            $item->isSched = (bool)$row['is_sched'];
-            $item->deliveryDays = (int)$row['delivery_days'];
-            $item->multiplicity = (int)$row['multiplicity'];
-            $allResults[] = $item;
-        }
-        $db->close();
-    }
-
-        // Дописываем P1 результаты в state-файл (уже с MySQL-дозагрузкой)
-    if ($phase === 'fast' && !empty($p2File) && file_exists($p2File)) {
-        $p1Serialized = [];
-        foreach ($allResults as $item) {
-            $p1Serialized[] = [
-                'source' => $item->source, 'article' => $item->article, 'brand' => $item->brand,
-                'name' => $item->name, 'price' => $item->price, 'quantity' => $item->quantity,
-                'warehouse' => $item->warehouse, 'stockId' => $item->stockId,
-                'supplierName' => $item->supplierName, 'isSched' => $item->isSched,
-                'deliveryDays' => $item->deliveryDays, 'deliveryPeriod' => $item->deliveryPeriod ?? 0,
-                'multiplicity' => $item->multiplicity ?? 1, 'unit' => $item->unit ?? 'шт.',
-                'raw' => $item->raw ?? [],
-            ];
-        }
-        $existing = json_decode(file_get_contents($p2File), true) ?: [];
-        $existing['p1_count'] = count($allResults);
-        $existing['p1_results'] = $p1Serialized;
-        file_put_contents($p2File, json_encode($existing, JSON_UNESCAPED_UNICODE));
-    }
     finalRender:
+
     $aggregator = new OfferAggregator(200, 1000);
     $groupedItems = $aggregator->aggregate($allResults);
 
-    $builder = new ResultBuilder(800,200, 1000);
+    $builder = new ResultBuilder(800, 200, 1000);
     $result = $builder->build(
         $groupedItems, $exactKey, $normTargetBrand, $normTargetArt,
-        $displayBrand, $displayArticle, $cachedBrandMap,
+        $displayBrand, $displayArticle, [],  // brandMap больше не нужен
         ['price_min' => $filterPriceMin, 'price_max' => $filterPriceMax, 'brand' => $filterBrand],
         'default', 'default'
     );
@@ -375,7 +282,7 @@ try {
     $analogGroups = $result['analogGroups'];
     $factoryForMask = getAjaxFactory();
 
-    // Рендерим HTML с правильными ценами и маскировкой складов
+    // Рендерим HTML
     ob_start();
     $ri = 0;
     if (!empty($analogGroups)):
@@ -417,11 +324,8 @@ try {
 </div>
 <div class="sl-warehouses" id="wh-group-lazy-<?=$ri?>" style="display:none;">
 <?php foreach ($group['warehouses'] as $wh):
-    // Цена с наценкой для обычного пользователя
     $priceBase = round((float)($wh['price_base'] ?? $wh['price']), 2);
     $priceDisplay = getDisplayPrice($priceBase);
-    
-    // Маскировка склада: если менеджер — реальное имя, иначе транслит через коннектор
     $stockDisplay = $wh['stock'] ?? '—';
     if (!isManager()) {
         $connector = $factoryForMask->get($wh['source'] ?? '');
@@ -429,23 +333,17 @@ try {
             $stockDisplay = $connector->maskWarehouseName($stockDisplay);
         }
     } else {
-        // Для менеджера добавляем имя поставщика
         if ($stockDisplay !== 'Под заказ' && $stockDisplay !== '—') {
             $stockDisplay = ($wh['supplier'] ?? '') . ': ' . $stockDisplay;
         }
     }
-    
     $retIcon = $wh['returnable']
         ? '<span class="ret-icon ret-icon--yes" title="Возвратный">↻</span>'
         : '<span class="ret-icon ret-icon--no" title="Невозвратный">✕</span>';
     $wq = (int)$wh['qty'];
     $wql = fmtQty($wq);
     $wdl = fmtDeliveryHtml($wh['delivery']);
-    
-    // Тег источника (только для менеджеров)
     $sourceTag = isManager() ? '<span class="source-tag source-tag--' . htmlspecialchars($wh['source']) . '">' . htmlspecialchars($wh['supplier']) . '</span>' : '';
-    
-    // Цена: для менеджеров показываем закупочную
     $priceShow = isManager() ? $priceBase : $priceDisplay;
     $priceHtml = number_format($priceShow, 2, ',', ' ') . ' ₽';
     $priceBaseHtml = (isManager() && $priceDisplay !== $priceBase) ? '<div class="sl-price-base">Розница: ' . number_format($priceDisplay, 2, ',', ' ') . ' ₽</div>' : '';
@@ -465,21 +363,26 @@ try {
 <?php endforeach;
     $html = ob_get_clean();
 
-    $response = ['success'=>true, 'html'=>$html, 'totalGroups'=>count($analogGroups), 'totalWarehouses'=>$result['totalWarehouses'], 'ok'=>1];
+    $response = [
+        'success' => true,
+        'html' => $html,
+        'totalGroups' => count($analogGroups),
+        'totalWarehouses' => $result['totalWarehouses'],
+        'ok' => 1
+    ];
+
     if (!empty($p2Hash)) {
         $response['p2_hash'] = $p2Hash;
         $response['p2_pending'] = true;
     }
-    // Сохраняем fast_html для polling
-    if ($phase === 'fast') {
-        $response['fast_html'] = true;
-    }
+
     $cache->set($cacheKey, $response, 300);
 
-// Запускаем Phase 2 в фоне — ДО вывода, без shutdown
+    // Запускаем Phase 2 в фоне
     if ($phase === 'fast' && !empty($p2Hash)) {
         exec('/usr/bin/php /var/www/u3564357/data/www/liderws.ru/local/ajax/analog_p2_exec.php ' . escapeshellarg($p2Hash) . ' > /dev/null 2>&1 &');
     }
+
     echo json_encode($response, JSON_UNESCAPED_UNICODE);
 
 } catch (\Throwable $e) {
