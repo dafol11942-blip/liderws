@@ -57,7 +57,7 @@ try {
     $launcher = new FullSearchLauncher(getP2Factory());
 
     // Новый сигнатура: executePhase2(array $umapiAnalogs, float $deadline)
-    $p2Results = $launcher->executePhase2($data['umapiAnalogs']);
+    $p2Results = $launcher->executePhase2($data['umapiAnalogs'], 45.0);
 
     // Сохраняем результат
     $data['p2_results'] = array_map(function($item) {
