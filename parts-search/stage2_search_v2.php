@@ -29,33 +29,27 @@ if ($searchNumberRaw === '' || $normTargetBrand === '') return;
 
 $isMgr = function_exists('isManager') ? (isManager() ? '1' : '0') : '0';
 
-// Получаем brandMap (как раньше)
-$bmCache = new SearchCacheManager('/search/supplier', 900);
-$bmKey = 'brandmap_' . md5(mb_strtolower($q));
-$cachedBrandMap = $bmCache->get($bmKey);
-if (!is_array($cachedBrandMap) || empty($cachedBrandMap)) {
-    $raw = []; $breqs = []; $bsups = [];
-    foreach (getSupplierFactory()->allAvailable() as $s) {
-        $r = $s->buildBrandsRequest($q);
-        if ($r) { $breqs[$s->getCode()] = $r; $bsups[$s->getCode()] = $s; }
+// UMAPI: кроссы + brandMap одним запросом вместо 8 API поставщиков
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/UmapiClient.php';
+$umapi = new \Lider\Search\UmapiClient('52606cd0-b1fd-4a5e-a8e3-ad9fbef16435');
+
+// brandMap для обратной совместимости с ResultBuilder
+$cachedBrandMap = [];
+$umapiAnalogs = $umapi->getAnalogs($displayArticle, $displayBrand);
+foreach ($umapiAnalogs as $a) {
+    $ab = trim((string)($a['brand'] ?? ''));
+    $aa = trim((string)($a['article'] ?? ''));
+    if ($ab === '' || $aa === '') continue;
+    $k = BrandNormalizer::groupKey($ab, $aa);
+    if (!isset($cachedBrandMap[$k])) {
+        $cachedBrandMap[$k] = [
+            'brands'      => ['umapi' => $ab],
+            'articles'    => ['umapi' => $aa],
+            'article_nr'  => $aa,
+            'description' => $a['title'] ?? '',
+            'sources'     => ['umapi'],
+        ];
     }
-    $e = new \Lider\Search\Common\MultiCurlExecutor();
-    foreach ($e->executeAll($breqs, 6.0) as $code => $resp) {
-        if (empty($resp['body'])) continue;
-        try { foreach ($bsups[$code]->parseBrandsResponse($resp['body'], $q) as $br) { $br['source'] = $code; $raw[] = $br; } } catch (\Throwable $e) {}
-    }
-    $cachedBrandMap = [];
-    foreach ($raw as $br) {
-        $b = trim((string)($br['brand'] ?? '')); $a = trim((string)($br['article_nr'] ?? $br['article'] ?? ''));
-        if ($b === '' || $a === '') continue;
-        $k = BrandNormalizer::groupKey($b, $a);
-        if (!isset($cachedBrandMap[$k])) $cachedBrandMap[$k] = ['brands'=>[], 'articles'=>[], 'article_nr'=>$a, 'description'=>(string)($br['description']??''), 'sources'=>[]];
-        $src = $br['source']; $cachedBrandMap[$k]['brands'][$src] = $b; $cachedBrandMap[$k]['articles'][$src] = $a;
-        if (!in_array($src, $cachedBrandMap[$k]['sources'], true)) $cachedBrandMap[$k]['sources'][] = $src;
-        $cachedBrandMap[$k]['article_nr'] = BrandNormalizer::pickDisplayArticle($cachedBrandMap[$k]['articles'], $cachedBrandMap[$k]['article_nr']);
-        $desc = (string)($br['description'] ?? ''); if (mb_strlen($desc) > mb_strlen($cachedBrandMap[$k]['description'])) $cachedBrandMap[$k]['description'] = $desc;
-    }
-    $bmCache->set($bmKey, $cachedBrandMap, 900);
 }
 
 $normQArt = BrandNormalizer::normalizeArticle($searchNumberRaw);
