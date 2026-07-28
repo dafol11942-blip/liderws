@@ -19,13 +19,11 @@ if (empty($data['done']) && empty($data['running'])) {
     $lockFile = $p2File . '.lock';
     $fp = fopen($lockFile, 'w');
     if ($fp && flock($fp, LOCK_EX | LOCK_NB)) {
-        // Помечаем running чтобы другой poll не дублировал
         $data['running'] = true;
         file_put_contents($p2File, json_encode($data, JSON_UNESCAPED_UNICODE));
         flock($fp, LOCK_UN);
         fclose($fp);
 
-        // Запускаем P2 синхронно в этом же процессе
         $_SERVER['DOCUMENT_ROOT'] = '/var/www/u3564357/data/www/liderws.ru';
         define('NO_KEEP_STATISTIC', true);
         define('NOT_CHECK_PERMISSIONS', true);
@@ -34,7 +32,7 @@ if (empty($data['done']) && empty($data['running'])) {
         require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/SearchResultItem.php';
         require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/Stage2/FullSearchLauncher.php';
         require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/Common/MultiCurlExecutor.php';
-        foreach (['SupplierInterface','SupplierFactory','Moskvorechie','Rossko','PartKom','Autoeuro','Berg','Ixora','ShateM','Tatparts'] as $c) {
+        foreach (['SupplierInterface','SupplierFactory','Moskvorechie','Rossko','PartKom','Autoeuro','Berg','Ixora','ShateM','Tatparts','Autoruss','Autopiter'] as $c) {
             require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Supplier/' . $c . 'Connector.php';
         }
 
@@ -47,9 +45,13 @@ if (empty($data['done']) && empty($data['running'])) {
             $f->register(new \Lider\Supplier\PartKomConnector(['LOGIN'=>'lider16','PASSWORD'=>'LidGates16']));
             $f->register(new \Lider\Supplier\IxoraConnector(['AUTH_CODE'=>'460880B0988C8C204B2DD392EC81611D','TIMEOUT'=>8]));
             $f->register(new \Lider\Supplier\TatpartsConnector());
+            $f->register(new \Lider\Supplier\AutorussConnector(['LOGIN'=>'Lider-16@bk.ru','PASSWORD_MD5'=>'00fd3781d2cfdf0d971b57fa7397cfac']));
+            $f->register(new \Lider\Supplier\AutopiterConnector(['USER_ID'=>'165286','PASSWORD'=>'LidGates16']));
 
             $launcher = new \Lider\Search\Stage2\FullSearchLauncher($f);
-            $p2Results = $launcher->executePhase2($data['state']);
+
+            // ФИКС: umapiAnalogs вместо state
+            $p2Results = $launcher->executePhase2($data['umapiAnalogs'], 30.0);
 
             $data['p2_results'] = array_map(function($item) {
                 return [
@@ -79,7 +81,6 @@ if (empty($data['done']) && empty($data['running'])) {
     } else {
         if ($fp) fclose($fp);
     }
-    // Перечитываем
     $data = json_decode(file_get_contents($p2File), true);
 }
 
