@@ -136,40 +136,52 @@ class UmapiClient
     }
 
     private function request(string $url): ?array
-    {
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL            => $url,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => [
-                'accept: application/json',
-                'X-App-Key: ' . $this->apiKey,
-            ],
-            CURLOPT_TIMEOUT        => 12,
-            CURLOPT_CONNECTTIMEOUT => 4,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => 0,
-            CURLOPT_ENCODING       => '',
-            CURLOPT_FOLLOWLOCATION => true,
-        ]);
+{
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'header' => "accept: application/json\r\nX-App-Key: " . $this->apiKey . "\r\n",
+            'timeout' => 12,
+            'ignore_errors' => true,
+        ],
+        'ssl' => [
+            'verify_peer' => false,
+            'verify_peer_name' => false,
+        ],
+    ]);
 
-        $body     = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error    = curl_error($ch);
-        curl_close($ch);
+    $body = @file_get_contents($url, false, $ctx);
 
-        if ($httpCode !== 200 || $error || empty($body)) {
-            @file_put_contents(
-                $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/umapi_' . date('Y-m-d') . '.log',
-                '[' . date('H:i:s') . '] FAIL ' . $httpCode . ' ' . $error . ' ' . $url . "\n",
-                FILE_APPEND
-            );
-            return null;
+    // Проверяем HTTP-код из заголовков ответа
+    $httpCode = 0;
+    if (isset($http_response_header)) {
+        foreach ($http_response_header as $header) {
+            if (preg_match('#^HTTP/\d+\.\d+\s+(\d+)#', $header, $m)) {
+                $httpCode = (int)$m[1];
+                break;
+            }
         }
-
-        $data = json_decode($body, true);
-        return is_array($data) ? $data : null;
     }
+
+    if ($httpCode !== 200 || $body === false || empty($body)) {
+        $error = $body === false ? 'file_get_contents failed' : "HTTP {$httpCode}";
+        @file_put_contents(
+            $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/umapi_' . date('Y-m-d') . '.log',
+            '[' . date('H:i:s') . '] FAIL ' . $httpCode . ' ' . $error . ' ' . $url . "\n",
+            FILE_APPEND
+        );
+        return null;
+    }
+
+    @file_put_contents(
+        $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/umapi_' . date('Y-m-d') . '.log',
+        '[' . date('H:i:s') . '] OK ' . strlen($body) . ' bytes — ' . $url . "\n",
+        FILE_APPEND
+    );
+
+    $data = json_decode($body, true);
+    return is_array($data) ? $data : null;
+}
 
     private function db(): \mysqli
     {
