@@ -97,24 +97,30 @@ function formatDelivery(array $delivery): string {
 <?php if ($q):
 if (empty($selectedBrand)):
     $normQ = BrandNormalizer::normalizeArticle($q);
-    $brandCacheKey = 'brands_' . md5(mb_strtolower($q));
-    $brandCache = new \Lider\Search\SearchCacheManager();
-    $allBrandsRaw = $brandCache->get($brandCacheKey);
-    if ($allBrandsRaw === null) {
-        $allBrandsRaw = []; $brandRequests = [];
-        foreach (getSupplierFactory()->allAvailable() as $supplier) { $req = $supplier->buildBrandsRequest($q); if ($req) $brandRequests[$supplier->getCode()] = ['req'=>$req,'supplier'=>$supplier]; }
-        if (!empty($brandRequests)) {
-            $mh=curl_multi_init(); $handles=[];
-            foreach($brandRequests as $code=>$data){$ch=curl_init();$req=$data['req'];curl_setopt_array($ch,[CURLOPT_URL=>$req['url'],CURLOPT_RETURNTRANSFER=>true,CURLOPT_HTTPHEADER=>$req['headers'],CURLOPT_TIMEOUT=>6,CURLOPT_CONNECTTIMEOUT=>3,CURLOPT_SSL_VERIFYPEER=>false,CURLOPT_SSL_VERIFYHOST=>0,CURLOPT_ENCODING=>'']);if($req['method']==='POST'){curl_setopt($ch,CURLOPT_POST,true);if($req['body'])curl_setopt($ch,CURLOPT_POSTFIELDS,$req['body']);}curl_multi_add_handle($mh,$ch);$handles[$code]=$ch;}
-            $running=null;do{curl_multi_exec($mh,$running);curl_multi_select($mh,0.1);}while($running>0);
-            foreach($handles as $code=>$ch){$responseBody=curl_multi_getcontent($ch);$httpCode=curl_getinfo($ch,CURLINFO_HTTP_CODE);curl_multi_remove_handle($mh,$ch);curl_close($ch);if($httpCode===200&&!empty($responseBody)){try{$brands=$brandRequests[$code]['supplier']->parseBrandsResponse($responseBody,$q);foreach($brands as $br){$br['source']=$brandRequests[$code]['supplier']->getCode();$br['supplier_name']=$brandRequests[$code]['supplier']->getName();$allBrandsRaw[]=$br;}}catch(\Throwable $e){}}}
-            curl_multi_close($mh);
-        }
-        $brandCache->set($brandCacheKey, $allBrandsRaw, 900);
-    }
+
+    // UMAPI: один запрос вместо 8 API поставщиков (~22 мс)
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/UmapiClient.php';
+    $umapi = new \Lider\Search\UmapiClient('52606cd0-b1fd-4a5e-a8e3-ad9fbef16435');
+    $umapiBrands = $umapi->refineBrandData($q);
+
     $brandMap = [];
-    foreach($allBrandsRaw as $br){$brBrand=trim((string)($br["brand"]??""));$brArt=trim((string)($br["article_nr"]??($br["article"]??"")));if($brBrand===""||$brArt==="")continue;$br["brand"]=$brBrand;$br["article_nr"]=$brArt;$key=\Lider\Search\BrandNormalizer::groupKey($brBrand,$brArt);if(!isset($brandMap[$key])){$brandMap[$key]=["brands"=>[],"articles"=>[],"article_nr"=>$br["article_nr"],"description"=>$br["description"]?:'',"sources"=>[]];}$src=$br["source"];$brandMap[$key]["brands"][$src]=$br["brand"];$brandMap[$key]["articles"][$src]=$br["article_nr"];if(!in_array($src,$brandMap[$key]["sources"],true))$brandMap[$key]["sources"][]=$src;if(mb_strlen($br["description"]?:'')>mb_strlen($brandMap[$key]["description"]))$brandMap[$key]["description"]=$br["description"]?:'';$brandMap[$key]["article_nr"]=\Lider\Search\BrandNormalizer::pickDisplayArticle($brandMap[$key]["articles"],$brandMap[$key]["article_nr"]);}
-    $bmc=new \Lider\Search\SearchCacheManager();$bmc->set('brandmap_'.md5(mb_strtolower($q)),$brandMap,900);
+    foreach ($umapiBrands as $br) {
+        $brBrand = trim((string)($br['brand'] ?? ''));
+        $brArt   = trim((string)($br['article'] ?? ''));
+        if ($brBrand === '' || $brArt === '') continue;
+
+        $key = \Lider\Search\BrandNormalizer::groupKey($brBrand, $brArt);
+        $brandMap[$key] = [
+            'brands'      => ['umapi' => $brBrand],
+            'articles'    => ['umapi' => $brArt],
+            'article_nr'  => $brArt,
+            'description' => $br['title'] ?? '',
+            'sources'     => ['umapi'],
+        ];
+    }
+
+    $bmc = new \Lider\Search\SearchCacheManager('/search/supplier', 900);
+    $bmc->set('brandmap_' . md5(mb_strtolower($q)), $brandMap, 900);
     $exactBrands=[];$analogBrands=[];
     foreach($brandMap as $key=>$info){$isExact=(\Lider\Search\BrandNormalizer::normalizeArticle($info["article_nr"])===$normQ);$displayBrand=\Lider\Search\BrandNormalizer::displayBrand((string)(reset($info["brands"])?:''));$displayArticle=\Lider\Search\BrandNormalizer::pickDisplayArticle($info["articles"]??[],$info["article_nr"]??'');$entry=["brand"=>$displayBrand,"article"=>$displayArticle,"article_nr"=>$displayArticle,"description"=>$info["description"],"sources"=>$info["sources"],"brands"=>$info["brands"],"articles"=>$info["articles"],"key"=>$key];if($isExact)$exactBrands[]=$entry;else $analogBrands[]=$entry;}
     $sortByOffers=fn($a,$b)=>count($b['sources']??[])<=>count($a['sources']??[])?:strcmp(mb_strtolower($a['brand']??''),mb_strtolower($b['brand']??''));
