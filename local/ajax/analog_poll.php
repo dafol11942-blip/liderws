@@ -1,4 +1,5 @@
 <?php
+ob_start();
 /**
  * Polling: проверка готовности Phase 2.
  * Если P2 ещё не запущен — запускает сам (с блокировкой).
@@ -86,6 +87,7 @@ if (empty($data['done']) && empty($data['running'])) {
     $data = json_decode(file_get_contents($p2File), true);
 }
 
+ob_clean();
 echo json_encode([
     'ready' => !empty($data['done']),
     'p2_count' => $data['p2_count'] ?? 0,
