@@ -9,160 +9,223 @@ use Lider\Search\BrandNormalizer;
 class FullSearchLauncher
 {
     private SupplierFactory $factory;
-    public function __construct(SupplierFactory $factory) { $this->factory = $factory; }
 
+    public function __construct(SupplierFactory $factory)
+    {
+        $this->factory = $factory;
+    }
+
+    /**
+     * Полный поиск: Phase1 (exact) + Phase2 (UMAPI-кроссы).
+     *
+     * @param array $umapiAnalogs Кроссы из UMAPI (или [] если UMAPI недоступен)
+     */
     public function launch(
-        string $brand, string $article, array $brandMap,
-        string $exactKey, ?array $targetEntry, float $deadline = 15.0
+        string $brand,
+        string $article,
+        array $umapiAnalogs = [],
+        float $deadline = 15.0
     ): array {
-    [$results, $phase2State] = $this->launchPhase1($brand, $article, $brandMap, $exactKey, $targetEntry, $deadline);
-        if ($phase2State !== null) {
-            $p2Results = $this->executePhase2($phase2State);
+        $results = $this->launchPhase1($brand, $article, $deadline);
+
+        if (!empty($umapiAnalogs)) {
+            $p2Results = $this->executePhase2($umapiAnalogs, $deadline);
             $results = array_merge($results, $p2Results);
         }
+
         $this->log("TOTAL: " . count($results));
-        usort($results, fn($a, $b) => (!$a->isSched && $b->isSched) ? -1 : (($a->isSched && !$b->isSched) ? 1 : $a->price <=> $b->price));
+        usort($results, function ($a, $b) {
+            if (!$a->isSched && $b->isSched) return -1;
+            if ($a->isSched && !$b->isSched) return 1;
+            return $a->price <=> $b->price;
+        });
         return $results;
     }
+
+    /**
+     * Фаза 1: поиск искомого артикула у всех поставщиков (exact + nobrand).
+     * Без cross-запросов и без построения analogMap — кроссы теперь из UMAPI.
+     */
     public function launchPhase1(
-        string $brand, string $article, array $brandMap,
-        string $exactKey, ?array $targetEntry, float $deadline = 15.0
+        string $brand,
+        string $article,
+        float $deadline = 15.0
     ): array {
         $suppliers = $this->factory->allAvailable();
-        if (empty($suppliers)) return [[], null];
-        $allCodes = array_map(fn($s) => $s->getCode(), $suppliers);
-        $normExactArt = BrandNormalizer::normalizeArticle($article);
-        $normExactBrand = BrandNormalizer::normalize($brand);
+        if (empty($suppliers)) return [];
 
-        $bfs = fn($sup, $e, $fb) => ($e && !empty($e['brands'][$sup->getCode()])) ? (string)$e['brands'][$sup->getCode()] : BrandNormalizer::displayBrand($fb);
-        $afs = fn($sup, $e, $fa) => ($e && !empty($e['articles'][$sup->getCode()])) ? (string)$e['articles'][$sup->getCode()] : $fa;
+        $results = [];
+        $seen    = [];
+        $p1r     = [];
+        $p1m     = [];
 
-        // ФАЗА 1 — exact + nobrand + cross
-        $p1r = []; $p1m = [];
+        // exact: с брендом
         foreach ($suppliers as $sup) {
-            $code = $sup->getCode(); $sb = $bfs($sup, $targetEntry, $brand); $sa = $afs($sup, $targetEntry, $article);
-            if ($req = $sup->buildSearchRequest($sb, $sa, false)) {
-                $k = $code . ':exact'; $req['_key'] = $k; $req['_timeout'] = $sup->getSearchTimeout(); $req['_priority'] = 0;
-                $p1r[] = $req; $p1m[$k] = ['sup' => $sup, 'brand' => $sb, 'article' => $sa];
-            }
-            if ($req = $sup->buildSearchRequest('', $sa, false)) {
-                $k = $code . ':nobrand'; $req['_key'] = $k; $req['_timeout'] = $sup->getSearchTimeout(); $req['_priority'] = 1;
-                $p1r[] = $req; $p1m[$k] = ['sup' => $sup, 'brand' => '', 'article' => $sa, 'noBrand' => true];
-            }
-        }
-        foreach ($suppliers as $sup) {
-            if (!$sup->supportsCrossSearch()) continue;
-            $code = $sup->getCode(); $sb = $bfs($sup, $targetEntry, $brand); $sa = $afs($sup, $targetEntry, $article);
-            if ($req = $sup->buildSearchRequest($sb, $sa, true)) {
-                $k = $code . ':cross'; $req['_key'] = $k; $req['_timeout'] = min($sup->getSearchTimeout() + 3, (int)$deadline); $req['_priority'] = 2;
-                $p1r[] = $req; $p1m[$k] = ['sup' => $sup, 'brand' => $sb, 'article' => $sa, 'isCross' => true];
-            }
+            $req = $sup->buildSearchRequest($brand, $article, false);
+            if (!$req) continue;
+            $code = $sup->getCode();
+            $k = $code . ':exact';
+            $req['_key'] = $k;
+            $req['_timeout'] = $sup->getSearchTimeout();
+            $req['_priority'] = 0;
+            $p1r[] = $req;
+            $p1m[$k] = ['sup' => $sup, 'brand' => $brand, 'article' => $article];
         }
 
-        $e1 = new MultiCurlExecutor(); $r1 = $e1->executeAll($p1r, $deadline * 0.5);
-        $results = []; $seen = []; $analogMap = [];
+        // nobrand: без бренда (ловим все варианты)
+        foreach ($suppliers as $sup) {
+            $req = $sup->buildSearchRequest('', $article, false);
+            if (!$req) continue;
+            $code = $sup->getCode();
+            $k = $code . ':nobrand';
+            $req['_key'] = $k;
+            $req['_timeout'] = $sup->getSearchTimeout();
+            $req['_priority'] = 1;
+            $p1r[] = $req;
+            $p1m[$k] = ['sup' => $sup, 'brand' => '', 'article' => $article, 'noBrand' => true];
+        }
 
-        foreach ($r1 as $key => $resp) {
+        $executor = new MultiCurlExecutor();
+        $responses = $executor->executeAll($p1r, $deadline * 0.5);
+
+        foreach ($responses as $key => $resp) {
             if (empty($resp['body'])) continue;
-            $meta = $p1m[$key] ?? null; if (!$meta) continue;
-            $sup = $meta['sup']; $src = $sup->getCode();
+            $meta = $p1m[$key] ?? null;
+            if (!$meta) continue;
+            $sup  = $meta['sup'];
+            $src  = $sup->getCode();
+
             try {
                 $items = $sup->parseSearchResponse($resp['body'], $meta['brand'], $meta['article']);
                 foreach ($items as $item) {
                     if (!($item instanceof SearchResultItem)) continue;
                     if ($item->price <= 0 && $item->quantity <= 0) continue;
-                    $gk = BrandNormalizer::groupKey($item->brand, $item->article);
-                    $itemNormArt = BrandNormalizer::normalizeArticle($item->article);
-                    [$gkb] = array_pad(explode('|', $gk, 2), 2, '');
-                    $gkbNorm = BrandNormalizer::normalize($gkb);
-                    $isExact = ($itemNormArt === $normExactArt && $gkbNorm === $normExactBrand);
-                    if (!$isExact) {
-                        if (!isset($analogMap[$itemNormArt])) {
-                            $analogMap[$itemNormArt] = ['brands'=>[$gk=>$item->brand],'articles'=>[$gk=>$item->article],'sources'=>[$src=>true],'example'=>['brand'=>$item->brand,'article'=>$item->article]];
-                        } else {
-                            $analogMap[$itemNormArt]['sources'][$src] = true;
-                            if (!isset($analogMap[$itemNormArt]['brands'][$gk])) $analogMap[$itemNormArt]['brands'][$gk] = $item->brand;
-                            $analogMap[$itemNormArt]['articles'][$gk] = $item->article;
-                        }
-                    }
-                    $dk = $src . '|' . ($item->stockId ?: '') . '|' . $item->price . '|' . ($item->warehouse ?? '') . '|' . $item->brand . '|' . $item->article;
-                    if (isset($seen[$dk])) continue; $seen[$dk] = true;
+
+                    $dk = $src . '|' . ($item->stockId ?: '') . '|' . $item->price
+                        . '|' . ($item->warehouse ?? '') . '|' . $item->brand . '|' . $item->article;
+
+                    if (isset($seen[$dk])) continue;
+                    $seen[$dk] = true;
                     $results[] = $item;
                 }
-            } catch (\Throwable $e) {}
-        }
-        $this->log("P1: results=" . count($results) . " analogArts=" . count($analogMap));
-
-        // Добавляем brandMap в analogMap
-        foreach ($brandMap as $gk => $info) {
-            [$gkBrand, $gkArt] = array_pad(explode('|', $gk, 2), 2, '');
-            $na = BrandNormalizer::normalizeArticle($gkArt);
-            $nb = BrandNormalizer::normalize($gkBrand);
-            if (($nb === $normExactBrand && $na === $normExactArt) || $gk === $exactKey) continue;
-            if (!isset($analogMap[$na])) {
-                $analogMap[$na] = ['brands' => $info['brands'] ?? [], 'articles' => $info['articles'] ?? [], 'sources' => [], 'example' => null];
+            } catch (\Throwable $e) {
+                // игнорируем ошибки парсинга отдельного поставщика
             }
         }
 
-        $phase2State = ['analogMap' => $analogMap, 'allCodes' => $allCodes, 'brandMap' => $brandMap, 'seen' => $seen, 'deadline' => $deadline];
-        return [$results, $phase2State];
+        $this->log("P1: results=" . count($results));
+        return $results;
     }
 
-    public function executePhase2(array $phase2State): array
+    /**
+     * Фаза 2: поиск кросс-номеров из UMAPI у всех поставщиков.
+     * Запрос без бренда — поставщик сам найдёт все варианты.
+     *
+     * @param array $umapiAnalogs Массив кроссов из UMAPI [['article'=>..., 'brand'=>...], ...]
+     */
+    public function executePhase2(array $umapiAnalogs, float $deadline = 15.0): array
     {
-        $analogMap = $phase2State['analogMap'];
-        $allCodes  = $phase2State['allCodes'];
-        $brandMap  = $phase2State['brandMap'];
-        $seen      = $phase2State['seen'];
-        $deadline  = $phase2State['deadline'] ?? 15.0;
+        if (empty($umapiAnalogs)) return [];
 
-        $results = [];
-        uasort($analogMap, fn($a, $b) => count($a['sources']) <=> count($b['sources']));
-        $p2r = []; $p2m = [];
-        foreach ($analogMap as $normArt => $am) {
-            $missing = array_diff($allCodes, array_keys($am['sources']));
-            if (empty($missing)) continue;
-            $firstGk = array_key_first($am['brands']);
-            $ex=$am['example']??null;
-            $fb=$am['brands'][$firstGk]??(is_array($ex)?$ex['brand']:($ex?$ex->brand:''));
-            $fa=$am['articles'][$firstGk]??(is_array($ex)?$ex['article']:($ex?$ex->article:''));
-            $bmFound = null;
-            foreach ($am['brands'] as $gk => $b) { if (isset($brandMap[$gk])) { $bmFound = $brandMap[$gk]; break; } }
-            foreach ($missing as $supCode) {
-                $sup = $this->factory->get($supCode); if (!$sup) continue;
-                $tb = $fb; $ta = $fa;
-                if ($bmFound) { $tb = !empty($bmFound['brands'][$supCode]) ? (string)$bmFound['brands'][$supCode] : $tb; $ta = !empty($bmFound['articles'][$supCode]) ? (string)$bmFound['articles'][$supCode] : $ta; }
-                $req = $sup->buildSearchRequest($tb, $ta, false);
-                if (!$req) $req = $sup->buildSearchRequest('', $fa, false);
-                if (!$req) continue;
-                $k2 = $supCode . ':fill:' . $normArt;
-                $req['_key'] = $k2; $req['_timeout'] = 4; $req['_priority'] = 3;
-                $p2r[] = $req; $p2m[$k2] = ['sup' => $sup, 'normArt' => $normArt, 'brand' => $tb, 'article' => $ta];
+        $suppliers = $this->factory->allAvailable();
+        $results   = [];
+        $seen      = [];
+        $p2r       = [];
+        $p2m       = [];
+
+        // Уникальные пары brand|article из UMAPI (дедупликация)
+        $uniquePairs = [];
+        foreach ($umapiAnalogs as $a) {
+            $ab = trim((string)($a['brand'] ?? ''));
+            $aa = trim((string)($a['article'] ?? ''));
+            if ($ab === '' || $aa === '') continue;
+            $k = BrandNormalizer::normalize($ab) . '|' . BrandNormalizer::normalizeArticle($aa);
+            if (!isset($uniquePairs[$k])) {
+                $uniquePairs[$k] = ['brand' => $ab, 'article' => $aa];
             }
         }
-        if (empty($p2r)) return [];
+
+        // Для каждой уникальной пары → запрос без бренда ко всем поставщикам
+        foreach ($uniquePairs as $pair) {
+            $normBrand = BrandNormalizer::normalize($pair['brand']);
+            $normArt   = BrandNormalizer::normalizeArticle($pair['article']);
+
+            foreach ($suppliers as $sup) {
+                // Запрос БЕЗ бренда — поставщик сам найдёт товар под любым брендом
+                $req = $sup->buildSearchRequest('', $pair['article'], false);
+                if (!$req) {
+                    // fallback: с брендом
+                    $req = $sup->buildSearchRequest($pair['brand'], $pair['article'], false);
+                }
+                if (!$req) continue;
+
+                $code = $sup->getCode();
+                $k2 = $code . ':analog:' . $normArt;
+                $req['_key'] = $k2;
+                $req['_timeout'] = min(6, $sup->getSearchTimeout());
+                $req['_priority'] = 3;
+                $p2r[] = $req;
+                $p2m[$k2] = [
+                    'sup'      => $sup,
+                    'normArt'  => $normArt,
+                    'normBrand'=> $normBrand,
+                    'brand'    => $pair['brand'],
+                    'article'  => $pair['article'],
+                ];
+            }
+        }
+
+        if (empty($p2r)) {
+            $this->log("P2: no requests");
+            return [];
+        }
+
         $p2Deadline = max(10.0, $deadline * 0.6);
-        $this->log("P2: " . count($p2r) . " for " . count(array_unique(array_column($p2m, 'normArt'))) . " analogs");
-        $e2 = new MultiCurlExecutor(); $r2 = $e2->executeAll($p2r, $p2Deadline); $added = 0;
-        foreach ($r2 as $key => $resp) {
+        $this->log("P2: " . count($p2r) . " requests for " . count($uniquePairs) . " unique analogs");
+
+        $executor  = new MultiCurlExecutor();
+        $responses = $executor->executeAll($p2r, $p2Deadline);
+        $added     = 0;
+
+        foreach ($responses as $key => $resp) {
             if (empty($resp['body'])) continue;
-            $meta = $p2m[$key] ?? null; if (!$meta) continue;
-            $sup = $meta['sup']; $normArt = $meta['normArt']; $src = $sup->getCode();
+            $meta = $p2m[$key] ?? null;
+            if (!$meta) continue;
+
+            $sup      = $meta['sup'];
+            $src      = $sup->getCode();
+            $normArt  = $meta['normArt'];
+
             try {
-                $items = $sup->parseSearchResponse($resp['body'], $meta['brand'], $meta['article']);
+                $items = $sup->parseSearchResponse($resp['body'], '', $meta['article']);
                 foreach ($items as $item) {
                     if (!($item instanceof SearchResultItem)) continue;
                     if ($item->price <= 0 && $item->quantity <= 0) continue;
                     if (BrandNormalizer::normalizeArticle($item->article) !== $normArt) continue;
-                    $dk = $src . '|' . ($item->stockId ?: '') . '|' . $item->price . '|' . ($item->warehouse ?? '') . '|' . $item->brand . '|' . $item->article;
-                    if (isset($seen[$dk])) continue; $seen[$dk] = true;
-                    $results[] = $item; $added++;
+
+                    $dk = $src . '|' . ($item->stockId ?: '') . '|' . $item->price
+                        . '|' . ($item->warehouse ?? '') . '|' . $item->brand . '|' . $item->article;
+
+                    if (isset($seen[$dk])) continue;
+                    $seen[$dk] = true;
+                    $results[] = $item;
+                    $added++;
                 }
-            } catch (\Throwable $e) {}
+            } catch (\Throwable $e) {
+                // игнорируем
+            }
         }
-        $this->log("P2 done: +{$added}");
+
+        $this->log("P2 done: +{$added} results");
         return $results;
     }
 
-  private function log(string $msg):void{@file_put_contents('/var/www/u3564357/data/www/liderws.ru/upload/logs/fullsearch_'.date('Y-m-d').'.log','['.date('H:i:s').'] '.$msg."\n",FILE_APPEND);}
+    private function log(string $msg): void
+    {
+        @file_put_contents(
+            '/var/www/u3564357/data/www/liderws.ru/upload/logs/fullsearch_' . date('Y-m-d') . '.log',
+            '[' . date('H:i:s') . '] ' . $msg . "\n",
+            FILE_APPEND
+        );
+    }
 }

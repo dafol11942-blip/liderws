@@ -151,7 +151,7 @@ if (!$skipLive) {
     } else {
         // Без fastcgi — синхронно (старое поведение)
         $launcher   = new FullSearchLauncher(getSupplierFactory());
-        $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
+        $allResults = $launcher->launch($displayBrand, $displayArticle, $umapiAnalogs, 30.0);
 
         if (!empty($allResults)) {
             try {
