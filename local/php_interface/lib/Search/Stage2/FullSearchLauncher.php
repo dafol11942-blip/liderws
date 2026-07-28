@@ -152,7 +152,7 @@ class FullSearchLauncher
 
             foreach ($suppliers as $sup) {
                 // Запрос БЕЗ бренда — поставщик сам найдёт товар под любым брендом
-                $req = $sup->buildSearchRequest('', $pair['article'], false);
+                $req = $sup->buildSearchRequest($pair['brand'], $pair['article'], false);
                 if (!$req) {
                     // fallback: с брендом
                     $req = $sup->buildSearchRequest($pair['brand'], $pair['article'], false);
