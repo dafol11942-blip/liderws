@@ -1039,3 +1039,91 @@ parts-search/index.php	Исправлена опечатка strtomorrow → str
 
 
 1.Подключение нового поставщика с учётом накопленного опыта
+
+## Этап 10 — Подключение Авторусь + Автопитер (ЗАВЕРШЁН)
+
+### Дата: 2026-07-27
+### Коммиты: (последние)
+### Ветка: fix/cache-pipeline-bugs
+
+---
+
+### Новые поставщики
+
+| Поставщик | Тип API | Авторизация | getCode() | Префикс склада |
+|-----------|---------|-------------|-----------|----------------|
+| **Авторусь** | REST/JSON (ABCP) | `userlogin` + `userpsw` (MD5) | `autoruss` | `ar` |
+| **Автопитер** | SOAP/XML | Cookie: `Authorization(UserID, Password)` | `autopiter` | `ap` |
+
+### Особенности реализации
+
+#### Авторусь
+- Хост: `autorus.public.api.abcp.ru`
+- Поиск брендов: `/search/brands/?number=`
+- Поиск предложений: `/search/articles/?number=&brand=`
+- Сроки доставки: `deliveryPeriod` (часы) → +48ч запас; 0 → min 48ч
+- Возвратность: из поля `noReturn`
+
+#### Автопитер
+- Хост: `service.autopiter.ru/v2/price`
+- Поиск брендов: `FindCatalog(Number)` → `SearchCatalogModel[]`
+- Поиск предложений: `GetPriceId(ArticleId, SearchCross)` → `PriceSearchModel[]`
+- Сроки доставки: `NumberOfDaysSupply` → +2 дня запас
+- **Весь товар невозвратный** (`returnable = false` всегда)
+- Авторизация через Cookie: `Authorization(UserID, Password, Save=true)` → `Set-Cookie: AuthCoocies=...`
+
+### Новые файлы
+| Файл | Назначение |
+|------|-----------|
+| `local/php_interface/lib/Supplier/AutorussConnector.php` | Коннектор Авторусь (REST) |
+| `local/php_interface/lib/Supplier/AutopiterConnector.php` | Коннектор Автопитер (SOAP) |
+
+### Изменённые файлы
+| Файл | Изменение |
+|------|-----------|
+| `local/php_interface/init.php` | Регистрация `AutorussConnector` + `AutopiterConnector` |
+| `local/ajax/analog_search.php` | Добавлены в `getAjaxFactory()` для маскировки складов в аналогах |
+| `parts-search/index.php` | CSS-стикеры `.source-tag--autoruss` (оранжевый) + `.source-tag--autopiter` (синий) |
+
+### Исправленные баги
+| # | Баг | Файл | Фикс |
+|---|-----|------|------|
+| — | Автопитер: `ensureAuth()` не вызывался → HTTP 500 | `AutopiterConnector.php` | Добавлен вызов в `searchBrands/searchByBrandArticle/search` |
+| — | Автопитер: `article_id` не передавался в `parseBrandsResponse` | `AutopiterConnector.php` | Добавлено поле `article_id` |
+| — | Автопитер: `resolveArticleId` не находил бренд (MANN-FILTER ≠ Mann+Hummel) | `AutopiterConnector.php` | Добавлен fuzzy match + fallback |
+| — | Автопитер: Cookie не передавался в `buildSearchRequest/buildBrandsRequest` → MultiCurlExecutor слал без Cookie | `AutopiterConnector.php` | Cookie добавляется в заголовки запроса |
+| — | Авторусь: склады не маскировались в аналогах | `analog_search.php` | Добавлен в `getAjaxFactory()` |
+| — | Авторусь: `deliveryPeriod=0` → 96ч вместо 48ч (двойной буфер) | `AutorussConnector.php` | Исправлена логика: 0→48ч, >0→+48ч |
+| — | Авторусь: `warehouse` содержал префикс дважды | `AutorussConnector.php` | Убран дублирующий префикс |
+
+### Результат
+- **10 поставщиков** работают: autoeuro, autopiter, autoruss, berg, ixora, moskvorechie, partkom, rossko, shatem, tatparts
+- Авторусь: цены от 432 ₽, наличие до 40 шт, доставка 2-4 дня
+- Автопитер: цены от 193 ₽, наличие до 1225 шт, доставка 5-6 дней
+- Поиск W81180 MANN-FILTER: все поставщики возвращают результаты
+- Кэш: ~3000 активных строк
+
+---
+
+## Этап 11 — СЛЕДУЮЩИЙ (не начат)
+
+### Задача
+Решить проблему холодного поиска: когда запись уже есть в кэше, она не обновляется при новых запросах к поставщикам, а отдаётся как была записана.
+
+### Проблема
+- Тёплый поиск: `InstantSearcher::search()` → MySQL кэш → данные выдаются мгновенно, но никогда не обновляются
+- Холодный поиск: 20-30 сек ожидания
+- Нет механизма принудительного обновления «протухших» данных
+
+### Возможные решения
+1. **TTL с принудительным обновлением**: если данные старше N минут, запускать фоновый live-поиск и обновлять кэш асинхронно, а пользователю отдавать кэш мгновенно
+2. **Отказ от кэша для критичных полей**: цены и наличие всегда запрашивать live (риск: медленно)
+3. **Гибрид с инвалидацией**: отдавать кэш + показывать «обновляем цены» и через 2-3 сек заменять live-данными
+
+### С чего начать
+```bash
+# 1. Текущий TTL и логика InstantSearcher
+grep -n "INTERVAL\|is_active\|last_updated\|TTL\|4 HOUR" /var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Search/InstantSearcher.php
+
+# 2. Как сейчас работает холодный/тёплый поиск в stage2_search_v2.php
+grep -n "skipLive\|InstantSearcher\|cachedItems\|FullSearchLauncher" /var/www/u3564357/data/www/liderws.ru/parts-search/stage2_search_v2.php | head -30
