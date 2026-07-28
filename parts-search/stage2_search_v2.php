@@ -72,7 +72,7 @@ $analogToken = md5($q . '|' . $displayBrand . '|' . $displayArticle . '|analog_v
 // ==================== ГИБРИДНЫЙ ПОИСК ====================
 $useHybrid = true; // Флаг: включить гибридный режим
 
-if ($useHybrid) {
+if ($useHybrid && !isset($_GET['verified'])) {
     // === ШАГ 1: МГНОВЕННЫЙ поиск по кэшу ===
     $instantStart = microtime(true);
     $cache = new InstantSearcher();
@@ -129,56 +129,34 @@ file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . "
 
 // === ШАГ 2: LIVE-поиск (если кэш пустой) ===
 if (!$skipLive) {
-    // fastcgi_finish_request: отдаём страницу со спиннером, поиск в фоне
-    if (function_exists('fastcgi_finish_request')) {
-        // Рендерим спиннер вместо пустых блоков
-        $exactGroups = ['__pending__' => true];
-        $analogGroups = ['__pending__' => true];
-        $allBrands = [];
-        $totalGroups = 0;
-        $totalWarehouses = 0;
-        $searchNumber = $displayArticle;
-        $verifyTaskHash = 'cold_' . md5($normTargetArt . '|' . $normTargetBrand . '|' . time());
-        
-        // Сохраняем задачу
-        $db = new \mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
-        $db->query("INSERT INTO b_search_verify_tasks (task_hash, article, brand, status)
-                    VALUES ('{$verifyTaskHash}', '{$db->real_escape_string($displayArticle)}', '{$db->real_escape_string($displayBrand)}', 'pending')");
-        $db->close();
-        
-        // Отдаём страницу сейчас, поиск продолжится в фоне
-        // (основной render ниже покажет спиннер)
-    } else {
-        // Без fastcgi — синхронно (старое поведение)
-        $launcher   = new FullSearchLauncher(getSupplierFactory());
-        $allResults = $launcher->launchPhase1($displayBrand, $displayArticle, 30.0);
+    $launcher   = new FullSearchLauncher(getSupplierFactory());
+    $allResults = $launcher->launchPhase1($displayBrand, $displayArticle, 30.0);
 
-        if (!empty($allResults)) {
-            try {
-                $cache = new InstantSearcher();
-                $saved = $cache->saveResults($allResults);
-            } catch (\Throwable $ex) {}
-        }
-
-        $aggregator  = new OfferAggregator(200, 1000);
-        $offerGroups = $aggregator->aggregate($allResults);
-        $builder     = new ResultBuilder(300, 200, 1000);
-        $result      = $builder->build(
-            $offerGroups, $exactKey, $normTargetBrand, $normTargetArt,
-            $displayBrand, $displayArticle, [],
-            [
-                'price_min' => (int)($filterPriceMin ?? 0),
-                'price_max' => (int)($filterPriceMax ?? 0),
-                'brand' => (string)($filterBrand ?? ''),
-            ],
-            (string)$sortExact, (string)$sortAnalog
-        );
-
-        $exactGroups = $result['exactGroups'] ?? [];
-        $analogGroups = $result['analogGroups'] ?? [];
-        $allBrands = $result['allBrands'] ?? [];
-        $totalGroups = $result['totalGroups'] ?? 0;
-        $totalWarehouses = $result['totalWarehouses'] ?? 0;
-        $searchNumber = $displayArticle;
+    if (!empty($allResults)) {
+        try {
+            $cache = new InstantSearcher();
+            $saved = $cache->saveResults($allResults);
+        } catch (\Throwable $ex) {}
     }
+
+    $aggregator  = new OfferAggregator(200, 1000);
+    $offerGroups = $aggregator->aggregate($allResults);
+    $builder     = new ResultBuilder(300, 200, 1000);
+    $result      = $builder->build(
+        $offerGroups, $exactKey, $normTargetBrand, $normTargetArt,
+        $displayBrand, $displayArticle, [],
+        [
+            'price_min' => (int)($filterPriceMin ?? 0),
+            'price_max' => (int)($filterPriceMax ?? 0),
+            'brand' => (string)($filterBrand ?? ''),
+        ],
+        (string)($sortExact ?? 'default'), (string)($sortAnalog ?? 'default')
+    );
+
+    $exactGroups = $result['exactGroups'] ?? [];
+    $analogGroups = $result['analogGroups'] ?? [];
+    $allBrands = $result['allBrands'] ?? [];
+    $totalGroups = $result['totalGroups'] ?? 0;
+    $totalWarehouses = $result['totalWarehouses'] ?? 0;
+    $searchNumber = $displayArticle;
 }
