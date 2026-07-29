@@ -7,92 +7,65 @@ $hash = trim($_GET['hash'] ?? '');
 if (empty($hash)) { echo json_encode(['ready'=>false]); exit; }
 
 $p2File = '/var/www/u3564357/data/www/liderws.ru/upload/cache/search/p2/' . $hash . '.json';
-if (!file_exists($p2File)) { echo json_encode(['ready'=>false]); exit; }
+
+// Подключение к БД напрямую (без Битрикс)
+$db = new mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
+if ($db->connect_error) {
+    ob_clean();
+    echo json_encode(['ready'=>false,'error'=>'db_connect']);
+    exit;
+}
+$db->set_charset('utf8mb4');
+
+// Проверяем статус задания в очереди
+$stmt = $db->prepare("SELECT status, result_count FROM b_p2_queue WHERE hash=? LIMIT 1");
+$stmt->bind_param('s', $hash);
+$stmt->execute();
+$qRow = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+if ($qRow) {
+    $db->close();
+    ob_clean();
+    if ($qRow['status'] === 'done') {
+        // Читаем p2_results из JSON для фронтенда
+        $p2Data = file_exists($p2File) ? json_decode(file_get_contents($p2File), true) : [];
+        echo json_encode([
+            'ready'    => true,
+            'p2_count' => (int)$qRow['result_count'],
+            'p2_results' => $p2Data['p2_results'] ?? [],
+        ]);
+    } elseif ($qRow['status'] === 'error') {
+        echo json_encode(['ready'=>false,'error'=>'p2_failed']);
+    } else {
+        // pending или running
+        echo json_encode(['ready'=>false,'status'=>$qRow['status']]);
+    }
+    exit;
+}
+
+// Записи нет — читаем p2-файл и создаём задание в очереди
+if (!file_exists($p2File)) {
+    $db->close();
+    ob_clean();
+    echo json_encode(['ready'=>false,'error'=>'no_p2_file']);
+    exit;
+}
 
 $data = json_decode(file_get_contents($p2File), true);
 
-// Сброс зависшего running (старше 90с)
-$isStale = !empty($data['running'])
-    && !empty($data['created'])
-    && (time() - $data['created']) > 90;
+// article/brand: из JSON или из первого аналога
+$article = $data['article'] ?? ($data['umapiAnalogs'][0]['article'] ?? $hash);
+$brand   = $data['brand']   ?? ($data['umapiAnalogs'][0]['brand']   ?? '');
 
-if ($isStale) {
-    $data['running'] = false;
-    file_put_contents($p2File, json_encode($data, JSON_UNESCAPED_UNICODE));
-}
+$stmt = $db->prepare(
+    "INSERT IGNORE INTO b_p2_queue (hash, article, brand, status) VALUES (?,?,?,'pending')"
+);
+$stmt->bind_param('sss', $hash, $article, $brand);
+$stmt->execute();
+$stmt->close();
 
-if (empty($data['done']) && (empty($data['running']) || $isStale)) {
-    $lockFile = $p2File . '.lock';
-    $fp = @fopen($lockFile, 'w');
-    if ($fp && flock($fp, LOCK_EX | LOCK_NB)) {
-        $data['running'] = true;
-        file_put_contents($p2File, json_encode($data, JSON_UNESCAPED_UNICODE));
-        flock($fp, LOCK_UN);
-        fclose($fp);
-
-        $_SERVER['DOCUMENT_ROOT'] = '/var/www/u3564357/data/www/liderws.ru';
-        define('NO_KEEP_STATISTIC', true);
-        define('NOT_CHECK_PERMISSIONS', true);
-        require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
-        require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/BrandNormalizer.php';
-        require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/SearchResultItem.php';
-        require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/Stage2/FullSearchLauncher.php';
-        require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/Common/MultiCurlExecutor.php';
-        require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Supplier/SupplierInterface.php';
-        require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Supplier/SupplierFactory.php';
-        foreach (['Moskvorechie','Rossko','PartKom','Autoeuro','Berg','Ixora','ShateM','Tatparts','Autoruss','Autopiter'] as $c) {
-            require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Supplier/' . $c . 'Connector.php';
-        }
-
-        try {
-            $f = new \Lider\Supplier\SupplierFactory();
-            $f->register(new \Lider\Supplier\MoskvorechieConnector(['API_KEY'=>'2Ek7PUswoRDK:x1W5M70Y3KF8vZ52ETr2zi53d6SUOoPf']));
-            $f->register(new \Lider\Supplier\RosskoConnector(['KEY1'=>'d6907f0f857524815255b74cda86fe9b','KEY2'=>'a514b4c11299686d7cfe8fd3563d1c58','DELIVERY_ID'=>'000000002','ADDRESS_ID'=>'71520']));
-            $f->register(new \Lider\Supplier\BergConnector(['API_KEY'=>'9e1cc5aea546e263e54c8ba687757a6515de9c78f52c5a9b435bd7ad8303ef36','ADDRESS_ID'=>31173]));
-            $f->register(new \Lider\Supplier\AutoeuroConnector(['API_KEY'=>'wK435HUkjTAbJL4RF4F5z9NBXWYqpFhSorfpVkRLFNYI60T21ksYvVQNawkX','DELIVERY_KEY'=>'q53qrkblKN8GviqxHAUlgA0vlUZgRhN04SG01sixtCpoTjC99FJ165xxzGta89mwhLNonRBxH1vlOg8rjL2xPxAdurElATA']));
-            $f->register(new \Lider\Supplier\PartKomConnector(['LOGIN'=>'lider16','PASSWORD'=>'LidGates16']));
-            $f->register(new \Lider\Supplier\IxoraConnector(['AUTH_CODE'=>'460880B0988C8C204B2DD392EC81611D','TIMEOUT'=>8]));
-            $f->register(new \Lider\Supplier\TatpartsConnector());
-            $f->register(new \Lider\Supplier\AutorussConnector(['LOGIN'=>'Lider-16@bk.ru','PASSWORD_MD5'=>'00fd3781d2cfdf0d971b57fa7397cfac']));
-            $f->register(new \Lider\Supplier\AutopiterConnector(['USER_ID'=>'165286','PASSWORD'=>'LidGates16']));
-
-            $launcher = new \Lider\Search\Stage2\FullSearchLauncher($f);
-            $p2Results = $launcher->executePhase2($data['umapiAnalogs'], 55.0);
-
-            $data['p2_results'] = array_map(function($item) {
-                return [
-                    'source' => $item->source, 'article' => $item->article, 'brand' => $item->brand,
-                    'name' => $item->name, 'price' => $item->price, 'quantity' => $item->quantity,
-                    'warehouse' => $item->warehouse, 'stockId' => $item->stockId,
-                    'supplierName' => $item->supplierName, 'isSched' => $item->isSched,
-                    'deliveryDays' => $item->deliveryDays, 'deliveryPeriod' => $item->deliveryPeriod ?? 0,
-                    'multiplicity' => $item->multiplicity ?? 1, 'unit' => $item->unit ?? 'шт.',
-                ];
-            }, $p2Results);
-            $data['done'] = true;
-            $data['p2_count'] = count($p2Results);
-            $data['running'] = false;
-            file_put_contents($p2File, json_encode($data, JSON_UNESCAPED_UNICODE));
-
-            @file_put_contents(
-                '/var/www/u3564357/data/www/liderws.ru/upload/logs/p2_exec_' . date('Y-m-d') . '.log',
-                '[' . date('H:i:s') . '] ' . $hash . ' done (poll): +' . count($p2Results) . " items\n",
-                FILE_APPEND
-            );
-        } catch (\Throwable $e) {
-            $data['error'] = $e->getMessage();
-            $data['running'] = false;
-            file_put_contents($p2File, json_encode($data, JSON_UNESCAPED_UNICODE));
-        }
-    } elseif ($fp) {
-        fclose($fp);
-    }
-    $data = json_decode(file_get_contents($p2File), true);
-}
+$db->close();
 
 ob_clean();
-echo json_encode([
-    'ready'    => !empty($data['done']),
-    'p2_count' => $data['p2_count'] ?? 0,
-    'error'    => $data['error'] ?? null,
-]);
+echo json_encode(['ready'=>false,'status'=>'pending']);
