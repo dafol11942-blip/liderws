@@ -533,7 +533,7 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
                                     analogBlock.insertBefore(doneBanner, analogBlock.firstChild);
                                 }
                             });
-                        } else if (p2PollCount > 20) {
+                        } else if (p2PollCount > 40) {
                             clearInterval(p2Timer);
                             var pb = document.getElementById("p2-progress");
                             if (pb) pb.textContent = "⚠️ Не все поставщики загружены — попробуйте обновить страницу";
