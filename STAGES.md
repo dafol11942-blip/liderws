@@ -1591,3 +1591,72 @@ GET /crosses/by_code?code=W81180 — возвращает все аналоги 
 
 
 Переходим к Этапу 12: замена текущего механизма BrandMap (8 параллельных API-запросов к поставщикам) на единый запрос к UMAPI /crosses/by_code. Блок аналогов будет собираться на основе кроссов UMAPI, а не на основе того, что вернули поставщики.
+
+## Этап 11: Гибридный поиск — кэш + асинхронная догрузка Phase 2
+
+### Цель
+Ускорить первую выдачу: мгновенный ответ из кэша b_supplier_stock, затем асинхронная догрузка аналогов от всех поставщиков через Phase 2 (fronend poll).
+
+### Изменённые файлы
+
+#### 1. `local/ajax/analog_search.php`
+- **Строка 232**: `$p2Hash = md5($cacheKey . '_p2_' . time());` → `$p2Hash = md5($cacheKey . '_p2');`
+- **Причина**: `time()` делал хэш уникальным при каждом запросе → Phase2 перезапускался заново вместо использования готового кэша.
+
+#### 2. `local/ajax/analog_p2_exec.php`
+- `$launcher->executePhase2($data['umapiAnalogs']);` → `$launcher->executePhase2($data['umapiAnalogs'], 45.0);`
+- **Причина**: 491 аналог × 8 поставщиков требует больше 30 секунд.
+
+#### 3. `local/ajax/analog_poll.php`
+- Исправлен `require_once`: `SupplierInterface` и `SupplierFactory` подключаются **без суффикса "Connector"** (отдельные строки), остальные — с суффиксом.
+- Добавлены `ob_start()` (после `<?php`) и `ob_clean()` (перед `echo json_encode`).
+- **Причина**: Bitrix auto_prepend выводил мусор, ломая JSON.
+
+#### 4. `parts-search/stage2_search_v2.php`
+- **Строка `if ($useHybrid)`** → `if ($useHybrid && !isset($_GET['verified']))` — bypass кэша при `?verified=1`.
+- **Строка `$skipLive = false`** → `$skipLive = true` (внутри блока с кэшем) — не запускать live-поиск, если кэш найден.
+- Убран блок `fastcgi_finish_request` со спиннером — всегда синхронный Phase1.
+
+#### 5. `local/php_interface/lib/Search/Common/MultiCurlExecutor.php`
+- **Строка `if (($req['method'] ?? 'GET') === 'POST')`** → `if (($req['method'] ?? (empty($req['body']) ? 'GET' : 'POST')) === 'POST')`
+- **Причина**: Коннекторы (Rossko, Autopiter) возвращают запросы без ключа `method`. При отсутствии — определяем POST автоматически по наличию `body`.
+
+#### 6. `local/php_interface/lib/Search/Stage2/FullSearchLauncher.php`
+- `$req = $sup->buildSearchRequest('', $pair['article'], false);` → `$req = $sup->buildSearchRequest($pair['brand'], $pair['article'], false);`
+- **Причина**: Пустой бренд ломал запросы (Rossko возвращал WSDL, Autopiter — HTML логина).
+
+### Обнаруженные и исправленные баги
+
+| # | Баг | Причина | Фикс |
+|---|-----|---------|------|
+| 1 | P2 кэш пересоздавался каждый раз | `time()` в `md5()` | Убран `time()` |
+| 2 | MultiCurlExecutor отправлял GET вместо POST | Нет ключа `method` в запросах коннекторов | Автоопределение по `body` |
+| 3 | Phase2 возвращал 0 результатов | Пустой бренд → нерабочие запросы | Передаём реальный бренд |
+| 4 | `skipLive = false` при кэше → двойной поиск | Опечатка | `skipLive = true` |
+| 5 | `analog_poll.php` молча падал | `require 'SupplierInterfaceConnector.php'` (файла нет) + Bitrix preprend | Раздельный require + ob_start |
+| 6 | `?verified=1` не обходил кэш | Не было проверки в условии | `!isset($_GET['verified'])` |
+
+### Текущее состояние
+- Phase 1 (быстрый поиск): работает, возвращает 68+ групп, все поставщики.
+- Phase 2 (асинхронная догрузка): **работает через CLI и HTTP (31.31.198.55)**. Кэш содержит 2290+ результатов от всех поставщиков.
+- Frontend JS (`loadAnalogs`) присутствует в HTML, но **не выполняется на HTTPS** из-за Mixed Content (страница HTTPS → fetch HTTP). 
+- **Решение для разработки**: использовать `http://liderws.ru/...` (HTTP).
+- **На проде** (боевой HTTPS-сервер) проблемы Mixed Content не будет.
+
+### Git-коммиты
+
+markdown
+
+
+
+
+3574763 analog_poll.php — umapiAnalogs вместо state, Autoruss+Autopiter
+41908d5 холодный поиск — Phase1 + Phase2 асинхронно через lazy-loader
+c3cc0b2 curl → file_get_contents (обход бага shared-хостинга с gzip)
+482ae4e getAnalogs() до инициализации displayArticle
+8195017 финальный макет — best-offers, группировка аналогов по брендам
+f8bc654 фикс: skipLive=true при кэше, убран fastcgi-спиннер
+[??]   analog_poll.php — require SupplierInterface/SupplierFactory
+[??]   MultiCurlExecutor — авто-определение POST по body
+[??]   executePhase2 — бренд вместо пустой строки
+[??]   p2Hash без time() + executePhase2 deadline 45с
