@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('log_errors', 1);
+ini_set('error_log', $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/php_errors.log');
+error_log("=== analog_search.php START ===");
 @ini_set('memory_limit', '512M');
 @ini_set('max_execution_time', '90');
 @ini_set('display_errors', 0);
@@ -27,6 +31,7 @@ require_once $base . '/Supplier/BergConnector.php';
 require_once $base . '/Supplier/IxoraConnector.php';
 require_once $base . '/Supplier/ShateMConnector.php';
 require_once $base . '/Supplier/TatpartsConnector.php';
+error_log("All requires loaded, starting main logic");
 
 use Lider\Search\BrandNormalizer;
 use Lider\Search\Stage2\FullSearchLauncher;
@@ -383,6 +388,7 @@ try {
         exec('/usr/bin/php /var/www/u3564357/data/www/liderws.ru/local/ajax/analog_p2_exec.php ' . escapeshellarg($p2Hash) . ' > /dev/null 2>&1 &');
     }
 
+    error_log("About to output JSON");
     echo json_encode($response, JSON_UNESCAPED_UNICODE);
 
 } catch (\Throwable $e) {
