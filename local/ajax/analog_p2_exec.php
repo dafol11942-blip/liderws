@@ -37,6 +37,7 @@ if (!file_exists($p2File)) exit;
 
 $data = json_decode(file_get_contents($p2File), true);
 if (!$data || empty($data['umapiAnalogs'])) exit;
+if (!empty($data['done'])) exit; // уже выполнен poll, не перезаписывать
 
 require_once '/var/www/u3564357/data/www/liderws.ru/bitrix/modules/main/include/prolog_before.php';
 require_once '/var/www/u3564357/data/www/liderws.ru/local/php_interface/lib/Search/BrandNormalizer.php';
