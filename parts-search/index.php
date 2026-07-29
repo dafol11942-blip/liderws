@@ -327,7 +327,7 @@ foreach ($brandGroup['groups'] as $gi => $group):
     $dq = $group['in_stock_qty'] > 0 ? $group['in_stock_qty'] : $group['total_qty'];
     $ql = formatQty($dq); $dl = formatDelivery($group['min_delivery']);
 ?>
-<div class="supplier-list__group analog-item"<?=$hidden?>>
+<div class="supplier-list__group analog-item"<?=$hidden?> data-analog-key="<?=htmlspecialchars(mb_strtolower($group['brand'].'|'.$group['article']))?>">
 <div class="supplier-list__row <?=$rc?> sl-main-row" onclick="toggleWarehouses(this)">
 <div class="sl-cell sl-cell--expand"><span class="sl-expand-icon">▶</span></div>
 <div class="sl-cell sl-cell--brand"><strong><?=htmlspecialchars($group['brand'])?></strong></div>
@@ -471,7 +471,7 @@ function orderFromSupplier(btn,article,brand){if(btn.disabled)return;btn.disable
 function escapeHtml(str){var d=document.createElement('div');d.textContent=str;return d.innerHTML;}
 function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
 
-// === ЛЕНИВАЯ ЗАГРУЗКА АНАЛОГОВ (v2 — не перезаписывает серверный HTML) ===
+// === ИНКРЕМЕНТАЛЬНАЯ P2 (v3 — клиентский воркер) ===
 (function(){
     var analogBlock = document.querySelector(".result-block--analog");
     if (!analogBlock) return;
@@ -479,99 +479,105 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
     if (!analogContainer) return;
 
     var p2Hash = "<?=$p2Hash?>";
-    var hasServerAnalog = analogContainer.querySelectorAll(".supplier-list__group").length > 0;
+    if (!p2Hash) return;
 
-    function updateCounts(data) {
-        var countEl = analogBlock.querySelector(".result-block__count");
-        if (countEl && data.totalGroups) countEl.textContent = data.totalGroups + " поз.";
-        var whCount = document.querySelector(".wh-count");
-        if (whCount && data.totalWarehouses) whCount.textContent = data.totalWarehouses;
-        var totalStrong = document.querySelector(".search-hint strong");
-        if (totalStrong && data.totalGroups) totalStrong.textContent = data.totalGroups;
-    }
+    var totalGroups = 0;
+    var totalWarehouses = 0;
+    var currentChunk = 0;
+    var maxChunks = 60; // защита: максимум 60 чанков (600 кроссов)
+    var seenKeys = {};
+    
+    // Собираем уже показанные бренд|артикул из серверного рендера
+    document.querySelectorAll(".supplier-list__group[data-analog-key]").forEach(function(el){
+        seenKeys[el.getAttribute("data-analog-key")] = true;
+    });
+    // Также собираем из result-block--analog без data- ключа
+    analogContainer.querySelectorAll(".supplier-list__group").forEach(function(el) {
+        var brand = (el.querySelector(".sl-cell--brand strong") || {}).textContent || "";
+        var art = (el.querySelector(".sl-cell--article code") || {}).textContent || "";
+        if (brand && art) seenKeys[(brand+"|"+art).toLowerCase()] = true;
+    });
 
-    function showDoneBanner(data) {
-        var b = document.createElement("div");
-        b.style.cssText = "text-align:center;padding:12px;background:#d1fae5;color:#065f46;border-radius:8px;margin:8px 0;font-size:14px;";
-        b.textContent = "✅ Загружены все поставщики (" + (data.totalGroups||"?") + " поз., " + (data.totalWarehouses||"?") + " складов)";
-        analogBlock.insertBefore(b, analogBlock.firstChild);
-    }
-
-    function startP2Polling(hash) {
-        var p2Badge = document.createElement("div");
-        p2Badge.className = "analog-loading-badge";
-        p2Badge.textContent = "⏳ Догружаем остальных поставщиков...";
-        p2Badge.id = "p2-progress";
-        analogBlock.insertBefore(p2Badge, analogBlock.firstChild);
-
-        var pollCount = 0;
-        var timer = setInterval(function() {
-            pollCount++;
-            fetch("/local/ajax/analog_poll.php?hash=" + hash).then(function(r){return r.json();}).then(function(p2){
-                if (p2.ready) {
-                    clearInterval(timer);
-                    var pb = document.getElementById("p2-progress");
-                    if (pb) pb.textContent = "⏳ Обновляем результаты...";
-                    var finalUrl = "/local/ajax/analog_search.php?phase=final&p2_hash=" + hash
-                        + "&q=" + encodeURIComponent("<?=urlencode($q)?>")
-                        + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
-                        + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>");
-                    fetch(finalUrl).then(function(r){return r.json();}).then(function(d){
-                        if (pb) pb.remove();
-                        if (d.success && d.html) {
-                            analogContainer.innerHTML = d.html;
-                            updateCounts(d);
-                            showDoneBanner(d);
-                        }
-                    });
-                } else if (pollCount > 60) {
-                    clearInterval(timer);
-                    var pb = document.getElementById("p2-progress");
-                    if (pb) pb.textContent = "⚠️ Превышено время ожидания — обновите страницу";
-                }
-            });
-        }, 2000);
-    }
-
-    // === Ветка 1: сервер уже отрисовал аналоги → только P2 ===
-    if (hasServerAnalog && p2Hash) {
-        // Запускаем polling сразу (первый вызов создаст запись в b_p2_queue и запустит воркер)
-        startP2Polling(p2Hash);
-        return;
-    }
-
-    // === Ветка 2: аналогов нет → phase=fast (старое поведение) ===
-    var analogToken = "<?=$analogToken?>";
-    if (!analogToken) return;
-
-    var loaded = false;
     var badge = document.createElement("div");
     badge.className = "analog-loading-badge";
-    badge.textContent = "⏳ Догружаем предложения от всех поставщиков...";
+    badge.id = "p2-badge";
+    badge.textContent = "⏳ Догружаем поставщиков... (0 поз.)";
     analogBlock.insertBefore(badge, analogBlock.firstChild);
 
-    function loadAnalogs() {
-        if (loaded) return;
-        loaded = true;
-        var url = "/local/ajax/analog_search.php?phase=fast&q=" + encodeURIComponent("<?=urlencode($q)?>")
-            + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
-            + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>")
-            + "&filter_brand=" + encodeURIComponent("<?=urlencode($filterBrand)?>")
-            + "&price_min=<?=(int)$filterPriceMin?>"
-            + "&price_max=<?=(int)$filterPriceMax?>";
-        fetch(url).then(function(r){return r.json();}).then(function(data){
-            badge.remove();
-            if (!data.success || !data.html) return;
-            analogContainer.innerHTML = data.html;
-            updateCounts(data);
-            if (data.p2_pending && data.p2_hash) {
-                startP2Polling(data.p2_hash);
-            }
-        }).catch(function(){badge.remove();});
+    function updateBadge(msg) {
+        var b = document.getElementById("p2-badge");
+        if (b) b.textContent = msg;
     }
 
-    var t = setTimeout(loadAnalogs, 800);
-    window.addEventListener("scroll", function(){clearTimeout(t);loadAnalogs();},{once:true});
+    function addGroupsToDOM(html, totalG, totalW) {
+        if (!html || html.trim() === "") return;
+        var tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        var groups = tmp.querySelectorAll(".supplier-list__group");
+        var added = 0;
+        groups.forEach(function(g) {
+            var key = (g.getAttribute("data-analog-key") || "").toLowerCase();
+            // Пропускаем дубли
+            if (key && seenKeys[key]) return;
+            if (key) seenKeys[key] = true;
+            
+            // Убираем header если уже есть
+            var header = g.querySelector(".supplier-list__header");
+            if (header) header.remove();
+            
+            analogContainer.appendChild(g);
+            added++;
+        });
+        if (totalG) totalGroups = totalG;
+        if (totalW) totalWarehouses = totalW;
+        
+        // Обновляем счётчики
+        var countEl = analogBlock.querySelector(".result-block__count");
+        if (countEl) countEl.textContent = (added > 0 ? "~" : "") + totalGroups + " поз.";
+        var whCount = document.querySelector(".wh-count");
+        if (whCount && totalWarehouses) whCount.textContent = totalWarehouses;
+        var totalStrong = document.querySelector(".search-hint strong");
+        if (totalStrong && totalGroups) totalStrong.textContent = totalGroups;
+        
+        updateBadge("⏳ Догружаем поставщиков... (~" + totalGroups + " поз.)");
+    }
+
+    function fetchChunk() {
+        if (currentChunk < 0 || currentChunk > maxChunks) return;
+        var url = "/local/ajax/analog_search.php?phase=p2_chunk&p2_hash=" + p2Hash
+            + "&chunk=" + currentChunk
+            + "&q=" + encodeURIComponent("<?=urlencode($q)?>")
+            + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
+            + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>");
+        
+        fetch(url).then(function(r){return r.json();}).then(function(data){
+            if (!data.success) {
+                if (data.error === 'no_file') { updateBadge("⚠️ Файл поиска не найден"); return; }
+                // Повторяем через 3 секунды
+                setTimeout(fetchChunk, 3000);
+                return;
+            }
+            
+            addGroupsToDOM(data.html, data.totalGroups, data.totalWarehouses);
+            
+            if (data.done) {
+                updateBadge("✅ Загружены все поставщики (" + data.totalGroups + " поз., " + data.totalWarehouses + " складов)");
+                var b = document.getElementById("p2-badge");
+                if (b) { b.className = ""; b.style.cssText = "text-align:center;padding:12px;background:#d1fae5;color:#065f46;border-radius:8px;margin:8px 0;font-size:14px;"; }
+                return;
+            }
+            
+            currentChunk = data.nextChunk;
+            // Следующий чанк сразу (без задержки — сервер уже ответил)
+            fetchChunk();
+        }).catch(function(e){
+            updateBadge("⚠️ Ошибка загрузки, повтор...");
+            setTimeout(fetchChunk, 3000);
+        });
+    }
+
+    // Старт через 400мс (даём странице отрендериться)
+    setTimeout(fetchChunk, 400);
 })();
 </script>
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/footer.php"); ?>

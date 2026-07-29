@@ -283,6 +283,182 @@ try {
         exit;
     }
 
+    if ($phase === 'p2_chunk' && !empty($_REQUEST['p2_hash'])) {
+    $p2Hash = trim($_REQUEST['p2_hash']);
+    $p2File = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2/' . $p2Hash . '.json';
+    $chunkIdx = (int)($_REQUEST['chunk'] ?? 0);
+
+    if (!file_exists($p2File)) {
+        echo json_encode(['success'=>false, 'error'=>'no_file']);
+        exit;
+    }
+
+    $p2Data = json_decode(file_get_contents($p2File), true);
+    $allAnalogs = $p2Data['umapiAnalogs'] ?? [];
+
+    $chunkSize = 10;
+    $chunk = array_slice($allAnalogs, $chunkIdx * $chunkSize, $chunkSize);
+
+    if (empty($chunk)) {
+        // Всё обработано
+        $allResults = [];
+        if (!empty($p2Data['p2_results'])) {
+            foreach ($p2Data['p2_results'] as $r) {
+                $item = new \Lider\Search\SearchResultItem();
+                foreach ($r as $k => $v) { $item->$k = $v; }
+                $allResults[] = $item;
+            }
+        }
+        $displayBrand   = $p2Data['brand'] ?? $displayBrand;
+        $displayArticle = $p2Data['article'] ?? $displayArticle;
+        $exactKey       = $p2Data['exactKey'] ?? $exactKey;
+        $normTargetBrand = $p2Data['normTargetBrand'] ?? $normTargetBrand;
+        $normTargetArt  = $p2Data['normTargetArt'] ?? $normTargetArt;
+        goto finalRender;
+    }
+
+    // Выполняем P2 для этого чанка
+    $launcher = new FullSearchLauncher($factory);
+    $p2Results = $launcher->executePhase2($chunk, 15.0);
+
+    // Сохраняем в JSON
+    if (!isset($p2Data['p2_results'])) $p2Data['p2_results'] = [];
+    foreach ($p2Results as $item) {
+        $p2Data['p2_results'][] = [
+            'source'       => $item->source,
+            'article'      => $item->article,
+            'brand'        => $item->brand,
+            'name'         => $item->name ?? '',
+            'price'        => $item->price ?? 0,
+            'quantity'     => $item->quantity ?? 0,
+            'warehouse'    => $item->warehouse ?? '',
+            'stockId'      => $item->stockId ?? '',
+            'supplierName' => $item->supplierName ?? '',
+            'isSched'      => $item->isSched ?? false,
+            'deliveryDays' => $item->deliveryDays ?? 0,
+            'deliveryPeriod' => $item->deliveryPeriod ?? 0,
+            'multiplicity' => $item->multiplicity ?? 1,
+            'unit'         => $item->unit ?? 'шт.',
+        ];
+    }
+
+    $totalAnalogs = count($allAnalogs);
+    $processedCount = ($chunkIdx + 1) * $chunkSize;
+    $done = ($processedCount >= $totalAnalogs);
+    if ($done) $p2Data['done'] = true;
+    $p2Data['p2_count'] = count($p2Data['p2_results']);
+    file_put_contents($p2File, json_encode($p2Data, JSON_UNESCAPED_UNICODE));
+
+    // Рендерим HTML только для этого чанка
+    $chunkAllResults = array_merge(
+        array_map(function($r) {
+            $item = new \Lider\Search\SearchResultItem();
+            foreach ($r as $k => $v) { $item->$k = $v; }
+            return $item;
+        }, $p2Data['p1_results'] ?? []),
+        $p2Results
+    );
+
+    $aggregator = new OfferAggregator(200, 1000);
+    $groupedItems = $aggregator->aggregate($chunkAllResults);
+    $builder = new ResultBuilder(800, 200, 1000);
+    $result = $builder->build(
+        $groupedItems, $p2Data['exactKey'] ?? $exactKey, $p2Data['normTargetBrand'] ?? $normTargetBrand,
+        $p2Data['normTargetArt'] ?? $normTargetArt, $p2Data['brand'] ?? $displayBrand,
+        $p2Data['article'] ?? $displayArticle, [],
+        ['price_min' => $filterPriceMin, 'price_max' => $filterPriceMax, 'brand' => $filterBrand],
+        'default', 'default'
+    );
+
+    // Только аналоги, без искомого номера
+    $analogGroups = $result['analogGroups'];
+    $exactKeyLocal = $p2Data['exactKey'] ?? $exactKey;
+    $normTargetBrandLocal = $p2Data['normTargetBrand'] ?? $normTargetBrand;
+    $normTargetArtLocal = $p2Data['normTargetArt'] ?? $normTargetArt;
+    unset($analogGroups[$exactKeyLocal]);
+    foreach ($analogGroups as $_key => $_g) {
+        if (BrandNormalizer::normalize($_g['brand']) === $normTargetBrandLocal
+            && BrandNormalizer::normalizeArticle($_g['article']) === $normTargetArtLocal) {
+            unset($analogGroups[$_key]);
+        }
+    }
+
+    // Рендерим HTML для аналогов
+    $factoryForMask = $factory;
+    ob_start();
+    foreach ($analogGroups as $group):
+        $inStock = $group['has_instock'];
+        $rc = $inStock ? 'sl-row--instock' : 'sl-row--order';
+        $pl = $group['min_price'] == $group['max_price']
+            ? number_format($group['min_price'], 2, ',', ' ')
+            : 'от ' . number_format($group['min_price'], 2, ',', ' ');
+        $dq = $group['in_stock_qty'] > 0 ? $group['in_stock_qty'] : $group['total_qty'];
+        $ql = fmtQty($dq);
+        $dl = fmtDeliveryHtml($group['min_delivery']);
+    ?>
+<div class="supplier-list__group" data-analog-key="<?=htmlspecialchars($group['brand'].'|'.$group['article'])?>">
+<div class="supplier-list__row <?=$rc?> sl-main-row" onclick="toggleWarehouses(this)">
+<div class="sl-cell sl-cell--expand"><span class="sl-expand-icon">▶</span></div>
+<div class="sl-cell sl-cell--brand"><strong><?=htmlspecialchars($group['brand'])?></strong></div>
+<div class="sl-cell sl-cell--desc"><div class="sl-desc-text"><?=htmlspecialchars($group['description'])?></div></div>
+<div class="sl-cell sl-cell--article"><code><?=htmlspecialchars($group['article'])?></code></div>
+<div class="sl-cell sl-cell--stock"><?=$inStock?'<span class="sl-badge sl-badge--green">'.$ql.'</span>':'<span class="sl-badge sl-badge--yellow">'.$ql.'</span>'?></div>
+<div class="sl-cell sl-cell--delivery"><?=$dl?></div>
+<div class="sl-cell sl-cell--price"><strong><?=$pl?> ₽</strong><div class="sl-warehouse-count"><?=count($group['warehouses'])?> складов</div></div>
+<div class="sl-cell sl-cell--order"></div>
+</div>
+<div class="sl-warehouses" style="display:none;">
+<?php foreach ($group['warehouses'] as $wh):
+    $priceBase = round((float)($wh['price_base'] ?? $wh['price']), 2);
+    $priceDisplay = getDisplayPrice($priceBase);
+    $stockDisplay = $wh['stock'] ?? '—';
+    if (!isManager()) {
+        $connector = $factoryForMask->get($wh['source'] ?? '');
+        if ($connector && $stockDisplay !== 'Под заказ' && $stockDisplay !== '—') {
+            $stockDisplay = $connector->maskWarehouseName($stockDisplay);
+        }
+    } else {
+        if ($stockDisplay !== 'Под заказ' && $stockDisplay !== '—') {
+            $stockDisplay = ($wh['supplier'] ?? '') . ': ' . $stockDisplay;
+        }
+    }
+    $retIcon = $wh['returnable']
+        ? '<span class="ret-icon ret-icon--yes" title="Возвратный">↻</span>'
+        : '<span class="ret-icon ret-icon--no" title="Невозвратный">✕</span>';
+    $wq = (int)$wh['qty']; $wql = fmtQty($wq); $wdl = fmtDeliveryHtml($wh['delivery']);
+    $sourceTag = isManager() ? '<span class="source-tag source-tag--' . htmlspecialchars($wh['source']) . '">' . htmlspecialchars($wh['supplier']) . '</span>' : '';
+    $priceShow = isManager() ? $priceBase : $priceDisplay;
+    $priceHtml = number_format($priceShow, 2, ',', ' ') . ' ₽';
+    $priceBaseHtml = (isManager() && $priceDisplay !== $priceBase) ? '<div class="sl-price-base">Розница: ' . number_format($priceDisplay, 2, ',', ' ') . ' ₽</div>' : '';
+?>
+<div class="sl-warehouse-row <?=$wh['is_sched']?'sl-wh--order':'sl-wh--instock'?>">
+<div class="sl-cell sl-cell--expand"><?=$retIcon?></div>
+<div class="sl-cell sl-cell--brand"><?=$sourceTag?></div>
+<div class="sl-cell sl-cell--desc"><span class="sl-wh-stock">📍 <?=htmlspecialchars($stockDisplay)?></span></div>
+<div class="sl-cell sl-cell--mult"><?php if(($wh['multiplicity']??1)>1):?><span class="sl-mult-badge">×<?=$wh['multiplicity']?> <?=htmlspecialchars($wh['unit']??'шт.')?></span><?php else:?><span class="sl-mult-text"><?=htmlspecialchars($wh['unit']??'шт.')?></span><?php endif;?></div>
+<div class="sl-cell sl-cell--stock"><?=$wh['is_sched']?'<span class="sl-badge sl-badge--yellow">'.$wql.'</span>':'<span class="sl-badge sl-badge--green">'.$wql.'</span>'?></div>
+<div class="sl-cell sl-cell--delivery"><?=$wdl?></div>
+<div class="sl-cell sl-cell--price"><strong><?=$priceHtml?></strong><?=$priceBaseHtml?></div>
+<div class="sl-cell sl-cell--order"><button class="btn btn--order-supplier btn--order-supplier-sm" onclick="event.stopPropagation();orderFromSupplier(this,'<?=htmlspecialchars($group['article'])?>','<?=htmlspecialchars($group['brand'])?>')">🛒</button></div>
+</div>
+<?php endforeach; ?>
+</div></div>
+<?php
+    endforeach;
+    $html = ob_get_clean();
+
+    echo json_encode([
+        'success' => true,
+        'html' => $html,
+        'chunk' => $chunkIdx,
+        'nextChunk' => $done ? -1 : $chunkIdx + 1,
+        'done' => $done,
+        'totalGroups' => count($analogGroups),
+        'totalWarehouses' => $result['totalWarehouses'] ?? 0,
+    ]);
+    exit;
+}
+
     if ($phase === 'fast') {
         // Phase 1: только exact поиск
         $allResults = $launcher->launchPhase1($displayBrand, $displayArticle, 30.0);
