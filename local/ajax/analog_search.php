@@ -151,16 +151,20 @@ try {
     $q = trim((string)($_REQUEST['q'] ?? ''));
     $brand = trim((string)($_REQUEST['brand'] ?? ''));
     $number = trim((string)($_REQUEST['number'] ?? ''));
+    if ($number === '' && $q !== '') {
+        $number = $q; // если number не передан, используем q
+    }
     $token = trim((string)($_REQUEST['token'] ?? ''));
     $filterBrand = trim((string)($_REQUEST['filter_brand'] ?? ''));
     $filterPriceMin = (int)($_REQUEST['price_min'] ?? 0);
     $filterPriceMax = (int)($_REQUEST['price_max'] ?? 0);
 
     $expectedToken = md5($q . '|' . $brand . '|' . $number . '|analog_v2');
-    if ($token !== $expectedToken || $q === '' || $brand === '' || $number === '') {
-        echo json_encode(['success' => false, 'error' => 'Invalid params']);
-        exit;
-    }
+    // Проверяем токен только если он передан
+    if (($token !== '' && $token !== $expectedToken) || $q === '' || $brand === '') {
+    echo json_encode(['success' => false, 'error' => 'Invalid params']);
+    exit;
+}
 
     $cache = new SearchCacheManager('/search/ajax_analog', 300);
     $cacheKey = md5(implode('|', [$q, $brand, $number, $filterPriceMin, $filterPriceMax, $filterBrand, isManager() ? 'mgr' : 'usr']));
