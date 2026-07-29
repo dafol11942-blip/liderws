@@ -154,7 +154,7 @@ try {
 
        $mult = $item->multiplicity ?? 1;
 
-        $stmt->bind_param('ssssssdissii',
+        $stmt->bind_param('ssssssdissiii',
             $source,
             $stock_id,
             $article,
