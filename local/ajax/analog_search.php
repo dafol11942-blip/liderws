@@ -205,7 +205,18 @@ try {
         }
 
         $p2Data = json_decode(file_get_contents($p2File), true);
-        if (empty($p2Data['done'])) {
+        
+        // Проверяем done через очередь (JSON может быть повреждён)
+        $dbCheck = new mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
+        $dbCheck->set_charset('utf8mb4');
+        $stmt = $dbCheck->prepare("SELECT status FROM b_p2_queue WHERE hash=? LIMIT 1");
+        $stmt->bind_param('s', $p2Hash);
+        $stmt->execute();
+        $qChk = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        $dbCheck->close();
+        
+        if (!$qChk || $qChk['status'] !== 'done') {
             echo json_encode(['success'=>false, 'error'=>'P2 not done yet']);
             exit;
         }
