@@ -492,7 +492,6 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
         var url = "/local/ajax/analog_search.php?phase=fast&q=" + encodeURIComponent("<?=urlencode($q)?>")
             + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
             + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>")
-            + "&token=" + analogToken
             + "&filter_brand=" + encodeURIComponent("<?=urlencode($filterBrand)?>")
             + "&price_min=<?=(int)$filterPriceMin?>"
             + "&price_max=<?=(int)$filterPriceMax?>";
@@ -518,7 +517,6 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
                                 + "&q=" + encodeURIComponent("<?=urlencode($q)?>")
                                 + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
                                 + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>")
-                                + "&token=" + analogToken;
                             fetch(finalUrl).then(function(r){ return r.json(); }).then(function(d){
                                 if (pb) pb.remove();
                                 if (d.success && d.html) {
