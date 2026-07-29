@@ -97,7 +97,7 @@ class BrandNormalizer
         if ($article === '') {
             return '';
         }
-        return mb_strtolower(preg_replace('/[\s\-\.\/\\\_]/u', '', $article) ?? '');
+        return mb_strtolower(preg_replace('/[\s\-\.\/\\\\_+]/u', '', $article) ?? '');
     }
 
     public static function stripAll($s): string
