@@ -277,11 +277,10 @@ try {
         exit;
     }
 
-    // ======================= p2_chunk (v5) =======================
+    // ======================= p2_chunk (v9) =======================
     if ($phase === 'p2_chunk' && !empty($_REQUEST['p2_hash'])) {
         $p2Hash = trim($_REQUEST['p2_hash']);
         $p2File = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2/' . $p2Hash . '.json';
-        $chunkIdx = (int)($_REQUEST['chunk'] ?? 0);
 
         if (!file_exists($p2File)) {
             echo json_encode(['success'=>false, 'error'=>'no_file']);
@@ -291,33 +290,35 @@ try {
         $p2Data = json_decode(file_get_contents($p2File), true);
         if (!isset($p2Data['p2_results'])) $p2Data['p2_results'] = [];
 
-        $chunkSize = 10;
         $allAnalogs = $p2Data['umapiAnalogs'] ?? [];
-        $totalAnalogs = count($allAnalogs);
-        $startIdx = $chunkIdx * $chunkSize;
-        $chunk = array_slice($allAnalogs, $startIdx, $chunkSize);
+        $chunkSize = 10;
+        $chunk = array_slice($allAnalogs, 0, $chunkSize);
 
-        if (empty($chunk) || $startIdx >= $totalAnalogs) {
+        if (empty($chunk)) {
             $allResults = [];
             foreach ($p2Data['p2_results'] as $r) {
                 $item = new \Lider\Search\SearchResultItem();
                 foreach ($r as $k => $v) { $item->$k = $v; }
                 $allResults[] = $item;
             }
-            $displayBrand   = $p2Data['brand'] ?? $displayBrand;
-            $displayArticle = $p2Data['article'] ?? $displayArticle;
-            $exactKey       = $p2Data['exactKey'] ?? $exactKey;
-            $normTargetBrand = $p2Data['normTargetBrand'] ?? $normTargetBrand;
-            $normTargetArt  = $p2Data['normTargetArt'] ?? $normTargetArt;
             $p2Data['done'] = true; $p2Data['running'] = false;
             $p2Data['p2_count'] = count($p2Data['p2_results']);
+            $p2Data['umapiAnalogs'] = [];
             file_put_contents($p2File, json_encode($p2Data, JSON_UNESCAPED_UNICODE));
-            $responseDone = true; $responseNext = -1;
+            $displayBrand = $p2Data['brand'] ?? $displayBrand;
+            $displayArticle = $p2Data['article'] ?? $displayArticle;
+            $exactKey = $p2Data['exactKey'] ?? $exactKey;
+            $normTargetBrand = $p2Data['normTargetBrand'] ?? $normTargetBrand;
+            $normTargetArt = $p2Data['normTargetArt'] ?? $normTargetArt;
+            $responseDone = true;
             goto finalRender;
         }
 
         $launcher = new FullSearchLauncher($factory);
         $p2Results = $launcher->executePhase2($chunk, 15.0);
+
+        $allAnalogs = array_slice($allAnalogs, $chunkSize);
+        $p2Data['umapiAnalogs'] = $allAnalogs;
 
         $seenKeys = [];
         foreach ($p2Data['p2_results'] as $r) {
@@ -337,7 +338,7 @@ try {
             ];
         }
 
-        $done = ($startIdx + $chunkSize >= $totalAnalogs);
+        $done = empty($allAnalogs);
         if ($done) { $p2Data['done'] = true; $p2Data['running'] = false; }
         $p2Data['p2_count'] = count($p2Data['p2_results']);
         file_put_contents($p2File, json_encode($p2Data, JSON_UNESCAPED_UNICODE));
@@ -348,12 +349,12 @@ try {
             foreach ($r as $k => $v) { $item->$k = $v; }
             $allResults[] = $item;
         }
-        $displayBrand   = $p2Data['brand'] ?? $displayBrand;
+        $displayBrand = $p2Data['brand'] ?? $displayBrand;
         $displayArticle = $p2Data['article'] ?? $displayArticle;
-        $exactKey       = $p2Data['exactKey'] ?? $exactKey;
+        $exactKey = $p2Data['exactKey'] ?? $exactKey;
         $normTargetBrand = $p2Data['normTargetBrand'] ?? $normTargetBrand;
-        $normTargetArt  = $p2Data['normTargetArt'] ?? $normTargetArt;
-        $responseDone = $done; $responseNext = $done ? -1 : $chunkIdx + 1;
+        $normTargetArt = $p2Data['normTargetArt'] ?? $normTargetArt;
+        $responseDone = $done;
         goto finalRender;
     }
 

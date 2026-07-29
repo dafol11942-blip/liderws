@@ -471,7 +471,7 @@ function orderFromSupplier(btn,article,brand){if(btn.disabled)return;btn.disable
 function escapeHtml(str){var d=document.createElement('div');d.textContent=str;return d.innerHTML;}
 function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
 
-// === ИНКРЕМЕНТАЛЬНАЯ P2 (v8 — минималистичный) ===
+// === ИНКРЕМЕНТАЛЬНАЯ P2 (v9 — сервер управляет состоянием) ===
 (function(){
     var analogBlock = document.querySelector(".result-block--analog");
     if (!analogBlock) return;
@@ -481,9 +481,7 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
     var p2Hash = "<?=$p2Hash?>";
     if (!p2Hash) return;
 
-    var chunk = 0;
     var seenKeys = {};
-
     analogContainer.querySelectorAll(".supplier-list__group").forEach(function(el) {
         var brand = (el.querySelector(".sl-cell--brand strong") || {}).textContent || "";
         var art = (el.querySelector(".sl-cell--article code") || {}).textContent || "";
@@ -496,38 +494,31 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
     badge.textContent = "⏳ Догружаем поставщиков...";
     analogBlock.insertBefore(badge, analogBlock.firstChild);
 
+    var round = 0;
+
     function fetchNext() {
-        document.getElementById("p2-badge").textContent = "⏳ Догружаем поставщиков... (" + (chunk+1) + ")";
+        round++;
+        document.getElementById("p2-badge").textContent = "⏳ Догружаем поставщиков... (" + round + ")";
 
         var url = "/local/ajax/analog_search.php?phase=p2_chunk&p2_hash=" + p2Hash
-            + "&chunk=" + chunk
-            + "&q=" + encodeURIComponent("<?=urlencode($q)?>")
+            + "&chunk=0&q=" + encodeURIComponent("<?=urlencode($q)?>")
             + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
             + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>");
 
         fetch(url).then(function(r){return r.json();}).then(function(data){
-            if (!data.success) {
-                document.getElementById("p2-badge").textContent = "⚠️ Ошибка, повтор...";
-                setTimeout(fetchNext, 3000);
-                return;
-            }
+            if (!data.success) { document.getElementById("p2-badge").textContent = "⚠️ Ошибка, повтор..."; setTimeout(fetchNext, 3000); return; }
 
-            // Добавляем новые группы в DOM
             if (data.html) {
-                var tmp = document.createElement("div");
-                tmp.innerHTML = data.html;
-                var groups = tmp.querySelectorAll(".supplier-list__group");
-                groups.forEach(function(g) {
+                var tmp = document.createElement("div"); tmp.innerHTML = data.html;
+                tmp.querySelectorAll(".supplier-list__group").forEach(function(g) {
                     var key = (g.getAttribute("data-analog-key") || "").toLowerCase();
                     if (key && seenKeys[key]) return;
                     if (key) seenKeys[key] = true;
-                    var header = g.querySelector(".supplier-list__header");
-                    if (header) header.remove();
+                    var h = g.querySelector(".supplier-list__header"); if (h) h.remove();
                     analogContainer.appendChild(g);
                 });
             }
 
-            // Обновляем счетчики
             var totalG = data.totalGroups || analogContainer.querySelectorAll(".supplier-list__group").length;
             var countEl = analogBlock.querySelector(".result-block__count");
             if (countEl) countEl.textContent = totalG + " поз.";
@@ -539,17 +530,12 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
             if (data.done) {
                 var b = document.getElementById("p2-badge");
                 b.textContent = "✅ Загружены все поставщики (" + totalG + " поз., " + (data.totalWarehouses||"?") + " складов)";
-                b.className = "";
-                b.style.cssText = "text-align:center;padding:12px;background:#d1fae5;color:#065f46;border-radius:8px;margin:8px 0;font-size:14px;";
+                b.className = ""; b.style.cssText = "text-align:center;padding:12px;background:#d1fae5;color:#065f46;border-radius:8px;margin:8px 0;font-size:14px;";
                 return;
             }
 
-            chunk++;
             setTimeout(fetchNext, 100);
-        }).catch(function(){
-            document.getElementById("p2-badge").textContent = "⚠️ Ошибка, повтор...";
-            setTimeout(fetchNext, 3000);
-        });
+        }).catch(function(){ document.getElementById("p2-badge").textContent = "⚠️ Ошибка, повтор..."; setTimeout(fetchNext, 3000); });
     }
 
     setTimeout(fetchNext, 400);
