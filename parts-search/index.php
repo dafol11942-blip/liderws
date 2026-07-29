@@ -471,7 +471,7 @@ function orderFromSupplier(btn,article,brand){if(btn.disabled)return;btn.disable
 function escapeHtml(str){var d=document.createElement('div');d.textContent=str;return d.innerHTML;}
 function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
 
-// === ИНКРЕМЕНТАЛЬНАЯ P2 (v3 — клиентский воркер) ===
+// === ИНКРЕМЕНТАЛЬНАЯ P2 (v4 — следующий чанк с сервера) ===
 (function(){
     var analogBlock = document.querySelector(".result-block--analog");
     if (!analogBlock) return;
@@ -481,27 +481,27 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
     var p2Hash = "<?=$p2Hash?>";
     if (!p2Hash) return;
 
+    var currentChunk = 0;
+    var maxChunks = 60;
+    var seenKeys = {};
     var totalGroups = 0;
     var totalWarehouses = 0;
-    var currentChunk = 0;
-    var maxChunks = 60; // защита: максимум 60 чанков (600 кроссов)
-    var seenKeys = {};
+    var done = false;
     
-    // Собираем уже показанные бренд|артикул из серверного рендера
-    document.querySelectorAll(".supplier-list__group[data-analog-key]").forEach(function(el){
-        seenKeys[el.getAttribute("data-analog-key")] = true;
-    });
-    // Также собираем из result-block--analog без data- ключа
+    // Собираем уже показанные из серверного рендера
     analogContainer.querySelectorAll(".supplier-list__group").forEach(function(el) {
         var brand = (el.querySelector(".sl-cell--brand strong") || {}).textContent || "";
         var art = (el.querySelector(".sl-cell--article code") || {}).textContent || "";
         if (brand && art) seenKeys[(brand+"|"+art).toLowerCase()] = true;
     });
+    document.querySelectorAll(".supplier-list__group[data-analog-key]").forEach(function(el){
+        seenKeys[el.getAttribute("data-analog-key").toLowerCase()] = true;
+    });
 
     var badge = document.createElement("div");
     badge.className = "analog-loading-badge";
     badge.id = "p2-badge";
-    badge.textContent = "⏳ Догружаем поставщиков... (0 поз.)";
+    badge.textContent = "⏳ Догружаем поставщиков...";
     analogBlock.insertBefore(badge, analogBlock.firstChild);
 
     function updateBadge(msg) {
@@ -509,7 +509,7 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
         if (b) b.textContent = msg;
     }
 
-    function addGroupsToDOM(html, totalG, totalW) {
+    function addGroupsToDOM(html) {
         if (!html || html.trim() === "") return;
         var tmp = document.createElement("div");
         tmp.innerHTML = html;
@@ -517,33 +517,38 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
         var added = 0;
         groups.forEach(function(g) {
             var key = (g.getAttribute("data-analog-key") || "").toLowerCase();
-            // Пропускаем дубли
             if (key && seenKeys[key]) return;
             if (key) seenKeys[key] = true;
-            
-            // Убираем header если уже есть
             var header = g.querySelector(".supplier-list__header");
             if (header) header.remove();
-            
             analogContainer.appendChild(g);
             added++;
         });
-        if (totalG) totalGroups = totalG;
-        if (totalW) totalWarehouses = totalW;
-        
-        // Обновляем счётчики
-        var countEl = analogBlock.querySelector(".result-block__count");
-        if (countEl) countEl.textContent = (added > 0 ? "~" : "") + totalGroups + " поз.";
-        var whCount = document.querySelector(".wh-count");
-        if (whCount && totalWarehouses) whCount.textContent = totalWarehouses;
-        var totalStrong = document.querySelector(".search-hint strong");
-        if (totalStrong && totalGroups) totalStrong.textContent = totalGroups;
-        
-        updateBadge("⏳ Догружаем поставщиков... (~" + totalGroups + " поз.)");
+        if (added > 0) {
+            var countEl = analogBlock.querySelector(".result-block__count");
+            var totalG = analogContainer.querySelectorAll(".supplier-list__group").length;
+            if (countEl) countEl.textContent = totalG + " поз.";
+            var whEl = document.querySelector(".wh-count");
+            var whs = analogContainer.querySelectorAll(".sl-warehouse-row").length;
+            if (whEl) whEl.textContent = whs;
+            var ts = document.querySelector(".search-hint strong");
+            if (ts) ts.textContent = totalG;
+        }
+        return added;
     }
 
     function fetchChunk() {
-        if (currentChunk < 0 || currentChunk > maxChunks) return;
+        if (done || currentChunk < 0 || currentChunk > maxChunks) {
+            if (done) {
+                updateBadge("✅ Загружены все поставщики (" + totalGroups + " поз., " + totalWarehouses + " складов)");
+                var b = document.getElementById("p2-badge");
+                if (b) { b.className = ""; b.style.cssText = "text-align:center;padding:12px;background:#d1fae5;color:#065f46;border-radius:8px;margin:8px 0;font-size:14px;"; }
+            }
+            return;
+        }
+        
+        updateBadge("⏳ Догружаем поставщиков... (чанк " + (currentChunk+1) + ")");
+        
         var url = "/local/ajax/analog_search.php?phase=p2_chunk&p2_hash=" + p2Hash
             + "&chunk=" + currentChunk
             + "&q=" + encodeURIComponent("<?=urlencode($q)?>")
@@ -553,30 +558,30 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
         fetch(url).then(function(r){return r.json();}).then(function(data){
             if (!data.success) {
                 if (data.error === 'no_file') { updateBadge("⚠️ Файл поиска не найден"); return; }
-                // Повторяем через 3 секунды
                 setTimeout(fetchChunk, 3000);
                 return;
             }
             
-            addGroupsToDOM(data.html, data.totalGroups, data.totalWarehouses);
+            addGroupsToDOM(data.html);
+            totalGroups = data.totalGroups || totalGroups;
+            totalWarehouses = data.totalWarehouses || totalWarehouses;
             
-            if (data.done) {
-                updateBadge("✅ Загружены все поставщики (" + data.totalGroups + " поз., " + data.totalWarehouses + " складов)");
-                var b = document.getElementById("p2-badge");
-                if (b) { b.className = ""; b.style.cssText = "text-align:center;padding:12px;background:#d1fae5;color:#065f46;border-radius:8px;margin:8px 0;font-size:14px;"; }
+            if (data.done || data.nextChunk < 0) {
+                done = true;
+                fetchChunk();
                 return;
             }
             
             currentChunk = data.nextChunk;
-            // Следующий чанк сразу (без задержки — сервер уже ответил)
-            fetchChunk();
+            // Следующий чанк через 100мс
+            setTimeout(fetchChunk, 100);
         }).catch(function(e){
-            updateBadge("⚠️ Ошибка загрузки, повтор...");
+            updateBadge("⚠️ Ошибка, повтор...");
             setTimeout(fetchChunk, 3000);
         });
     }
 
-    // Старт через 400мс (даём странице отрендериться)
+    // Старт через 400мс
     setTimeout(fetchChunk, 400);
 })();
 </script>

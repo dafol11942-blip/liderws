@@ -284,36 +284,100 @@ try {
     }
 
     if ($phase === 'p2_chunk' && !empty($_REQUEST['p2_hash'])) {
-    $p2Hash = trim($_REQUEST['p2_hash']);
-    $p2File = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2/' . $p2Hash . '.json';
-    $chunkIdx = (int)($_REQUEST['chunk'] ?? 0);
+        $p2Hash = trim($_REQUEST['p2_hash']);
+        $p2File = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2/' . $p2Hash . '.json';
+        $chunkIdx = (int)($_REQUEST['chunk'] ?? 0);
 
-    if (!file_exists($p2File)) {
-        echo json_encode(['success'=>false, 'error'=>'no_file']);
-        exit;
-    }
+        if (!file_exists($p2File)) {
+            echo json_encode(['success'=>false, 'error'=>'no_file']);
+            exit;
+        }
 
-    $p2Data = json_decode(file_get_contents($p2File), true);
-    $allAnalogs = $p2Data['umapiAnalogs'] ?? [];
+        $p2Data = json_decode(file_get_contents($p2File), true);
+        if (!isset($p2Data['p2_results'])) $p2Data['p2_results'] = [];
 
-    $chunkSize = 10;
-    $chunk = array_slice($allAnalogs, $chunkIdx * $chunkSize, $chunkSize);
-
-    if (empty($chunk)) {
-        // Всё обработано
-        $allResults = [];
-        if (!empty($p2Data['p2_results'])) {
+        $chunkSize = 10;
+        $allAnalogs = $p2Data['umapiAnalogs'] ?? [];
+        $alreadyProcessed = count($p2Data['p2_results']);
+        $totalAnalogs = count($allAnalogs);
+        
+        // Пропускаем уже выполненные чанки
+        $startIdx = $chunkIdx * $chunkSize;
+        $chunk = array_slice($allAnalogs, $startIdx, $chunkSize);
+        
+        if (empty($chunk) || $startIdx >= $totalAnalogs) {
+            // Всё обработано
+            $allResults = [];
             foreach ($p2Data['p2_results'] as $r) {
                 $item = new \Lider\Search\SearchResultItem();
                 foreach ($r as $k => $v) { $item->$k = $v; }
                 $allResults[] = $item;
             }
+            $displayBrand   = $p2Data['brand'] ?? $displayBrand;
+            $displayArticle = $p2Data['article'] ?? $displayArticle;
+            $exactKey       = $p2Data['exactKey'] ?? $exactKey;
+            $normTargetBrand = $p2Data['normTargetBrand'] ?? $normTargetBrand;
+            $normTargetArt  = $p2Data['normTargetArt'] ?? $normTargetArt;
+            $p2Data['done'] = true;
+            $p2Data['p2_count'] = count($p2Data['p2_results']);
+            $p2Data['running'] = false;
+            file_put_contents($p2File, json_encode($p2Data, JSON_UNESCAPED_UNICODE));
+            goto finalRender;
         }
+
+        // Выполняем P2 для этого чанка
+        $launcher = new FullSearchLauncher($factory);
+        $p2Results = $launcher->executePhase2($chunk, 15.0);
+
+        // Добавляем в p2_results
+        $seenKeys = [];
+        foreach ($p2Data['p2_results'] as $r) {
+            $seenKeys[($r['source']??'').'|'.($r['stockId']??'').'|'.($r['article']??'').'|'.($r['brand']??'')] = true;
+        }
+        foreach ($p2Results as $item) {
+            $k = $item->source.'|'.$item->stockId.'|'.$item->article.'|'.$item->brand;
+            if (isset($seenKeys[$k])) continue;
+            $seenKeys[$k] = true;
+            $p2Data['p2_results'][] = [
+                'source'       => $item->source,
+                'article'      => $item->article,
+                'brand'        => $item->brand,
+                'name'         => $item->name ?? '',
+                'price'        => $item->price ?? 0,
+                'quantity'     => $item->quantity ?? 0,
+                'warehouse'    => $item->warehouse ?? '',
+                'stockId'      => $item->stockId ?? '',
+                'supplierName' => $item->supplierName ?? '',
+                'isSched'      => $item->isSched ?? false,
+                'deliveryDays' => $item->deliveryDays ?? 0,
+                'deliveryPeriod' => $item->deliveryPeriod ?? 0,
+                'multiplicity' => $item->multiplicity ?? 1,
+                'unit'         => $item->unit ?? 'шт.',
+            ];
+        }
+
+        $done = ($startIdx + $chunkSize >= $totalAnalogs);
+        if ($done) {
+            $p2Data['done'] = true;
+            $p2Data['running'] = false;
+        }
+        $p2Data['p2_count'] = count($p2Data['p2_results']);
+        file_put_contents($p2File, json_encode($p2Data, JSON_UNESCAPED_UNICODE));
+
+        // Рендерим ТОЛЬКО p2_results (без p1 — это exact)
+        $allResults = [];
+        foreach ($p2Data['p2_results'] as $r) {
+            $item = new \Lider\Search\SearchResultItem();
+            foreach ($r as $k => $v) { $item->$k = $v; }
+            $allResults[] = $item;
+        }
+
         $displayBrand   = $p2Data['brand'] ?? $displayBrand;
         $displayArticle = $p2Data['article'] ?? $displayArticle;
         $exactKey       = $p2Data['exactKey'] ?? $exactKey;
         $normTargetBrand = $p2Data['normTargetBrand'] ?? $normTargetBrand;
         $normTargetArt  = $p2Data['normTargetArt'] ?? $normTargetArt;
+
         goto finalRender;
     }
 
