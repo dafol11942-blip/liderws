@@ -13,7 +13,19 @@ define('NOT_CHECK_PERMISSIONS', true);
 $_SERVER['DOCUMENT_ROOT'] = '/var/www/u3564357/data/www/liderws.ru';
 
 if (php_sapi_name() === 'cli') {
-    $p2Hash = $argv[1] ?? '';
+    $article = $argv[1] ?? '';
+    $brand   = $argv[2] ?? '';
+    if ($article === '' || $brand === '') {
+        echo "Usage: php analog_p2_exec.php <article> <brand>\n";
+        exit(1);
+    }
+    // Подключаем нормализатор, если ещё не
+    if (!class_exists('Lider\Search\BrandNormalizer')) {
+        require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/BrandNormalizer.php';
+    }
+    $normArt = \Lider\Search\BrandNormalizer::normalizeArticle($article);
+    $normBrand = \Lider\Search\BrandNormalizer::normalize($brand);
+    $p2Hash = md5($normArt . '|' . $normBrand . '|fast');
 } else {
     $p2Hash = $_REQUEST['hash'] ?? '';
 }
