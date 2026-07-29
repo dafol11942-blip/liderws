@@ -471,7 +471,7 @@ function orderFromSupplier(btn,article,brand){if(btn.disabled)return;btn.disable
 function escapeHtml(str){var d=document.createElement('div');d.textContent=str;return d.innerHTML;}
 function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
 
-// === ИНКРЕМЕНТАЛЬНАЯ P2 (v4 — следующий чанк с сервера) ===
+// === ИНКРЕМЕНТАЛЬНАЯ P2 (v8 — минималистичный) ===
 (function(){
     var analogBlock = document.querySelector(".result-block--analog");
     if (!analogBlock) return;
@@ -481,21 +481,13 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
     var p2Hash = "<?=$p2Hash?>";
     if (!p2Hash) return;
 
-    var currentChunk = 0;
-    var maxChunks = 60;
+    var chunk = 0;
     var seenKeys = {};
-    var totalGroups = 0;
-    var totalWarehouses = 0;
-    var done = false;
-    
-    // Собираем уже показанные из серверного рендера
+
     analogContainer.querySelectorAll(".supplier-list__group").forEach(function(el) {
         var brand = (el.querySelector(".sl-cell--brand strong") || {}).textContent || "";
         var art = (el.querySelector(".sl-cell--article code") || {}).textContent || "";
         if (brand && art) seenKeys[(brand+"|"+art).toLowerCase()] = true;
-    });
-    document.querySelectorAll(".supplier-list__group[data-analog-key]").forEach(function(el){
-        seenKeys[el.getAttribute("data-analog-key").toLowerCase()] = true;
     });
 
     var badge = document.createElement("div");
@@ -504,85 +496,63 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
     badge.textContent = "⏳ Догружаем поставщиков...";
     analogBlock.insertBefore(badge, analogBlock.firstChild);
 
-    function updateBadge(msg) {
-        var b = document.getElementById("p2-badge");
-        if (b) b.textContent = msg;
-    }
+    function fetchNext() {
+        document.getElementById("p2-badge").textContent = "⏳ Догружаем поставщиков... (" + (chunk+1) + ")";
 
-    function addGroupsToDOM(html) {
-        if (!html || html.trim() === "") return;
-        var tmp = document.createElement("div");
-        tmp.innerHTML = html;
-        var groups = tmp.querySelectorAll(".supplier-list__group");
-        var added = 0;
-        groups.forEach(function(g) {
-            var key = (g.getAttribute("data-analog-key") || "").toLowerCase();
-            if (key && seenKeys[key]) return;
-            if (key) seenKeys[key] = true;
-            var header = g.querySelector(".supplier-list__header");
-            if (header) header.remove();
-            analogContainer.appendChild(g);
-            added++;
-        });
-        if (added > 0) {
-            var countEl = analogBlock.querySelector(".result-block__count");
-            var totalG = analogContainer.querySelectorAll(".supplier-list__group").length;
-            if (countEl) countEl.textContent = totalG + " поз.";
-            var whEl = document.querySelector(".wh-count");
-            var whs = analogContainer.querySelectorAll(".sl-warehouse-row").length;
-            if (whEl) whEl.textContent = whs;
-            var ts = document.querySelector(".search-hint strong");
-            if (ts) ts.textContent = totalG;
-        }
-        return added;
-    }
-
-    function fetchChunk() {
-        if (done || currentChunk < 0 || currentChunk > maxChunks) {
-            if (done) {
-                updateBadge("✅ Загружены все поставщики (" + totalGroups + " поз., " + totalWarehouses + " складов)");
-                var b = document.getElementById("p2-badge");
-                if (b) { b.className = ""; b.style.cssText = "text-align:center;padding:12px;background:#d1fae5;color:#065f46;border-radius:8px;margin:8px 0;font-size:14px;"; }
-            }
-            return;
-        }
-        
-        updateBadge("⏳ Догружаем поставщиков... (чанк " + (data.nextChunk !== undefined ? data.nextChunk : currentChunk+1) + ")");
-        
         var url = "/local/ajax/analog_search.php?phase=p2_chunk&p2_hash=" + p2Hash
-            + "&chunk=" + currentChunk
+            + "&chunk=" + chunk
             + "&q=" + encodeURIComponent("<?=urlencode($q)?>")
             + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
             + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>");
-        
+
         fetch(url).then(function(r){return r.json();}).then(function(data){
             if (!data.success) {
-                if (data.error === 'no_file') { updateBadge("⚠️ Файл поиска не найден"); return; }
-                setTimeout(fetchChunk, 3000);
+                document.getElementById("p2-badge").textContent = "⚠️ Ошибка, повтор...";
+                setTimeout(fetchNext, 3000);
                 return;
             }
-            
-            addGroupsToDOM(data.html);
-            totalGroups = data.totalGroups || totalGroups;
-            totalWarehouses = data.totalWarehouses || totalWarehouses;
-            
-            if (data.done || data.nextChunk < 0) {
-                done = true;
-                fetchChunk();
+
+            // Добавляем новые группы в DOM
+            if (data.html) {
+                var tmp = document.createElement("div");
+                tmp.innerHTML = data.html;
+                var groups = tmp.querySelectorAll(".supplier-list__group");
+                groups.forEach(function(g) {
+                    var key = (g.getAttribute("data-analog-key") || "").toLowerCase();
+                    if (key && seenKeys[key]) return;
+                    if (key) seenKeys[key] = true;
+                    var header = g.querySelector(".supplier-list__header");
+                    if (header) header.remove();
+                    analogContainer.appendChild(g);
+                });
+            }
+
+            // Обновляем счетчики
+            var totalG = data.totalGroups || analogContainer.querySelectorAll(".supplier-list__group").length;
+            var countEl = analogBlock.querySelector(".result-block__count");
+            if (countEl) countEl.textContent = totalG + " поз.";
+            var whCount = document.querySelector(".wh-count");
+            if (whCount && data.totalWarehouses) whCount.textContent = data.totalWarehouses;
+            var ts = document.querySelector(".search-hint strong");
+            if (ts && totalG) ts.textContent = totalG;
+
+            if (data.done) {
+                var b = document.getElementById("p2-badge");
+                b.textContent = "✅ Загружены все поставщики (" + totalG + " поз., " + (data.totalWarehouses||"?") + " складов)";
+                b.className = "";
+                b.style.cssText = "text-align:center;padding:12px;background:#d1fae5;color:#065f46;border-radius:8px;margin:8px 0;font-size:14px;";
                 return;
             }
-            
-            currentChunk = (data.nextChunk !== undefined && data.nextChunk >= 0) ? data.nextChunk : (currentChunk + 1);
-            // Следующий чанк через 100мс
-            setTimeout(fetchChunk, 100);
-        }).catch(function(e){
-            updateBadge("⚠️ Ошибка, повтор...");
-            setTimeout(fetchChunk, 3000);
+
+            chunk++;
+            setTimeout(fetchNext, 100);
+        }).catch(function(){
+            document.getElementById("p2-badge").textContent = "⚠️ Ошибка, повтор...";
+            setTimeout(fetchNext, 3000);
         });
     }
 
-    // Старт через 400мс
-    setTimeout(fetchChunk, 400);
+    setTimeout(fetchNext, 400);
 })();
 </script>
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/footer.php"); ?>
