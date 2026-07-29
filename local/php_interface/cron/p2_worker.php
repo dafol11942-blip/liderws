@@ -1,8 +1,9 @@
 <?php
 /**
  * Крон: выполнение Phase 2 поиска аналогов
- * Запуск: каждую минуту (+ через sleep варианты для частоты 15с)
+ * Запуск: каждые 15 секунд
  * НЕ использует Битрикс — прямое подключение к mysqli
+ * Чанкинг: по 50 аналогов за запуск (~20-25с)
  */
 
 $docRoot = '/var/www/u3564357/data/www/liderws.ru';
@@ -13,11 +14,15 @@ function wlog(string $msg): void {
     file_put_contents($logFile, '[' . date('H:i:s') . '] ' . $msg . PHP_EOL, FILE_APPEND);
 }
 
-$db = new mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
-if ($db->connect_error) {
-    wlog('DB connect error: ' . $db->connect_error);
-    exit(1);
+// Блокировка: только один воркер одновременно
+$lockFile = $docRoot . '/upload/cache/search/p2/.worker.lock';
+$lockFp = fopen($lockFile, 'w');
+if (!flock($lockFp, LOCK_EX | LOCK_NB)) {
+    exit(0);
 }
+
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+$db = new mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
 $db->set_charset('utf8mb4');
 
 // Сбрасываем зависшие running задания (>120 секунд)
@@ -31,7 +36,8 @@ $taskRow = $db->query(
 
 if (!$taskRow) {
     $db->close();
-    exit(0); // Нет заданий — выходим
+    flock($lockFp, LOCK_UN);
+    exit(0);
 }
 
 $id   = (int)$taskRow['id'];
@@ -41,8 +47,8 @@ $hash = $taskRow['hash'];
 $db->query("UPDATE b_p2_queue SET status='running', started_at=NOW()
             WHERE id=$id AND status='pending'");
 if ($db->affected_rows !== 1) {
-    // Другой воркер уже взял
     $db->close();
+    flock($lockFp, LOCK_UN);
     exit(0);
 }
 
@@ -54,12 +60,20 @@ if (!file_exists($p2File)) {
     $db->query("UPDATE b_p2_queue SET status='error' WHERE id=$id");
     wlog("ERROR: p2 file not found: $p2File");
     $db->close();
+    flock($lockFp, LOCK_UN);
     exit(1);
 }
 
 $data = json_decode(file_get_contents($p2File), true);
 
-if (empty($data['umapiAnalogs'])) {
+// Первый запуск: инициализируем p2_results
+if (!isset($data['p2_results'])) {
+    $data['p2_results'] = [];
+}
+
+$allAnalogs = $data['umapiAnalogs'] ?? [];
+
+if (empty($allAnalogs)) {
     $db->query("UPDATE b_p2_queue SET status='done', result_count=0, done_at=NOW() WHERE id=$id");
     $data['done'] = true;
     $data['p2_count'] = 0;
@@ -67,12 +81,18 @@ if (empty($data['umapiAnalogs'])) {
     file_put_contents($p2File, json_encode($data, JSON_UNESCAPED_UNICODE));
     wlog("DONE: нет umapiAnalogs, count=0");
     $db->close();
+    flock($lockFp, LOCK_UN);
     exit(0);
 }
 
-wlog("umapiAnalogs: " . count($data['umapiAnalogs']) . " аналогов");
+// --- ЧАНКИНГ: берём первые 50 аналогов ---
+$chunkSize = 50;
+$chunk = array_slice($allAnalogs, 0, $chunkSize);
+$remaining = array_slice($allAnalogs, $chunkSize);
 
-// Загружаем библиотеки БЕЗ Битрикс prolog_before.php
+wlog("Chunk: " . count($chunk) . " аналогов, осталось: " . count($remaining));
+
+// Загружаем библиотеки БЕЗ Битрикс
 require_once $docRoot . '/local/php_interface/lib/Search/BrandNormalizer.php';
 require_once $docRoot . '/local/php_interface/lib/Search/SearchResultItem.php';
 require_once $docRoot . '/local/php_interface/lib/Search/Stage2/FullSearchLauncher.php';
@@ -97,14 +117,68 @@ try {
 
     $launcher = new \Lider\Search\Stage2\FullSearchLauncher($f);
 
-    // 90 секунд — нет nginx, лимит только PHP max_execution_time
-    $p2Results = $launcher->executePhase2($data['umapiAnalogs'], 90.0);
+    // 25 секунд на чанк из 50 аналогов
+    $p2Results = $launcher->executePhase2($chunk, 25.0);
 
-    $count = count($p2Results);
-    wlog("executePhase2 вернул $count результатов");
+    $chunkCount = count($p2Results);
+    wlog("executePhase2 вернул $chunkCount результатов для чанка");
 
-    // Сохраняем результаты в JSON (читается фронтендом через poll)
-    $data['p2_results'] = array_map(function($item) {
+    // --- Сохраняем в b_supplier_stock (прямой SQL) ---
+    $savedCount = 0;
+    $stmt = $db->prepare(
+        "INSERT INTO b_supplier_stock (supplier_code, stock_id, article, brand, name, price, quantity, warehouse, stockId, supplierName, isSched, deliveryDays, deliveryPeriod, multiplicity, unit, is_active, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
+         ON DUPLICATE KEY UPDATE
+            article = VALUES(article),
+            brand = VALUES(brand),
+            name = VALUES(name),
+            price = VALUES(price),
+            quantity = VALUES(quantity),
+            warehouse = VALUES(warehouse),
+            supplierName = VALUES(supplierName),
+            isSched = VALUES(isSched),
+            deliveryDays = VALUES(deliveryDays),
+            deliveryPeriod = VALUES(deliveryPeriod),
+            multiplicity = VALUES(multiplicity),
+            unit = VALUES(unit),
+            is_active = 1,
+            updated_at = NOW()"
+    );
+
+    foreach ($p2Results as $item) {
+        $source    = $item->source;
+        $article   = $item->article;
+        $brand     = $item->brand;
+        $warehouse = $item->warehouse ?? '';
+        $price     = (float)($item->price ?? 0);
+        $stockId   = $item->stockId ?? '';
+        $stock_id  = md5($source . '|' . $article . '|' . $brand . '|' . $warehouse . '|' . $price . '|' . $stockId);
+
+        $stmt->bind_param('sssssdissiiisss',
+            $source,
+            $stock_id,
+            $article,
+            $brand,
+            $item->name,
+            $price,
+            $item->quantity,
+            $warehouse,
+            $stockId,
+            $item->supplierName,
+            $item->isSched,
+            $item->deliveryDays,
+            $item->deliveryPeriod ?? 0,
+            $item->multiplicity ?? 1,
+            $item->unit ?? 'шт.'
+        );
+        $stmt->execute();
+        $savedCount++;
+    }
+    $stmt->close();
+    wlog("Сохранено в b_supplier_stock: $savedCount строк");
+
+    // Добавляем результаты к накопленным
+    $data['p2_results'] = array_merge($data['p2_results'], array_map(function($item) {
         return [
             'source'       => $item->source,
             'article'      => $item->article,
@@ -121,16 +195,29 @@ try {
             'multiplicity' => $item->multiplicity ?? 1,
             'unit'         => $item->unit ?? 'шт.',
         ];
-    }, $p2Results);
-    $data['done']    = true;
-    $data['p2_count'] = $count;
-    $data['running'] = false;
+    }, $p2Results));
+
+    $totalCount = count($data['p2_results']);
+
+    if (empty($remaining)) {
+        // Все аналоги обработаны
+        $data['umapiAnalogs'] = [];
+        $data['done']    = true;
+        $data['p2_count'] = $totalCount;
+        $data['running'] = false;
+        $db->query("UPDATE b_p2_queue SET status='done', result_count=$totalCount, done_at=NOW() WHERE id=$id");
+        wlog("DONE (все чанки) id=$id total=$totalCount");
+    } else {
+        // Остались ещё аналоги — возвращаем в pending
+        $data['umapiAnalogs'] = $remaining;
+        $data['done']    = false;
+        $data['p2_count'] = $totalCount;
+        $data['running'] = false;
+        $db->query("UPDATE b_p2_queue SET status='pending', started_at=NULL WHERE id=$id");
+        wlog("CHUNK DONE id=$id chunkCount=$chunkCount total=$totalCount remaining=" . count($remaining));
+    }
+
     file_put_contents($p2File, json_encode($data, JSON_UNESCAPED_UNICODE));
-
-    // Обновляем очередь
-    $db->query("UPDATE b_p2_queue SET status='done', result_count=$count, done_at=NOW() WHERE id=$id");
-
-    wlog("DONE id=$id hash=$hash count=$count");
 
 } catch (\Throwable $e) {
     wlog("EXCEPTION: " . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
@@ -141,3 +228,4 @@ try {
 }
 
 $db->close();
+flock($lockFp, LOCK_UN);
