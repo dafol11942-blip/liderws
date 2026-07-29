@@ -53,6 +53,19 @@ class ResultBuilder
             }
         }
 
+        // Убираем из аналогов любые группы, которые являются точным совпадением (нормализованно)
+        foreach ($analogGroups as $key => $g) {
+            $gbn = BrandNormalizer::normalize($g['brand']);
+            $gan = BrandNormalizer::normalizeArticle($g['article']);
+            if ($gbn === $normTargetBrand && $gan === $normTargetArt) {
+                unset($analogGroups[$key]);
+                // Если этой группы нет в точных, добавляем (на всякий случай)
+                if (!isset($exactGroups[$key])) {
+                    $exactGroups[$key] = $g;
+                }
+            }
+        }
+        
         $fpmin = (int)($filters['price_min'] ?? 0); $fpmax = (int)($filters['price_max'] ?? 0);
         $fb = trim((string)($filters['brand'] ?? ''));
         $flt = fn($g) => !($fpmin>0&&$g['min_price']<$fpmin) && !($fpmax>0&&$g['min_price']>$fpmax) && !($fb!==''&&mb_stripos($g['brand'],$fb)===false);
