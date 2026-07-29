@@ -218,13 +218,29 @@ try {
                 $allResults[] = $item;
             }
         }
-        if (!empty($p2Data['p2_results'])) {
-            foreach ($p2Data['p2_results'] as $r) {
-                $item = new \Lider\Search\SearchResultItem();
-                foreach ($r as $k => $v) { $item->$k = $v; }
-                $allResults[] = $item;
-            }
+        // P2-результаты НЕ из JSON (файл может быть повреждён при большом объёме),
+        // а напрямую из b_supplier_stock
+        $db = new mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
+        $db->set_charset('utf8mb4');
+        $p2Query = $db->query(
+            "SELECT supplier_code as source, stock_id, article, brand, name, price, quantity,
+                    warehouse_name as warehouse, warehouse_code as stockId,
+                    delivery_days as deliveryDays, is_sched as isSched, multiplicity
+             FROM b_supplier_stock
+             WHERE is_active=1
+             ORDER BY price ASC
+             LIMIT 5000"
+        );
+        $seenStockIds = [];
+        while ($row = $p2Query->fetch_assoc()) {
+            $key = ($row['source'] ?? '') . '|' . ($row['stock_id'] ?? '') . '|' . ($row['warehouse'] ?? '');
+            if (isset($seenStockIds[$key])) continue;
+            $seenStockIds[$key] = true;
+            $item = new \Lider\Search\SearchResultItem();
+            foreach ($row as $k => $v) { $item->$k = $v; }
+            $allResults[] = $item;
         }
+        $db->close();
 
         $displayBrand   = $p2Data['brand'] ?? $displayBrand;
         $displayArticle = $p2Data['article'] ?? $displayArticle;
