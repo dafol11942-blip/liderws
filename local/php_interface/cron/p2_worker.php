@@ -125,24 +125,22 @@ try {
 
     // --- Сохраняем в b_supplier_stock (прямой SQL) ---
     $savedCount = 0;
-    $stmt = $db->prepare(
-        "INSERT INTO b_supplier_stock (supplier_code, stock_id, article, brand, name, price, quantity, warehouse, stockId, supplierName, isSched, deliveryDays, deliveryPeriod, multiplicity, unit, is_active, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
+   $stmt = $db->prepare(
+        "INSERT INTO b_supplier_stock (supplier_code, stock_id, article, brand, brand_normalized, name, price, quantity, warehouse_name, warehouse_code, delivery_days, is_sched, multiplicity, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
          ON DUPLICATE KEY UPDATE
             article = VALUES(article),
             brand = VALUES(brand),
+            brand_normalized = VALUES(brand_normalized),
             name = VALUES(name),
             price = VALUES(price),
             quantity = VALUES(quantity),
-            warehouse = VALUES(warehouse),
-            supplierName = VALUES(supplierName),
-            isSched = VALUES(isSched),
-            deliveryDays = VALUES(deliveryDays),
-            deliveryPeriod = VALUES(deliveryPeriod),
+            warehouse_name = VALUES(warehouse_name),
+            warehouse_code = VALUES(warehouse_code),
+            delivery_days = VALUES(delivery_days),
+            is_sched = VALUES(is_sched),
             multiplicity = VALUES(multiplicity),
-            unit = VALUES(unit),
-            is_active = 1,
-            updated_at = NOW()"
+            is_active = 1"
     );
 
     foreach ($p2Results as $item) {
@@ -154,22 +152,20 @@ try {
         $stockId   = $item->stockId ?? '';
         $stock_id  = md5($source . '|' . $article . '|' . $brand . '|' . $warehouse . '|' . $price . '|' . $stockId);
 
-        $stmt->bind_param('sssssdissiiisss',
+        $stmt->bind_param('ssssssdssiii',
             $source,
             $stock_id,
             $article,
             $brand,
+            $brand,           // brand_normalized (пока копия brand)
             $item->name,
             $price,
             $item->quantity,
             $warehouse,
-            $stockId,
-            $item->supplierName,
-            $item->isSched,
+            $stockId,         // warehouse_code
             $item->deliveryDays,
-            $item->deliveryPeriod ?? 0,
-            $item->multiplicity ?? 1,
-            $item->unit ?? 'шт.'
+            $item->isSched,
+            $item->multiplicity ?? 1
         );
         $stmt->execute();
         $savedCount++;
