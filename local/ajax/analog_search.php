@@ -262,6 +262,38 @@ try {
         goto finalRender;
     }
 
+    if ($phase === 'p2_init') {
+        // Только создаём P2-файл, без Phase 1
+        $umapiAnalogs = $umapi->getAnalogs($displayArticle, $displayBrand);
+        if (empty($umapiAnalogs)) {
+            echo json_encode(['success'=>false, 'error'=>'no_analogs']);
+            exit;
+        }
+        $p2Hash = md5($normQ . '|' . $normBrand . '|p2init|' . uniqid('', true));
+        $p2Dir = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2';
+        if (!is_dir($p2Dir)) mkdir($p2Dir, 0755, true);
+        $p2File = $p2Dir . '/' . $p2Hash . '.json';
+        file_put_contents($p2File, json_encode([
+            'hash' => $p2Hash,
+            'umapiAnalogs' => $umapiAnalogs,
+            'brand' => $displayBrand,
+            'article' => $displayArticle,
+            'exactKey' => $exactKey,
+            'normTargetBrand' => $normTargetBrand,
+            'normTargetArt' => $normTargetArt,
+            'cacheKey' => $cacheKey,
+            'p1_count' => 0,
+            'p1_results' => [],
+            'created' => time(),
+            'p2_results' => [],
+            'running' => false,
+            'done' => false,
+            'p2_count' => 0,
+        ], JSON_UNESCAPED_UNICODE));
+        echo json_encode(['success'=>true, 'p2_hash'=>$p2Hash, 'p2_pending'=>true]);
+        exit;
+    }
+    
     if ($phase === 'fast') {
         // Phase 1: только exact поиск
         $allResults = $launcher->launchPhase1($displayBrand, $displayArticle, 30.0);

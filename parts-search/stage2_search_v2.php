@@ -160,3 +160,41 @@ if (!$skipLive) {
     $totalWarehouses = $result['totalWarehouses'] ?? 0;
     $searchNumber = $displayArticle;
 }
+// === Инициализация P2 для асинхронной дозагрузки ===
+$p2Hash = '';
+if (!empty($umapiAnalogs) && $useHybrid && !isset($_GET['verified'])) {
+    $p2Hash = md5($normTargetArt . '|' . $normTargetBrand . '|' . microtime(true));
+    $p2Dir = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2';
+    if (!is_dir($p2Dir)) mkdir($p2Dir, 0755, true);
+    $p2File = $p2Dir . '/' . $p2Hash . '.json';
+    
+    $p1Source = $allResults ?? $cachedItems ?? [];
+    $p1Serialized = [];
+    foreach ($p1Source as $item) {
+        $p1Serialized[] = [
+            'source' => $item->source, 'article' => $item->article, 'brand' => $item->brand,
+            'name' => $item->name, 'price' => $item->price, 'quantity' => $item->quantity,
+            'warehouse' => $item->warehouse, 'stockId' => $item->stockId,
+            'supplierName' => $item->supplierName, 'isSched' => $item->isSched,
+            'deliveryDays' => $item->deliveryDays, 'deliveryPeriod' => $item->deliveryPeriod ?? 0,
+            'multiplicity' => $item->multiplicity ?? 1, 'unit' => $item->unit ?? 'шт.',
+        ];
+    }
+    
+    file_put_contents($p2File, json_encode([
+        'hash' => $p2Hash,
+        'umapiAnalogs' => $umapiAnalogs,
+        'brand' => $displayBrand,
+        'article' => $displayArticle,
+        'exactKey' => $exactKey,
+        'normTargetBrand' => $normTargetBrand,
+        'normTargetArt' => $normTargetArt,
+        'p1_count' => count($p1Source),
+        'p1_results' => $p1Serialized,
+        'created' => time(),
+        'p2_results' => [],
+        'running' => false,
+        'done' => false,
+        'p2_count' => 0,
+    ], JSON_UNESCAPED_UNICODE));
+}

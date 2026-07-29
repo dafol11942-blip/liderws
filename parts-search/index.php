@@ -471,12 +471,76 @@ function orderFromSupplier(btn,article,brand){if(btn.disabled)return;btn.disable
 function escapeHtml(str){var d=document.createElement('div');d.textContent=str;return d.innerHTML;}
 function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
 
-// === ЛЕНИВАЯ ЗАГРУЗКА АНАЛОГОВ ===
+// === ЛЕНИВАЯ ЗАГРУЗКА АНАЛОГОВ (v2 — не перезаписывает серверный HTML) ===
 (function(){
     var analogBlock = document.querySelector(".result-block--analog");
     if (!analogBlock) return;
     var analogContainer = analogBlock.querySelector(".supplier-list");
     if (!analogContainer) return;
+
+    var p2Hash = "<?=$p2Hash?>";
+    var hasServerAnalog = analogContainer.querySelectorAll(".supplier-list__group").length > 0;
+
+    function updateCounts(data) {
+        var countEl = analogBlock.querySelector(".result-block__count");
+        if (countEl && data.totalGroups) countEl.textContent = data.totalGroups + " поз.";
+        var whCount = document.querySelector(".wh-count");
+        if (whCount && data.totalWarehouses) whCount.textContent = data.totalWarehouses;
+        var totalStrong = document.querySelector(".search-hint strong");
+        if (totalStrong && data.totalGroups) totalStrong.textContent = data.totalGroups;
+    }
+
+    function showDoneBanner(data) {
+        var b = document.createElement("div");
+        b.style.cssText = "text-align:center;padding:12px;background:#d1fae5;color:#065f46;border-radius:8px;margin:8px 0;font-size:14px;";
+        b.textContent = "✅ Загружены все поставщики (" + (data.totalGroups||"?") + " поз., " + (data.totalWarehouses||"?") + " складов)";
+        analogBlock.insertBefore(b, analogBlock.firstChild);
+    }
+
+    function startP2Polling(hash) {
+        var p2Badge = document.createElement("div");
+        p2Badge.className = "analog-loading-badge";
+        p2Badge.textContent = "⏳ Догружаем остальных поставщиков...";
+        p2Badge.id = "p2-progress";
+        analogBlock.insertBefore(p2Badge, analogBlock.firstChild);
+
+        var pollCount = 0;
+        var timer = setInterval(function() {
+            pollCount++;
+            fetch("/local/ajax/analog_poll.php?hash=" + hash).then(function(r){return r.json();}).then(function(p2){
+                if (p2.ready) {
+                    clearInterval(timer);
+                    var pb = document.getElementById("p2-progress");
+                    if (pb) pb.textContent = "⏳ Обновляем результаты...";
+                    var finalUrl = "/local/ajax/analog_search.php?phase=final&p2_hash=" + hash
+                        + "&q=" + encodeURIComponent("<?=urlencode($q)?>")
+                        + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
+                        + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>");
+                    fetch(finalUrl).then(function(r){return r.json();}).then(function(d){
+                        if (pb) pb.remove();
+                        if (d.success && d.html) {
+                            analogContainer.innerHTML = d.html;
+                            updateCounts(d);
+                            showDoneBanner(d);
+                        }
+                    });
+                } else if (pollCount > 60) {
+                    clearInterval(timer);
+                    var pb = document.getElementById("p2-progress");
+                    if (pb) pb.textContent = "⚠️ Превышено время ожидания — обновите страницу";
+                }
+            });
+        }, 2000);
+    }
+
+    // === Ветка 1: сервер уже отрисовал аналоги → только P2 ===
+    if (hasServerAnalog && p2Hash) {
+        // Запускаем polling сразу (первый вызов создаст запись в b_p2_queue и запустит воркер)
+        startP2Polling(p2Hash);
+        return;
+    }
+
+    // === Ветка 2: аналогов нет → phase=fast (старое поведение) ===
     var analogToken = "<?=$analogToken?>";
     if (!analogToken) return;
 
@@ -495,62 +559,19 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
             + "&filter_brand=" + encodeURIComponent("<?=urlencode($filterBrand)?>")
             + "&price_min=<?=(int)$filterPriceMin?>"
             + "&price_max=<?=(int)$filterPriceMax?>";
-        fetch(url).then(function(r){ return r.json(); }).then(function(data){
+        fetch(url).then(function(r){return r.json();}).then(function(data){
             badge.remove();
             if (!data.success || !data.html) return;
             analogContainer.innerHTML = data.html;
+            updateCounts(data);
             if (data.p2_pending && data.p2_hash) {
-                var p2Badge = document.createElement("div");
-                p2Badge.className = "search-notice search-notice--progress";
-                p2Badge.textContent = "⏳ Догружаем остальных поставщиков... (" + data.totalGroups + " поз.)";
-                p2Badge.id = "p2-progress";
-                analogBlock.insertBefore(p2Badge, analogBlock.firstChild);
-                var p2PollCount = 0;
-                var p2Timer = setInterval(function() {
-                    p2PollCount++;
-                    fetch("/local/ajax/analog_poll.php?hash=" + data.p2_hash).then(function(r){ return r.json(); }).then(function(p2){
-                        if (p2.ready) {
-                            clearInterval(p2Timer);
-                            var pb = document.getElementById("p2-progress");
-                            if (pb) pb.textContent = "⏳ Обновляем результаты...";
-                            var finalUrl = "/local/ajax/analog_search.php?phase=final&p2_hash=" + data.p2_hash
-                                + "&q=" + encodeURIComponent("<?=urlencode($q)?>")
-                                + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
-                                + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>")
-                            fetch(finalUrl).then(function(r){ return r.json(); }).then(function(d){
-                                if (pb) pb.remove();
-                                if (d.success && d.html) {
-                                    analogContainer.innerHTML = d.html;
-                                    var countEl = analogBlock.querySelector(".result-block__count");
-                                    if (countEl && d.totalGroups) countEl.textContent = d.totalGroups + " поз.";
-                                    var whCount = document.querySelector(".wh-count");
-                                    if (whCount && d.totalWarehouses) whCount.textContent = d.totalWarehouses;
-                                    var totalStrong = document.querySelector(".search-hint strong");
-                                    if (totalStrong && d.totalGroups) totalStrong.textContent = d.totalGroups;
-                                    var doneBanner = document.createElement("div");
-                                    doneBanner.className = "search-notice search-notice--done";
-                                    doneBanner.textContent = "✅ Загружены все поставщики (" + (d.totalGroups || "?") + " поз., " + (d.totalWarehouses || "?") + " складов)";
-                                    analogBlock.insertBefore(doneBanner, analogBlock.firstChild);
-                                }
-                            });
-                        } else if (p2PollCount > 40) {
-                            clearInterval(p2Timer);
-                            var pb = document.getElementById("p2-progress");
-                            if (pb) pb.textContent = "⚠️ Не все поставщики загружены — попробуйте обновить страницу";
-                        }
-                    });
-                }, 2000);
+                startP2Polling(data.p2_hash);
             }
-            var countEl = analogBlock.querySelector(".result-block__count");
-            if (countEl) countEl.textContent = data.totalGroups + " поз.";
-            var whCount = document.querySelector(".wh-count");
-            if (whCount) whCount.textContent = data.totalWarehouses;
-            var totalStrong = document.querySelector(".search-hint strong");
-            if (totalStrong) totalStrong.textContent = data.totalGroups;
-        }).catch(function(){ badge.remove(); });
+        }).catch(function(){badge.remove();});
     }
-    var timer = setTimeout(loadAnalogs, 800);
-    window.addEventListener("scroll", function(){ clearTimeout(timer); loadAnalogs(); }, {once: true});
+
+    var t = setTimeout(loadAnalogs, 800);
+    window.addEventListener("scroll", function(){clearTimeout(t);loadAnalogs();},{once:true});
 })();
 </script>
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/footer.php"); ?>
