@@ -547,7 +547,7 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
             return;
         }
         
-        updateBadge("⏳ Догружаем поставщиков... (чанк " + (currentChunk+1) + ")");
+        updateBadge("⏳ Догружаем поставщиков... (чанк " + (data.nextChunk !== undefined ? data.nextChunk : currentChunk+1) + ")");
         
         var url = "/local/ajax/analog_search.php?phase=p2_chunk&p2_hash=" + p2Hash
             + "&chunk=" + currentChunk
@@ -572,7 +572,7 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
                 return;
             }
             
-            currentChunk = data.nextChunk;
+            currentChunk = (data.nextChunk !== undefined && data.nextChunk >= 0) ? data.nextChunk : (currentChunk + 1);
             // Следующий чанк через 100мс
             setTimeout(fetchChunk, 100);
         }).catch(function(e){

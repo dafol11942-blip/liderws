@@ -298,7 +298,6 @@ try {
         $chunk = array_slice($allAnalogs, $startIdx, $chunkSize);
 
         if (empty($chunk) || $startIdx >= $totalAnalogs) {
-            // Всё обработано — рендерим из накопленных p2_results
             $allResults = [];
             foreach ($p2Data['p2_results'] as $r) {
                 $item = new \Lider\Search\SearchResultItem();
@@ -310,17 +309,16 @@ try {
             $exactKey       = $p2Data['exactKey'] ?? $exactKey;
             $normTargetBrand = $p2Data['normTargetBrand'] ?? $normTargetBrand;
             $normTargetArt  = $p2Data['normTargetArt'] ?? $normTargetArt;
-            $p2Data['done'] = true;
+            $p2Data['done'] = true; $p2Data['running'] = false;
             $p2Data['p2_count'] = count($p2Data['p2_results']);
-            $p2Data['running'] = false;
             file_put_contents($p2File, json_encode($p2Data, JSON_UNESCAPED_UNICODE));
+            $responseDone = true; $responseNext = -1;
             goto finalRender;
         }
 
         $launcher = new FullSearchLauncher($factory);
         $p2Results = $launcher->executePhase2($chunk, 15.0);
 
-        // Дедупликация при добавлении
         $seenKeys = [];
         foreach ($p2Data['p2_results'] as $r) {
             $seenKeys[($r['source']??'').'|'.($r['stockId']??'').'|'.($r['article']??'').'|'.($r['brand']??'')] = true;
@@ -330,45 +328,32 @@ try {
             if (isset($seenKeys[$k])) continue;
             $seenKeys[$k] = true;
             $p2Data['p2_results'][] = [
-                'source'       => $item->source,
-                'article'      => $item->article,
-                'brand'        => $item->brand,
-                'name'         => $item->name ?? '',
-                'price'        => $item->price ?? 0,
-                'quantity'     => $item->quantity ?? 0,
-                'warehouse'    => $item->warehouse ?? '',
-                'stockId'      => $item->stockId ?? '',
-                'supplierName' => $item->supplierName ?? '',
-                'isSched'      => $item->isSched ?? false,
-                'deliveryDays' => $item->deliveryDays ?? 0,
-                'deliveryPeriod' => $item->deliveryPeriod ?? 0,
-                'multiplicity' => $item->multiplicity ?? 1,
-                'unit'         => $item->unit ?? 'шт.',
+                'source' => $item->source, 'article' => $item->article, 'brand' => $item->brand,
+                'name' => $item->name ?? '', 'price' => $item->price ?? 0, 'quantity' => $item->quantity ?? 0,
+                'warehouse' => $item->warehouse ?? '', 'stockId' => $item->stockId ?? '',
+                'supplierName' => $item->supplierName ?? '', 'isSched' => $item->isSched ?? false,
+                'deliveryDays' => $item->deliveryDays ?? 0, 'deliveryPeriod' => $item->deliveryPeriod ?? 0,
+                'multiplicity' => $item->multiplicity ?? 1, 'unit' => $item->unit ?? 'шт.',
             ];
         }
 
         $done = ($startIdx + $chunkSize >= $totalAnalogs);
-        if ($done) {
-            $p2Data['done'] = true;
-            $p2Data['running'] = false;
-        }
+        if ($done) { $p2Data['done'] = true; $p2Data['running'] = false; }
         $p2Data['p2_count'] = count($p2Data['p2_results']);
         file_put_contents($p2File, json_encode($p2Data, JSON_UNESCAPED_UNICODE));
 
-        // Рендерим только p2_results (без p1/exact)
         $allResults = [];
         foreach ($p2Data['p2_results'] as $r) {
             $item = new \Lider\Search\SearchResultItem();
             foreach ($r as $k => $v) { $item->$k = $v; }
             $allResults[] = $item;
         }
-
         $displayBrand   = $p2Data['brand'] ?? $displayBrand;
         $displayArticle = $p2Data['article'] ?? $displayArticle;
         $exactKey       = $p2Data['exactKey'] ?? $exactKey;
         $normTargetBrand = $p2Data['normTargetBrand'] ?? $normTargetBrand;
         $normTargetArt  = $p2Data['normTargetArt'] ?? $normTargetArt;
-
+        $responseDone = $done; $responseNext = $done ? -1 : $chunkIdx + 1;
         goto finalRender;
     }
 
@@ -523,6 +508,11 @@ try {
         'totalWarehouses' => $result['totalWarehouses'],
         'ok' => 1
     ];
+
+    if (isset($responseDone)) {
+        $response['done'] = $responseDone;
+        $response['nextChunk'] = $responseNext;
+    }
 
     if (!empty($p2Hash)) {
         $response['p2_hash'] = $p2Hash;
