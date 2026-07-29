@@ -291,6 +291,18 @@ try {
     );
 
     $analogGroups = $result['analogGroups'];
+
+    // Баг #29: искомый бренд+артикул не должен дублироваться в аналогах
+    // (UMAPI возвращает артикул как кросс самого себя → P2 находит его снова)
+    unset($analogGroups[$exactKey]);
+    foreach ($analogGroups as $_key => $_g) {
+        if (
+            \Lider\Search\BrandNormalizer::normalize($_g['brand']) === $normTargetBrand
+            && \Lider\Search\BrandNormalizer::normalizeArticle($_g['article']) === $normTargetArt
+        ) {
+            unset($analogGroups[$_key]);
+        }
+    }
     $factoryForMask = getAjaxFactory();
 
     // Рендерим HTML
