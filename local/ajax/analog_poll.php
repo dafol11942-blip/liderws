@@ -16,7 +16,8 @@ if (!file_exists($p2File)) { echo json_encode(['ready'=>false]); exit; }
 $data = json_decode(file_get_contents($p2File), true);
 
 // Если P2 ещё не done и не запущен — запускаем
-if (empty($data['done']) && empty($data['running'])) {
+$isStale = !empty($data['running']) && !empty($data['created']) && (time() - $data['created']) > 60;
+if (empty($data['done']) && (empty($data['running']) || $isStale)) {
     $lockFile = $p2File . '.lock';
     $fp = fopen($lockFile, 'w');
     if ($fp && flock($fp, LOCK_EX | LOCK_NB)) {
