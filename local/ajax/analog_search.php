@@ -195,7 +195,7 @@ try {
     $p2Hash = '';
 
     if ($phase === 'final' && !empty($_REQUEST['p2_hash'])) {
-        // Режим final: читаем P1 из кэша + P2 из state-файла
+        // Режим final: читаем P1 + P2 из state-файла (JSON)
         $p2Hash = trim($_REQUEST['p2_hash']);
         $p2File = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2/' . $p2Hash . '.json';
 
@@ -205,22 +205,8 @@ try {
         }
 
         $p2Data = json_decode(file_get_contents($p2File), true);
-        
-        // Проверяем done через очередь (JSON может быть повреждён)
-        $dbCheck = new mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
-        $dbCheck->set_charset('utf8mb4');
-        $stmt = $dbCheck->prepare("SELECT status FROM b_p2_queue WHERE hash=? LIMIT 1");
-        $stmt->bind_param('s', $p2Hash);
-        $stmt->execute();
-        $qChk = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        $dbCheck->close();
-        
-        if (!$qChk || $qChk['status'] !== 'done') {
-            echo json_encode(['success'=>false, 'error'=>'P2 not done yet']);
-            exit;
-        }
 
+        // P1-результаты
         $allResults = [];
         if (!empty($p2Data['p1_results'])) {
             foreach ($p2Data['p1_results'] as $r) {
@@ -229,29 +215,32 @@ try {
                 $allResults[] = $item;
             }
         }
-        // P2-результаты НЕ из JSON (файл может быть повреждён при большом объёме),
-        // а напрямую из b_supplier_stock
-        $db = new mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
-        $db->set_charset('utf8mb4');
-        $p2Query = $db->query(
-            "SELECT supplier_code as source, stock_id, article, brand, name, price, quantity,
-                    warehouse_name as warehouse, warehouse_code as stockId,
-                    delivery_days as deliveryDays, is_sched as isSched, multiplicity
-             FROM b_supplier_stock
-             WHERE is_active=1
-             ORDER BY price ASC
-             LIMIT 5000"
-        );
-        $seenStockIds = [];
-        while ($row = $p2Query->fetch_assoc()) {
-            $key = ($row['source'] ?? '') . '|' . ($row['stock_id'] ?? '') . '|' . ($row['warehouse'] ?? '');
-            if (isset($seenStockIds[$key])) continue;
-            $seenStockIds[$key] = true;
-            $item = new \Lider\Search\SearchResultItem();
-            foreach ($row as $k => $v) { $item->$k = $v; }
-            $allResults[] = $item;
+
+        // P2-результаты из JSON (а не из b_supplier_stock)
+        if (!empty($p2Data['p2_results'])) {
+            $seenStockIds = [];
+            foreach ($p2Data['p2_results'] as $r) {
+                $key = ($r['source'] ?? '') . '|' . ($r['stockId'] ?? '') . '|' . ($r['warehouse'] ?? '');
+                if (isset($seenStockIds[$key])) continue;
+                $seenStockIds[$key] = true;
+                $item = new \Lider\Search\SearchResultItem();
+                $item->source       = $r['source'] ?? '';
+                $item->article      = $r['article'] ?? '';
+                $item->brand        = $r['brand'] ?? '';
+                $item->name         = $r['name'] ?? '';
+                $item->price        = (float)($r['price'] ?? 0);
+                $item->quantity     = (int)($r['quantity'] ?? 0);
+                $item->warehouse    = $r['warehouse'] ?? '';
+                $item->stockId      = $r['stockId'] ?? '';
+                $item->supplierName = $r['supplierName'] ?? '';
+                $item->isSched      = (bool)($r['isSched'] ?? false);
+                $item->deliveryDays = (int)($r['deliveryDays'] ?? 0);
+                $item->deliveryPeriod = (int)($r['deliveryPeriod'] ?? 0);
+                $item->multiplicity = (int)($r['multiplicity'] ?? 1);
+                $item->unit         = $r['unit'] ?? 'шт.';
+                $allResults[] = $item;
+            }
         }
-        $db->close();
 
         $displayBrand   = $p2Data['brand'] ?? $displayBrand;
         $displayArticle = $p2Data['article'] ?? $displayArticle;
@@ -293,7 +282,7 @@ try {
         echo json_encode(['success'=>true, 'p2_hash'=>$p2Hash, 'p2_pending'=>true]);
         exit;
     }
-    
+
     if ($phase === 'fast') {
         // Phase 1: только exact поиск
         $allResults = $launcher->launchPhase1($displayBrand, $displayArticle, 30.0);
