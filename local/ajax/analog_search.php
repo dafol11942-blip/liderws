@@ -154,6 +154,8 @@ try {
     if ($number === '' && $q !== '') {
         $number = $q; // если number не передан, используем q
     }
+    $normQ = \Lider\Search\BrandNormalizer::normalizeArticle($q);
+    $normBrand = \Lider\Search\BrandNormalizer::normalize($brand);
     $token = trim((string)($_REQUEST['token'] ?? ''));
     $filterBrand = trim((string)($_REQUEST['filter_brand'] ?? ''));
     $filterPriceMin = (int)($_REQUEST['price_min'] ?? 0);
@@ -238,7 +240,7 @@ try {
         $allResults = $launcher->launchPhase1($displayBrand, $displayArticle, 30.0);
 
         if (!empty($umapiAnalogs)) {
-            $p2Hash = md5($cacheKey . '_p2');
+            $p2Hash = md5($normQ . '|' . $normBrand . '|fast');
             $p2Dir = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/p2';
             if (!is_dir($p2Dir)) mkdir($p2Dir, 0755, true);
             $p2File = $p2Dir . '/' . $p2Hash . '.json';
@@ -389,7 +391,7 @@ try {
 
     // Запускаем Phase 2 в фоне
     if ($phase === 'fast' && !empty($p2Hash)) {
-        exec('/usr/bin/php /var/www/u3564357/data/www/liderws.ru/local/ajax/analog_p2_exec.php ' . escapeshellarg($p2Hash) . ' > /dev/null 2>&1 &');
+        exec('/usr/bin/php /var/www/u3564357/data/www/liderws.ru/local/ajax/analog_p2_exec.php ' . escapeshellarg($number) . ' ' . escapeshellarg($brand) . ' > /dev/null 2>&1 &');
     }
 
     error_log("About to output JSON");
