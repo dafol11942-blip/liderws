@@ -152,20 +152,22 @@ try {
         $stockId   = $item->stockId ?? '';
         $stock_id  = md5($source . '|' . $article . '|' . $brand . '|' . $warehouse . '|' . $price . '|' . $stockId);
 
-        $stmt->bind_param('ssssssdssiii',
+       $mult = $item->multiplicity ?? 1;
+
+        $stmt->bind_param('ssssssdissii',
             $source,
             $stock_id,
             $article,
             $brand,
-            $brand,           // brand_normalized (пока копия brand)
+            $brand,
             $item->name,
             $price,
             $item->quantity,
             $warehouse,
-            $stockId,         // warehouse_code
+            $stockId,
             $item->deliveryDays,
             $item->isSched,
-            $item->multiplicity ?? 1
+            $mult
         );
         $stmt->execute();
         $savedCount++;
