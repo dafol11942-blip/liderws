@@ -157,7 +157,7 @@ if (empty($selectedBrand)):
 else:
     // === СТРАНИЦА РЕЗУЛЬТАТОВ ===
     require __DIR__ . "/stage2_search_v2.php";
-    if (!empty($verifyTaskHash)) include __DIR__ . "/_hybrid_notice.php";
+//    if (!empty($verifyTaskHash)) include __DIR__ . "/_hybrid_notice.php";
 ?>
 <div class="brand-back"><a href="?q=<?=urlencode($q)?>" class="back-link">← Назад к выбору бренда</a></div>
 <h2 class="search-section-title"><?=htmlspecialchars($selectedBrand)?><span class="search-section-badge"><?=htmlspecialchars($searchNumber)?></span></h2>
