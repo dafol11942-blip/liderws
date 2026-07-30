@@ -1,16 +1,19 @@
 <?php
 /**
- * stage2_search_v2.php (v3 — Этап 17.3)
- * Единый поток: b_cross_index → b_supplier_stock → HTML
- * Всё мгновенно (<200мс). Без API-запросов к поставщикам.
+ * stage2_search_v2.php (v3.1 — Этап 17.3)
+ * Поток: b_cross_index → b_supplier_stock (мгновенно)
+ * Холодный: UMAPI → FullSearchLauncher(один артикул) → saveResults → SQL
  */
-@ini_set('memory_limit', '256M');
+@ini_set('memory_limit', '512M');
+@ini_set('max_execution_time', '90');
 
 use Lider\Search\BrandNormalizer;
 use Lider\Search\Stage2\OfferAggregator;
 use Lider\Search\Stage2\ResultBuilder;
 use Lider\Search\SearchCacheManager;
 use Lider\Search\SearchResultItem;
+use Lider\Search\Stage2\FullSearchLauncher;
+use Lider\Search\InstantSearcher;
 
 const UMAPI_BASE = 'https://api.umapi.ru/v2/cross/parts/Analogs/pro';
 const UMAPI_KEY  = '52606cd0-b1fd-4a5e-a8e3-ad9fbef16435';
@@ -54,32 +57,28 @@ if (empty($crossRows)) {
         CURLOPT_CONNECTTIMEOUT => 5,
     ]);
     $resp = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if ($httpCode === 200 && !empty($resp)) {
-        $data    = json_decode($resp, true);
-        $analogs = $data['data'] ?? $data['analogs'] ?? $data ?? [];
-        if (!empty($analogs) && is_array($analogs)) {
-            $values = [];
-            foreach ($analogs as $a) {
-                $ca = BrandNormalizer::normalizeArticle($a['article'] ?? '');
-                $cb = BrandNormalizer::normalize($a['brand'] ?? '');
-                $w  = intval($a['weight'] ?? 0);
-                $t  = mb_substr($a['title'] ?? '', 0, 500);
-                if (empty($ca) || empty($cb)) continue;
-                $values[] = sprintf("('%s','%s','%s','%s',%d,'%s',NOW())",
-                    $helper->forSql($normTargetArt), $helper->forSql($normTargetBrand),
-                    $helper->forSql($ca), $helper->forSql($cb), $w, $helper->forSql($t));
-            }
-            if (!empty($values)) {
-                $db->query("INSERT IGNORE INTO b_cross_index 
-                    (article_orig_norm, brand_orig_norm, article_cross_norm, brand_cross_norm, weight, title_keywords, created_at)
-                    VALUES " . implode(',', $values));
-            }
+    $data    = json_decode($resp, true);
+    $analogs = $data['data'] ?? $data['analogs'] ?? $data ?? [];
+    if (!empty($analogs) && is_array($analogs)) {
+        $values = [];
+        foreach ($analogs as $a) {
+            $ca = BrandNormalizer::normalizeArticle($a['article'] ?? '');
+            $cb = BrandNormalizer::normalize($a['brand'] ?? '');
+            $w  = intval($a['weight'] ?? 0);
+            $t  = mb_substr($a['title'] ?? '', 0, 500);
+            if (empty($ca) || empty($cb)) continue;
+            $values[] = sprintf("('%s','%s','%s','%s',%d,'%s',NOW())",
+                $helper->forSql($normTargetArt), $helper->forSql($normTargetBrand),
+                $helper->forSql($ca), $helper->forSql($cb), $w, $helper->forSql($t));
+        }
+        if (!empty($values)) {
+            $db->query("INSERT IGNORE INTO b_cross_index 
+                (article_orig_norm, brand_orig_norm, article_cross_norm, brand_cross_norm, weight, title_keywords, created_at)
+                VALUES " . implode(',', $values));
         }
     }
-    // Перечитываем
     $crossRows = $db->query(
         "SELECT article_cross_norm, brand_cross_norm, title_keywords, weight
          FROM b_cross_index
@@ -101,8 +100,15 @@ foreach ($crossRows as $cr) {
 }
 $allArticleNorms = array_unique($allArticleNorms);
 
-// ─── 5. Запрос в b_supplier_stock ───────────────────────────
+// ─── 5. b_supplier_stock → SearchResultItem[] ───────────────
 $allResults = [];
+$supplierNames = [
+    'moskvorechie' => 'Москворечье', 'rossko' => 'Росско', 'berg' => 'Берг',
+    'autoeuro' => 'Автоевро', 'partkom' => 'ПартКом', 'ixora' => 'Иксора',
+    'tatparts' => 'ТатПартс', 'autoruss' => 'Авторусь', 'autopiter' => 'Автопитер',
+    'shatem' => 'Шатем',
+];
+
 if (!empty($allArticleNorms)) {
     $inClause = "'" . implode("','", array_map(fn($a) => $helper->forSql($a), $allArticleNorms)) . "'";
     $stockRows = $db->query(
@@ -113,13 +119,6 @@ if (!empty($allArticleNorms)) {
          WHERE article_normalized IN ($inClause) AND is_active = 1
          ORDER BY is_sched ASC, price ASC"
     )->fetchAll();
-
-    $supplierNames = [
-        'moskvorechie' => 'Москворечье', 'rossko' => 'Росско', 'berg' => 'Берг',
-        'autoeuro' => 'Автоевро', 'partkom' => 'ПартКом', 'ixora' => 'Иксора',
-        'tatparts' => 'ТатПартс', 'autoruss' => 'Авторусь', 'autopiter' => 'Автопитер',
-        'shatem' => 'Шатем',
-    ];
 
     foreach ($stockRows as $row) {
         $item = new SearchResultItem();
@@ -142,7 +141,30 @@ if (!empty($allArticleNorms)) {
     }
 }
 
-// ─── 6. Агрегация + ResultBuilder ───────────────────────────
+// ─── 6. Холодный артикул: если нет в b_supplier_stock → API ─
+if (empty($allResults)) {
+    // Запускаем FullSearchLauncher только для ИСКОМОГО артикула
+    $launcher = new FullSearchLauncher(getSupplierFactory());
+    $apiResults = $launcher->launch(
+        $displayBrand, $displayArticle,
+        [$exactKey => ['brands' => [$selectedBrand], 'articles' => [$displayArticle], 'article_nr' => $displayArticle, 'description' => '', 'sources' => []]],
+        $exactKey,
+        [$exactKey => ['brands' => [$selectedBrand], 'articles' => [$displayArticle], 'article_nr' => $displayArticle, 'description' => '', 'sources' => []]],
+        30.0
+    );
+
+    if (!empty($apiResults)) {
+        // Сохраняем в кэш для будущих поисков
+        try {
+            $searcher = new InstantSearcher();
+            $searcher->saveResults($apiResults);
+        } catch (\Throwable $e) {}
+
+        $allResults = $apiResults;
+    }
+}
+
+// ─── 7. Агрегация + ResultBuilder ───────────────────────────
 $aggregator   = new OfferAggregator(200, 1000);
 $groupedItems = $aggregator->aggregate($allResults);
 
@@ -159,12 +181,12 @@ $result  = $builder->build(
     (string)($sortAnalog ?? 'default')
 );
 
-$exactGroups    = $result['exactGroups'] ?? [];
-$analogGroups   = $result['analogGroups'] ?? [];
-$allBrands      = $result['allBrands'] ?? [];
-$totalGroups    = $result['totalGroups'] ?? 0;
+$exactGroups     = $result['exactGroups'] ?? [];
+$analogGroups    = $result['analogGroups'] ?? [];
+$allBrands       = $result['allBrands'] ?? [];
+$totalGroups     = $result['totalGroups'] ?? 0;
 $totalWarehouses = $result['totalWarehouses'] ?? 0;
-$searchNumber   = $displayArticle;
+$searchNumber    = $displayArticle;
 
 // Убираем искомый артикул из аналогов
 unset($analogGroups[$exactKey]);
@@ -177,5 +199,4 @@ foreach ($analogGroups as $_key => $_g) {
     }
 }
 
-// ─── 7. Токен для JS lazy-loader (догрузка свежих данных) ──
 $analogToken = md5($q . '|' . $displayBrand . '|' . $displayArticle . '|analog_v3');
