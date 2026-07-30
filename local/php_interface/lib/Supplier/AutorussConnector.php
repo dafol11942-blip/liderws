@@ -250,14 +250,17 @@ class AutorussConnector implements SupplierInterface
             }
         }
 
-        // Сортировка: сначала со склада, потом по цене
+        // Autoruss — маркетплейс, своих складов нет. Топ-10 по срокам+цене.
         usort($unique, function (SearchResultItem $a, SearchResultItem $b) {
             if (!$a->isSched && $b->isSched) return -1;
             if ($a->isSched && !$b->isSched) return 1;
+            $da = $a->deliveryDays ?? 0;
+            $db = $b->deliveryDays ?? 0;
+            if ($da !== $db) return $da <=> $db;
             return $a->price <=> $b->price;
         });
 
-        return array_slice($unique, 0, 120);
+        return array_slice($unique, 0, 10);
     }
 
     // ==================== ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ====================
