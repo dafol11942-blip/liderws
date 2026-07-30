@@ -167,6 +167,7 @@ class TatpartsConnector implements SupplierInterface
         });
 
         return array_slice($results, 0, 10);
+    }
 
     public function getDetail(string $article, string $brand): ?SearchResultItem
     {
