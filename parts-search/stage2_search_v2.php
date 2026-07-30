@@ -192,21 +192,17 @@ if (!empty($topCrosses)) {
             $req = $supplier->buildSearchRequest($cross['article_cross_norm'], $cross['brand_cross_norm']);
             if (!$req) continue;
             $key = $code . '|' . $cross['article_cross_norm'] . '|' . $cross['brand_cross_norm'];
-            if ($req) file_put_contents(__DIR__ . '/../upload/logs/debug_step7.log', date('H:i:s') . " REQ: $key\n", FILE_APPEND);
-            else file_put_contents(__DIR__ . '/../upload/logs/debug_step7.log', date('H:i:s') . " NULL: $key\n", FILE_APPEND);
+            $req['_key'] = $key;
             $requests[$key] = $req;
             $reqMeta[$key]  = [$supplier, $cross['article_cross_norm'], $cross['brand_cross_norm']];
         }
     }
 
     if (!empty($requests)) {
-        file_put_contents(__DIR__ . '/../upload/logs/debug_step7.log', date('H:i:s') . " requestsTotal=" . count($requests) . "\n", FILE_APPEND);
         $executor  = new MultiCurlExecutor();
         $responses = $executor->executeAll($requests, 4.0);
         $respCount = 0; $bodyCount = 0; $parseCount = 0; $c25016found = 0;
         foreach ($responses as $k => $r) { $respCount++; if (!empty($r['body'])) $bodyCount++; if (stripos($k, 'c25016') !== false && !empty($r['body'])) $c25016found++; }
-        file_put_contents(__DIR__ . '/../upload/logs/debug_step7.log', 
-        date('H:i:s') . " executeAll: responses=$respCount withBody=$bodyCount c25016=$c25016found\n", FILE_APPEND);
 
         $apiResults = [];
         foreach ($responses as $key => $resp) {
@@ -226,8 +222,6 @@ if (!empty($topCrosses)) {
         }
 
         if (!empty($apiResults)) {
-            file_put_contents(__DIR__ . '/../upload/logs/debug_step7.log',
-            date('H:i:s') . " parsed=$parseCount apiResults=" . count($apiResults) . "\n", FILE_APPEND);
             try {
                 $searcher = new InstantSearcher();
                 $searcher->saveResults($apiResults);
