@@ -113,6 +113,7 @@ foreach ($crossRows as $cr) {
     $allArticleNorms[] = $an;
 }
 $allArticleNorms = array_unique($allArticleNorms);
+file_put_contents(__DIR__ . '/../upload/logs/debug_stage2.log', date('H:i:s') . " Шаг4: crossRows=" . count($crossRows) . " allArticleNorms=" . count($allArticleNorms) . "\n", FILE_APPEND);
 
 // ─── 5. b_supplier_stock (мгновенно) ────────────────────────
 $allResults = [];
