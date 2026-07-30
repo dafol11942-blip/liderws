@@ -184,7 +184,8 @@ foreach ($crossRows as $cr) {
 
 if (!empty($topCrosses)) {
     $factory  = getSupplierFactory();
-    $requests = [];
+    file_put_contents(__DIR__ . '/../upload/logs/debug_stage2.log',
+    date('H:i:s') . " Шаг7: topCrosses=" . count($topCrosses) . "\n", FILE_APPEND);
     $reqMeta  = []; // key → [supplier, crossArticle, crossBrand]
 
     foreach ($factory->allAvailable() as $supplier) {
@@ -201,6 +202,8 @@ if (!empty($topCrosses)) {
     if (!empty($requests)) {
         $executor  = new MultiCurlExecutor();
         $responses = $executor->executeAll($requests, 4.0);
+        file_put_contents(__DIR__ . '/../upload/logs/debug_stage2.log',
+        date('H:i:s') . " Шаг7: responses=" . count($responses) . " apiResults=" . count($apiResults) . "\n", FILE_APPEND);
 
         $apiResults = [];
         foreach ($responses as $key => $resp) {
