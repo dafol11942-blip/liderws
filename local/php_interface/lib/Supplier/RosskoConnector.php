@@ -182,10 +182,13 @@ class RosskoConnector implements SupplierInterface
         usort($unique, function (SearchResultItem $a, SearchResultItem $b) {
             if (!$a->isSched && $b->isSched) return -1;
             if ($a->isSched && !$b->isSched) return 1;
+            $da = $a->deliveryDays ?? 0;
+            $db = $b->deliveryDays ?? 0;
+            if ($da !== $db) return $da <=> $db;
             return $a->price <=> $b->price;
         });
 
-        return array_slice($unique, 0, 180);
+        return array_slice($unique, 0, 10);
     }
 
     public function getDetail(string $article, string $brand): ?SearchResultItem
