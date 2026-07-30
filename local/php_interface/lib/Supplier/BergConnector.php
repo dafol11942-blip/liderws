@@ -96,7 +96,7 @@ class BergConnector implements SupplierInterface
                 'resource_article' => $article,
                 'brand_name'       => $brand,
             ]],
-            'warehouse_types' => [1, 2],  // только свои склады БЕРГ (филиал + ЦС)
+            'warehouse_types' => [1, 2, 3],  // все склады (свои + чужие), разделим в parseSearchResponse
         ];
         if ($this->addressId) {
             $body['address_id'] = $this->addressId;
@@ -121,28 +121,44 @@ class BergConnector implements SupplierInterface
      */
     public function parseSearchResponse(string $responseBody, string $brand, string $article): array
     {
-        $results = [];
+        $own = [];    // type=1,2 — свои склады БЕРГ
+        $other = [];  // type=3 — чужие
         $data = json_decode($responseBody, true);
-        if (empty($data['resources'])) return $results;
+        if (empty($data['resources'])) return [];
 
         foreach ($data['resources'] as $res) {
             foreach ($res['offers'] ?? [] as $offer) {
                 $r = $this->buildResultItem($res, $offer);
                 if ($r->price <= 0 && $r->quantity <= 0) continue;
-                $results[] = $r;
+                if ($r->isSched) continue;
+
+                $whType = (int)($offer['warehouse']['type'] ?? 3);
+                if ($whType === 1 || $whType === 2) {
+                    $own[] = $r;
+                } else {
+                    $other[] = $r;
+                }
             }
         }
 
-        // Сортировка: сначала по срокам, потом по цене (все склады свои)
-        usort($results, function (SearchResultItem $a, SearchResultItem $b) {
-            if (!$a->isSched && $b->isSched) return -1;
-            if ($a->isSched && !$b->isSched) return 1;
+        // Свои — сортировка по срокам+цене, все
+        usort($own, function (SearchResultItem $a, SearchResultItem $b) {
             $da = $a->deliveryDays ?? 0;
             $db = $b->deliveryDays ?? 0;
             if ($da !== $db) return $da <=> $db;
             return $a->price <=> $b->price;
         });
-        return $results;
+
+        // Чужие — сортировка + лимит 10
+        usort($other, function (SearchResultItem $a, SearchResultItem $b) {
+            $da = $a->deliveryDays ?? 0;
+            $db = $b->deliveryDays ?? 0;
+            if ($da !== $db) return $da <=> $db;
+            return $a->price <=> $b->price;
+        });
+        $other = array_slice($other, 0, 10);
+
+        return array_merge($own, $other);
     }
 
     // ==================== ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ====================

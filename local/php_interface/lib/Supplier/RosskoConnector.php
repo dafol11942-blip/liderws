@@ -179,16 +179,36 @@ class RosskoConnector implements SupplierInterface
             }
         }
 
-        usort($unique, function (SearchResultItem $a, SearchResultItem $b) {
-            if (!$a->isSched && $b->isSched) return -1;
-            if ($a->isSched && !$b->isSched) return 1;
+        // Разделение: свои vs партнёрские
+        $own = [];
+        $other = [];
+        foreach ($unique as $item) {
+            // Партнерский склад = чужой (по description)
+            if (mb_stripos($item->warehouse, 'Партнерский') !== false || mb_stripos($item->warehouse, 'Партнёрский') !== false) {
+                $other[] = $item;
+            } else {
+                $own[] = $item;
+            }
+        }
+
+        // Свои — сортировка по срокам+цене, все
+        usort($own, function (SearchResultItem $a, SearchResultItem $b) {
             $da = $a->deliveryDays ?? 0;
             $db = $b->deliveryDays ?? 0;
             if ($da !== $db) return $da <=> $db;
             return $a->price <=> $b->price;
         });
 
-        return array_slice($unique, 0, 10);
+        // Чужие — сортировка + лимит 10
+        usort($other, function (SearchResultItem $a, SearchResultItem $b) {
+            $da = $a->deliveryDays ?? 0;
+            $db = $b->deliveryDays ?? 0;
+            if ($da !== $db) return $da <=> $db;
+            return $a->price <=> $b->price;
+        });
+        $other = array_slice($other, 0, 10);
+
+        return array_merge($own, $other);
     }
 
     public function getDetail(string $article, string $brand): ?SearchResultItem
