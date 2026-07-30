@@ -186,12 +186,10 @@ foreach ($crossRows as $cr) {
 }
 
 file_put_contents(__DIR__ . '/../upload/logs/debug_stage2.log',
-    date('H:i:s') . " Шаг7: topCrosses=" . count($topCrosses) . " MIN_WEIGHT=" . MIN_WEIGHT . "\n", FILE_APPEND)
+    date('H:i:s') . " Шаг7: topCrosses=" . count($topCrosses) . " MIN_WEIGHT=" . MIN_WEIGHT . "\n", FILE_APPEND);
 
 if (!empty($topCrosses)) {
     $factory  = getSupplierFactory();
-    file_put_contents(__DIR__ . '/../upload/logs/debug_stage2.log',
-    date('H:i:s') . " Шаг7: topCrosses=" . count($topCrosses) . "\n", FILE_APPEND);
     $reqMeta  = []; // key → [supplier, crossArticle, crossBrand]
 
     foreach ($factory->allAvailable() as $supplier) {
