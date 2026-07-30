@@ -30,7 +30,6 @@ function logger(string $msg): void
 }
 
 $db      = \Bitrix\Main\Application::getConnection();
-$norm    = new BrandNormalizer();
 $helper  = $db->getSqlHelper();
 
 // 1. Берём уникальные пары из b_supplier_stock
@@ -53,8 +52,8 @@ $errors  = 0;
 $empty   = 0;
 
 foreach ($rows as $i => $row) {
-    $artNorm   = $norm->normalizeArticle($row['article']);
-    $brandNorm = $row['brand_normalized'] ?: $norm->normalizeBrand($row['brand']);
+    $artNorm   = BrandNormalizer::normalizeArticle($row['article']);
+    $brandNorm = $row['brand_normalized'] ?: BrandNormalizer::normalize($row['brand']);
     
     $url = UMAPI_BASE . '/' . urlencode($artNorm) . '/' . urlencode($brandNorm) . '/false';
     
@@ -94,8 +93,8 @@ foreach ($rows as $i => $row) {
 
     $values = [];
     foreach ($analogs as $a) {
-        $crossArt   = $norm->normalizeArticle($a['article'] ?? '');
-        $crossBrand = $norm->normalizeBrand($a['brand'] ?? '');
+        $crossArt   = BrandNormalizer::normalizeArticle($a['article'] ?? '');
+        $crossBrand = BrandNormalizer::normalize($a['brand'] ?? '');
         $weight     = intval($a['weight'] ?? 0);
         $title      = mb_substr($a['title'] ?? '', 0, 500);
 
@@ -120,7 +119,6 @@ foreach ($rows as $i => $row) {
         $inserts += count($values);
     }
 
-    // Прогресс каждые 10 пар
     if (($i + 1) % 10 === 0) {
         logger("  Прогресс: " . ($i + 1) . "/$total, вставлено $inserts связей");
     }
