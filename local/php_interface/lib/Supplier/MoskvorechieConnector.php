@@ -87,9 +87,8 @@ class MoskvorechieConnector implements SupplierInterface
 
     public function buildSearchRequest(string $brand, string $article, bool $withCrosses = false): ?array
     {
-        if (!$this->isAvailable()) return null;
         $url = rtrim($this->apiUrl, '/') . '/search/articles?'
-             . http_build_query(['brand' => $brand, 'number' => $article, 'avail' => 1]);
+             . http_build_query(['brand' => $brand, 'number' => $article, 'avail' => 1, 'hide_extstor' => 1]);
         return ['url' => $url, 'headers' => $this->buildHeaders(), 'method' => 'GET', 'body' => null];
     }
 
@@ -110,6 +109,14 @@ class MoskvorechieConnector implements SupplierInterface
             if ($r->price <= 0 && $r->quantity <= 0) continue;
             $results[] = $r;
         }
+        // Сортировка: сначала по срокам, потом по цене (все склады свои)
+        usort($results, function (SearchResultItem $a, SearchResultItem $b) {
+            $da = $a->deliveryDays ?? 0;
+            $db = $b->deliveryDays ?? 0;
+            if ($da !== $db) return $da <=> $db;
+            return $a->price <=> $b->price;
+        });
+
         return $results;
     }
 
