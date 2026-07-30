@@ -3,7 +3,7 @@ $_SERVER['DOCUMENT_ROOT'] = '/var/www/u3564357/data/www/liderws.ru';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/BrandNormalizer.php';
 
-use \Search\BrandNormalizer;
+use \Lider\Search\BrandNormalizer;
 
 $db = \Bitrix\Main\Application::getConnection();
 $normalizer = new BrandNormalizer();
