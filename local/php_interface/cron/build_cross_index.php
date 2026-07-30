@@ -1,6 +1,7 @@
 <?php
 /**
  * Ночной крон: заполнение b_cross_index через UMAPI
+ * Источники: b_supplier_stock + upload/1c_nomenclature.csv
  * Запуск: php local/php_interface/cron/build_cross_index.php
  */
 set_time_limit(0);
@@ -14,8 +15,8 @@ use \Lider\Search\BrandNormalizer;
 
 const UMAPI_BASE = 'https://api.umapi.ru/v2/cross/parts/Analogs/pro';
 const UMAPI_KEY  = '52606cd0-b1fd-4a5e-a8e3-ad9fbef16435';
-const DELAY_US   = 200000; // 200ms между запросами
-const TEST_LIMIT = 100;    // null = полный, 100 = тест
+const DELAY_US   = 200000;
+const CSV_FILE   = '/var/www/u3564357/data/www/liderws.ru/upload/1c_nomenclature.csv';
 const LOG_DIR    = '/var/www/u3564357/data/www/liderws.ru/upload/logs/';
 
 $logFile = LOG_DIR . 'build_cross_index_' . date('Y-m-d_H-i-s') . '.log';
@@ -29,34 +30,77 @@ function logger(string $msg): void
     file_put_contents($logFile, $line, FILE_APPEND);
 }
 
-$db      = \Bitrix\Main\Application::getConnection();
-$helper  = $db->getSqlHelper();
+$db     = \Bitrix\Main\Application::getConnection();
+$helper = $db->getSqlHelper();
 
-// 1. Берём уникальные пары из b_supplier_stock
-logger('Шаг 1: получение уникальных пар...');
-$sql = "SELECT DISTINCT article, brand, brand_normalized 
-        FROM b_supplier_stock 
-        WHERE is_active = 1 AND article != '' AND brand != ''";
-if (TEST_LIMIT !== null) {
-    $sql .= " LIMIT " . intval(TEST_LIMIT);
-    logger('⚠️ ТЕСТОВЫЙ РЕЖИМ: LIMIT ' . TEST_LIMIT);
+// ─── 1. Сбор пар из b_supplier_stock ─────────────────────────
+logger('Шаг 1: пары из b_supplier_stock...');
+$dbRows = $db->query(
+    "SELECT DISTINCT article, brand 
+     FROM b_supplier_stock 
+     WHERE is_active = 1 AND article != '' AND brand != ''"
+)->fetchAll();
+
+logger('  b_supplier_stock: ' . count($dbRows) . ' уникальных пар');
+
+// ─── 2. Сбор пар из CSV 1С ───────────────────────────────────
+$csvPairs = [];
+if (file_exists(CSV_FILE)) {
+    logger('Шаг 2: пары из CSV 1С...');
+    $handle = fopen(CSV_FILE, 'r');
+    $header = fgetcsv($handle, 0, ',');
+    while (($row = fgetcsv($handle, 0, ',')) !== false) {
+        $art = trim($row[0] ?? '');
+        $brd = trim($row[1] ?? '');
+        if ($art !== '' && $brd !== '') {
+            $csvPairs[] = ['article' => $art, 'brand' => $brd];
+        }
+    }
+    fclose($handle);
+    logger('  CSV 1С: ' . count($csvPairs) . ' позиций');
+} else {
+    logger('  ⚠️ CSV не найден: ' . CSV_FILE . ' — пропускаем');
 }
-$rows = $db->query($sql)->fetchAll();
 
-logger('Найдено пар: ' . count($rows));
+// ─── 3. Объединение + дедупликация ───────────────────────────
+logger('Шаг 3: объединение и дедупликация...');
+$seen  = [];
+$pairs = [];
 
-// 2. Для каждой пары → UMAPI → INSERT
-$total   = count($rows);
+foreach ($dbRows as $r) {
+    $key = BrandNormalizer::normalizeArticle($r['article']) . '|' . BrandNormalizer::normalize($r['brand']);
+    if (!isset($seen[$key])) {
+        $seen[$key] = true;
+        $pairs[] = ['article' => $r['article'], 'brand' => $r['brand']];
+    }
+}
+
+$csvNew = 0;
+foreach ($csvPairs as $r) {
+    $key = BrandNormalizer::normalizeArticle($r['article']) . '|' . BrandNormalizer::normalize($r['brand']);
+    if (!isset($seen[$key])) {
+        $seen[$key] = true;
+        $pairs[] = ['article' => $r['article'], 'brand' => $r['brand']];
+        $csvNew++;
+    }
+}
+
+logger('  Всего уникальных пар: ' . count($pairs));
+logger('  Новых из CSV: ' . $csvNew);
+
+// ─── 4. UMAPI → INSERT ───────────────────────────────────────
+logger('Шаг 4: запросы к UMAPI...');
+$total   = count($pairs);
 $inserts = 0;
 $errors  = 0;
 $empty   = 0;
 
-foreach ($rows as $i => $row) {
-    $artNorm   = BrandNormalizer::normalizeArticle($row['article']);
-    $brandNorm = $row['brand_normalized'] ?: BrandNormalizer::normalize($row['brand']);
-    
+foreach ($pairs as $i => $pair) {
+    $artNorm   = BrandNormalizer::normalizeArticle($pair['article']);
+    $brandNorm = BrandNormalizer::normalize($pair['brand']);
+
     $url = UMAPI_BASE . '/' . urlencode($artNorm) . '/' . urlencode($brandNorm) . '/false';
-    
+
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -82,7 +126,7 @@ foreach ($rows as $i => $row) {
         continue;
     }
 
-    $data = json_decode($response, true);
+    $data    = json_decode($response, true);
     $analogs = $data['data'] ?? $data['analogs'] ?? $data ?? [];
 
     if (empty($analogs) || !is_array($analogs)) {
@@ -119,7 +163,7 @@ foreach ($rows as $i => $row) {
         $inserts += count($values);
     }
 
-    if (($i + 1) % 10 === 0) {
+    if (($i + 1) % 50 === 0) {
         logger("  Прогресс: " . ($i + 1) . "/$total, вставлено $inserts связей");
     }
 
