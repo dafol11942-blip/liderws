@@ -15,6 +15,7 @@ use \Lider\Search\BrandNormalizer;
 const UMAPI_BASE = 'https://api.umapi.ru/v2/cross/parts/Analogs/pro';
 const UMAPI_KEY  = '52606cd0-b1fd-4a5e-a8e3-ad9fbef16435';
 const DELAY_US   = 200000; // 200ms между запросами
+const TEST_LIMIT = 100;    // null = полный, 100 = тест
 const LOG_DIR    = '/var/www/u3564357/data/www/liderws.ru/upload/logs/';
 
 $logFile = LOG_DIR . 'build_cross_index_' . date('Y-m-d_H-i-s') . '.log';
@@ -34,11 +35,14 @@ $helper  = $db->getSqlHelper();
 
 // 1. Берём уникальные пары из b_supplier_stock
 logger('Шаг 1: получение уникальных пар...');
-$rows = $db->query(
-    "SELECT DISTINCT article, brand, brand_normalized 
-     FROM b_supplier_stock 
-     WHERE is_active = 1 AND article != '' AND brand != ''"
-)->fetchAll();
+$sql = "SELECT DISTINCT article, brand, brand_normalized 
+        FROM b_supplier_stock 
+        WHERE is_active = 1 AND article != '' AND brand != ''";
+if (TEST_LIMIT !== null) {
+    $sql .= " LIMIT " . intval(TEST_LIMIT);
+    logger('⚠️ ТЕСТОВЫЙ РЕЖИМ: LIMIT ' . TEST_LIMIT);
+}
+$rows = $db->query($sql)->fetchAll();
 
 logger('Найдено пар: ' . count($rows));
 
@@ -49,10 +53,9 @@ $errors  = 0;
 $empty   = 0;
 
 foreach ($rows as $i => $row) {
-    $artNorm  = $norm->normalizeArticle($row['article']);
+    $artNorm   = $norm->normalizeArticle($row['article']);
     $brandNorm = $row['brand_normalized'] ?: $norm->normalizeBrand($row['brand']);
     
-    // URL: /{article}/{brand}/false
     $url = UMAPI_BASE . '/' . urlencode($artNorm) . '/' . urlencode($brandNorm) . '/false';
     
     $ch = curl_init($url);
@@ -81,7 +84,6 @@ foreach ($rows as $i => $row) {
     }
 
     $data = json_decode($response, true);
-    // UMAPI возвращает массив аналогов
     $analogs = $data['data'] ?? $data['analogs'] ?? $data ?? [];
 
     if (empty($analogs) || !is_array($analogs)) {
@@ -118,9 +120,9 @@ foreach ($rows as $i => $row) {
         $inserts += count($values);
     }
 
-    // Прогресс каждые 100 пар
-    if (($i + 1) % 100 === 0) {
-        logger("  Прогресс: " . ($i + 1) . "/$total пар, вставлено $inserts связей");
+    // Прогресс каждые 10 пар
+    if (($i + 1) % 10 === 0) {
+        logger("  Прогресс: " . ($i + 1) . "/$total, вставлено $inserts связей");
     }
 
     usleep(DELAY_US);
@@ -128,8 +130,8 @@ foreach ($rows as $i => $row) {
 
 logger("========================================");
 logger("ГОТОВО.");
-logger("Всего пар:     $total");
-logger("Вставлено связей: $inserts");
-logger("Пустых ответов:   $empty");
-logger("Ошибок:           $errors");
+logger("Всего пар:         $total");
+logger("Вставлено связей:  $inserts");
+logger("Пустых ответов:    $empty");
+logger("Ошибок:            $errors");
 logger("Лог: $logFile");
