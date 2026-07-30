@@ -175,6 +175,8 @@ if (!$hasTargetInCache) {
 }
 
 // ─── 7. MultiCurlExecutor: догружаем топ-30 кроссов без кэша ─
+file_put_contents(__DIR__ . '/../upload/logs/debug_stage2.log',
+    date('H:i:s') . " Шаг7: первый crossRow=" . json_encode($crossRows[0] ?? 'none', JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND);
 $topCrosses = [];
 foreach ($crossRows as $cr) {
     if (count($topCrosses) >= TOP_CROSS) break;
@@ -182,6 +184,9 @@ foreach ($crossRows as $cr) {
     $an = $cr['article_cross_norm'];
     $topCrosses[] = $cr;
 }
+
+file_put_contents(__DIR__ . '/../upload/logs/debug_stage2.log',
+    date('H:i:s') . " Шаг7: topCrosses=" . count($topCrosses) . " MIN_WEIGHT=" . MIN_WEIGHT . "\n", FILE_APPEND)
 
 if (!empty($topCrosses)) {
     $factory  = getSupplierFactory();
