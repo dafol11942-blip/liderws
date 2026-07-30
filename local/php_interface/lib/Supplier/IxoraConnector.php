@@ -270,35 +270,33 @@ class IxoraConnector implements SupplierInterface
             }
 
             $r->raw = $raw;
-            $results[] = $r;
-            // early stop on huge cross payloads
-            if ($isCrossResponse && count($results) >= 160) {
-                break;
+
+            // Свои: Region начинается с "IXORA СКЛАД"
+            if (mb_stripos($region, 'IXORA СКЛАД') === 0) {
+                $own[] = $r;
+            } else {
+                $other[] = $r;
             }
         }
 
-        // дедуп
-        $seen = [];
-        $unique = [];
-        foreach ($results as $item) {
-            $dk = ($item->stockId ?: '') . '|' . $item->price . '|' . $item->quantity;
-            if (isset($seen[$dk])) {
-                continue;
-            }
-            $seen[$dk] = true;
-            $unique[] = $item;
-        }
-
-        usort($unique, function (SearchResultItem $a, SearchResultItem $b) {
-            if (!$a->isSched && $b->isSched) return -1;
-            if ($a->isSched && !$b->isSched) return 1;
+       // Свои — сортировка по срокам+цене, все
+        usort($own, function (SearchResultItem $a, SearchResultItem $b) {
+            $da = $a->deliveryDays ?? 0;
+            $db = $b->deliveryDays ?? 0;
+            if ($da !== $db) return $da <=> $db;
             return $a->price <=> $b->price;
         });
 
-        // защита от гигантских cross-ответов
-        // Cross-ответ Ixora бывает 1000+ позиций — режем жёстко, иначе OOM в кеше stage2
-        $limit = $isCrossResponse ? 120 : 80;
-        return array_slice($unique, 0, $limit);
+        // Чужие — сортировка + лимит 10
+        usort($other, function (SearchResultItem $a, SearchResultItem $b) {
+            $da = $a->deliveryDays ?? 0;
+            $db = $b->deliveryDays ?? 0;
+            if ($da !== $db) return $da <=> $db;
+            return $a->price <=> $b->price;
+        });
+        $other = array_slice($other, 0, 10);
+
+        return array_merge($own, $other);
     }
 
     public function getDetail(string $article, string $brand): ?SearchResultItem
@@ -314,10 +312,14 @@ class IxoraConnector implements SupplierInterface
 
     public function search(string $query): array
     {
-        $results = [];
-        if (!$this->isAvailable()) {
-            return $results;
+        $own = [];    // Region начинается с "IXORA СКЛАД"
+        $other = [];  // всё остальное
+        $xml = @simplexml_load_string($responseBody);
+        if ($xml === false || $xml === null) {
+            $this->log('parseSearchResponse: bad XML');
+            return [];
         }
+
         $query = trim($query);
         if (mb_strlen($query) < 2) {
             return $results;
