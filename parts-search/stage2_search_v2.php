@@ -113,7 +113,6 @@ foreach ($crossRows as $cr) {
     $allArticleNorms[] = $an;
 }
 $allArticleNorms = array_unique($allArticleNorms);
-file_put_contents(__DIR__ . '/../upload/logs/debug_stage2.log', date('H:i:s') . " Шаг4: crossRows=" . count($crossRows) . " allArticleNorms=" . count($allArticleNorms) . "\n", FILE_APPEND);
 
 // ─── 5. b_supplier_stock (мгновенно) ────────────────────────
 $allResults = [];
@@ -175,18 +174,12 @@ if (!$hasTargetInCache) {
 }
 
 // ─── 7. MultiCurlExecutor: догружаем топ-30 кроссов без кэша ─
-file_put_contents(__DIR__ . '/../upload/logs/debug_stage2.log',
-    date('H:i:s') . " Шаг7: первый crossRow=" . json_encode($crossRows[0] ?? 'none', JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND);
 $topCrosses = [];
 foreach ($crossRows as $cr) {
     if (count($topCrosses) >= TOP_CROSS) break;
-    if ($cr['weight'] < MIN_WEIGHT) continue;
     $an = $cr['article_cross_norm'];
     $topCrosses[] = $cr;
 }
-
-file_put_contents(__DIR__ . '/../upload/logs/debug_stage2.log',
-    date('H:i:s') . " Шаг7: topCrosses=" . count($topCrosses) . " MIN_WEIGHT=" . MIN_WEIGHT . "\n", FILE_APPEND);
 
 if (!empty($topCrosses)) {
     $factory  = getSupplierFactory();
@@ -206,8 +199,6 @@ if (!empty($topCrosses)) {
     if (!empty($requests)) {
         $executor  = new MultiCurlExecutor();
         $responses = $executor->executeAll($requests, 4.0);
-        file_put_contents(__DIR__ . '/../upload/logs/debug_stage2.log',
-        date('H:i:s') . " Шаг7: responses=" . count($responses) . " apiResults=" . count($apiResults) . "\n", FILE_APPEND);
 
         $apiResults = [];
         foreach ($responses as $key => $resp) {
