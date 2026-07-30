@@ -174,12 +174,13 @@ class AutopiterConnector implements SupplierInterface
 
     public function parseSearchResponse(string $responseBody, string $brand, string $article): array
     {
-        $results = [];
+        $own = [];    // StoreType 0,2 — на складе Автопитера
+        $other = [];  // StoreType 1,3,4,9 — чужие
         $normBrand = BrandNormalizer::normalize($brand);
         $normArt   = BrandNormalizer::normalizeArticle($article);
 
         if (!preg_match_all('/<PriceSearchModel>(.*?)<\/PriceSearchModel>/s', $responseBody, $matches)) {
-            return $results;
+            return [];
         }
 
         foreach ($matches[1] as $block) {
@@ -191,7 +192,7 @@ class AutopiterConnector implements SupplierInterface
             $daysSupply   = $this->xmlTag($block, 'NumberOfDaysSupply');
             $deliveryDate = $this->xmlTag($block, 'DeliveryDate');
             $region       = $this->xmlTag($block, 'Region');
-            $storeType    = $this->xmlTag($block, 'StoreType');
+            $storeType    = (int)($this->xmlTag($block, 'StoreType') ?: 3);
             $nameStatus   = $this->xmlTag($block, 'NameStatus');
 
             if (empty($salePrice) || (float)$salePrice <= 0) continue;
@@ -201,15 +202,14 @@ class AutopiterConnector implements SupplierInterface
             $minSalesVal = max(1, (int)($minSales ?: 1));
             $daysVal = (int)(($daysSupply !== null && $daysSupply !== '') ? $daysSupply : 0);
 
-            // StoreType: 3 = под заказ поставщика, 9 = собственный заказ → isSched
-            $isSched = ($avail <= 0 || in_array((int)$storeType, [3, 9]));
-
-            // Доставка: дни +48 часов запас
-            if ($daysVal <= 0) {
-                $deliveryDays = 2; // минимум 2 дня
-            } else {
-                $deliveryDays = $daysVal + 2; // +48 часов
+            // Только в наличии (avail > 0 или -1/-2/-3 — неточное наличие)
+            if ($avail <= 0 && $avail > -10) {
+                // -1,-2,-3 — неточное наличие, пропускаем (нельзя гарантировать)
             }
+            // avail = 0 или -10 = точно нет → пропускаем
+            if ($avail === 0 || $avail === -10) continue;
+
+            $deliveryDays = ($daysVal <= 0) ? 2 : $daysVal + 2;
 
             $r = new SearchResultItem();
             $r->source       = $this->getCode();
@@ -221,10 +221,10 @@ class AutopiterConnector implements SupplierInterface
             $r->warehouse    = ($region ?: 'Склад') . ($sellerId ? ' (' . $sellerId . ')' : '');
             $r->stockId      = $detailUid ?: '';
             $r->supplierName = $this->getName();
-            $r->isSched      = $isSched;
+            $r->isSched      = false;
             $r->multiplicity = $minSalesVal;
             $r->unit         = 'шт.';
-            $r->returnable   = false; // Весь товар невозвратный
+            $r->returnable   = false;
             $r->deliveryDays = $deliveryDays;
 
             if (!empty($deliveryDate)) {
@@ -242,18 +242,32 @@ class AutopiterConnector implements SupplierInterface
                 'deliveryDays' => $daysVal,
             ]);
 
-            $results[] = $r;
-            if (count($results) >= 160) break;
+            // Свои: StoreType 0 или 2 — на складе Автопитера
+            if ($storeType === 0 || $storeType === 2) {
+                $own[] = $r;
+            } else {
+                $other[] = $r;
+            }
         }
 
-        // Сортировка: сначала со склада, потом по цене
-        usort($results, function (SearchResultItem $a, SearchResultItem $b) {
-            if (!$a->isSched && $b->isSched) return -1;
-            if ($a->isSched && !$b->isSched) return 1;
+        // Свои — сортировка по срокам+цене, все
+        usort($own, function (SearchResultItem $a, SearchResultItem $b) {
+            $da = $a->deliveryDays ?? 0;
+            $db = $b->deliveryDays ?? 0;
+            if ($da !== $db) return $da <=> $db;
             return $a->price <=> $b->price;
         });
 
-        return array_slice($results, 0, 120);
+        // Чужие — сортировка + лимит 10
+        usort($other, function (SearchResultItem $a, SearchResultItem $b) {
+            $da = $a->deliveryDays ?? 0;
+            $db = $b->deliveryDays ?? 0;
+            if ($da !== $db) return $da <=> $db;
+            return $a->price <=> $b->price;
+        });
+        $other = array_slice($other, 0, 10);
+
+        return array_merge($own, $other);
     }
 
     // ==================== ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ====================
