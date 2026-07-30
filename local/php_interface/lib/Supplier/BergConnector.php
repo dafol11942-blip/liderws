@@ -96,6 +96,7 @@ class BergConnector implements SupplierInterface
                 'resource_article' => $article,
                 'brand_name'       => $brand,
             ]],
+            'warehouse_types' => [1, 2],  // только свои склады БЕРГ (филиал + ЦС)
         ];
         if ($this->addressId) {
             $body['address_id'] = $this->addressId;
@@ -132,9 +133,13 @@ class BergConnector implements SupplierInterface
             }
         }
 
+        // Сортировка: сначала по срокам, потом по цене (все склады свои)
         usort($results, function (SearchResultItem $a, SearchResultItem $b) {
             if (!$a->isSched && $b->isSched) return -1;
             if ($a->isSched && !$b->isSched) return 1;
+            $da = $a->deliveryDays ?? 0;
+            $db = $b->deliveryDays ?? 0;
+            if ($da !== $db) return $da <=> $db;
             return $a->price <=> $b->price;
         });
         return $results;
