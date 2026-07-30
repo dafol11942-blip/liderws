@@ -179,7 +179,6 @@ foreach ($crossRows as $cr) {
     if (count($topCrosses) >= TOP_CROSS) break;
     if ($cr['weight'] < MIN_WEIGHT) continue;
     $an = $cr['article_cross_norm'];
-    if (isset($cachedArticleNorms[$an])) continue; // уже есть в кэше
     $topCrosses[] = $cr;
 }
 
