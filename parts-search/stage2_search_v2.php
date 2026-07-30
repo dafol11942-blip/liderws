@@ -23,7 +23,7 @@ use Lider\Search\Common\MultiCurlExecutor;
 const UMAPI_BASE = 'https://api.umapi.ru/v2/cross/parts/Analogs/pro';
 const UMAPI_KEY  = '52606cd0-b1fd-4a5e-a8e3-ad9fbef16435';
 const TOP_CROSS  = 30;   // сколько кроссов обзванивать live
-const MIN_WEIGHT = 3;    // минимальный вес кросса для live-обзвона
+const MIN_WEIGHT = 0;    // минимальный вес кросса для live-обзвона
 
 $searchNumberRaw = trim((string)($selectedNumber ?: $q));
 $normTargetBrand = BrandNormalizer::normalize($selectedBrand);
@@ -183,6 +183,7 @@ foreach ($crossRows as $cr) {
 
 if (!empty($topCrosses)) {
     $factory  = getSupplierFactory();
+    $requests = [];
     $reqMeta  = []; // key → [supplier, crossArticle, crossBrand]
 
     foreach ($factory->allAvailable() as $supplier) {
