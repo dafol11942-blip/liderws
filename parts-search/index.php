@@ -262,17 +262,17 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
     var analogToken = "<?=$analogToken?>";
     if (!analogToken) return;
 
-    var loaded = false;
+var loaded = false;
     var badge = document.createElement("div");
     badge.className = "analog-loading-badge";
-    badge.textContent = "⏳ Догружаем предложения от всех поставщиков...";
+    badge.textContent = "⏳ Загружаем предложения от всех поставщиков...";
     analogBlock.insertBefore(badge, analogBlock.firstChild);
 
     function loadAnalogs() {
         if (loaded) return;
         loaded = true;
 
-        var url = "/local/ajax/analog_search.php?phase=fast&q=" + encodeURIComponent("<?=urlencode($q)?>")
+        var url = "/local/ajax/analog_search.php?q=" + encodeURIComponent("<?=urlencode($q)?>")
             + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
             + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>")
             + "&token=" + analogToken
@@ -284,60 +284,8 @@ function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
             badge.remove();
             if (!data.success || !data.html) return;
 
-            // Заменяем содержимое таблицы
             analogContainer.innerHTML = data.html;
 
-            // Если есть Phase 2 — запускаем polling
-            if (data.p2_pending && data.p2_hash) {
-                var p2Badge = document.createElement("div");
-                p2Badge.className = "search-notice search-notice--progress";
-                p2Badge.textContent = "⏳ Догружаем остальных поставщиков... (" + data.totalGroups + " поз.)";
-                p2Badge.id = "p2-progress";
-                analogBlock.insertBefore(p2Badge, analogBlock.firstChild);
-
-                var p2PollCount = 0;
-                var p2Timer = setInterval(function() {
-                    p2PollCount++;
-                    fetch("/local/ajax/analog_poll.php?hash=" + data.p2_hash)
-                        .then(function(r) { return r.json(); })
-                        .then(function(p2) {
-                            if (p2.ready) {
-                                clearInterval(p2Timer);
-                                var pb = document.getElementById("p2-progress");
-                                if (pb) pb.textContent = "⏳ Обновляем результаты...";
-                                // Перезапрашиваем analog_search в режиме final
-                                var finalUrl = "/local/ajax/analog_search.php?phase=final&p2_hash=" + data.p2_hash
-                                    + "&q=" + encodeURIComponent("<?=urlencode($q)?>")
-                                    + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
-                                    + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>")
-                                    + "&token=" + analogToken;
-                                fetch(finalUrl).then(function(r){ return r.json(); }).then(function(d){
-                                    if (pb) pb.remove();
-                                    if (d.success && d.html) {
-                                        analogContainer.innerHTML = d.html;
-                                        var countEl = analogBlock.querySelector(".result-block__count");
-                                        if (countEl && d.totalGroups) countEl.textContent = d.totalGroups + " поз.";
-                                        var whCount = document.querySelector(".wh-count");
-                                        if (whCount && d.totalWarehouses) whCount.textContent = d.totalWarehouses;
-                                        var totalStrong = document.querySelector(".search-hint strong");
-                                        if (totalStrong && d.totalGroups) totalStrong.textContent = d.totalGroups;
-                                        var doneBanner = document.createElement("div");
-                                        doneBanner.className = "search-notice search-notice--done";
-                                        doneBanner.textContent = "✅ Загружены все поставщики (" + (d.totalGroups || "?") + " поз., " + (d.totalWarehouses || "?") + " складов)";
-                                        analogBlock.insertBefore(doneBanner, analogBlock.firstChild);
-                                    }
-                                });
-                            } else if (p2PollCount > 20) {
-                                // Таймаут через 40 сек
-                                clearInterval(p2Timer);
-                                var pb = document.getElementById("p2-progress");
-                                if (pb) pb.textContent = "⚠️ Не все поставщики загружены — попробуйте обновить страницу";
-                            }
-                        });
-                }, 2000);
-            }
-
-            // Обновляем счётчики
             var countEl = analogBlock.querySelector(".result-block__count");
             if (countEl) countEl.textContent = data.totalGroups + " поз.";
 
