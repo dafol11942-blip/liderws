@@ -104,7 +104,7 @@ class PartKomConnector implements SupplierInterface
         if (!$this->isAvailable()) return null;
         $this->lastWithCrosses = $withCrosses;
 
-        $params = ['number' => $article, 'find_substitutes' => ($withCrosses ? 1 : 0)];
+        $params = ['number' => $article, 'find_substitutes' => ($withCrosses ? 1 : 0), 'store' => 1];
         if ($brand !== '') {
             $makerId = $this->resolveMakerId($brand);
             if ($makerId) {
@@ -180,9 +180,12 @@ class PartKomConnector implements SupplierInterface
             }
 
 
-            $qty     = _parseQty($item['quantity'] ?? 0);
+            $$qty     = _parseQty($item['quantity'] ?? 0);
             $isStock = !empty($item['isStock']);
             $isSched = !$isStock || $qty <= 0;
+
+            // Только со склада наличия (isStock=1), под заказ — мимо
+            if ($isSched) continue;
 
             $r = new SearchResultItem();
             $r->source       = $this->getCode();
@@ -248,13 +251,15 @@ class PartKomConnector implements SupplierInterface
             }
         }
 
+        // Сортировка: сначала по срокам, потом по цене (все склады свои)
         usort($unique, function (SearchResultItem $a, SearchResultItem $b) {
-            if (!$a->isSched && $b->isSched) return -1;
-            if ($a->isSched && !$b->isSched) return 1;
+            $da = $a->deliveryDays ?? 0;
+            $db = $b->deliveryDays ?? 0;
+            if ($da !== $db) return $da <=> $db;
             return $a->price <=> $b->price;
         });
 
-        return array_slice($unique, 0, 120);
+        return $unique;
     }
 
     public function getDetail(string $article, string $brand): ?SearchResultItem
