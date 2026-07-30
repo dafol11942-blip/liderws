@@ -132,7 +132,6 @@ if (empty($selectedBrand)):
 <?php
 else:
     require __DIR__ . "/stage2_search_v2.php"; ?>
-    <?php if (!empty($verifyTaskHash)) include __DIR__ . "/_hybrid_notice.php"; ?>
 <div class="brand-back"><a href="?q=<?=urlencode($q)?>" class="back-link">← Назад к выбору бренда</a></div>
 <h2 class="search-section-title"><?=htmlspecialchars($selectedBrand)?><span class="search-section-badge"><?=htmlspecialchars($searchNumber)?></span></h2>
 <?php if ($totalGroups > 0): ?>
@@ -251,54 +250,5 @@ function orderFromSupplier(btn,article,brand){if(btn.disabled)return;btn.disable
 function escapeHtml(str){var d=document.createElement('div');d.textContent=str;return d.innerHTML;}
 function numberFormat(num){return new Intl.NumberFormat('ru-RU').format(num);}
 
-// === ЛЕНИВАЯ ЗАГРУЗКА АНАЛОГОВ ===
-(function(){
-    // Баг #9: гибридный поиск уже загрузил аналоги — старый AJAX не нужен
-    // Этап 9: всегда разрешаем lazy-loader (догружает поставщиков, которых нет в кэше)
-    var analogBlock = document.querySelector(".result-block--analog");
-    if (!analogBlock) return;
-    var analogContainer = analogBlock.querySelector(".supplier-list");
-    if (!analogContainer) return;
-    var analogToken = "<?=$analogToken?>";
-    if (!analogToken) return;
-
-var loaded = false;
-    var badge = document.createElement("div");
-    badge.className = "analog-loading-badge";
-    badge.textContent = "⏳ Загружаем предложения от всех поставщиков...";
-    analogBlock.insertBefore(badge, analogBlock.firstChild);
-
-    function loadAnalogs() {
-        if (loaded) return;
-        loaded = true;
-
-        var url = "/local/ajax/analog_search.php?q=" + encodeURIComponent("<?=urlencode($q)?>")
-            + "&brand=" + encodeURIComponent("<?=urlencode($selectedBrand)?>")
-            + "&number=" + encodeURIComponent("<?=urlencode($searchNumber)?>")
-            + "&token=" + analogToken
-            + "&filter_brand=" + encodeURIComponent("<?=urlencode($filterBrand)?>")
-            + "&price_min=<?=(int)$filterPriceMin?>"
-            + "&price_max=<?=(int)$filterPriceMax?>";
-
-        fetch(url).then(function(r){ return r.json(); }).then(function(data){
-            badge.remove();
-            if (!data.success || !data.html) return;
-
-            analogContainer.innerHTML = data.html;
-
-            var countEl = analogBlock.querySelector(".result-block__count");
-            if (countEl) countEl.textContent = data.totalGroups + " поз.";
-
-            var whCount = document.querySelector(".wh-count");
-            if (whCount) whCount.textContent = data.totalWarehouses;
-
-            var totalStrong = document.querySelector(".search-hint strong");
-            if (totalStrong) totalStrong.textContent = data.totalGroups;
-        }).catch(function(){ badge.remove(); });
-    }
-
-    var timer = setTimeout(loadAnalogs, 800);
-    window.addEventListener("scroll", function(){ clearTimeout(timer); loadAnalogs(); }, {once: true});
-})();
 </script>
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/footer.php"); ?>
