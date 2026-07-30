@@ -203,6 +203,10 @@ if (!empty($topCrosses)) {
         file_put_contents(__DIR__ . '/../upload/logs/debug_step7.log', date('H:i:s') . " requestsTotal=" . count($requests) . "\n", FILE_APPEND);
         $executor  = new MultiCurlExecutor();
         $responses = $executor->executeAll($requests, 4.0);
+        $respCount = 0; $bodyCount = 0; $parseCount = 0; $c25016found = 0;
+        foreach ($responses as $k => $r) { $respCount++; if (!empty($r['body'])) $bodyCount++; if (stripos($k, 'c25016') !== false && !empty($r['body'])) $c25016found++; }
+        file_put_contents(__DIR__ . '/../upload/logs/debug_step7.log', 
+        date('H:i:s') . " executeAll: responses=$respCount withBody=$bodyCount c25016=$c25016found\n", FILE_APPEND);
 
         $apiResults = [];
         foreach ($responses as $key => $resp) {
@@ -215,11 +219,15 @@ if (!empty($topCrosses)) {
                     $item->source       = $supplier->getCode();
                     $item->supplierName = $supplierNames[$supplier->getCode()] ?? $supplier->getCode();
                     $apiResults[]       = $item;
+                    $parseCount++;
+                    if (stripos($crossArt, 'c25016') !== false) $c25016found++;
                 }
             } catch (\Throwable $e) {}
         }
 
         if (!empty($apiResults)) {
+            file_put_contents(__DIR__ . '/../upload/logs/debug_step7.log',
+            date('H:i:s') . " parsed=$parseCount apiResults=" . count($apiResults) . "\n", FILE_APPEND);
             try {
                 $searcher = new InstantSearcher();
                 $searcher->saveResults($apiResults);
