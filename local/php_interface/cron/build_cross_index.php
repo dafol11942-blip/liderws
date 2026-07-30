@@ -48,8 +48,8 @@ $csvPairs = [];
 if (file_exists(CSV_FILE)) {
     logger('Шаг 2: пары из CSV 1С...');
     $handle = fopen(CSV_FILE, 'r');
-    $header = fgetcsv($handle, 0, ',');
-    while (($row = fgetcsv($handle, 0, ',')) !== false) {
+    $header = fgetcsv($handle, 0, ';');
+    while (($row = fgetcsv($handle, 0, ';')) !== false) {
         $art = trim($row[0] ?? '');
         $brd = trim($row[1] ?? '');
         if ($art !== '' && $brd !== '') {
