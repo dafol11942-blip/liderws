@@ -114,51 +114,62 @@ class AutoeuroConnector implements SupplierInterface
 
     public function parseSearchResponse(string $responseBody, string $brand, string $article): array
     {
-        $results = [];
+        $own = [];    // stock=1 — свой склад
+        $other = [];  // stock=0 — партнёр
         // Защита от OOM: огромные cross-ответы
         $len = strlen($responseBody);
         if ($len > 2500000) {
             $this->log("parseSearchResponse: body too large ({$len} bytes), skip");
-            return $results;
+            return [];
         }
 
         $data = json_decode($responseBody, true);
-        // освобождаем исходную строку ASAP
         unset($responseBody);
 
         if (empty($data['DATA']) || !is_array($data['DATA'])) {
-            return $results;
+            return [];
         }
 
-        $maxItems = 150; // hard cap (cross может быть огромным)
+        $maxItems = 150;
         $n = 0;
         foreach ($data['DATA'] as $item) {
-            if (!is_array($item)) {
-                continue;
-            }
+            if (!is_array($item)) continue;
             $r = $this->buildResultItem($item, $brand, $article);
-            // buildResultItem копирует raw=item — обрежем raw
             if (is_array($r->raw) && count($r->raw) > 0) {
                 $r->raw = $this->lightRaw($r->raw);
             }
-            if ($r->price <= 0 && $r->quantity <= 0) {
-                continue;
+            if ($r->price <= 0 && $r->quantity <= 0) continue;
+            if ($r->isSched) continue;
+
+            // Свои: stock=1, чужие: stock=0
+            if (!empty($item['stock'])) {
+                $own[] = $r;
+            } else {
+                $other[] = $r;
             }
-            $results[] = $r;
             $n++;
-            if ($n >= $maxItems) {
-                break;
-            }
+            if ($n >= $maxItems) break;
         }
         unset($data);
 
-        usort($results, function (SearchResultItem $a, SearchResultItem $b) {
-            if (!$a->isSched && $b->isSched) return -1;
-            if ($a->isSched && !$b->isSched) return 1;
+        // Свои — сортировка по срокам+цене, все
+        usort($own, function (SearchResultItem $a, SearchResultItem $b) {
+            $da = $a->deliveryDays ?? 0;
+            $db = $b->deliveryDays ?? 0;
+            if ($da !== $db) return $da <=> $db;
             return $a->price <=> $b->price;
         });
 
-        return $results;
+        // Чужие — сортировка + лимит 10
+        usort($other, function (SearchResultItem $a, SearchResultItem $b) {
+            $da = $a->deliveryDays ?? 0;
+            $db = $b->deliveryDays ?? 0;
+            if ($da !== $db) return $da <=> $db;
+            return $a->price <=> $b->price;
+        });
+        $other = array_slice($other, 0, 10);
+
+        return array_merge($own, $other);
     }
 
     private function lightRaw(array $item): array
