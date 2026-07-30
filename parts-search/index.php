@@ -131,7 +131,7 @@ if (empty($selectedBrand)):
 <?php if(empty($exactBrands)&&empty($analogBrands)&&$localCount===0):?><div style="text-align:center;padding:60px 20px;color:var(--gray);"><div style="font-size:48px;margin-bottom:12px;">🔍</div><p>По артикулу «<?=htmlspecialchars($q)?>» ничего не найдено</p></div><?php endif;?>
 <?php
 else:
-    require __DIR__ . "/stage2_search_v2.php"; ?>
+    require __DIR__ . "/stage2_search_v2.php"; ?><!-- v3.2b -->
 <div class="brand-back"><a href="?q=<?=urlencode($q)?>" class="back-link">← Назад к выбору бренда</a></div>
 <h2 class="search-section-title"><?=htmlspecialchars($selectedBrand)?><span class="search-section-badge"><?=htmlspecialchars($searchNumber)?></span></h2>
 <?php if ($totalGroups > 0): ?>
