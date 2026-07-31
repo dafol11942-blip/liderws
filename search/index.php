@@ -1,7 +1,6 @@
 <?php
-// search/index.php — новый поиск liderws.ru (чистовой)
+// search/index.php — новый поиск liderws.ru
 require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
-$APPLICATION->SetTitle("Поиск запчастей");
 CModule::IncludeModule('iblock');
 CModule::IncludeModule('catalog');
 $q = trim($_REQUEST['q'] ?? '');
@@ -16,25 +15,22 @@ $q = trim($_REQUEST['q'] ?? '');
 <body>
 
 <div class="srch" id="app">
-    <!-- Шапка с поисковой строкой -->
-    <div class="srch-bar">
-        <form class="srch-frm" id="searchForm">
-            <input type="text" name="q" class="srch-inp" id="qInput"
-                   placeholder="Введите артикул, например: W7008"
-                   value="<?= htmlspecialchars($q) ?>" autofocus autocomplete="off">
-            <button type="submit" class="srch-btn" id="searchBtn">Найти</button>
+
+    <!-- Пустой поиск -->
+    <div id="emptyState" class="empty<?= $q ? '' : ' visible' ?>">
+        <div class="empty-icon">🔍</div>
+        <p>Введите артикул запчасти</p>
+        <form class="srch-frm-hero" id="searchFormHero">
+            <input type="text" name="q" class="srch-inp-hero" placeholder="Например: W7008" autofocus autocomplete="off">
+            <button type="submit" class="srch-btn-hero">Найти</button>
         </form>
-        <div class="srch-info" id="searchInfo"></div>
     </div>
 
-    <!-- Свои остатки (1С) -->
-    <div id="localStock" class="local-stock"></div>
+    <!-- Свои остатки -->
+    <div id="localStock" class="section hidden"></div>
 
     <!-- Загрузка -->
-    <div id="loader" class="loader hidden">
-        <div class="spinner"></div>
-        <div id="loaderText"></div>
-    </div>
+    <div id="loader" class="loader hidden"><div class="spinner"></div><div id="loaderText"></div></div>
 
     <!-- Выбор бренда -->
     <div id="brandStep" class="hidden"></div>
@@ -42,55 +38,51 @@ $q = trim($_REQUEST['q'] ?? '');
     <!-- Результаты -->
     <div id="resultStep" class="hidden"></div>
 
-    <!-- Пусто -->
-    <div id="emptyState" class="empty<?= $q ? '' : ' visible' ?>">
-        <div class="empty-icon">🔍</div>
-        <p>Введите артикул, название запчасти или VIN-номер</p>
-    </div>
 </div>
 
 <script>
 (function() {
     var API = '/search/ajax.php';
+    var CURRENT_Q = '';
+    var CURRENT_BRAND = '';
+    var CURRENT_NUMBER = '';
 
-    // === Хелперы ===
     function qs(s, el) { return (el || document).querySelector(s); }
     function qsa(s, el) { return [].slice.call((el || document).querySelectorAll(s)); }
     function hide(id) { qs('#' + id).classList.add('hidden'); }
-    function show(id, display) {
-        var el = qs('#' + id);
-        el.classList.remove('hidden');
-        if (display) el.style.display = display;
-    }
+    function show(id) { qs('#' + id).classList.remove('hidden'); }
     function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-    function fmt(n) { return new Intl.NumberFormat('ru-RU').format(n); }
+    function fmt(n) { return new Intl.NumberFormat('ru-RU', {minimumFractionDigits:2,maximumFractionDigits:2}).format(n); }
+
+    function setLoader(text) {
+        show('loader');
+        qs('#loaderText').textContent = text;
+    }
 
     // === Шаг 1: поиск брендов ===
     async function loadBrands(article) {
+        CURRENT_Q = article;
         hide('localStock'); hide('brandStep'); hide('resultStep'); hide('emptyState');
-        show('loader');
-        qs('#loaderText').textContent = 'Ищем бренды у поставщиков...';
-        qs('#searchBtn').disabled = true;
-        qs('#searchInfo').innerHTML = 'Поиск: <strong>' + esc(article) + '</strong>';
+        setLoader('Ищем бренды у поставщиков...');
+        history.pushState(null, '', '/search/?q=' + encodeURIComponent(article));
 
         try {
             var r = await fetch(API + '?action=brands&article=' + encodeURIComponent(article));
             var d = await r.json();
             hide('loader');
-            qs('#searchBtn').disabled = false;
-
             if (d.error) { showError(d.error); return; }
 
             // Свои остатки
             if (d.local_count > 0) {
                 show('localStock');
                 qs('#localStock').innerHTML =
+                    '<div class="local-box">' +
                     '<h2 class="sec-title sec-title--local">🔵 На нашем складе</h2>' +
-                    '<div class="local-hint">Найдено <strong>' + d.local_count + '</strong> позиций. ' +
-                    '<a href="/search/?q=' + encodeURIComponent(article) + '&show_local=1">Показать →</a></div>';
+                    '<p class="local-hint">Найдено <strong>' + d.local_count + '</strong> позиций. ' +
+                    '<a href="/search/?q=' + encodeURIComponent(article) + '&show_local=1">Показать →</a></p>' +
+                    '</div>';
             }
 
-            // Бренды
             if (!d.brands || !d.brands.length) {
                 showError('По артикулу «' + esc(article) + '» ничего не найдено');
                 return;
@@ -103,11 +95,11 @@ $q = trim($_REQUEST['q'] ?? '');
             if (exact.length) {
                 html += '<h2 class="sec-title sec-title--brand">🟠 Выберите бренд для «' + esc(article) + '»</h2>';
                 html += '<p class="sec-hint">Под этим артикулом у разных производителей могут быть разные детали.</p>';
-                html += renderBrandTable(exact, article);
+                html += renderBrandTable(exact);
             }
             if (analogs.length) {
                 html += '<details class="analog-toggle"><summary class="analog-summary">📋 Аналоги и кросс-номера (' + analogs.length + ')</summary>';
-                html += renderBrandTable(analogs, article, true);
+                html += renderBrandTable(analogs);
                 html += '</details>';
             }
 
@@ -116,22 +108,23 @@ $q = trim($_REQUEST['q'] ?? '');
 
         } catch (e) {
             hide('loader');
-            qs('#searchBtn').disabled = false;
             showError('Ошибка: ' + e.message);
         }
     }
 
-    function renderBrandTable(brands, article, compact) {
-        var h = '<div class="brand-tbl">';
-        h += '<div class="bt-head"><div class="bt-c bt-c--brand">Бренд</div><div class="bt-c bt-c--art">Артикул</div><div class="bt-c bt-c--desc">Описание</div><div class="bt-c bt-c--src">Источники</div><div class="bt-c bt-c--act"></div></div>';
+    function renderBrandTable(brands) {
+        var h = '<div class="bt">';
+        h += '<div class="bt-head"><span class="bt-c bt-c--brand">Производитель</span><span class="bt-c bt-c--art">Артикул</span><span class="bt-c bt-c--desc">Описание</span><span class="bt-c bt-c--src">Источники</span><span class="bt-c bt-c--act"></span></div>';
         brands.forEach(function(b) {
-            var srcs = (b.sources || []).map(function(s) { return '<span class="src-tag src-tag--' + s + '">' + s + '</span>'; }).join('');
+            var srcs = (b.sources || []).map(function(s) {
+                return '<span class="src-tag src-tag--' + s + '">' + s + '</span>';
+            }).join(' ');
             h += '<div class="bt-row">' +
-                '<div class="bt-c bt-c--brand"><strong>' + esc(b.brand) + '</strong></div>' +
-                '<div class="bt-c bt-c--art"><code>' + esc(b.article) + '</code></div>' +
-                '<div class="bt-c bt-c--desc">' + esc(b.description || '—') + '</div>' +
-                '<div class="bt-c bt-c--src">' + srcs + '</div>' +
-                '<div class="bt-c bt-c--act"><button class="btn-sel' + (compact ? ' btn-sel--sm' : '') + '" data-article="' + esc(article) + '" data-brand="' + esc(b.brand) + '" data-number="' + esc(b.article) + '">Выбрать →</button></div>' +
+                '<span class="bt-c bt-c--brand"><strong>' + esc(b.brand) + '</strong></span>' +
+                '<span class="bt-c bt-c--art"><code>' + esc(b.article) + '</code></span>' +
+                '<span class="bt-c bt-c--desc">' + esc(b.description || '—') + '</span>' +
+                '<span class="bt-c bt-c--src">' + srcs + '</span>' +
+                '<span class="bt-c bt-c--act"><button class="btn-sel" data-brand="' + esc(b.brand) + '" data-number="' + esc(b.article) + '">Выбрать →</button></span>' +
             '</div>';
         });
         h += '</div>';
@@ -139,36 +132,65 @@ $q = trim($_REQUEST['q'] ?? '');
     }
 
     // === Шаг 2: результаты ===
-    async function loadResults(article, brand, number) {
+    async function loadResults(brand, number) {
+        CURRENT_BRAND = brand;
+        CURRENT_NUMBER = number;
         hide('localStock'); hide('brandStep'); hide('resultStep');
-        show('loader');
-        qs('#loaderText').textContent = 'Подбираем аналоги и цены...';
-        qs('#searchBtn').disabled = true;
-        qs('#qInput').value = article + ' / ' + brand;
-        qs('#searchInfo').innerHTML = '<strong>' + esc(brand) + '</strong> <code>' + esc(number) + '</code> ' +
-            '<a href="javascript:void(0)" class="back-lnk" data-article="' + esc(article) + '">← Назад</a>';
+        setLoader('Подбираем цены и аналоги...');
 
         try {
-            var r = await fetch(API + '?action=search&article=' + encodeURIComponent(article) + '&brand=' + encodeURIComponent(brand) + '&number=' + encodeURIComponent(number));
+            var r = await fetch(API + '?action=search&article=' + encodeURIComponent(CURRENT_Q) + '&brand=' + encodeURIComponent(brand) + '&number=' + encodeURIComponent(number));
             var d = await r.json();
             hide('loader');
-            qs('#searchBtn').disabled = false;
-
             if (d.error) { showError(d.error); return; }
 
             var html = '';
 
-            // Точное совпадение
-            if (d.exact) {
-                html += renderResultBlock(d.exact, 'exact', '✅ Искомый: ' + esc(brand) + ' / ' + esc(number));
+            // === ХЛЕБНЫЕ КРОШКИ + ЗАГОЛОВОК ===
+            html += '<div class="rs-top">' +
+                '<a href="javascript:loadBrands(\'' + esc(CURRENT_Q) + '\')" class="rs-back">← К выбору бренда</a>' +
+                '<h1 class="rs-title">' + esc(brand) + ' <span class="rs-art">' + esc(number) + '</span></h1>' +
+            '</div>';
+
+            // === ИСКОМЫЙ ===
+            if (d.exact && d.exact.suppliers && d.exact.suppliers.length) {
+                html += '<div class="rs-block rs-block--exact">' +
+                    '<h2 class="rs-block-title rs-block-title--exact">✅ Искомый артикул</h2>' +
+                    '<p class="rs-block-sub">' + esc(brand) + ' ' + esc(number) + ' — ' + d.exact.suppliers.length + ' предложений от поставщиков</p>' +
+                    renderSupplierTable(d.exact.suppliers) +
+                '</div>';
             }
 
-            // Аналоги
+            // === АНАЛОГИ ===
             if (d.analogs && d.analogs.length) {
-                html += renderResultBlock({ groups: d.analogs }, 'analog', '🔄 Аналоги (' + d.analogs.length + ' поз.)');
+                html += '<div class="rs-block rs-block--analog">' +
+                    '<h2 class="rs-block-title rs-block-title--analog">🔄 Аналоги (' + d.analogs.length + ')</h2>';
+
+                d.analogs.forEach(function(a) {
+                    var bestP = a.best_price ? fmt(a.best_price) + ' ₽' : '—';
+                    var bestD = a.best_delivery !== null ? a.best_delivery + ' дн.' : '—';
+                    var inStk = a.has_instock;
+
+                    html += '<div class="rs-analog-group">' +
+                        '<div class="rs-analog-head">' +
+                            '<div class="rs-analog-info">' +
+                                '<strong class="rs-analog-brand">' + esc(a.brand) + '</strong>' +
+                                '<code class="rs-analog-art">' + esc(a.article) + '</code>' +
+                                '<span class="rs-analog-desc">' + esc(a.description || '') + '</span>' +
+                            '</div>' +
+                            '<div class="rs-analog-meta">' +
+                                '<span class="rs-analog-best">Лучшая: <b>' + bestP + '</b> / ' + bestD + '</span>' +
+                                '<span class="badge ' + (inStk ? 'badge--green' : 'badge--yellow') + '">' + a.total_qty + ' шт.</span>' +
+                            '</div>' +
+                        '</div>' +
+                        renderSupplierTable(a.suppliers) +
+                    '</div>';
+                });
+
+                html += '</div>';
             }
 
-            if (!html) {
+            if (!d.exact && (!d.analogs || !d.analogs.length)) {
                 showError('Нет доступных предложений');
                 return;
             }
@@ -176,120 +198,61 @@ $q = trim($_REQUEST['q'] ?? '');
             show('resultStep');
             qs('#resultStep').innerHTML = html;
 
-            // Клик для раскрытия складов
-            qsa('.res-main-row').forEach(function(row) {
-                row.addEventListener('click', function() {
-                    var wh = row.nextElementSibling;
-                    var isOpen = row.classList.toggle('open');
-                    wh.style.display = isOpen ? 'block' : 'none';
-                });
-            });
-
         } catch (e) {
             hide('loader');
-            qs('#searchBtn').disabled = false;
             showError('Ошибка: ' + e.message);
         }
     }
 
-    function renderResultBlock(data, cls, title) {
-        if (data.groups) {
-            // Аналоги
-            var h = '<div class="res-block res-block--' + cls + '">' +
-                '<div class="res-hdr"><span class="res-badge res-badge--' + cls + '">' + title + '</span></div>' +
-                '<div class="res-tbl">' +
-                '<div class="res-thead"><div class="res-c res-c--exp"></div><div class="res-c res-c--brand">Бренд</div><div class="res-c res-c--desc">Описание</div><div class="res-c res-c--art">Артикул</div><div class="res-c res-c--stk">Наличие</div><div class="res-c res-c--dlv">Доставка</div><div class="res-c res-c--prc">Цена</div></div>';
-            data.groups.forEach(function(g) { h += renderGroup(g); });
-            h += '</div></div>';
-            return h;
-        } else {
-            // Точное совпадение (одна позиция, много складов)
-            var h = '<div class="res-block res-block--exact">' +
-                '<div class="res-hdr"><span class="res-badge res-badge--exact">' + title + '</span></div>' +
-                '<div class="res-tbl">' +
-                '<div class="res-thead"><div class="res-c res-c--exp"></div><div class="res-c res-c--src">Поставщик</div><div class="res-c res-c--wh">Склад</div><div class="res-c res-c--stk">Наличие</div><div class="res-c res-c--dlv">Доставка</div><div class="res-c res-c--prc">Цена</div></div>';
-            (data.suppliers || []).forEach(function(s) {
-                var dDays = s.delivery_days >= 0 ? s.delivery_days + ' дн.' : '—';
-                h += '<div class="res-wrow">' +
-                    '<div class="res-c res-c--exp"></div>' +
-                    '<div class="res-c res-c--src"><span class="src-tag src-tag--' + s.supplier + '">' + s.supplier + '</span></div>' +
-                    '<div class="res-c res-c--wh">' + esc(s.warehouse || '—') + '</div>' +
-                    '<div class="res-c res-c--stk"><span class="badge ' + (s.quantity > 0 ? 'badge--green' : 'badge--yellow') + '">' + (s.quantity > 0 ? s.quantity + ' шт.' : 'под заказ') + '</span></div>' +
-                    '<div class="res-c res-c--dlv">' + dDays + '</div>' +
-                    '<div class="res-c res-c--prc"><strong>' + fmt(s.price) + ' ₽</strong></div>' +
-                '</div>';
-            });
-            h += '</div></div>';
-            return h;
-        }
-    }
-
-    function renderGroup(g) {
-        var dDays = g.best_delivery !== null ? g.best_delivery + ' дн.' : '—';
-        var inStock = g.has_instock;
-        var h = '<div class="res-group">' +
-            '<div class="res-row res-main-row ' + (inStock ? 'res-row--instock' : 'res-row--order') + '">' +
-                '<div class="res-c res-c--exp"><span class="res-exp">▶</span></div>' +
-                '<div class="res-c res-c--brand"><strong>' + esc(g.brand) + '</strong></div>' +
-                '<div class="res-c res-c--desc"><div class="res-desc">' + esc(g.description || '') + '</div></div>' +
-                '<div class="res-c res-c--art"><code>' + esc(g.article) + '</code></div>' +
-                '<div class="res-c res-c--stk"><span class="badge ' + (inStock ? 'badge--green' : 'badge--yellow') + '">' + g.total_qty + ' шт.</span></div>' +
-                '<div class="res-c res-c--dlv">' + dDays + '</div>' +
-                '<div class="res-c res-c--prc"><strong>' + fmt(g.best_price) + ' ₽</strong><div class="res-whc">' + (g.suppliers ? g.suppliers.length : 0) + ' складов</div></div>' +
-            '</div>' +
-            '<div class="res-warehouses" style="display:none">';
-        (g.suppliers || []).forEach(function(s) {
-            var sDays = s.delivery_days >= 0 ? s.delivery_days + ' дн.' : '—';
-            h += '<div class="res-wrow ' + (s.quantity > 0 ? 'res-wrow--instock' : 'res-wrow--order') + '">' +
-                '<div class="res-c res-c--exp"></div>' +
-                '<div class="res-c res-c--src"><span class="src-tag src-tag--' + s.supplier + '">' + s.supplier + '</span></div>' +
-                '<div class="res-c res-c--wh">' + esc(s.warehouse || '—') + '</div>' +
-                '<div class="res-c res-c--stk"><span class="badge ' + (s.quantity > 0 ? 'badge--green' : 'badge--yellow') + '">' + (s.quantity > 0 ? s.quantity + ' шт.' : 'под заказ') + '</span></div>' +
-                '<div class="res-c res-c--dlv">' + sDays + '</div>' +
-                '<div class="res-c res-c--prc"><strong>' + fmt(s.price) + ' ₽</strong></div>' +
-            '</div>';
+    function renderSupplierTable(suppliers) {
+        if (!suppliers || !suppliers.length) return '<p class="rs-empty">Нет предложений</p>';
+        var h = '<table class="sup-tbl"><thead><tr><th>Поставщик</th><th>Склад</th><th class="sup-tbl--num">Наличие</th><th class="sup-tbl--num">Доставка</th><th class="sup-tbl--num">Цена</th></tr></thead><tbody>';
+        suppliers.forEach(function(s) {
+            var dDays = s.delivery_days >= 0 ? s.delivery_days + ' дн.' : '—';
+            var qtyCls = s.quantity > 0 ? 'sup-qty--ok' : 'sup-qty--zero';
+            h += '<tr>' +
+                '<td><span class="src-tag src-tag--' + s.supplier + '">' + s.supplier + '</span></td>' +
+                '<td class="sup-wh">' + esc(s.warehouse || '—') + '</td>' +
+                '<td class="sup-tbl--num"><span class="sup-qty ' + qtyCls + '">' + (s.quantity > 0 ? s.quantity + ' шт.' : 'под заказ') + '</span></td>' +
+                '<td class="sup-tbl--num">' + dDays + '</td>' +
+                '<td class="sup-tbl--num sup-price"><strong>' + fmt(s.price) + ' ₽</strong></td>' +
+            '</tr>';
         });
-        h += '</div></div>';
+        h += '</tbody></table>';
         return h;
     }
 
     function showError(msg) {
         hide('localStock'); hide('brandStep'); hide('resultStep');
         show('emptyState');
-        qs('#emptyState').innerHTML = '<div class="empty-icon">⚠️</div><p>' + esc(msg) + '</p>';
+        qs('#emptyState').innerHTML =
+            '<div class="empty-icon">⚠️</div><p>' + esc(msg) + '</p>' +
+            '<form class="srch-frm-hero" id="searchFormHero"><input type="text" class="srch-inp-hero" placeholder="Попробуйте другой артикул" autofocus><button type="submit" class="srch-btn-hero">Найти</button></form>';
     }
 
-    // === Делегирование событий (вместо onclick в атрибутах) ===
+    // Делегирование кликов
     document.addEventListener('click', function(e) {
-        // Кнопка «Выбрать» в таблице брендов
         var btn = e.target.closest('.btn-sel');
         if (btn) {
-            var article = btn.getAttribute('data-article');
             var brand = btn.getAttribute('data-brand');
             var number = btn.getAttribute('data-number');
-            if (article && brand && number) {
-                loadResults(article, brand, number);
-            }
-        }
-
-        // Кнопка «Назад»
-        var back = e.target.closest('.back-lnk');
-        if (back) {
-            var article = back.getAttribute('data-article');
-            if (article) {
-                loadBrands(article);
-            }
+            if (brand && number) loadResults(brand, number);
         }
     });
 
-    // Форма
-    qs('#searchForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        var q = qs('#qInput').value.trim();
-        if (!q) return;
-        history.pushState(null, '', '/search/?q=' + encodeURIComponent(q));
-        loadBrands(q);
-    });
+    // Формы поиска
+    function bindForm(formId) {
+        var f = qs('#' + formId);
+        if (!f) return;
+        f.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var inp = f.querySelector('input[name="q"]');
+            var q = inp.value.trim();
+            if (!q) return;
+            loadBrands(q);
+        });
+    }
+    bindForm('searchFormHero');
 
     // При загрузке
     <?php if ($q): ?>
