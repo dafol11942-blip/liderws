@@ -1,29 +1,19 @@
 <?php
 /**
- * stage2_search_v2.php (v3.2 — Этап 17.3)
- * Поток:
- *   1. b_cross_index (мгновенно) — все кроссы
- *   2. b_supplier_stock (мгновенно) — кэшированные цены
- *   3. MultiCurlExecutor (2-4с) — топ-30 кроссов без кэша
- *   4. FullSearchLauncher (15-25с) — только если и артикула нет в кэше
- * Итог: горячий <200мс, средний 2-4с, холодный 15-25с
+ * ГИБРИДНЫЙ stage2_search: МГНОВЕННАЯ отдача + фоновая верификация.
+ * 
+ * 1. Мгновенно (< 0.1 сек): поиск по b_supplier_stock
+ * 2. Параллельно: FullSearchLauncher с сохранением в кэш
+ * 3. Фронтенд дозагружает свежие данные через AJAX
  */
 @ini_set('memory_limit', '512M');
-@ini_set('max_execution_time', '90');
 
 use Lider\Search\BrandNormalizer;
+use Lider\Search\Stage2\FullSearchLauncher;
 use Lider\Search\Stage2\OfferAggregator;
 use Lider\Search\Stage2\ResultBuilder;
 use Lider\Search\SearchCacheManager;
-use Lider\Search\SearchResultItem;
-use Lider\Search\Stage2\FullSearchLauncher;
 use Lider\Search\InstantSearcher;
-use Lider\Search\Common\MultiCurlExecutor;
-
-const UMAPI_BASE = 'https://api.umapi.ru/v2/cross/parts/Analogs/pro';
-const UMAPI_KEY  = '52606cd0-b1fd-4a5e-a8e3-ad9fbef16435';
-const TOP_CROSS  = 30;   // сколько кроссов обзванивать live
-const MIN_WEIGHT = 0;    // минимальный вес кросса для live-обзвона
 
 $searchNumberRaw = trim((string)($selectedNumber ?: $q));
 $normTargetBrand = BrandNormalizer::normalize($selectedBrand);
@@ -32,238 +22,169 @@ $canonBrand      = BrandNormalizer::displayBrand($selectedBrand);
 $exactGroups = []; $analogGroups = []; $allBrands = [];
 $totalGroups = 0; $totalWarehouses = 0; $searchNumber = $searchNumberRaw;
 $analogToken = '';
+$verifyTaskHash = ''; // Для фронтенда
+$skipLive = false;    // Баг #10: инициализация до if ($useHybrid)
 
 if ($searchNumberRaw === '' || $normTargetBrand === '') return;
 
-$db     = \Bitrix\Main\Application::getConnection();
-$helper = $db->getSqlHelper();
+$isMgr = function_exists('isManager') ? (isManager() ? '1' : '0') : '0';
 
-$supplierNames = [
-    'moskvorechie' => 'Москворечье', 'rossko' => 'Росско', 'berg' => 'Берг',
-    'autoeuro' => 'Автоевро', 'partkom' => 'ПартКом', 'ixora' => 'Иксора',
-    'tatparts' => 'ТатПартс', 'autoruss' => 'Авторусь', 'autopiter' => 'Автопитер',
-    'shatem' => 'Шатем',
-];
-
-// ─── 1. Нормализация ───────────────────────────────────────
-$normTargetArt  = BrandNormalizer::normalizeArticle($searchNumberRaw);
-$displayArticle = $searchNumberRaw;
-$displayBrand   = $canonBrand;
-$exactKey       = $normTargetBrand . '|' . $normTargetArt;
-
-// ─── 2. b_cross_index (мгновенно) ───────────────────────────
-$crossRows = $db->query(
-    "SELECT article_cross_norm, brand_cross_norm, title_keywords, weight
-     FROM b_cross_index
-     WHERE article_orig_norm = '" . $helper->forSql($normTargetArt) . "'
-       AND brand_orig_norm   = '" . $helper->forSql($normTargetBrand) . "'
-     ORDER BY weight DESC"
-)->fetchAll();
-
-// ─── 3. Холодный старт: UMAPI на лету ──────────────────────
-if (empty($crossRows)) {
-    $url = UMAPI_BASE . '/' . urlencode($normTargetArt) . '/' . urlencode($normTargetBrand) . '/false';
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER     => ['accept: application/json', 'X-App-Key: ' . UMAPI_KEY],
-        CURLOPT_TIMEOUT        => 10,
-        CURLOPT_CONNECTTIMEOUT => 5,
-    ]);
-    $resp = curl_exec($ch);
-    curl_close($ch);
-
-    $data    = json_decode($resp, true);
-    $analogs = $data['data'] ?? $data['analogs'] ?? $data ?? [];
-    if (!empty($analogs) && is_array($analogs)) {
-        $values = [];
-        foreach ($analogs as $a) {
-            $ca = BrandNormalizer::normalizeArticle($a['article'] ?? '');
-            $cb = BrandNormalizer::normalize($a['brand'] ?? '');
-            $w  = intval($a['weight'] ?? 0);
-            $t  = mb_substr($a['title'] ?? '', 0, 500);
-            if (empty($ca) || empty($cb)) continue;
-            $values[] = sprintf("('%s','%s','%s','%s',%d,'%s',NOW())",
-                $helper->forSql($normTargetArt), $helper->forSql($normTargetBrand),
-                $helper->forSql($ca), $helper->forSql($cb), $w, $helper->forSql($t));
-        }
-        if (!empty($values)) {
-            $db->query("INSERT IGNORE INTO b_cross_index 
-                (article_orig_norm, brand_orig_norm, article_cross_norm, brand_cross_norm, weight, title_keywords, created_at)
-                VALUES " . implode(',', $values));
-        }
+// Получаем brandMap (как раньше)
+$bmCache = new SearchCacheManager('/search/supplier', 900);
+$bmKey = 'brandmap_' . md5(mb_strtolower($q));
+$cachedBrandMap = $bmCache->get($bmKey);
+if (!is_array($cachedBrandMap) || empty($cachedBrandMap)) {
+    $raw = []; $breqs = []; $bsups = [];
+    foreach (getSupplierFactory()->allAvailable() as $s) {
+        $r = $s->buildBrandsRequest($q);
+        if ($r) { $breqs[$s->getCode()] = $r; $bsups[$s->getCode()] = $s; }
     }
-    $crossRows = $db->query(
-        "SELECT article_cross_norm, brand_cross_norm, title_keywords, weight
-         FROM b_cross_index
-         WHERE article_orig_norm = '" . $helper->forSql($normTargetArt) . "'
-           AND brand_orig_norm   = '" . $helper->forSql($normTargetBrand) . "'
-         ORDER BY weight DESC"
-    )->fetchAll();
+    $e = new \Lider\Search\Common\MultiCurlExecutor();
+    foreach ($e->executeAll($breqs, 6.0) as $code => $resp) {
+        if (empty($resp['body'])) continue;
+        try { foreach ($bsups[$code]->parseBrandsResponse($resp['body'], $q) as $br) { $br['source'] = $code; $raw[] = $br; } } catch (\Throwable $e) {}
+    }
+    $cachedBrandMap = [];
+    foreach ($raw as $br) {
+        $b = trim((string)($br['brand'] ?? '')); $a = trim((string)($br['article_nr'] ?? $br['article'] ?? ''));
+        if ($b === '' || $a === '') continue;
+        $k = BrandNormalizer::groupKey($b, $a);
+        if (!isset($cachedBrandMap[$k])) $cachedBrandMap[$k] = ['brands'=>[], 'articles'=>[], 'article_nr'=>$a, 'description'=>(string)($br['description']??''), 'sources'=>[]];
+        $src = $br['source']; $cachedBrandMap[$k]['brands'][$src] = $b; $cachedBrandMap[$k]['articles'][$src] = $a;
+        if (!in_array($src, $cachedBrandMap[$k]['sources'], true)) $cachedBrandMap[$k]['sources'][] = $src;
+        $cachedBrandMap[$k]['article_nr'] = BrandNormalizer::pickDisplayArticle($cachedBrandMap[$k]['articles'], $cachedBrandMap[$k]['article_nr']);
+        $desc = (string)($br['description'] ?? ''); if (mb_strlen($desc) > mb_strlen($cachedBrandMap[$k]['description'])) $cachedBrandMap[$k]['description'] = $desc;
+    }
+    $bmCache->set($bmKey, $cachedBrandMap, 900);
 }
 
-// ─── 4. Собираем article_norm → crossMap ────────────────────
-$allArticleNorms = [$normTargetArt];
-$crossMap = [];
-foreach ($crossRows as $cr) {
-    $an = $cr['article_cross_norm'];
-    if (!isset($crossMap[$an])) {
-        $crossMap[$an] = ['brand_norm' => $cr['brand_cross_norm'], 'title' => $cr['title_keywords']];
-    }
-    $allArticleNorms[] = $an;
+$normQArt = BrandNormalizer::normalizeArticle($searchNumberRaw);
+$targetKey = (is_string($brandKey ?? null) && $brandKey !== '') ? $brandKey : BrandNormalizer::groupKey($selectedBrand, $searchNumberRaw);
+$targetEntry = $cachedBrandMap[$targetKey] ?? null;
+if ($targetEntry === null) foreach ($cachedBrandMap as $k => $info) { [$kb, $ka] = array_pad(explode('|', $k, 2), 2, ''); if ($kb === $normTargetBrand && $ka === $normQArt) { $targetKey = $k; $targetEntry = $info; break; } }
+
+$displayArticle = $searchNumberRaw; $displayBrand = $canonBrand;
+if ($targetEntry) {
+    $arts = $targetEntry['articles'] ?? [];
+    $displayArticle = BrandNormalizer::pickDisplayArticle($arts, $targetEntry['article_nr'] ?? $searchNumberRaw);
+    $displayBrand = $canonBrand ?: BrandNormalizer::displayBrand((string)reset($targetEntry['brands']));
 }
-$allArticleNorms = array_unique($allArticleNorms);
 
-// ─── 5. b_supplier_stock (мгновенно) ────────────────────────
-$allResults = [];
-$cachedArticleNorms = []; // какие article_norm уже есть в кэше
+$normTargetArt = BrandNormalizer::normalizeArticle($displayArticle);
+$normTargetBrand = BrandNormalizer::normalize($displayBrand);
+$exactKey = $normTargetBrand . '|' . $normTargetArt;
+$analogToken = md5($q . '|' . $displayBrand . '|' . $displayArticle . '|analog_v2');
 
-if (!empty($allArticleNorms)) {
-    $inClause = "'" . implode("','", array_map(fn($a) => $helper->forSql($a), $allArticleNorms)) . "'";
-    $stockRows = $db->query(
-        "SELECT supplier_code, article, brand, name, price, quantity,
-                warehouse_name, warehouse_code, stock_id, delivery_days,
-                is_sched, multiplicity, article_normalized, brand_normalized
-         FROM b_supplier_stock
-         WHERE article_normalized IN ($inClause) AND is_active = 1
-         ORDER BY is_sched ASC, price ASC"
-    )->fetchAll();
+// ==================== ГИБРИДНЫЙ ПОИСК ====================
+$useHybrid = true; // Флаг: включить гибридный режим
 
-    foreach ($stockRows as $row) {
-        $an = $row['article_normalized'];
-        $item = new SearchResultItem();
-        $item->source       = $row['supplier_code'];
-        $item->article      = $row['article'];
-        $item->brand        = $row['brand'];
-        $item->name         = $row['name'] ?: ($crossMap[$an]['title'] ?? '');
-        $item->price        = (float)$row['price'];
-        $item->quantity     = (int)$row['quantity'];
-        $item->warehouse    = $row['warehouse_name'];
-        $item->stockId      = $row['stock_id'];
-        $item->supplierName = $supplierNames[$row['supplier_code']] ?? $row['supplier_code'];
-        $item->isSched      = (bool)$row['is_sched'];
-        $item->deliveryDays = (int)$row['delivery_days'];
-        $item->multiplicity = (int)$row['multiplicity'];
-        $item->unit         = 'шт.';
-        $item->returnable   = false;
-        $item->raw          = [];
-        $allResults[]       = $item;
-        $cachedArticleNorms[$an] = true;
+if ($useHybrid) {
+    // === ШАГ 1: МГНОВЕННЫЙ поиск по кэшу ===
+    $instantStart = microtime(true);
+    $cache = new InstantSearcher();
+    file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . " search(article='$normTargetArt', brand='$normTargetBrand')\n", FILE_APPEND);
+$cachedItems = $cache->search($normTargetArt, $normTargetBrand);
+file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . " found=" . count($cachedItems) . "\n", FILE_APPEND);
+    $instantMs = round((microtime(true) - $instantStart) * 1000, 1);
+    $instantCacheMs = $instantMs; // alias for _hybrid_notice.php
+    
+    if (!empty($cachedItems)) {
+        $aggregator = new OfferAggregator(200, 1000);
+        $builder = new ResultBuilder(300, 200, 1000);
+        $cachedGroups = $aggregator->aggregate($cachedItems);
+        $instantResult = $builder->build(
+            $cachedGroups, $exactKey, $normTargetBrand, $normTargetArt,
+            $displayBrand, $displayArticle, $cachedBrandMap,
+            [], 'default', 'default'
+        );
+        
+        $exactGroups = $instantResult['exactGroups'] ?? [];
+        $analogGroups = $instantResult['analogGroups'] ?? [];
+        $allBrands = $instantResult['allBrands'] ?? [];
+        $totalGroups = $instantResult['totalGroups'] ?? 0;
+        $totalWarehouses = $instantResult['totalWarehouses'] ?? 0;
+        $searchNumber = $displayArticle;
+        
+        // Генерируем task_hash только при первом показе (не при ?verified=1)
+        if (!isset($_GET['verified'])) {
+        $verifyTaskHash = md5($normTargetArt . '|' . $normTargetBrand . '|' . microtime(true));
+
+        // Сохраняем задачу в БД (Баг #11: защита уже в родительском if)
+        $db = new \mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.$@wWd-", 'u3564357_liderws_db');
+        $db->query("INSERT INTO b_search_verify_tasks (task_hash, article, brand, status)
+                    VALUES ('{$verifyTaskHash}', '{$db->real_escape_string($displayArticle)}', '{$db->real_escape_string($displayBrand)}', 'pending')");
+        $db->close();
+
+        // Лог
+        @file_put_contents(
+            __DIR__ . '/../upload/logs/hybrid_' . date('Y-m-d') . '.log',
+            '[' . date('H:i:s') . '] INSTANT article=' . $normTargetArt . ' brand=' . $normTargetBrand
+            . ' items=' . count($cachedItems) . ' ms=' . $instantMs
+            . ' task=' . $verifyTaskHash . "\n",
+            FILE_APPEND
+        );
+    }   
+     
+        // НЕ возвращаемся — продолжаем и показываем кэш
+        // но НЕ запускаем FullSearchLauncher ниже
+        $skipLive = true;
+    } else {
+        $skipLive = false;
     }
 }
 
-// ─── 6. Холодный артикул: если ИСКОМОГО нет → FullSearchLauncher ─
-$hasTargetInCache = isset($cachedArticleNorms[$normTargetArt]);
-if (!$hasTargetInCache) {
-    $launcher = new FullSearchLauncher(getSupplierFactory());
-    $apiResults = $launcher->launch(
-        $displayBrand, $displayArticle,
-        [$exactKey => ['brands' => [$selectedBrand], 'articles' => [$displayArticle], 'article_nr' => $displayArticle, 'description' => '', 'sources' => []]],
-        $exactKey,
-        [$exactKey => ['brands' => [$selectedBrand], 'articles' => [$displayArticle], 'article_nr' => $displayArticle, 'description' => '', 'sources' => []]],
-        30.0
-    );
-    if (!empty($apiResults)) {
-        try {
-            $searcher = new InstantSearcher();
-            $searcher->saveResults($apiResults);
-        } catch (\Throwable $e) {}
-        $allResults = array_merge($allResults, $apiResults);
-        $cachedArticleNorms[$normTargetArt] = true;
-    }
-}
+// === ШАГ 2: LIVE-поиск (если кэш пустой) ===
+if (!$skipLive) {
+    // fastcgi_finish_request: отдаём страницу со спиннером, поиск в фоне
+    if (function_exists('fastcgi_finish_request')) {
+        // Рендерим спиннер вместо пустых блоков
+        $exactGroups = ['__pending__' => true];
+        $analogGroups = ['__pending__' => true];
+        $allBrands = [];
+        $totalGroups = 0;
+        $totalWarehouses = 0;
+        $searchNumber = $displayArticle;
+        $verifyTaskHash = 'cold_' . md5($normTargetArt . '|' . $normTargetBrand . '|' . time());
+        
+        // Сохраняем задачу
+        $db = new \mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
+        $db->query("INSERT INTO b_search_verify_tasks (task_hash, article, brand, status)
+                    VALUES ('{$verifyTaskHash}', '{$db->real_escape_string($displayArticle)}', '{$db->real_escape_string($displayBrand)}', 'pending')");
+        $db->close();
+        
+        // Отдаём страницу сейчас, поиск продолжится в фоне
+        // (основной render ниже покажет спиннер)
+    } else {
+        // Без fastcgi — синхронно (старое поведение)
+        $launcher   = new FullSearchLauncher(getSupplierFactory());
+        $allResults = $launcher->launch($displayBrand, $displayArticle, $cachedBrandMap, $exactKey, $targetEntry, 30.0);
 
-// ─── 7. MultiCurlExecutor: догружаем топ-30 кроссов без кэша ─
-$topCrosses = [];
-foreach ($crossRows as $cr) {
-    if (count($topCrosses) >= TOP_CROSS) break;
-    $an = $cr['article_cross_norm'];
-    $topCrosses[] = $cr;
-}
-
-if (!empty($topCrosses)) {
-    $factory  = getSupplierFactory();
-    $requests = [];
-    $reqMeta  = []; // key → [supplier, crossArticle, crossBrand]
-
-    foreach ($factory->allAvailable() as $supplier) {
-        $code = $supplier->getCode();
-        foreach ($topCrosses as $cross) {
-            $req = $supplier->buildSearchRequest($cross['article_cross_norm'], $cross['brand_cross_norm']);
-            if (!$req) continue;
-            $key = $code . '|' . $cross['article_cross_norm'] . '|' . $cross['brand_cross_norm'];
-            $req['_key'] = $key;
-            $requests[$key] = $req;
-            $reqMeta[$key]  = [$supplier, $cross['article_cross_norm'], $cross['brand_cross_norm']];
-        }
-    }
-
-    if (!empty($requests)) {
-        $executor  = new MultiCurlExecutor();
-        $responses = $executor->executeAll($requests, 4.0);
-        $respCount = 0; $bodyCount = 0; $parseCount = 0; $c25016found = 0;
-        foreach ($responses as $k => $r) { $respCount++; if (!empty($r['body'])) $bodyCount++; if (stripos($k, 'c25016') !== false && !empty($r['body'])) $c25016found++; }
-
-        $apiResults = [];
-        foreach ($responses as $key => $resp) {
-            if (empty($resp['body'])) continue;
-            [$supplier, $crossArt, $crossBrand] = $reqMeta[$key];
+        if (!empty($allResults)) {
             try {
-                $items = $supplier->parseSearchResponse($resp['body']);
-                foreach ($items as $item) {
-                    // Важно: не перетираем article/brand (поставщик мог вернуть другой)
-                    $item->source       = $supplier->getCode();
-                    $item->supplierName = $supplierNames[$supplier->getCode()] ?? $supplier->getCode();
-                    $apiResults[]       = $item;
-                    $parseCount++;
-                    if (stripos($crossArt, 'c25016') !== false) $c25016found++;
-                }
-            } catch (\Throwable $e) {}
+                $cache = new InstantSearcher();
+                $saved = $cache->saveResults($allResults);
+            } catch (\Throwable $ex) {}
         }
 
-        if (!empty($apiResults)) {
-            try {
-                $searcher = new InstantSearcher();
-                $searcher->saveResults($apiResults);
-            } catch (\Throwable $e) {}
-            $allResults = array_merge($allResults, $apiResults);
-        }
+        $aggregator  = new OfferAggregator(200, 1000);
+        $offerGroups = $aggregator->aggregate($allResults);
+        $builder     = new ResultBuilder(300, 200, 1000);
+        $result      = $builder->build(
+            $offerGroups, $exactKey, $normTargetBrand, $normTargetArt,
+            $displayBrand, $displayArticle, $cachedBrandMap,
+            [
+                'price_min' => (int)($filterPriceMin ?? 0),
+                'price_max' => (int)($filterPriceMax ?? 0),
+                'brand' => (string)($filterBrand ?? ''),
+            ],
+            (string)$sortExact, (string)$sortAnalog
+        );
+
+        $exactGroups = $result['exactGroups'] ?? [];
+        $analogGroups = $result['analogGroups'] ?? [];
+        $allBrands = $result['allBrands'] ?? [];
+        $totalGroups = $result['totalGroups'] ?? 0;
+        $totalWarehouses = $result['totalWarehouses'] ?? 0;
+        $searchNumber = $displayArticle;
     }
 }
-
-// ─── 8. Агрегация + ResultBuilder ───────────────────────────
-$aggregator   = new OfferAggregator(200, 1000);
-$groupedItems = $aggregator->aggregate($allResults);
-
-$builder = new ResultBuilder(800, 200, 1000);
-$result  = $builder->build(
-    $groupedItems, $exactKey, $normTargetBrand, $normTargetArt,
-    $displayBrand, $displayArticle, [],
-    [
-        'price_min' => (int)($filterPriceMin ?? 0),
-        'price_max' => (int)($filterPriceMax ?? 0),
-        'brand'     => (string)($filterBrand ?? ''),
-    ],
-    (string)($sortExact ?? 'default'),
-    (string)($sortAnalog ?? 'default')
-);
-
-$exactGroups     = $result['exactGroups'] ?? [];
-$analogGroups    = $result['analogGroups'] ?? [];
-$allBrands       = $result['allBrands'] ?? [];
-$totalGroups     = $result['totalGroups'] ?? 0;
-$totalWarehouses = $result['totalWarehouses'] ?? 0;
-$searchNumber    = $displayArticle;
-
-// Убираем искомый артикул из аналогов
-unset($analogGroups[$exactKey]);
-foreach ($analogGroups as $_key => $_g) {
-    if (
-        BrandNormalizer::normalize($_g['brand']) === $normTargetBrand
-        && BrandNormalizer::normalizeArticle($_g['article']) === $normTargetArt
-    ) {
-        unset($analogGroups[$_key]);
-    }
-}
-
-$analogToken = md5($q . '|' . $displayBrand . '|' . $displayArticle . '|analog_v3');
