@@ -168,7 +168,7 @@ foreach ($files as $filePath) {
         
         // Сбрасываем пачку
         if (count($batch) >= BATCH_SIZE) {
-            flushBatch($insertStmt, $batch, $fileStats);
+            flushBatch($db, $insertStmt, $batch, $fileStats);
             $batch = [];
         }
         
@@ -180,7 +180,7 @@ foreach ($files as $filePath) {
     
     // Остаток пачки
     if (!empty($batch)) {
-        flushBatch($insertStmt, $batch, $fileStats);
+        flushBatch($db, $insertStmt, $batch, $fileStats);
     }
     
     fclose($fh);
@@ -211,10 +211,9 @@ logMsg("=== ЗАВЕРШЕНИЕ ===");
 
 // ==================== ФУНКЦИИ ====================
 
-function flushBatch(PDOStatement $stmt, array &$batch, array &$stats): void
+function flushBatch(PDO $db, PDOStatement $stmt, array &$batch, array &$stats): void
 {
     try {
-        $db = $stmt->getConnection();
         $db->beginTransaction();
         
         foreach ($batch as $row) {
