@@ -185,8 +185,8 @@ function extractWarehouseFromFilename($filename) {
 // ==================== ПОДГОТОВКА INSERT ====================
 $insertSQL = "INSERT INTO b_supplier_stock 
     (supplier_code, source_type, article, article_normalized, brand, brand_normalized, 
-     name, price, quantity, warehouse_name, is_active, last_updated)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
+     name, price, quantity, warehouse_name, stock_id, is_active, last_updated)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
     ON DUPLICATE KEY UPDATE 
         price = VALUES(price), 
         quantity = VALUES(quantity), 
@@ -248,6 +248,7 @@ foreach ($csvFiles as $csvPath) {
             floatval($price),
             $quantity,
             $warehouse,
+            $stockId,
         ];
         $fileRows++;
         
