@@ -34,51 +34,20 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
     if ($factory === null) {
         $factory = new \Lider\Supplier\SupplierFactory();
 
+        // === ЭТАП 17: Москворечье (прайс-лист ✅) ===
         $factory->register(new \Lider\Supplier\MoskvorechieConnector([
             'API_KEY' => '2Ek7PUswoRDK:x1W5M70Y3KF8vZ52ETr2zi53d6SUOoPf',
         ]));
 
-        $factory->register(new \Lider\Supplier\RosskoConnector([
-            'KEY1' => 'd6907f0f857524815255b74cda86fe9b',
-            'KEY2' => 'a514b4c11299686d7cfe8fd3563d1c58',
-            'DELIVERY_ID' => '000000002',
-            'ADDRESS_ID' => '71520',
-        ]));
-
-        $factory->register(new \Lider\Supplier\BergConnector([
-            'API_KEY' => '9e1cc5aea546e263e54c8ba687757a6515de9c78f52c5a9b435bd7ad8303ef36',
-            'ADDRESS_ID' => 31173,
-        ]));
-
-        $factory->register(new \Lider\Supplier\AutoeuroConnector([
-            'API_KEY' => 'wK435HUkjTAbJL4RF4F5z9NBXWYqpFhSorfpVkRLFNYI60T21ksYvVQNawkX',
-            'DELIVERY_KEY' => 'q53qrkblKN8GviqxHAUlgA0vlUZgRhN04SG01sixtCpoTjC99FJ165xxzGta89mwhLNonRBxH1vlOg8rjL2xPxAdurElATA',
-        ]));
-
-        $factory->register(new \Lider\Supplier\PartKomConnector([
-            'LOGIN' => 'lider16',
-            'PASSWORD' => 'LidGates16',
-        ]));
-
-        $factory->register(new \Lider\Supplier\IxoraConnector([
-            'AUTH_CODE' => '460880B0988C8C204B2DD392EC81611D',
-            'TIMEOUT' => 8,
-        ]));
-
-        $factory->register(new \Lider\Supplier\TatpartsConnector([
-            'LOGIN' => 'lider-16@bk.ru',
-            'PASSWORD' => "'8dTpDU8}Myr)*&",
-            'TIMEOUT' => 10,
-        ]));
-
-        $factory->register(new \Lider\Supplier\AutorussConnector([
-            'LOGIN' => 'Lider-16@bk.ru',
-            'PASSWORD_MD5' => '00fd3781d2cfdf0d971b57fa7397cfac',
-        ]));
-        $factory->register(new \Lider\Supplier\AutopiterConnector([
-            'USER_ID' => '165286',
-            'PASSWORD' => 'LidGates16',
-        ]));
+        // === ОТКЛЮЧЕНЫ до добавления прайс-листов ===
+        // $factory->register(new \Lider\Supplier\RosskoConnector([...]));
+        // $factory->register(new \Lider\Supplier\BergConnector([...]));
+        // $factory->register(new \Lider\Supplier\AutoeuroConnector([...]));
+        // $factory->register(new \Lider\Supplier\PartKomConnector([...]));
+        // $factory->register(new \Lider\Supplier\IxoraConnector([...]));
+        // $factory->register(new \Lider\Supplier\TatpartsConnector([...]));
+        // $factory->register(new \Lider\Supplier\AutorussConnector([...]));
+        // $factory->register(new \Lider\Supplier\AutopiterConnector([...]));
     }
     return $factory;
 }
