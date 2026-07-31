@@ -20,7 +20,7 @@ function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
 </head>
 <body>
 
-<div class="srch">
+<div class="container">
 
 <?php if (!$q): ?>
 <div class="hero">
@@ -241,5 +241,5 @@ document.addEventListener('DOMContentLoaded',function(){loadResults()});
 </script>
 <?php endif; ?>
 
-</div></body></html>
+</body></html>
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/footer.php"); ?>
