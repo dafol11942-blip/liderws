@@ -73,7 +73,7 @@ if ($targetEntry) {
 $normTargetArt = BrandNormalizer::normalizeArticle($displayArticle);
 $normTargetBrand = BrandNormalizer::normalize($displayBrand);
 $exactKey = $normTargetBrand . '|' . $normTargetArt;
-$analogToken = md5($q . '|' . $displayBrand . '|' . $displayArticle . '|analog_v2');
+$analogToken = md5($q . '|' . $displayBrand . '|' . $displayArticle . '|analog_v5');
 
 // ==================== ГИБРИДНЫЙ ПОИСК ====================
 $useHybrid = true; // Флаг: включить гибридный режим
