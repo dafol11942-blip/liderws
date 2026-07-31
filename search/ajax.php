@@ -1,5 +1,6 @@
 <?php
 // search/ajax.php — чистые эндпоинты (brands + search)
+// v3: оригинальный бренд для API + запрос кроссов внутри search
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -126,14 +127,14 @@ if ($action === 'brands') {
 // ═══════════════════ ACTION: search ═══════════════════
 } elseif ($action === 'search') {
 
-    $brandOrig  = trim($_GET['brand'] ?? '');   // оригинальный — для API
+    $brandOrig  = trim($_GET['brand'] ?? '');
     $numberOrig = trim($_GET['number'] ?? '');
     if (!$brandOrig) { echo json_encode(['error' => 'Укажите бренд']); exit; }
 
-    $normBrand  = BrandNormalizer::normalize($brandOrig);    // нормализованный — для сравнения
+    $normBrand  = BrandNormalizer::normalize($brandOrig);
     $normNum    = BrandNormalizer::normalizeArticle($numberOrig);
 
-    // --- 1. Точное совпадение у всех поставщиков (передаём ОРИГИНАЛЬНЫЙ бренд) ---
+    // === 1. Точное совпадение (параллельно) ===
     $mh = curl_multi_init();
     $handles = [];
     $exactReqs = [];
@@ -161,46 +162,87 @@ if ($action === 'brands') {
     do { curl_multi_exec($mh, $running); curl_multi_select($mh, 0.1); } while ($running > 0);
 
     $exactOffers = [];
-    $crossPairs  = [];
-    $seenCross   = [];
-
     foreach ($handles as $code => $ch) {
         $body = curl_multi_getcontent($ch);
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_multi_remove_handle($mh, $ch);
         curl_close($ch);
         if ($http !== 200 || !$body) continue;
-
         try {
             $items = $exactReqs[$code]['supplier']->parseSearchResponse($body);
         } catch (\Throwable $e) { continue; }
-
         foreach ($items as $it) {
             $ia = BrandNormalizer::normalizeArticle((string)($it['article'] ?? ''));
             $ib = BrandNormalizer::normalize((string)($it['brand'] ?? ''));
-            if (!$ia || !$ib) continue;
-
-            // Точное совпадение (сравниваем по нормализованным)
             if ($ia === $normNum && $ib === $normBrand) {
                 $exactOffers[] = normalizeOffer($it, $code);
-            }
-
-            // Кроссы (все кроме точного)
-            $ck = $ib . '|' . $ia;
-            if (($ia !== $normNum || $ib !== $normBrand) && !isset($seenCross[$ck])) {
-                $seenCross[$ck] = true;
-                $crossPairs[$ck] = [
-                    'brand_orig'   => (string)($it['brand'] ?? ''),
-                    'article_orig' => (string)($it['article'] ?? ''),
-                    'brand_norm'   => $ib,
-                    'article_norm' => $ia,
-                ];
             }
         }
     }
     curl_multi_close($mh);
 
-    // --- 2. Кроссы у всех поставщиков (передаём ОРИГИНАЛЬНЫЕ бренд+артикул) ---
+    // === 2. Кросс-пары: запрашиваем бренды по артикулу (как в brands) ===
+    $mhB = curl_multi_init();
+    $hB = [];
+    $brandReqs = [];
+
+    foreach ($suppliers as $code => $connector) {
+        $req = $connector->buildBrandsRequest($article);
+        if (!$req) continue;
+        $brandReqs[$code] = $req;
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $req['url'], CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => $req['headers'], CURLOPT_TIMEOUT => 6,
+            CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0, CURLOPT_ENCODING => '',
+        ]);
+        if (($req['method'] ?? 'GET') === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            if (!empty($req['body'])) curl_setopt($ch, CURLOPT_POSTFIELDS, $req['body']);
+        }
+        curl_multi_add_handle($mhB, $ch);
+        $hB[$code] = ['ch' => $ch, 'supplier' => $connector];
+    }
+
+    $running = null;
+    do { curl_multi_exec($mhB, $running); curl_multi_select($mhB, 0.1); } while ($running > 0);
+
+    $crossPairs = [];
+    $seenCross = [];
+    $seenCross[$normBrand . '|' . $normNum] = true; // исключаем искомый
+
+    foreach ($hB as $code => $data) {
+        $ch = $data['ch'];
+        $supplier = $data['supplier'];
+        $body = curl_multi_getcontent($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_multi_remove_handle($mhB, $ch);
+        curl_close($ch);
+        if ($http !== 200 || !$body) continue;
+        try {
+            $crossItems = $supplier->parseBrandsResponse($body, $article);
+        } catch (\Throwable $e) { continue; }
+        foreach ($crossItems as $ci) {
+            $cb = trim((string)($ci['brand'] ?? ''));
+            $ca = trim((string)($ci['article_nr'] ?? ($ci['article'] ?? '')));
+            if ($cb === '' || $ca === '') continue;
+            $cnb = BrandNormalizer::normalize($cb);
+            $cna = BrandNormalizer::normalizeArticle($ca);
+            $ck = $cnb . '|' . $cna;
+            if (isset($seenCross[$ck])) continue;
+            $seenCross[$ck] = true;
+            $crossPairs[$ck] = [
+                'brand_orig'   => $cb,
+                'article_orig' => $ca,
+                'brand_norm'   => $cnb,
+                'article_norm' => $cna,
+            ];
+        }
+    }
+    curl_multi_close($mhB);
+
+    // === 3. Ищем кроссы у всех поставщиков ===
     $analogGroups = [];
 
     if (!empty($crossPairs)) {
@@ -210,7 +252,6 @@ if ($action === 'brands') {
 
         foreach ($crossPairs as $ck => $pair) {
             foreach ($suppliers as $code => $connector) {
-                // Передаём оригинальные значения в API
                 $req = $connector->buildSearchRequest($pair['article_orig'], $pair['brand_orig']);
                 if (!$req) continue;
                 $reqKey = $code . '|' . $ck;
@@ -242,6 +283,7 @@ if ($action === 'brands') {
             if ($http !== 200 || !$body) continue;
 
             $pair = $crReqs[$reqKey]['pair'];
+            $supplierCode = explode('|', $reqKey)[0];
             $gk = $pair['brand_norm'] . '|' . $pair['article_norm'];
 
             try {
@@ -265,13 +307,13 @@ if ($action === 'brands') {
                 if (mb_strlen($desc) > mb_strlen($analogGroups[$gk]['description'])) {
                     $analogGroups[$gk]['description'] = $desc;
                 }
-                $analogGroups[$gk]['offers'][] = normalizeOffer($it, $code);
+                $analogGroups[$gk]['offers'][] = normalizeOffer($it, $supplierCode);
             }
         }
         curl_multi_close($mh2);
     }
 
-    // --- 3. Формируем ответ ---
+    // === 4. Формируем ответ ===
     $resp = [];
 
     if (!empty($exactOffers)) {
