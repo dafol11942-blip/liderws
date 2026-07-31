@@ -1,6 +1,5 @@
 <?php
-// search/ajax.php — чистые эндпоинты (brands + search)
-// v3: оригинальный бренд для API + запрос кроссов внутри search
+// search/ajax.php — эндпоинты нового поиска (brands + search) v4
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -11,18 +10,54 @@ CModule::IncludeModule('catalog');
 
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/BrandNormalizer.php';
-require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/Common/MultiCurlExecutor.php';
 
 use Lider\Search\BrandNormalizer;
 
 $action  = $_GET['action'] ?? '';
 $article = trim($_GET['article'] ?? '');
-
 if (!$article) { echo json_encode(['error' => 'Укажите артикул']); exit; }
 
 $normArt  = BrandNormalizer::normalizeArticle($article);
 $factory  = getSupplierFactory();
 $suppliers = $factory->allAvailable();
+
+// ─── ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ───
+function curlExec(array $suppliers, array $requests): array {
+    if (empty($requests)) return [];
+    $mh = curl_multi_init();
+    $handles = [];
+    foreach ($requests as $key => $req) {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $req['url'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => $req['headers'] ?? [],
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_ENCODING       => '',
+        ]);
+        if (($req['method'] ?? 'GET') === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            if (!empty($req['body'])) curl_setopt($ch, CURLOPT_POSTFIELDS, $req['body']);
+        }
+        curl_multi_add_handle($mh, $ch);
+        $handles[$key] = $ch;
+    }
+    $running = null;
+    do { curl_multi_exec($mh, $running); curl_multi_select($mh, 0.1); } while ($running > 0);
+    $results = [];
+    foreach ($handles as $key => $ch) {
+        $body = curl_multi_getcontent($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_multi_remove_handle($mh, $ch);
+        curl_close($ch);
+        $results[$key] = ($http === 200 && $body) ? $body : null;
+    }
+    curl_multi_close($mh);
+    return $results;
+}
 
 // ═══════════════════ ACTION: brands ═══════════════════
 if ($action === 'brands') {
@@ -33,53 +68,28 @@ if ($action === 'brands') {
         ['%PROPERTY_CML2_ARTICLE' => $article], ['%DETAIL_TEXT' => $article],
         ['PROPERTY_CML2_MANUFACTURER' => $article], ['%PROPERTY_CML2_MANUFACTURER' => $article],
     ]];
-    $localRes = CIBlockElement::GetList([], array_merge(['IBLOCK_ID' => 42, 'ACTIVE' => 'Y'], $arrFilter[0]), false, false, ['ID']);
+    $localRes   = CIBlockElement::GetList([], array_merge(['IBLOCK_ID' => 42, 'ACTIVE' => 'Y'], $arrFilter[0]), false, false, ['ID']);
     $localCount = $localRes->SelectedRowsCount();
 
     // --- Бренды от поставщиков ---
-    $mh = curl_multi_init();
-    $handles = [];
     $brandReqs = [];
-
     foreach ($suppliers as $code => $connector) {
         $req = $connector->buildBrandsRequest($article);
-        if (!$req) continue;
-        $brandReqs[$code] = ['req' => $req, 'supplier' => $connector];
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $req['url'], CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => $req['headers'], CURLOPT_TIMEOUT => 6,
-            CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => 0, CURLOPT_ENCODING => '',
-        ]);
-        if (($req['method'] ?? 'GET') === 'POST') {
-            curl_setopt($ch, CURLOPT_POST, true);
-            if (!empty($req['body'])) curl_setopt($ch, CURLOPT_POSTFIELDS, $req['body']);
-        }
-        curl_multi_add_handle($mh, $ch);
-        $handles[$code] = $ch;
+        if ($req) $brandReqs[$code] = $req;
     }
-
-    $running = null;
-    do { curl_multi_exec($mh, $running); curl_multi_select($mh, 0.1); } while ($running > 0);
+    $responses = curlExec($suppliers, $brandReqs);
 
     $allRaw = [];
-    foreach ($handles as $code => $ch) {
-        $body = curl_multi_getcontent($ch);
-        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_multi_remove_handle($mh, $ch);
-        curl_close($ch);
-        if ($http === 200 && $body) {
-            try {
-                $items = $brandReqs[$code]['supplier']->parseBrandsResponse($body, $article);
-                foreach ($items as $it) {
-                    $it['source'] = $code;
-                    $allRaw[] = $it;
-                }
-            } catch (\Throwable $e) {}
-        }
+    foreach ($responses as $code => $body) {
+        if (!$body) continue;
+        try {
+            $items = $suppliers[$code]->parseBrandsResponse($body, $article);
+            foreach ($items as $it) {
+                $it['source'] = $code;
+                $allRaw[] = $it;
+            }
+        } catch (\Throwable $e) {}
     }
-    curl_multi_close($mh);
 
     // --- Группировка ---
     $brandMap = [];
@@ -91,7 +101,7 @@ if ($action === 'brands') {
         if (!isset($brandMap[$key])) {
             $brandMap[$key] = ['brands' => [], 'articles' => [], 'description' => '', 'sources' => []];
         }
-        $brandMap[$key]['brands'][$br['source']] = $b;
+        $brandMap[$key]['brands'][$br['source']]  = $b;
         $brandMap[$key]['articles'][$br['source']] = $a;
         if (!in_array($br['source'], $brandMap[$key]['sources'], true)) {
             $brandMap[$key]['sources'][] = $br['source'];
@@ -102,7 +112,6 @@ if ($action === 'brands') {
         }
     }
 
-    // --- Формируем ответ ---
     $brands = [];
     foreach ($brandMap as $key => $info) {
         $displayBrand   = BrandNormalizer::displayBrand(reset($info['brands']));
@@ -116,13 +125,16 @@ if ($action === 'brands') {
             'type'        => $isExact ? 'exact' : 'analog',
         ];
     }
-
     usort($brands, function($a, $b) {
         if ($a['type'] !== $b['type']) return $a['type'] === 'exact' ? -1 : 1;
         return count($b['sources']) - count($a['sources']);
     });
 
-    echo json_encode(['brands' => $brands, 'local_count' => $localCount, 'article' => $article], JSON_UNESCAPED_UNICODE);
+    echo json_encode([
+        'brands'      => $brands,
+        'local_count' => $localCount,
+        'article'     => $article,
+    ], JSON_UNESCAPED_UNICODE);
 
 // ═══════════════════ ACTION: search ═══════════════════
 } elseif ($action === 'search') {
@@ -131,189 +143,117 @@ if ($action === 'brands') {
     $numberOrig = trim($_GET['number'] ?? '');
     if (!$brandOrig) { echo json_encode(['error' => 'Укажите бренд']); exit; }
 
-    $normBrand  = BrandNormalizer::normalize($brandOrig);
-    $normNum    = BrandNormalizer::normalizeArticle($numberOrig);
+    $normBrand = BrandNormalizer::normalize($brandOrig);
+    $normNum   = BrandNormalizer::normalizeArticle($numberOrig);
 
-    // === 1. Точное совпадение (параллельно) ===
-    $mh = curl_multi_init();
-    $handles = [];
+    // ── 1. Точное совпадение ──
     $exactReqs = [];
-
     foreach ($suppliers as $code => $connector) {
         $req = $connector->buildSearchRequest($normNum, $brandOrig);
-        if (!$req) continue;
-        $exactReqs[$code] = ['req' => $req, 'supplier' => $connector];
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $req['url'], CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => $req['headers'], CURLOPT_TIMEOUT => 8,
-            CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => 0, CURLOPT_ENCODING => '',
-        ]);
-        if (($req['method'] ?? 'GET') === 'POST') {
-            curl_setopt($ch, CURLOPT_POST, true);
-            if (!empty($req['body'])) curl_setopt($ch, CURLOPT_POSTFIELDS, $req['body']);
-        }
-        curl_multi_add_handle($mh, $ch);
-        $handles[$code] = $ch;
+        if ($req) $exactReqs[$code] = $req;
     }
-
-    $running = null;
-    do { curl_multi_exec($mh, $running); curl_multi_select($mh, 0.1); } while ($running > 0);
+    $responses = curlExec($suppliers, $exactReqs);
 
     $exactOffers = [];
-    foreach ($handles as $code => $ch) {
-        $body = curl_multi_getcontent($ch);
-        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_multi_remove_handle($mh, $ch);
-        curl_close($ch);
-        if ($http !== 200 || !$body) continue;
+    $crossPairs  = [];
+    $seenCross   = [];
+    // Исключаем сам искомый из кроссов
+    $seenCross[$normBrand . '|' . $normNum] = true;
+
+    foreach ($responses as $code => $body) {
+        if (!$body) continue;
         try {
-            $items = $exactReqs[$code]['supplier']->parseSearchResponse($body);
+            // parseSearchResponse возвращает массив объектов SearchResultItem
+            $items = $suppliers[$code]->parseSearchResponse($body, $brandOrig, $numberOrig);
         } catch (\Throwable $e) { continue; }
+
         foreach ($items as $it) {
-            $ia = BrandNormalizer::normalizeArticle((string)($it['article'] ?? ''));
-            $ib = BrandNormalizer::normalize((string)($it['brand'] ?? ''));
+            // SearchResultItem — ОБЪЕКТ, не массив!
+            $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
+            $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
+
+            // Точное совпадение
             if ($ia === $normNum && $ib === $normBrand) {
-                $exactOffers[] = normalizeOffer($it, $code);
+                $exactOffers[] = [
+                    'supplier'      => $code,
+                    'warehouse'     => (string)($it->warehouse ?? ''),
+                    'price'         => (float)($it->price ?? 0),
+                    'quantity'      => (int)($it->quantity ?? 0),
+                    'delivery_days' => (int)($it->deliveryDays ?? -1),
+                ];
+            }
+
+            // Собираем кроссы (все бренд+артикул из ответа, кроме точного)
+            $ck = $ib . '|' . $ia;
+            if (!isset($seenCross[$ck])) {
+                $seenCross[$ck] = true;
+                $crossPairs[$ck] = [
+                    'brand_orig'   => (string)($it->brand ?? ''),
+                    'article_orig' => (string)($it->article ?? ''),
+                    'brand_norm'   => $ib,
+                    'article_norm' => $ia,
+                ];
             }
         }
     }
-    curl_multi_close($mh);
 
-    // === 2. Кросс-пары: запрашиваем бренды по артикулу (как в brands) ===
-    $mhB = curl_multi_init();
-    $hB = [];
-    $brandReqs = [];
-
-    foreach ($suppliers as $code => $connector) {
-        $req = $connector->buildBrandsRequest($article);
-        if (!$req) continue;
-        $brandReqs[$code] = $req;
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $req['url'], CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => $req['headers'], CURLOPT_TIMEOUT => 6,
-            CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => 0, CURLOPT_ENCODING => '',
-        ]);
-        if (($req['method'] ?? 'GET') === 'POST') {
-            curl_setopt($ch, CURLOPT_POST, true);
-            if (!empty($req['body'])) curl_setopt($ch, CURLOPT_POSTFIELDS, $req['body']);
-        }
-        curl_multi_add_handle($mhB, $ch);
-        $hB[$code] = ['ch' => $ch, 'supplier' => $connector];
-    }
-
-    $running = null;
-    do { curl_multi_exec($mhB, $running); curl_multi_select($mhB, 0.1); } while ($running > 0);
-
-    $crossPairs = [];
-    $seenCross = [];
-    $seenCross[$normBrand . '|' . $normNum] = true; // исключаем искомый
-
-    foreach ($hB as $code => $data) {
-        $ch = $data['ch'];
-        $supplier = $data['supplier'];
-        $body = curl_multi_getcontent($ch);
-        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_multi_remove_handle($mhB, $ch);
-        curl_close($ch);
-        if ($http !== 200 || !$body) continue;
-        try {
-            $crossItems = $supplier->parseBrandsResponse($body, $article);
-        } catch (\Throwable $e) { continue; }
-        foreach ($crossItems as $ci) {
-            $cb = trim((string)($ci['brand'] ?? ''));
-            $ca = trim((string)($ci['article_nr'] ?? ($ci['article'] ?? '')));
-            if ($cb === '' || $ca === '') continue;
-            $cnb = BrandNormalizer::normalize($cb);
-            $cna = BrandNormalizer::normalizeArticle($ca);
-            $ck = $cnb . '|' . $cna;
-            if (isset($seenCross[$ck])) continue;
-            $seenCross[$ck] = true;
-            $crossPairs[$ck] = [
-                'brand_orig'   => $cb,
-                'article_orig' => $ca,
-                'brand_norm'   => $cnb,
-                'article_norm' => $cna,
-            ];
-        }
-    }
-    curl_multi_close($mhB);
-
-    // === 3. Ищем кроссы у всех поставщиков ===
+    // ── 2. Поиск кросс-пар у всех поставщиков ──
     $analogGroups = [];
 
     if (!empty($crossPairs)) {
-        $mh2 = curl_multi_init();
-        $h2 = [];
         $crReqs = [];
-
         foreach ($crossPairs as $ck => $pair) {
             foreach ($suppliers as $code => $connector) {
                 $req = $connector->buildSearchRequest($pair['article_orig'], $pair['brand_orig']);
-                if (!$req) continue;
-                $reqKey = $code . '|' . $ck;
-                $crReqs[$reqKey] = ['req' => $req, 'supplier' => $connector, 'pair' => $pair];
-                $ch = curl_init();
-                curl_setopt_array($ch, [
-                    CURLOPT_URL => $req['url'], CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_HTTPHEADER => $req['headers'], CURLOPT_TIMEOUT => 6,
-                    CURLOPT_CONNECTTIMEOUT => 2, CURLOPT_SSL_VERIFYPEER => false,
-                    CURLOPT_SSL_VERIFYHOST => 0, CURLOPT_ENCODING => '',
-                ]);
-                if (($req['method'] ?? 'GET') === 'POST') {
-                    curl_setopt($ch, CURLOPT_POST, true);
-                    if (!empty($req['body'])) curl_setopt($ch, CURLOPT_POSTFIELDS, $req['body']);
+                if ($req) {
+                    $crReqs[$code . '|' . $ck] = $req;
                 }
-                curl_multi_add_handle($mh2, $ch);
-                $h2[$reqKey] = $ch;
             }
         }
+        $crResponses = curlExec($suppliers, $crReqs);
 
-        $running = null;
-        do { curl_multi_exec($mh2, $running); curl_multi_select($mh2, 0.1); } while ($running > 0);
-
-        foreach ($h2 as $reqKey => $ch) {
-            $body = curl_multi_getcontent($ch);
-            $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_multi_remove_handle($mh2, $ch);
-            curl_close($ch);
-            if ($http !== 200 || !$body) continue;
-
-            $pair = $crReqs[$reqKey]['pair'];
-            $supplierCode = explode('|', $reqKey)[0];
+        foreach ($crResponses as $reqKey => $body) {
+            if (!$body) continue;
+            $parts = explode('|', $reqKey, 2);
+            $code  = $parts[0];
+            $ck    = $parts[1] ?? '';
+            $pair  = $crossPairs[$ck] ?? null;
+            if (!$pair) continue;
             $gk = $pair['brand_norm'] . '|' . $pair['article_norm'];
 
             try {
-                $items = $crReqs[$reqKey]['supplier']->parseSearchResponse($body);
+                $items = $suppliers[$code]->parseSearchResponse($body, $pair['brand_orig'], $pair['article_orig']);
             } catch (\Throwable $e) { continue; }
 
             foreach ($items as $it) {
-                $ia = BrandNormalizer::normalizeArticle((string)($it['article'] ?? ''));
-                $ib = BrandNormalizer::normalize((string)($it['brand'] ?? ''));
+                $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
+                $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
                 if ($ia !== $pair['article_norm'] || $ib !== $pair['brand_norm']) continue;
 
                 if (!isset($analogGroups[$gk])) {
                     $analogGroups[$gk] = [
                         'brand_orig'   => $pair['brand_orig'],
                         'article_orig' => $pair['article_orig'],
-                        'description'  => (string)($it['description'] ?? ''),
+                        'description'  => (string)($it->description ?? ''),
                         'offers'       => [],
                     ];
                 }
-                $desc = (string)($it['description'] ?? '');
+                $desc = (string)($it->description ?? '');
                 if (mb_strlen($desc) > mb_strlen($analogGroups[$gk]['description'])) {
                     $analogGroups[$gk]['description'] = $desc;
                 }
-                $analogGroups[$gk]['offers'][] = normalizeOffer($it, $supplierCode);
+                $analogGroups[$gk]['offers'][] = [
+                    'supplier'      => $code,
+                    'warehouse'     => (string)($it->warehouse ?? ''),
+                    'price'         => (float)($it->price ?? 0),
+                    'quantity'      => (int)($it->quantity ?? 0),
+                    'delivery_days' => (int)($it->deliveryDays ?? -1),
+                ];
             }
         }
-        curl_multi_close($mh2);
     }
 
-    // === 4. Формируем ответ ===
+    // ── 3. Собираем ответ ──
     $resp = [];
 
     if (!empty($exactOffers)) {
@@ -330,10 +270,10 @@ if ($action === 'brands') {
 
     $analogs = [];
     foreach ($analogGroups as $gk => $grp) {
-        $offers = $grp['offers'];
-        $prices = array_column($offers, 'price');
-        $days   = array_column($offers, 'delivery_days');
-        $qtys   = array_column($offers, 'quantity');
+        $offers       = $grp['offers'];
+        $prices       = array_column($offers, 'price');
+        $days         = array_column($offers, 'delivery_days');
+        $qtys         = array_column($offers, 'quantity');
         $activePrices = array_filter($prices, function($p) { return $p > 0; });
         $activeDays   = array_filter($days, function($d) { return $d >= 0; });
 
@@ -363,20 +303,8 @@ if ($action === 'brands') {
     });
 
     $resp['analogs'] = $analogs;
-
     echo json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_NUMERIC_CHECK);
 
 } else {
     echo json_encode(['error' => 'Неизвестный action']);
-}
-
-// ═══════════════════ Хелпер ═══════════════════
-function normalizeOffer(array $item, string $supplierCode): array {
-    return [
-        'supplier'      => $supplierCode,
-        'warehouse'     => (string)($item['warehouse'] ?? ''),
-        'price'         => (float)($item['price'] ?? 0),
-        'quantity'      => (int)($item['quantity'] ?? 0),
-        'delivery_days' => (int)($item['delivery_days'] ?? -1),
-    ];
 }
