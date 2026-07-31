@@ -1,5 +1,5 @@
 <?php
-// search/index.php — поиск liderws.ru (дизайн zap39)
+// search/index.php — поиск liderws.ru (дизайн zap39, AJAX-результаты)
 require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 CModule::IncludeModule('iblock');
 CModule::IncludeModule('catalog');
@@ -8,40 +8,14 @@ $q      = trim($_REQUEST['q'] ?? '');
 $brand  = trim($_REQUEST['brand'] ?? '');
 $number = trim($_REQUEST['number'] ?? '');
 
-// Если есть brand+number — делаем серверный запрос и рендерим сразу
-$results = null;
-if ($q && $brand && $number) {
-    $results = fetchResults($q, $brand, $number);
-}
-
-function fetchResults($article, $brand, $number) {
-    $url = '/search/ajax.php?action=search&article=' . urlencode($article)
-         . '&brand=' . urlencode($brand) . '&number=' . urlencode($number);
-    
-    // Внутренний вызов через file_get_contents с curl
-    $ch = curl_init('http://127.0.0.1' . $url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 30,
-        CURLOPT_HTTPHEADER => ['Host: liderws.ru'],
-    ]);
-    $body = curl_exec($ch);
-    curl_close($ch);
-    return json_decode($body, true);
-}
-
 function fmt($n) { return number_format((float)$n, 2, ',', ' '); }
 function esc($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
-function dRange($s) {
-    $d = $s['delivery_days'] ?? -1;
-    if ($d < 0) return '—';
-    return $d . ' дн.';
-}
+function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
 ?><!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title><?= $q ? esc($brand.' '.$number) : 'Поиск запчастей' ?> — liderws.ru</title>
+<title><?= $q ? esc($brand.' '.$number ?: $q) : 'Поиск запчастей' ?> — liderws.ru</title>
 <link rel="stylesheet" href="/search/style.css">
 </head>
 <body>
@@ -60,7 +34,7 @@ function dRange($s) {
 </div>
 
 <?php elseif ($q && !$brand): ?>
-<!-- ====== ВЫБОР БРЕНДА (AJAX) ====== -->
+<!-- ====== ВЫБОР БРЕНДА ====== -->
 <div class="topbar">
     <form class="topbar-frm" method="get">
         <input type="text" name="q" class="topbar-inp" value="<?=esc($q)?>">
@@ -125,54 +99,7 @@ document.addEventListener('DOMContentLoaded',function(){loadBrands(Q)});
 </script>
 
 <?php else: ?>
-<!-- ====== СТРАНИЦА РЕЗУЛЬТАТОВ ====== -->
-<?php
-$exact  = $results['exact'] ?? null;
-$analogs = $results['analogs'] ?? [];
-$allSuppliers = [];
-
-// Собираем все офферы в один плоский список для хайлайтов
-$allOffers = [];
-if ($exact && !empty($exact['suppliers'])) {
-    foreach ($exact['suppliers'] as $s) {
-        $s['_type'] = 'exact';
-        $s['_brand'] = $exact['brand'];
-        $s['_article'] = $exact['article'];
-        $s['_description'] = '';
-        $allOffers[] = $s;
-    }
-}
-foreach ($analogs as $a) {
-    foreach ($a['suppliers'] as $s) {
-        $s['_type'] = 'analog';
-        $s['_brand'] = $a['brand'];
-        $s['_article'] = $a['article'];
-        $s['_description'] = $a['description'] ?? '';
-        $allOffers[] = $s;
-    }
-}
-
-// Хайлайты
-$bestPriceExact  = null;
-$bestPriceAnalog = null;
-$bestDelivery    = null;
-
-foreach ($allOffers as $o) {
-    if ($o['price'] > 0) {
-        if ($o['_type'] === 'exact' && (!$bestPriceExact || $o['price'] < $bestPriceExact['price'])) {
-            $bestPriceExact = $o;
-        }
-        if ($o['_type'] === 'analog' && (!$bestPriceAnalog || $o['price'] < $bestPriceAnalog['price'])) {
-            $bestPriceAnalog = $o;
-        }
-    }
-    if ($o['delivery_days'] >= 0 && (!$bestDelivery || $o['delivery_days'] < $bestDelivery['delivery_days'])) {
-        $bestDelivery = $o;
-    }
-}
-?>
-
-<!-- Хлебные крошки -->
+<!-- ====== СТРАНИЦА РЕЗУЛЬТАТОВ (AJAX-загрузка) ====== -->
 <div class="topbar">
     <form class="topbar-frm" method="get">
         <input type="text" name="q" class="topbar-inp" value="<?=esc($q)?>">
@@ -181,175 +108,121 @@ foreach ($allOffers as $o) {
     <a href="/search/?q=<?=urlencode($q)?>" class="back">← К выбору бренда</a>
 </div>
 
-<!-- Заголовок -->
-<div class="phead">
-    <h1 class="phead-title"><?=esc($number)?> <?=esc($brand)?></h1>
-    <?php if ($exact && !empty($exact['suppliers'])): ?>
-    <p class="phead-sub">Найдено <?=count($exact['suppliers'])?> предл. искомого + <?=count($analogs)?> аналогов</p>
-    <?php endif; ?>
-</div>
-
-<!-- Карточки-хайлайты -->
-<?php if ($bestPriceExact || $bestPriceAnalog || $bestDelivery): ?>
-<div class="hl-cards">
-    <?php if ($bestPriceExact): ?>
-    <div class="hl-card hl-card--best">
-        <div class="hl-badge hl-badge--price">САМАЯ НИЗКАЯ ЦЕНА</div>
-        <div class="hl-type">Искомый номер</div>
-        <div class="hl-name"><?=esc($bestPriceExact['_brand'])?> / <?=esc($bestPriceExact['_article'])?></div>
-        <div class="hl-price"><?=fmt($bestPriceExact['price'])?> р.</div>
-        <div class="hl-meta"><?=$bestPriceExact['quantity']?> шт. &middot; <?=dRange($bestPriceExact)?></div>
-        <div class="hl-src"><span class="src-tag src-tag--<?=$bestPriceExact['supplier']?>"><?=$bestPriceExact['supplier']?></span></div>
-    </div>
-    <?php endif; ?>
-    
-    <?php if ($bestPriceAnalog): ?>
-    <div class="hl-card hl-card--best">
-        <div class="hl-badge hl-badge--price">САМАЯ НИЗКАЯ ЦЕНА</div>
-        <div class="hl-type">Аналог</div>
-        <div class="hl-name"><?=esc($bestPriceAnalog['_brand'])?> / <?=esc($bestPriceAnalog['_article'])?></div>
-        <div class="hl-price"><?=fmt($bestPriceAnalog['price'])?> р.</div>
-        <div class="hl-meta"><?=$bestPriceAnalog['quantity']?> шт. &middot; <?=dRange($bestPriceAnalog)?></div>
-        <div class="hl-src"><span class="src-tag src-tag--<?=$bestPriceAnalog['supplier']?>"><?=$bestPriceAnalog['supplier']?></span></div>
-    </div>
-    <?php endif; ?>
-    
-    <?php if ($bestDelivery): ?>
-    <div class="hl-card hl-card--fast">
-        <div class="hl-badge hl-badge--delivery">НАИМЕНЬШИЙ СРОК</div>
-        <div class="hl-type"><?=$bestDelivery['_type']==='exact'?'Искомый номер':'Аналог'?></div>
-        <div class="hl-name"><?=esc($bestDelivery['_brand'])?> / <?=esc($bestDelivery['_article'])?></div>
-        <div class="hl-price"><?=fmt($bestDelivery['price'])?> р.</div>
-        <div class="hl-meta"><?=$bestDelivery['quantity']?> шт. &middot; <?=dRange($bestDelivery)?></div>
-        <div class="hl-src"><span class="src-tag src-tag--<?=$bestDelivery['supplier']?>"><?=$bestDelivery['supplier']?></span></div>
-    </div>
-    <?php endif; ?>
-</div>
-<?php endif; ?>
-
-<!-- ПОЛНАЯ ТАБЛИЦА -->
-<div class="full-tbl">
-
-<?php if ($exact && !empty($exact['suppliers'])): ?>
-<!-- Искомый номер -->
-<div class="ft-sec ft-sec--exact">
-    <div class="ft-sec-head">
-        <span class="ft-sec-title">Искомый номер</span>
-        <span class="ft-sec-sub"><?=esc($brand)?> / <?=esc($number)?></span>
-    </div>
-    <table class="ft-tbl">
-        <thead><tr>
-            <th class="ft-th--det">Деталь</th>
-            <th class="ft-th--skl">Склад</th>
-            <th class="ft-th--num">Кол.</th>
-            <th class="ft-th--num">Доставка</th>
-            <th class="ft-th--num">Цена</th>
-        </tr></thead>
-        <tbody>
-        <?php 
-        $shown = 0;
-        foreach ($exact['suppliers'] as $s): 
-            $shown++;
-            $rowStyle = $shown > 10 ? ' style="display:none" class="ft-more"' : '';
-        ?>
-        <tr<?=$rowStyle?>>
-            <td class="ft-td--det">
-                <div class="ft-det-name"><?=esc($s['_description'] ?: '')?></div>
-                <div class="ft-det-brand"><?=esc($brand)?> <?=esc($number)?></div>
-            </td>
-            <td class="ft-td--skl">
-                <span class="ft-skl-name"><?=esc($s['warehouse'])?></span>
-                <span class="src-tag src-tag--<?=$s['supplier']?>"><?=$s['supplier']?></span>
-            </td>
-            <td class="ft-td--num"><?=$s['quantity']?> шт.</td>
-            <td class="ft-td--num"><?=dRange($s)?></td>
-            <td class="ft-td--prc"><strong><?=fmt($s['price'])?> р.</strong></td>
-        </tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
-    <?php if ($shown > 10): ?>
-    <button class="ft-showmore" onclick="showMore(this)">Показать еще <?=$shown-10?> товаров</button>
-    <?php endif; ?>
-</div>
-<?php endif; ?>
-
-<!-- Аналоги -->
-<?php if (!empty($analogs)): ?>
-<div class="ft-sec ft-sec--analog">
-    <div class="ft-sec-head">
-        <span class="ft-sec-title">Аналоги</span>
-        <span class="ft-sec-sub">Внимание! Информация по аналогам является справочной</span>
-    </div>
-    
-    <?php foreach ($analogs as $a): ?>
-    <div class="ft-group">
-        <div class="ft-ghead">
-            <div class="ft-ginfo">
-                <strong class="ft-gbrand"><?=esc($a['brand'])?></strong>
-                <code class="ft-gart"><?=esc($a['article'])?></code>
-                <span class="ft-gdesc"><?=esc($a['description'] ?? '')?></span>
-            </div>
-            <div class="ft-gmeta">
-                <span class="ft-gbest">Лучшая: <b><?=fmt($a['best_price'])?> р.</b> / <?=($a['best_delivery']??'—')?> дн.</span>
-                <span class="badge <?=($a['has_instock']?'badge--green':'badge--yellow')?>"><?=$a['total_qty']?> шт.</span>
-            </div>
-        </div>
-        <table class="ft-tbl">
-            <thead><tr>
-                <th class="ft-th--det">Деталь</th>
-                <th class="ft-th--skl">Склад</th>
-                <th class="ft-th--num">Кол.</th>
-                <th class="ft-th--num">Доставка</th>
-                <th class="ft-th--num">Цена</th>
-            </tr></thead>
-            <tbody>
-            <?php 
-            $as = 0;
-            foreach ($a['suppliers'] as $s):
-                $as++;
-                $asStyle = $as > 10 ? ' style="display:none" class="ft-more"' : '';
-            ?>
-            <tr<?=$asStyle?>>
-                <td class="ft-td--det">
-                    <div class="ft-det-name"><?=esc($s['_description'] ?? '')?></div>
-                </td>
-                <td class="ft-td--skl">
-                    <span class="ft-skl-name"><?=esc($s['warehouse'])?></span>
-                    <span class="src-tag src-tag--<?=$s['supplier']?>"><?=$s['supplier']?></span>
-                </td>
-                <td class="ft-td--num"><?=$s['quantity']?> шт.</td>
-                <td class="ft-td--num"><?=dRange($s)?></td>
-                <td class="ft-td--prc"><strong><?=fmt($s['price'])?> р.</strong></td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-        <?php if ($as > 10): ?>
-        <button class="ft-showmore" onclick="showMore(this)">Показать еще <?=$as-10?> товаров</button>
-        <?php endif; ?>
-    </div>
-    <?php endforeach; ?>
-</div>
-<?php endif; ?>
-
-<?php if (!$exact && empty($analogs)): ?>
-<div class="hero">
-    <div class="hero-icon">⚠️</div>
-    <p>По запросу «<?=esc($brand)?> <?=esc($number)?>» ничего не найдено</p>
-    <a href="/search/?q=<?=urlencode($q)?>" class="hero-back">← К выбору бренда</a>
-</div>
-<?php endif; ?>
-
+<div id="resultContent">
+    <div class="loader"><div class="spinner"></div><div>Подбираем цены и аналоги...</div></div>
 </div>
 
 <script>
-function showMore(btn) {
-    var group = btn.parentElement;
-    var rows = group.querySelectorAll('.ft-more');
-    rows.forEach(function(r) { r.style.display = ''; });
-    btn.style.display = 'none';
+(function(){
+var API='/search/ajax.php';
+var Q=<?=json_encode($q)?>;
+var B=<?=json_encode($brand)?>;
+var N=<?=json_encode($number)?>;
+
+function qs(s,el){return(el||document).querySelector(s)}
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function fmt(n){return new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}
+function dRange(d){return d>=0?d+' дн.':'—'}
+
+async function loadResults(){
+    try{
+        var r=await fetch(API+'?action=search&article='+encodeURIComponent(Q)+'&brand='+encodeURIComponent(B)+'&number='+encodeURIComponent(N));
+        var d=await r.json();
+        if(d.error){showError(d.error);return}
+        renderResults(d);
+    }catch(e){showError('Ошибка: '+e.message)}
 }
+
+function renderResults(d){
+    var exact=d.exact||null;
+    var analogs=d.analogs||[];
+
+    // Собираем все офферы для хайлайтов
+    var allOffers=[];
+    if(exact&&exact.suppliers){exact.suppliers.forEach(function(s){s._type='exact';s._brand=exact.brand;s._article=exact.article;allOffers.push(s)});}
+    analogs.forEach(function(a){a.suppliers.forEach(function(s){s._type='analog';s._brand=a.brand;s._article=a.article;s._description=a.description||'';allOffers.push(s)});});
+
+    var bestPriceExact=null,bestPriceAnalog=null,bestDelivery=null;
+    allOffers.forEach(function(o){
+        if(o.price>0){
+            if(o._type==='exact'&&(!bestPriceExact||o.price<bestPriceExact.price))bestPriceExact=o;
+            if(o._type==='analog'&&(!bestPriceAnalog||o.price<bestPriceAnalog.price))bestPriceAnalog=o;
+        }
+        if(o.delivery_days>=0&&(!bestDelivery||o.delivery_days<bestDelivery.delivery_days))bestDelivery=o;
+    });
+
+    var h='';
+
+    // Заголовок
+    h+='<div class="phead"><h1 class="phead-title">'+esc(N)+' '+esc(B)+'</h1>';
+    if(exact&&exact.suppliers)h+='<p class="phead-sub">Найдено '+exact.suppliers.length+' предл. искомого + '+analogs.length+' аналогов</p>';
+    h+='</div>';
+
+    // Хайлайты
+    if(bestPriceExact||bestPriceAnalog||bestDelivery){
+        h+='<div class="hl-cards">';
+        if(bestPriceExact)h+=hlCard(bestPriceExact,'САМАЯ НИЗКАЯ ЦЕНА','hl-card--best','hl-badge--price','Искомый номер');
+        if(bestPriceAnalog)h+=hlCard(bestPriceAnalog,'САМАЯ НИЗКАЯ ЦЕНА','hl-card--best','hl-badge--price','Аналог');
+        if(bestDelivery)h+=hlCard(bestDelivery,'НАИМЕНЬШИЙ СРОК','hl-card--fast','hl-badge--delivery',bestDelivery._type==='exact'?'Искомый номер':'Аналог');
+        h+='</div>';
+    }
+
+    // Полная таблица
+    h+='<div class="full-tbl">';
+
+    if(exact&&exact.suppliers&&exact.suppliers.length){
+        h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head"><span class="ft-sec-title">Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+'</span></div>';
+        h+=supplierTable(exact.suppliers, exact.suppliers.length);
+        h+='</div>';
+    }
+
+    if(analogs.length){
+        h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title">Аналоги</span><span class="ft-sec-sub">Информация по аналогам является справочной</span></div>';
+        analogs.forEach(function(a){
+            h+='<div class="ft-group"><div class="ft-ghead"><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery||'—')+' дн.</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty+' шт.</span></div></div>';
+            h+=supplierTable(a.suppliers, a.suppliers.length);
+            h+='</div>';
+        });
+        h+='</div>';
+    }
+
+    if(!exact&&!analogs.length)h='<div class="hero"><div class="hero-icon">⚠️</div><p>По запросу «'+esc(B)+' '+esc(N)+'» ничего не найдено</p><a href="/search/?q='+encodeURIComponent(Q)+'" class="hero-back">← К выбору бренда</a></div>';
+
+    h+='</div>';
+    qs('#resultContent').innerHTML=h;
+
+    // Показать еще
+    document.querySelectorAll('.ft-showmore').forEach(function(btn){
+        btn.addEventListener('click',function(){
+            var group=btn.parentElement;
+            group.querySelectorAll('.ft-more').forEach(function(r){r.style.display=''});
+            btn.style.display='none';
+        });
+    });
+}
+
+function hlCard(o,title,cardCls,badgeCls,type){
+    return '<div class="hl-card '+cardCls+'"><div class="hl-badge '+badgeCls+'">'+title+'</div><div class="hl-type">'+type+'</div><div class="hl-name">'+esc(o._brand)+' / '+esc(o._article)+'</div><div class="hl-price">'+fmt(o.price)+' р.</div><div class="hl-meta">'+o.quantity+' шт. &middot; '+dRange(o.delivery_days)+'</div><div class="hl-src"><span class="src-tag src-tag--'+o.supplier+'">'+o.supplier+'</span></div></div>';
+}
+
+function supplierTable(suppliers,total){
+    var shown=10;
+    var h='<table class="ft-tbl"><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th><th class="ft-th--num">Цена</th></tr></thead><tbody>';
+    suppliers.forEach(function(s,i){
+        var cls=i>=shown?' class="ft-more" style="display:none"':'';
+        h+='<tr'+cls+'><td class="ft-td--det"><div class="ft-det-name">'+esc(s._description||'')+'</div><div class="ft-det-brand">'+esc(s._brand||'')+' '+esc(s._article||'')+'</div></td><td class="ft-td--skl"><span class="ft-skl-name">'+esc(s.warehouse||'')+'</span><span class="src-tag src-tag--'+s.supplier+'">'+s.supplier+'</span></td><td class="ft-td--num">'+s.quantity+' шт.</td><td class="ft-td--num">'+dRange(s.delivery_days)+'</td><td class="ft-td--prc"><strong>'+fmt(s.price)+' р.</strong></td></tr>';
+    });
+    h+='</tbody></table>';
+    if(total>shown)h+='<button class="ft-showmore">Показать еще '+(total-shown)+' товаров</button>';
+    return h;
+}
+
+function showError(msg){
+    qs('#resultContent').innerHTML='<div class="hero"><div class="hero-icon">⚠️</div><p>'+esc(msg)+'</p><a href="/search/?q='+encodeURIComponent(Q)+'" class="hero-back">← К выбору бренда</a></div>';
+}
+
+document.addEventListener('DOMContentLoaded',function(){loadResults()});
+})();
 </script>
 
 <?php endif; ?>
