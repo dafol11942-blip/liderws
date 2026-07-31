@@ -192,10 +192,9 @@ foreach ($files as $filePath) {
     $grandTotal['skipped']  += $fileStats['skipped'];
     $grandTotal['rows']     += $fileStats['rows'];
     
-    // В архив
-    $archiveDir = PRICELIST_DIR . '/archive';
-    if (!is_dir($archiveDir)) mkdir($archiveDir, 0755, true);
-    rename($filePath, $archiveDir . '/' . $fileName . '.' . date('Ymd_His') . '.processed');
+    // Сразу удаляем:
+    unlink($filePath);
+    logMsg("  Файл удалён");
 }
 
 // ==================== ИТОГ ====================
