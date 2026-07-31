@@ -127,7 +127,7 @@ foreach ($files as $filePath) {
             $line = mb_convert_encoding($line, 'UTF-8', 'Windows-1251');
         }
         
-        $cols = str_getcsv($line, ',', '"', '\\');
+        $cols = str_getcsv($line, ';', '"', '\\');
         if (count($cols) < 10) {
             $fileStats['skipped']++;
             continue;
