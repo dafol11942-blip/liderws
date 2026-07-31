@@ -131,7 +131,7 @@ if ($action === 'brands') {
     $number = trim($_GET['number'] ?? '');
     if (!$brand) { echo json_encode(['error' => 'Укажите бренд']); exit; }
 
-    $normBrand = BrandNormalizer::normalizeBrand($brand);
+    $normBrand = BrandNormalizer::normalize($brand);
     $normNum   = BrandNormalizer::normalizeArticle($number);
 
     // --- 1. Точное совпадение у всех поставщиков ---
@@ -178,7 +178,7 @@ if ($action === 'brands') {
 
         foreach ($items as $it) {
             $ia = BrandNormalizer::normalizeArticle((string)($it['article'] ?? ''));
-            $ib = BrandNormalizer::normalizeBrand((string)($it['brand'] ?? ''));
+            $ib = BrandNormalizer::normalize((string)($it['brand'] ?? ''));
             if (!$ia || !$ib) continue;
 
             // Точное совпадение
@@ -250,7 +250,7 @@ if ($action === 'brands') {
 
             foreach ($items as $it) {
                 $ia = BrandNormalizer::normalizeArticle((string)($it['article'] ?? ''));
-                $ib = BrandNormalizer::normalizeBrand((string)($it['brand'] ?? ''));
+                $ib = BrandNormalizer::normalize((string)($it['brand'] ?? ''));
                 if ($ia !== $pair['article_norm'] || $ib !== $pair['brand_norm']) continue;
 
                 if (!isset($analogGroups[$gk])) {
