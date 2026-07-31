@@ -1,5 +1,5 @@
 <?php
-// search/index.php — поиск liderws.ru (дизайн zap39, AJAX-результаты)
+// search/index.php — поиск liderws.ru (AJAX, топ-5 в аналогах)
 require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 CModule::IncludeModule('iblock');
 CModule::IncludeModule('catalog');
@@ -23,7 +23,6 @@ function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
 <div class="srch">
 
 <?php if (!$q): ?>
-<!-- ====== ПУСТОЙ ПОИСК ====== -->
 <div class="hero">
     <h1>🔍 Поиск автозапчастей</h1>
     <p>Введите артикул запчасти</p>
@@ -34,7 +33,6 @@ function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
 </div>
 
 <?php elseif ($q && !$brand): ?>
-<!-- ====== ВЫБОР БРЕНДА ====== -->
 <div class="topbar">
     <form class="topbar-frm" method="get">
         <input type="text" name="q" class="topbar-inp" value="<?=esc($q)?>">
@@ -99,7 +97,6 @@ document.addEventListener('DOMContentLoaded',function(){loadBrands(Q)});
 </script>
 
 <?php else: ?>
-<!-- ====== СТРАНИЦА РЕЗУЛЬТАТОВ (AJAX-загрузка) ====== -->
 <div class="topbar">
     <form class="topbar-frm" method="get">
         <input type="text" name="q" class="topbar-inp" value="<?=esc($q)?>">
@@ -115,10 +112,7 @@ document.addEventListener('DOMContentLoaded',function(){loadBrands(Q)});
 <script>
 (function(){
 var API='/search/ajax.php';
-var Q=<?=json_encode($q)?>;
-var B=<?=json_encode($brand)?>;
-var N=<?=json_encode($number)?>;
-
+var Q=<?=json_encode($q)?>,B=<?=json_encode($brand)?>,N=<?=json_encode($number)?>;
 function qs(s,el){return(el||document).querySelector(s)}
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function fmt(n){return new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}
@@ -134,10 +128,7 @@ async function loadResults(){
 }
 
 function renderResults(d){
-    var exact=d.exact||null;
-    var analogs=d.analogs||[];
-
-    // Собираем все офферы для хайлайтов
+    var exact=d.exact||null,analogs=d.analogs||[];
     var allOffers=[];
     if(exact&&exact.suppliers){exact.suppliers.forEach(function(s){s._type='exact';s._brand=exact.brand;s._article=exact.article;allOffers.push(s)});}
     analogs.forEach(function(a){a.suppliers.forEach(function(s){s._type='analog';s._brand=a.brand;s._article=a.article;s._description=a.description||'';allOffers.push(s)});});
@@ -153,12 +144,10 @@ function renderResults(d){
 
     var h='';
 
-    // Заголовок
     h+='<div class="phead"><h1 class="phead-title">'+esc(N)+' '+esc(B)+'</h1>';
     if(exact&&exact.suppliers)h+='<p class="phead-sub">Найдено '+exact.suppliers.length+' предл. искомого + '+analogs.length+' аналогов</p>';
     h+='</div>';
 
-    // Хайлайты
     if(bestPriceExact||bestPriceAnalog||bestDelivery){
         h+='<div class="hl-cards">';
         if(bestPriceExact)h+=hlCard(bestPriceExact,'САМАЯ НИЗКАЯ ЦЕНА','hl-card--best','hl-badge--price','Искомый номер');
@@ -167,34 +156,32 @@ function renderResults(d){
         h+='</div>';
     }
 
-    // Полная таблица
     h+='<div class="full-tbl">';
 
     if(exact&&exact.suppliers&&exact.suppliers.length){
-        h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head"><span class="ft-sec-title">Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+'</span></div>';
-        h+=supplierTable(exact.suppliers, exact.suppliers.length);
+        h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head"><span class="ft-sec-title">✅ Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+' — '+exact.suppliers.length+' складов</span></div>';
+        h+=supplierTable(exact.suppliers,'exact');
         h+='</div>';
     }
 
     if(analogs.length){
-        h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title">Аналоги</span><span class="ft-sec-sub">Информация по аналогам является справочной</span></div>';
+        h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title">🔄 Аналоги ('+analogs.length+')</span><span class="ft-sec-sub">Топ-5 поставщиков по каждому аналогу</span></div>';
         analogs.forEach(function(a){
-            h+='<div class="ft-group"><div class="ft-ghead"><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery||'—')+' дн.</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty+' шт.</span></div></div>';
-            h+=supplierTable(a.suppliers, a.suppliers.length);
+            h+='<div class="ft-group"><div class="ft-ghead"><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery!==null?a.best_delivery+' дн.':'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty+' шт.</span></div></div>';
+            h+=supplierTable(a.suppliers,'analog');
             h+='</div>';
         });
         h+='</div>';
     }
 
-    if(!exact&&!analogs.length)h='<div class="hero"><div class="hero-icon">⚠️</div><p>По запросу «'+esc(B)+' '+esc(N)+'» ничего не найдено</p><a href="/search/?q='+encodeURIComponent(Q)+'" class="hero-back">← К выбору бренда</a></div>';
+    if(!exact&&!analogs.length)h='<div class="hero" style="margin-top:16px"><div class="hero-icon">⚠️</div><p>По запросу «'+esc(B)+' '+esc(N)+'» ничего не найдено</p><a href="/search/?q='+encodeURIComponent(Q)+'" class="hero-back">← К выбору бренда</a></div>';
 
     h+='</div>';
     qs('#resultContent').innerHTML=h;
 
-    // Показать еще
     document.querySelectorAll('.ft-showmore').forEach(function(btn){
         btn.addEventListener('click',function(){
-            var group=btn.parentElement;
+            var group=btn.closest('.ft-sec, .ft-group');
             group.querySelectorAll('.ft-more').forEach(function(r){r.style.display=''});
             btn.style.display='none';
         });
@@ -205,26 +192,25 @@ function hlCard(o,title,cardCls,badgeCls,type){
     return '<div class="hl-card '+cardCls+'"><div class="hl-badge '+badgeCls+'">'+title+'</div><div class="hl-type">'+type+'</div><div class="hl-name">'+esc(o._brand)+' / '+esc(o._article)+'</div><div class="hl-price">'+fmt(o.price)+' р.</div><div class="hl-meta">'+o.quantity+' шт. &middot; '+dRange(o.delivery_days)+'</div><div class="hl-src"><span class="src-tag src-tag--'+o.supplier+'">'+o.supplier+'</span></div></div>';
 }
 
-function supplierTable(suppliers,total){
-    var shown=10;
+function supplierTable(suppliers,type){
+    var limit = type==='exact' ? 15 : 5;
     var h='<table class="ft-tbl"><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th><th class="ft-th--num">Цена</th></tr></thead><tbody>';
     suppliers.forEach(function(s,i){
-        var cls=i>=shown?' class="ft-more" style="display:none"':'';
+        var cls=i>=limit?' class="ft-more" style="display:none"':'';
         h+='<tr'+cls+'><td class="ft-td--det"><div class="ft-det-name">'+esc(s._description||'')+'</div><div class="ft-det-brand">'+esc(s._brand||'')+' '+esc(s._article||'')+'</div></td><td class="ft-td--skl"><span class="ft-skl-name">'+esc(s.warehouse||'')+'</span><span class="src-tag src-tag--'+s.supplier+'">'+s.supplier+'</span></td><td class="ft-td--num">'+s.quantity+' шт.</td><td class="ft-td--num">'+dRange(s.delivery_days)+'</td><td class="ft-td--prc"><strong>'+fmt(s.price)+' р.</strong></td></tr>';
     });
     h+='</tbody></table>';
-    if(total>shown)h+='<button class="ft-showmore">Показать еще '+(total-shown)+' товаров</button>';
+    if(suppliers.length>limit)h+='<button class="ft-showmore">Показать еще '+(suppliers.length-limit)+' товаров</button>';
     return h;
 }
 
 function showError(msg){
-    qs('#resultContent').innerHTML='<div class="hero"><div class="hero-icon">⚠️</div><p>'+esc(msg)+'</p><a href="/search/?q='+encodeURIComponent(Q)+'" class="hero-back">← К выбору бренда</a></div>';
+    qs('#resultContent').innerHTML='<div class="hero" style="margin-top:16px"><div class="hero-icon">⚠️</div><p>'+esc(msg)+'</p><a href="/search/?q='+encodeURIComponent(Q)+'" class="hero-back">← К выбору бренда</a></div>';
 }
 
 document.addEventListener('DOMContentLoaded',function(){loadResults()});
 })();
 </script>
-
 <?php endif; ?>
 
 </div></body></html>
