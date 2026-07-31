@@ -187,12 +187,13 @@ if ($action === 'brands') {
             $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
             if ($ia === $normNum && $ib === $normBrand) {
                 $exactOffers[] = [
-                    'supplier'      => $code,
-                    'warehouse'     => (string)($it->warehouse ?? ''),
-                    'price'         => (float)($it->price ?? 0),
-                    'quantity'      => (int)($it->quantity ?? 0),
-                    'delivery_days' => (int)($it->deliveryDays ?? -1),
-                ];
+                'supplier'      => $code,
+                'warehouse'     => (string)($it->warehouse ?? ''),
+                'description'   => (string)($it->name ?? $it->description ?? ''),
+                'price'         => (float)($it->price ?? 0),
+                'quantity'      => (int)($it->quantity ?? 0),
+                'delivery_days' => (int)($it->deliveryDays ?? -1),
+            ];
             }
             $ck = $ib . '|' . $ia;
             if (!isset($seenCross[$ck])) {
@@ -256,12 +257,13 @@ if ($action === 'brands') {
                     $analogGroups[$gk]['description'] = $desc;
                 }
                 $analogGroups[$gk]['offers'][] = [
-                    'supplier'      => $code,
-                    'warehouse'     => (string)($it->warehouse ?? ''),
-                    'price'         => (float)($it->price ?? 0),
-                    'quantity'      => (int)($it->quantity ?? 0),
-                    'delivery_days' => (int)($it->deliveryDays ?? -1),
-                ];
+                'supplier'      => $code,
+                'warehouse'     => (string)($it->warehouse ?? ''),
+                'description'   => (string)($it->name ?? $it->description ?? ''),
+                'price'         => (float)($it->price ?? 0),
+                'quantity'      => (int)($it->quantity ?? 0),
+                'delivery_days' => (int)($it->deliveryDays ?? -1),
+            ];
             }
         }
     }
