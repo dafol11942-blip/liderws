@@ -106,7 +106,7 @@ try {
 logMsg("Деактивация старых записей autoeuro...");
 $stmt = $pdo->query("SELECT COUNT(*) FROM b_supplier_stock WHERE supplier_code = 'autoeuro' AND source_type = 'pricelist' AND is_active = 1");
 $wasActive = $stmt->fetchColumn();
-$pdo->exec("UPDATE b_supplier_stock SET is_active = 0, updated_at = NOW() WHERE supplier_code = 'autoeuro' AND source_type = 'pricelist' AND is_active = 1");
+$pdo->exec("UPDATE b_supplier_stock SET is_active = 0, last_updated = NOW() WHERE supplier_code = 'autoeuro' AND source_type = 'pricelist' AND is_active = 1");
 logMsg("Деактивировано записей: {$wasActive}");
 
 // ==================== НОРМАЛИЗАЦИЯ ====================
@@ -185,14 +185,14 @@ function extractWarehouseFromFilename($filename) {
 // ==================== ПОДГОТОВКА INSERT ====================
 $insertSQL = "INSERT INTO b_supplier_stock 
     (supplier_code, source_type, article, article_normalized, brand, brand_normalized, 
-     original_article, description, price, quantity, warehouse_name, is_active, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())
+     name, price, quantity, warehouse_name, is_active, last_updated)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
     ON DUPLICATE KEY UPDATE 
         price = VALUES(price), 
         quantity = VALUES(quantity), 
-        description = VALUES(description),
+        name = VALUES(name),
         is_active = 1,
-        updated_at = NOW()";
+        last_updated = NOW()";
 $insertStmt = $pdo->prepare($insertSQL);
 
 // ==================== ПАРСИНГ ВСЕХ CSV ====================
@@ -244,8 +244,7 @@ foreach ($csvFiles as $csvPath) {
             $articleNorm,
             $brand,
             $brandNorm,
-            $originalArticle,
-            $description,
+            $description,        // → name
             floatval($price),
             $quantity,
             $warehouse,
