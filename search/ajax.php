@@ -21,7 +21,7 @@ if (!$article) { echo json_encode(['error' => 'Укажите артикул']);
 
 $normArt  = BrandNormalizer::normalizeArticle($article);
 $factory  = getSupplierFactory();
-$suppliers = $factory->allAvailable(); // все 10
+$suppliers = $factory->allAvailable();
 
 // ═══════════════════ ACTION: brands ═══════════════════
 if ($action === 'brands') {
@@ -116,7 +116,6 @@ if ($action === 'brands') {
         ];
     }
 
-    // Сортировка: exact → analog, внутри по кол-ву источников
     usort($brands, function($a, $b) {
         if ($a['type'] !== $b['type']) return $a['type'] === 'exact' ? -1 : 1;
         return count($b['sources']) - count($a['sources']);
@@ -127,20 +126,20 @@ if ($action === 'brands') {
 // ═══════════════════ ACTION: search ═══════════════════
 } elseif ($action === 'search') {
 
-    $brand  = trim($_GET['brand'] ?? '');
-    $number = trim($_GET['number'] ?? '');
-    if (!$brand) { echo json_encode(['error' => 'Укажите бренд']); exit; }
+    $brandOrig  = trim($_GET['brand'] ?? '');   // оригинальный — для API
+    $numberOrig = trim($_GET['number'] ?? '');
+    if (!$brandOrig) { echo json_encode(['error' => 'Укажите бренд']); exit; }
 
-    $normBrand = BrandNormalizer::normalize($brand);
-    $normNum   = BrandNormalizer::normalizeArticle($number);
+    $normBrand  = BrandNormalizer::normalize($brandOrig);    // нормализованный — для сравнения
+    $normNum    = BrandNormalizer::normalizeArticle($numberOrig);
 
-    // --- 1. Точное совпадение у всех поставщиков ---
+    // --- 1. Точное совпадение у всех поставщиков (передаём ОРИГИНАЛЬНЫЙ бренд) ---
     $mh = curl_multi_init();
     $handles = [];
     $exactReqs = [];
 
     foreach ($suppliers as $code => $connector) {
-        $req = $connector->buildSearchRequest($normNum, $normBrand);
+        $req = $connector->buildSearchRequest($normNum, $brandOrig);
         if (!$req) continue;
         $exactReqs[$code] = ['req' => $req, 'supplier' => $connector];
         $ch = curl_init();
@@ -162,7 +161,7 @@ if ($action === 'brands') {
     do { curl_multi_exec($mh, $running); curl_multi_select($mh, 0.1); } while ($running > 0);
 
     $exactOffers = [];
-    $crossPairs  = []; // brand_norm|article_norm => [brand_orig, article_orig]
+    $crossPairs  = [];
     $seenCross   = [];
 
     foreach ($handles as $code => $ch) {
@@ -181,12 +180,12 @@ if ($action === 'brands') {
             $ib = BrandNormalizer::normalize((string)($it['brand'] ?? ''));
             if (!$ia || !$ib) continue;
 
-            // Точное совпадение
+            // Точное совпадение (сравниваем по нормализованным)
             if ($ia === $normNum && $ib === $normBrand) {
                 $exactOffers[] = normalizeOffer($it, $code);
             }
 
-            // Собираем кроссы (все кроме точного)
+            // Кроссы (все кроме точного)
             $ck = $ib . '|' . $ia;
             if (($ia !== $normNum || $ib !== $normBrand) && !isset($seenCross[$ck])) {
                 $seenCross[$ck] = true;
@@ -201,8 +200,8 @@ if ($action === 'brands') {
     }
     curl_multi_close($mh);
 
-    // --- 2. Ищем кроссы у всех поставщиков ---
-    $analogGroups = []; // ключ => ['brand_orig', 'article_orig', 'offers' => []]
+    // --- 2. Кроссы у всех поставщиков (передаём ОРИГИНАЛЬНЫЕ бренд+артикул) ---
+    $analogGroups = [];
 
     if (!empty($crossPairs)) {
         $mh2 = curl_multi_init();
@@ -211,7 +210,8 @@ if ($action === 'brands') {
 
         foreach ($crossPairs as $ck => $pair) {
             foreach ($suppliers as $code => $connector) {
-                $req = $connector->buildSearchRequest($pair['article_norm'], $pair['brand_norm']);
+                // Передаём оригинальные значения в API
+                $req = $connector->buildSearchRequest($pair['article_orig'], $pair['brand_orig']);
                 if (!$req) continue;
                 $reqKey = $code . '|' . $ck;
                 $crReqs[$reqKey] = ['req' => $req, 'supplier' => $connector, 'pair' => $pair];
@@ -265,7 +265,7 @@ if ($action === 'brands') {
                 if (mb_strlen($desc) > mb_strlen($analogGroups[$gk]['description'])) {
                     $analogGroups[$gk]['description'] = $desc;
                 }
-                $analogGroups[$gk]['offers'][] = normalizeOffer($it, $reqKey);
+                $analogGroups[$gk]['offers'][] = normalizeOffer($it, $code);
             }
         }
         curl_multi_close($mh2);
@@ -275,10 +275,13 @@ if ($action === 'brands') {
     $resp = [];
 
     if (!empty($exactOffers)) {
-        usort($exactOffers, fn($a, $b) => $a['price'] <=> $b['price'] ?: $a['delivery_days'] <=> $b['delivery_days']);
+        usort($exactOffers, function($a, $b) {
+            if ($a['price'] != $b['price']) return $a['price'] - $b['price'];
+            return $a['delivery_days'] - $b['delivery_days'];
+        });
         $resp['exact'] = [
-            'brand'     => $brand,
-            'article'   => $number,
+            'brand'     => $brandOrig,
+            'article'   => $numberOrig,
             'suppliers' => $exactOffers,
         ];
     }
@@ -289,24 +292,26 @@ if ($action === 'brands') {
         $prices = array_column($offers, 'price');
         $days   = array_column($offers, 'delivery_days');
         $qtys   = array_column($offers, 'quantity');
-        $activePrices = array_filter($prices, fn($p) => $p > 0);
-        $activeDays   = array_filter($days, fn($d) => $d >= 0);
+        $activePrices = array_filter($prices, function($p) { return $p > 0; });
+        $activeDays   = array_filter($days, function($d) { return $d >= 0; });
 
-        usort($offers, fn($a, $b) => $a['price'] <=> $b['price'] ?: $a['delivery_days'] <=> $b['delivery_days']);
+        usort($offers, function($a, $b) {
+            if ($a['price'] != $b['price']) return $a['price'] - $b['price'];
+            return $a['delivery_days'] - $b['delivery_days'];
+        });
 
         $analogs[] = [
-            'brand'        => $grp['brand_orig'],
-            'article'      => $grp['article_orig'],
-            'description'  => $grp['description'],
-            'best_price'   => !empty($activePrices) ? min($activePrices) : 0,
-            'best_delivery'=> !empty($activeDays) ? min($activeDays) : null,
-            'total_qty'    => array_sum($qtys),
-            'has_instock'  => count(array_filter($qtys, fn($q) => $q > 0)) > 0,
-            'suppliers'    => $offers,
+            'brand'         => $grp['brand_orig'],
+            'article'       => $grp['article_orig'],
+            'description'   => $grp['description'],
+            'best_price'    => !empty($activePrices) ? min($activePrices) : 0,
+            'best_delivery' => !empty($activeDays) ? min($activeDays) : null,
+            'total_qty'     => array_sum($qtys),
+            'has_instock'   => count(array_filter($qtys, function($q) { return $q > 0; })) > 0,
+            'suppliers'     => $offers,
         ];
     }
 
-    // Сортировка: в наличии → срок → цена
     usort($analogs, function($a, $b) {
         if ($a['has_instock'] !== $b['has_instock']) return $b['has_instock'] - $a['has_instock'];
         $dA = $a['best_delivery'] ?? 999;
