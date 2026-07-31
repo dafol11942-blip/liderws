@@ -186,10 +186,11 @@ if ($action === 'brands') {
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
             $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
             if ($ia === $normNum && $ib === $normBrand) {
-                $exactOffers[] = [
+             $exactOffers[] = [
                 'supplier'      => $code,
                 'warehouse'     => (string)($it->warehouse ?? ''),
-                'description'   => (string)($it->name ?? $it->description ?? ''),
+                'name'          => (string)($it->name ?? ''),
+                'description'   => (string)($it->description ?? $it->name ?? ''),
                 'price'         => (float)($it->price ?? 0),
                 'quantity'      => (int)($it->quantity ?? 0),
                 'delivery_days' => (int)($it->deliveryDays ?? -1),
@@ -259,6 +260,7 @@ if ($action === 'brands') {
                 $analogGroups[$gk]['offers'][] = [
                 'supplier'      => $code,
                 'warehouse'     => (string)($it->warehouse ?? ''),
+                'name'          => (string)($it->name ?? ''),
                 'description'   => (string)($it->name ?? $it->description ?? ''),
                 'price'         => (float)($it->price ?? 0),
                 'quantity'      => (int)($it->quantity ?? 0),
