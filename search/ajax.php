@@ -1,5 +1,5 @@
 <?php
-// search/ajax.php — эндпоинты нового поиска (brands + search) v4
+// search/ajax.php — эндпоинты нового поиска v5 (FIX: brand/article order)
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -21,7 +21,7 @@ $normArt  = BrandNormalizer::normalizeArticle($article);
 $factory  = getSupplierFactory();
 $suppliers = $factory->allAvailable();
 
-// ─── ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ───
+// ─── curl multi helper ───
 function curlExec(array $suppliers, array $requests): array {
     if (empty($requests)) return [];
     $mh = curl_multi_init();
@@ -62,7 +62,6 @@ function curlExec(array $suppliers, array $requests): array {
 // ═══════════════════ ACTION: brands ═══════════════════
 if ($action === 'brands') {
 
-    // --- Свои остатки (1С) ---
     $arrFilter = [['LOGIC' => 'OR',
         ['%NAME' => $article], ['PROPERTY_CML2_ARTICLE' => $article],
         ['%PROPERTY_CML2_ARTICLE' => $article], ['%DETAIL_TEXT' => $article],
@@ -71,7 +70,6 @@ if ($action === 'brands') {
     $localRes   = CIBlockElement::GetList([], array_merge(['IBLOCK_ID' => 42, 'ACTIVE' => 'Y'], $arrFilter[0]), false, false, ['ID']);
     $localCount = $localRes->SelectedRowsCount();
 
-    // --- Бренды от поставщиков ---
     $brandReqs = [];
     foreach ($suppliers as $code => $connector) {
         $req = $connector->buildBrandsRequest($article);
@@ -91,7 +89,6 @@ if ($action === 'brands') {
         } catch (\Throwable $e) {}
     }
 
-    // --- Группировка ---
     $brandMap = [];
     foreach ($allRaw as $br) {
         $b = trim((string)($br['brand'] ?? ''));
@@ -130,11 +127,7 @@ if ($action === 'brands') {
         return count($b['sources']) - count($a['sources']);
     });
 
-    echo json_encode([
-        'brands'      => $brands,
-        'local_count' => $localCount,
-        'article'     => $article,
-    ], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['brands' => $brands, 'local_count' => $localCount, 'article' => $article], JSON_UNESCAPED_UNICODE);
 
 // ═══════════════════ ACTION: search ═══════════════════
 } elseif ($action === 'search') {
@@ -147,9 +140,10 @@ if ($action === 'brands') {
     $normNum   = BrandNormalizer::normalizeArticle($numberOrig);
 
     // ── 1. Точное совпадение ──
+    // ВАЖНО: buildSearchRequest(БРЕНД, АРТИКУЛ) — бренд первый!
     $exactReqs = [];
     foreach ($suppliers as $code => $connector) {
-        $req = $connector->buildSearchRequest($normNum, $brandOrig);
+        $req = $connector->buildSearchRequest($brandOrig, $normNum);
         if ($req) $exactReqs[$code] = $req;
     }
     $responses = curlExec($suppliers, $exactReqs);
@@ -157,22 +151,18 @@ if ($action === 'brands') {
     $exactOffers = [];
     $crossPairs  = [];
     $seenCross   = [];
-    // Исключаем сам искомый из кроссов
     $seenCross[$normBrand . '|' . $normNum] = true;
 
     foreach ($responses as $code => $body) {
         if (!$body) continue;
         try {
-            // parseSearchResponse возвращает массив объектов SearchResultItem
             $items = $suppliers[$code]->parseSearchResponse($body, $brandOrig, $numberOrig);
         } catch (\Throwable $e) { continue; }
 
         foreach ($items as $it) {
-            // SearchResultItem — ОБЪЕКТ, не массив!
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
             $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
 
-            // Точное совпадение
             if ($ia === $normNum && $ib === $normBrand) {
                 $exactOffers[] = [
                     'supplier'      => $code,
@@ -183,7 +173,6 @@ if ($action === 'brands') {
                 ];
             }
 
-            // Собираем кроссы (все бренд+артикул из ответа, кроме точного)
             $ck = $ib . '|' . $ia;
             if (!isset($seenCross[$ck])) {
                 $seenCross[$ck] = true;
@@ -197,14 +186,15 @@ if ($action === 'brands') {
         }
     }
 
-    // ── 2. Поиск кросс-пар у всех поставщиков ──
+    // ── 2. Кроссы у всех поставщиков ──
     $analogGroups = [];
 
     if (!empty($crossPairs)) {
         $crReqs = [];
         foreach ($crossPairs as $ck => $pair) {
             foreach ($suppliers as $code => $connector) {
-                $req = $connector->buildSearchRequest($pair['article_orig'], $pair['brand_orig']);
+                // ВАЖНО: buildSearchRequest(БРЕНД, АРТИКУЛ)
+                $req = $connector->buildSearchRequest($pair['brand_orig'], $pair['article_orig']);
                 if ($req) {
                     $crReqs[$code . '|' . $ck] = $req;
                 }
@@ -253,7 +243,7 @@ if ($action === 'brands') {
         }
     }
 
-    // ── 3. Собираем ответ ──
+    // ── 3. Ответ ──
     $resp = [];
 
     if (!empty($exactOffers)) {
@@ -261,11 +251,7 @@ if ($action === 'brands') {
             if ($a['price'] != $b['price']) return $a['price'] - $b['price'];
             return $a['delivery_days'] - $b['delivery_days'];
         });
-        $resp['exact'] = [
-            'brand'     => $brandOrig,
-            'article'   => $numberOrig,
-            'suppliers' => $exactOffers,
-        ];
+        $resp['exact'] = ['brand' => $brandOrig, 'article' => $numberOrig, 'suppliers' => $exactOffers];
     }
 
     $analogs = [];
