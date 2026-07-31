@@ -274,7 +274,7 @@ try {
         $mcurl = new MultiCurlExecutor(10, 8);
 
         foreach ($missingPairs as $pair) {
-            foreach ($factory->getAll() as $supplier) {
+            foreach ($factory->all() as $supplier) {
                 if (!$supplier->isAvailable()) continue;
                 $req = $supplier->buildSearchRequest($pair['brand_norm'], $pair['article_norm']);
                 if (!$req) continue;
@@ -286,7 +286,7 @@ try {
         $responses = $mcurl->executeAll();
 
         foreach ($missingPairs as $pair) {
-            foreach ($factory->getAll() as $supplier) {
+            foreach ($factory->all() as $supplier) {
                 if (!$supplier->isAvailable()) continue;
                 $key = $supplier->getCode() . '|' . $pair['brand_norm'] . '|' . $pair['article_norm'];
                 $resp = $responses[$key] ?? null;
