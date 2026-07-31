@@ -159,6 +159,20 @@ $warehouseMap = [
     'Voronezh' => 'Воронеж',
     'Yaroslavl' => 'Ярославль',
     'Lobnya' => 'Склад Лобня',
+    'Nizhniy_Novgorod' => 'Нижний Новгород',
+    'Nizhnij_Novgorod' => 'Нижний Новгород',
+    'Rostov-Na-Donu' => 'Ростов-На-Дону',
+    'Rostov_Na_Donu' => 'Ростов-На-Дону',
+    'Sankt-Peterburg_CS' => 'Санкт-Петербург ЦС',
+    'Sankt_Peterburg_CS' => 'Санкт-Петербург ЦС',
+    'Sklad_Lobnya' => 'Склад Лобня',
+    'Sklad_Rzhev' => 'Склад Ржев',
+    'Stavropoly' => 'Ставрополь',
+    'Stavropol' => 'Ставрополь',
+    'Ulyyanovsk' => 'Ульяновск',
+    'Ulyanovsk' => 'Ульяновск',
+    'Yaroslavly' => 'Ярославль',
+    'Yaroslavl' => 'Ярославль',
 ];
 
 function extractWarehouseFromFilename($filename) {
