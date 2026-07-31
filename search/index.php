@@ -192,7 +192,7 @@ function renderResults(d){
     }
 
     if(analogs.length){
-        h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title">🔄 Аналоги ('+analogs.length+')</span><span class="ft-sec-sub">Топ-5 поставщиков по каждому аналогу</span></div>';
+        h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title">🔄 Аналоги ('+analogs.length+')</span></div>';
         analogs.forEach(function(a){
             h+='<div class="ft-group"><div class="ft-ghead"><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery!==null?a.best_delivery+' дн.':'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty+' шт.</span></div></div>';
             h+=supplierTable(a.suppliers,'analog');
@@ -224,7 +224,8 @@ function supplierTable(suppliers,type){
     var h='<table class="ft-tbl"><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th><th class="ft-th--num">Цена</th></tr></thead><tbody>';
     suppliers.forEach(function(s,i){
         var cls=i>=limit?' class="ft-more" style="display:none"':'';
-        h+='<tr'+cls+'><td class="ft-td--det"><div class="ft-det-name">'+esc(s._description||'')+'</div><div class="ft-det-brand">'+esc(s._brand||'')+' '+esc(s._article||'')+'</div></td><td class="ft-td--skl"><span class="ft-skl-name">'+esc(s.warehouse||'')+'</span><span class="src-tag src-tag--'+s.supplier+'">'+s.supplier+'</span></td><td class="ft-td--num">'+s.quantity+' шт.</td><td class="ft-td--num">'+dRange(s.delivery_days)+'</td><td class="ft-td--prc"><strong>'+fmt(s.price)+' р.</strong></td></tr>';
+        var det = s._description || (s._brand+' '+s._article);
+        h+='<tr'+cls+'><td class="ft-td--det"><div class="ft-det-name">'+esc(det)+'</div></td><td class="ft-td--skl"><span class="ft-skl-name">'+esc(s.warehouse||'')+'</span><span class="src-tag src-tag--'+s.supplier+'">'+s.supplier+'</span></td><td class="ft-td--num">'+s.quantity+' шт.</td><td class="ft-td--num">'+dRange(s.delivery_days)+'</td><td class="ft-td--prc"><strong>'+fmt(s.price)+' р.</strong></td></tr>';
     });
     h+='</tbody></table>';
     if(suppliers.length>limit)h+='<button class="ft-showmore">Показать еще '+(suppliers.length-limit)+' товаров</button>';
