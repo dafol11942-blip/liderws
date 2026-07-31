@@ -118,13 +118,41 @@ function esc(s){var d=document.createElement('div');d.textContent=s;return d.inn
 function fmt(n){return new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}
 function dRange(d){return d>=0?d+' дн.':'—'}
 
+function showProgress(pct, msg) {
+    qs('#resultContent').innerHTML =
+        '<div class="loader">' +
+        '<div class="spinner"></div>' +
+        '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
+        '<div class="progress-text">' + pct + '% — ' + esc(msg) + '</div>' +
+        '</div>';
+}
+
 async function loadResults(){
-    try{
-        var r=await fetch(API+'?action=search&article='+encodeURIComponent(Q)+'&brand='+encodeURIComponent(B)+'&number='+encodeURIComponent(N));
-        var d=await r.json();
+    showProgress(0, 'Запуск поиска...');
+
+    // Фейковый прогресс — плавно растёт пока ждём ответ
+    var fakePct = 0;
+    var fakeInterval = setInterval(function() {
+        if (fakePct < 90) {
+            fakePct += Math.random() * 15;
+            if (fakePct > 90) fakePct = 90;
+            var msgs = ['Запрашиваем точное совпадение...','Анализируем результаты...','Ищем кросс-номера...','Запрашиваем цены у поставщиков...','Обрабатываем ответы...','Группируем результаты...'];
+            var m = msgs[Math.floor(fakePct / 20)] || 'Обработка...';
+            showProgress(Math.floor(fakePct), m);
+        }
+    }, 600);
+
+    try {
+        var r = await fetch(API+'?action=search&article='+encodeURIComponent(Q)+'&brand='+encodeURIComponent(B)+'&number='+encodeURIComponent(N));
+        var d = await r.json();
+        clearInterval(fakeInterval);
         if(d.error){showError(d.error);return}
-        renderResults(d);
-    }catch(e){showError('Ошибка: '+e.message)}
+        showProgress(100, 'Готово');
+        setTimeout(function(){ renderResults(d); }, 300);
+    } catch(e) {
+        clearInterval(fakeInterval);
+        showError('Ошибка соединения: ' + e.message);
+    }
 }
 
 function renderResults(d){
@@ -143,7 +171,6 @@ function renderResults(d){
     });
 
     var h='';
-
     h+='<div class="phead"><h1 class="phead-title">'+esc(N)+' '+esc(B)+'</h1>';
     if(exact&&exact.suppliers)h+='<p class="phead-sub">Найдено '+exact.suppliers.length+' предл. искомого + '+analogs.length+' аналогов</p>';
     h+='</div>';
@@ -193,7 +220,7 @@ function hlCard(o,title,cardCls,badgeCls,type){
 }
 
 function supplierTable(suppliers,type){
-    var limit = type==='exact' ? 15 : 5;
+    var limit=type==='exact'?15:5;
     var h='<table class="ft-tbl"><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th><th class="ft-th--num">Цена</th></tr></thead><tbody>';
     suppliers.forEach(function(s,i){
         var cls=i>=limit?' class="ft-more" style="display:none"':'';
