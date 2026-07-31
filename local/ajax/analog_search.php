@@ -20,18 +20,6 @@ require_once $base . '/Search/SearchCacheManager.php';
 require_once $base . '/Search/Common/MultiCurlExecutor.php';
 require_once $base . '/Search/Stage2/OfferAggregator.php';
 require_once $base . '/Search/Stage2/ResultBuilder.php';
-require_once $base . '/Supplier/SupplierInterface.php';
-require_once $base . '/Supplier/SupplierFactory.php';
-require_once $base . '/Supplier/MoskvorechieConnector.php';
-require_once $base . '/Supplier/RosskoConnector.php';
-require_once $base . '/Supplier/PartKomConnector.php';
-require_once $base . '/Supplier/AutoeuroConnector.php';
-require_once $base . '/Supplier/BergConnector.php';
-require_once $base . '/Supplier/IxoraConnector.php';
-require_once $base . '/Supplier/ShateMConnector.php';
-require_once $base . '/Supplier/TatpartsConnector.php';
-require_once $base . '/Supplier/AutorussConnector.php';
-require_once $base . '/Supplier/AutopiterConnector.php';
 
 use Lider\Search\BrandNormalizer;
 use Lider\Search\Common\MultiCurlExecutor;
@@ -44,21 +32,6 @@ header('Content-Type: application/json; charset=utf-8');
 const UMAPI_BASE = 'https://api.umapi.ru/v2/cross/parts/Analogs/pro';
 const UMAPI_KEY  = '52606cd0-b1fd-4a5e-a8e3-ad9fbef16435';
 const MAX_CROSS_API = 30;
-
-// ─── Фабрика поставщиков ─────────────────────────────────────
-function getSupplierFactory(): \Lider\Supplier\SupplierFactory {
-    $f = new \Lider\Supplier\SupplierFactory();
-    $f->register(new \Lider\Supplier\MoskvorechieConnector(['API_KEY'=>'2Ek7PUswoRDK:x1W5M70Y3KF8vZ52ETr2zi53d6SUOoPf']));
-    $f->register(new \Lider\Supplier\RosskoConnector(['KEY1'=>'d6907f0f857524815255b74cda86fe9b','KEY2'=>'a514b4c11299686d7cfe8fd3563d1c58','DELIVERY_ID'=>'000000002','ADDRESS_ID'=>'71520']));
-    $f->register(new \Lider\Supplier\BergConnector(['API_KEY'=>'9e1cc5aea546e263e54c8ba687757a6515de9c78f52c5a9b435bd7ad8303ef36','ADDRESS_ID'=>31173]));
-    $f->register(new \Lider\Supplier\AutoeuroConnector(['API_KEY'=>'wK435HUkjTAbJL4RF4F5z9NBXWYqpFhSorfpVkRLFNYI60T21ksYvVQNawkX','DELIVERY_KEY'=>'q53qrkblKN8GviqxHAUlgA0vlUZgRhN04SG01sixtCpoTjC99FJ165xxzGta89mwhLNonRBxH1vlOg8rjL2xPxAdurElATA']));
-    $f->register(new \Lider\Supplier\PartKomConnector(['LOGIN'=>'lider16','PASSWORD'=>'LidGates16']));
-    $f->register(new \Lider\Supplier\IxoraConnector(['AUTH_CODE'=>'460880B0988C8C204B2DD392EC81611D','TIMEOUT'=>8]));
-    $f->register(new \Lider\Supplier\TatpartsConnector());
-    $f->register(new \Lider\Supplier\AutorussConnector(['LOGIN'=>'Lider-16@bk.ru','PASSWORD_MD5'=>'00fd3781d2cfdf0d971b57fa7397cfac']));
-    $f->register(new \Lider\Supplier\AutopiterConnector(['USER_ID'=>'165286','PASSWORD'=>'LidGates16']));
-    return $f;
-}
 
 // ─── Вспомогательные функции ─────────────────────────────────
 function fmtDeliveryHtml(array $del): string {
