@@ -10,11 +10,24 @@
 .srch-empty { text-align: center; padding: 100px 20px; }
 .srch-empty-icon { font-size: 56px; margin-bottom: 20px; opacity: 0.5; }
 .srch-empty p { font-size: 16px; color: var(--gray); margin-bottom: 28px; }
-.srch-empty-form { display: flex; gap: 8px; max-width: 500px; margin: 0 auto; }
-.srch-empty-inp { flex: 1; padding: 13px 16px; font-size: 15px; font-family: var(--font); border: 1px solid var(--border); border-radius: var(--radius); outline: none; box-shadow: var(--shadow-sm); }
+.srch-empty-form { display: flex; gap: 0; max-width: 540px; margin: 0 auto; box-shadow: var(--shadow); border-radius: var(--radius); overflow: hidden; }
+.srch-empty-inp { flex: 1; padding: 13px 16px; font-size: 15px; font-family: var(--font); border: 1px solid var(--border); border-right: none; border-radius: var(--radius) 0 0 var(--radius); outline: none; }
 .srch-empty-inp:focus { border-color: var(--blue); }
-.srch-empty-btn { padding: 13px 28px; background: var(--blue); color: #fff; border: none; border-radius: var(--radius); font-size: 15px; font-weight: 700; cursor: pointer; font-family: var(--font); }
+.srch-empty-btn { padding: 0 28px; background: var(--blue); color: #fff; border: none; border-radius: 0 var(--radius) var(--radius) 0; font-size: 14px; font-weight: 700; cursor: pointer; font-family: var(--font); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .srch-empty-btn:hover { background: var(--blue-dark); }
+.srch-empty-btn::before { content: '🔍'; font-size: 16px; }
+
+/* ====== ТОПБАР (поиск на странице брендов/результатов) ====== */
+.topbar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; box-shadow: var(--shadow-sm); flex-wrap: wrap; }
+.topbar-frm { display: flex; gap: 0; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
+.topbar-inp { padding: 8px 12px; font-size: 13px; font-family: var(--font); border: 1px solid var(--border); border-right: none; border-radius: var(--radius) 0 0 var(--radius); outline: none; width: 180px; }
+.topbar-inp:focus { border-color: var(--blue); }
+.topbar-btn { padding: 8px 14px; background: var(--blue); color: #fff; border: none; border-radius: 0 var(--radius) var(--radius) 0; cursor: pointer; font-size: 14px; font-family: var(--font); line-height: 1; }
+.topbar-btn:hover { background: var(--blue-dark); }
+.topbar-info { font-size: 13px; color: var(--gray); }
+.topbar-info strong { color: var(--black); }
+.back { color: var(--blue); text-decoration: none; font-size: 13px; font-weight: 700; margin-left: auto; }
+.back:hover { text-decoration: underline; }
 
 /* ====== ХЕЛПЕР ====== */
 .hidden { display: none !important; }
