@@ -1,4 +1,8 @@
 /* search/style.css — Rossko-like, цвета Lider */
+.srch-box,
+.srch-box * {
+    font-family: var(--font) !important;
+}
 
 .srch-box {
     font-family: var(--font);
