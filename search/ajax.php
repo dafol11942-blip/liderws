@@ -143,7 +143,7 @@ if ($action === 'brands') {
     // ВАЖНО: buildSearchRequest(БРЕНД, АРТИКУЛ) — бренд первый!
     $exactReqs = [];
     foreach ($suppliers as $code => $connector) {
-        $req = $connector->buildSearchRequest($brandOrig, $normNum);
+        $req = $connector->buildSearchRequest($brandOrig, $numberOrig);
         if ($req) $exactReqs[$code] = $req;
     }
     $responses = curlExec($suppliers, $exactReqs);
