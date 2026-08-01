@@ -84,7 +84,15 @@ function progRead($taskId): ?array {
     $f = progFile($taskId);
     if (!file_exists($f)) return null;
     $raw = @file_get_contents($f);
-    return $raw ? json_decode($raw, true) : null;
+    if (!$raw) return null;
+    $data = json_decode($raw, true);
+    if (!is_array($data)) return null;
+    // Поднимаем поля result на верхний уровень
+    if (isset($data['result']) && is_array($data['result'])) {
+        unset($data['result']);
+        $data = array_merge($data, $data['result']);
+    }
+    return $data;
 }
 
 $logFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/search_ajax.log';
