@@ -89,8 +89,9 @@ function progRead($taskId): ?array {
     if (!is_array($data)) return null;
     // Поднимаем поля result на верхний уровень
     if (isset($data['result']) && is_array($data['result'])) {
+        $nested = $data['result'];
         unset($data['result']);
-        $data = array_merge($data, $data['result']);
+        $data = array_merge($data, $nested);
     }
     return $data;
 }
