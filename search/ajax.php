@@ -1,5 +1,5 @@
 <?php
-// search/ajax.php v12 — офферы аналогов сразу из Round 1 + сессия разблокирована
+// search/ajax.php v13 — taskId с фронтенда + таймаут curl + логирование ошибок
 ini_set('display_errors', 0);
 set_time_limit(120);
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
@@ -20,6 +20,14 @@ use Lider\Search\BrandNormalizer;
 
 $action  = $_GET['action'] ?? '';
 $article = trim($_GET['article'] ?? '');
+$taskId  = trim($_GET['task'] ?? '');
+
+// Лог ошибок
+$logFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/search_ajax.log';
+function ajaxLog($msg) {
+    global $logFile;
+    @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . '] ' . $msg . "\n", FILE_APPEND);
+}
 
 if (!$article && $action !== 'progress') {
     echo json_encode(['error' => 'Укажите артикул']);
@@ -30,7 +38,7 @@ $normArt  = $article ? BrandNormalizer::normalizeArticle($article) : '';
 $factory  = getSupplierFactory();
 $suppliers = $factory->allAvailable();
 
-function curlExec(array $suppliers, array $requests): array {
+function curlExec(array $suppliers, array $requests, float $deadline = 20.0): array {
     if (empty($requests)) return [];
     $mh = curl_multi_init();
     $handles = [];
@@ -54,7 +62,12 @@ function curlExec(array $suppliers, array $requests): array {
         $handles[$key] = $ch;
     }
     $running = null;
-    do { curl_multi_exec($mh, $running); curl_multi_select($mh, 0.1); } while ($running > 0);
+    $start = microtime(true);
+    do {
+        curl_multi_exec($mh, $running);
+        if ($running > 0) curl_multi_select($mh, 0.1);
+        if (microtime(true) - $start > $deadline) break;  // жёсткий дедлайн
+    } while ($running > 0);
     $results = [];
     foreach ($handles as $key => $ch) {
         $body = curl_multi_getcontent($ch);
@@ -73,15 +86,18 @@ function progFile($taskId) {
 function progWrite($taskId, $pct, $msg, $done = false, $result = null) {
     $data = ['percent' => (int)$pct, 'message' => $msg, 'done' => $done];
     if ($result !== null) $data['result'] = $result;
-    file_put_contents(progFile($taskId), json_encode($data, JSON_UNESCAPED_UNICODE));
+    @file_put_contents(progFile($taskId), json_encode($data, JSON_UNESCAPED_UNICODE));
 }
 
 // ═══ PROGRESS ═══
 if ($action === 'progress') {
-    $task = trim($_GET['task'] ?? '');
-    if (!$task) { echo json_encode(['percent' => 0, 'message' => 'Нет задачи', 'done' => false]); exit; }
-    $f = progFile($task);
-    if (file_exists($f)) { readfile($f); } else { echo json_encode(['percent' => 0, 'message' => 'Ожидание...', 'done' => false]); }
+    if (!$taskId) { echo json_encode(['percent' => 0, 'message' => 'Нет задачи', 'done' => false]); exit; }
+    $f = progFile($taskId);
+    if (file_exists($f)) {
+        readfile($f);
+    } else {
+        echo json_encode(['percent' => 0, 'message' => 'Ожидание запуска...', 'done' => false]);
+    }
     exit;
 }
 
@@ -163,21 +179,32 @@ if ($action === 'brands') {
     $numberOrig = trim($_GET['number'] ?? '');
     if (!$brandOrig) { echo json_encode(['error' => 'Укажите бренд']); exit; }
 
-    $taskId = md5($article . $brandOrig . time() . rand());
+    // taskId — с фронтенда; если нет, генерируем
+    if (!$taskId) {
+        $taskId = md5($article . $brandOrig . time() . rand());
+    }
+
+    ajaxLog("SEARCH START task=$taskId article=$article brand=$brandOrig");
+
     $normBrand = BrandNormalizer::normalize($brandOrig);
     $normNum   = BrandNormalizer::normalizeArticle($numberOrig);
 
     progWrite($taskId, 5, 'Запрашиваем точное совпадение у ' . count($suppliers) . ' поставщиков...');
 
-    // ═══ ROUND 1: точное совпадение + сразу собираем офферы аналогов ═══
+    // ═══ ROUND 1 ═══
     $exactReqs = [];
     foreach ($suppliers as $code => $c) {
         $req = $c->buildSearchRequest($brandOrig, $numberOrig, true);
         if ($req) $exactReqs[$code] = $req;
     }
-    $responses = curlExec($suppliers, $exactReqs);
+    ajaxLog("ROUND1 reqs=" . count($exactReqs) . " suppliers=" . implode(',', array_keys($exactReqs)));
 
-    progWrite($taskId, 20, 'Обрабатываем ответы, собираем кросс-номера и их остатки...');
+    $t0 = microtime(true);
+    $responses = curlExec($suppliers, $exactReqs, 25.0);
+    $t1 = microtime(true);
+    ajaxLog("ROUND1 done in " . round($t1 - $t0, 2) . "s responses=" . count(array_filter($responses)));
+
+    progWrite($taskId, 20, 'Обрабатываем ответы, собираем кросс-номера...');
 
     $exactOffers  = [];
     $crossPairs   = [];
@@ -188,14 +215,16 @@ if ($action === 'brands') {
     foreach ($responses as $code => $body) {
         if (!$body) continue;
         try { $items = $suppliers[$code]->parseSearchResponse($body, $brandOrig, $numberOrig); }
-        catch (\Throwable $e) { continue; }
+        catch (\Throwable $e) {
+            ajaxLog("ROUND1 parse error $code: " . $e->getMessage());
+            continue;
+        }
         foreach ($items as $it) {
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
             $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
             $gk = $ib . '|' . $ia;
 
             if ($ia === $normNum && $ib === $normBrand) {
-                // Точное совпадение
                 $exactOffers[] = [
                     'supplier'      => $code,
                     'warehouse'     => (string)($it->warehouse ?? ''),
@@ -206,7 +235,6 @@ if ($action === 'brands') {
                     'delivery_days' => (int)($it->deliveryDays ?? -1),
                 ];
             } else {
-                // Аналог — сохраняем оффер СРАЗУ, не дожидаясь Round 2
                 if (!isset($analogGroups[$gk])) {
                     $analogGroups[$gk] = [
                         'brand_orig'   => (string)($it->brand ?? ''),
@@ -230,7 +258,6 @@ if ($action === 'brands') {
                 ];
             }
 
-            // Трекинг кросс-пар для Round 2 (кто уже отдал этот кросс)
             if (!isset($seenCross[$gk])) {
                 $seenCross[$gk] = true;
                 $crossPairs[$gk] = [
@@ -241,7 +268,6 @@ if ($action === 'brands') {
                     '_from'        => [$code],
                 ];
             } else {
-                // Этот кросс уже был от другого поставщика — дополняем _from
                 if (isset($crossPairs[$gk]) && !in_array($code, $crossPairs[$gk]['_from'])) {
                     $crossPairs[$gk]['_from'][] = $code;
                 }
@@ -249,13 +275,13 @@ if ($action === 'brands') {
         }
     }
 
-    // Оставляем первые 15 кросс-пар для Round 2
     $crossPairs = array_slice($crossPairs, 0, 15, true);
     $crossCount = count($crossPairs);
+    ajaxLog("ROUND1 crossPairs=$crossCount exactOffers=" . count($exactOffers) . " analogGroups=" . count($analogGroups));
 
-    progWrite($taskId, 35, 'Найдено ' . $crossCount . ' кросс-номеров (часть остатков уже получена). Запрашиваем цены у остальных...');
+    progWrite($taskId, 35, 'Найдено ' . $crossCount . ' кросс-номеров. Запрашиваем цены у остальных поставщиков...');
 
-    // ═══ ROUND 2: дозапрос кроссов только у поставщиков, которые ещё не отдали ═══
+    // ═══ ROUND 2 ═══
     if (!empty($crossPairs)) {
         $pairN = 0;
         foreach ($crossPairs as $ck => $pair) {
@@ -269,15 +295,14 @@ if ($action === 'brands') {
                 if ($req) $crReqs[$code] = $req;
             }
 
-            // Все поставщики уже отдали этот кросс в Round 1 — пропускаем
-            if (empty($crReqs)) {
-                continue;
-            }
+            if (empty($crReqs)) continue;
 
             $pct = 50 + (int)(30 * $pairN / max($crossCount, 1));
-            progWrite($taskId, $pct, 'Аналог ' . $pairN . '/' . $crossCount . ': ' . $pair['brand_orig'] . ' ' . $pair['article_orig'] . ' (' . count($crReqs) . ' поставщиков)');
+            progWrite($taskId, $pct, 'Аналог ' . $pairN . '/' . $crossCount . ': ' . $pair['brand_orig'] . ' ' . $pair['article_orig'] . ' (' . count($crReqs) . ' пост.)');
 
-            $crResponses = curlExec($suppliers, $crReqs);
+            $t2 = microtime(true);
+            $crResponses = curlExec($suppliers, $crReqs, 15.0);
+            ajaxLog("ROUND2 pair=" . $pair['brand_orig'] . "/" . $pair['article_orig'] . " time=" . round(microtime(true) - $t2, 2) . "s");
 
             foreach ($crResponses as $reqKey => $body) {
                 if (!$body) continue;
@@ -364,6 +389,7 @@ if ($action === 'brands') {
     $resp['analogs'] = $analogs;
     $resp['task_id'] = $taskId;
     progWrite($taskId, 100, 'Готово', true, $resp);
+    ajaxLog("SEARCH DONE task=$taskId exact=" . count($exactOffers) . " analogs=" . count($analogs));
     echo json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_NUMERIC_CHECK);
 
 } else {

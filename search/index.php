@@ -127,54 +127,77 @@ function showProgress(pct, msg) {
         '</div>';
 }
 
-async function pollProgress(taskId, timeoutSec) {
-    timeoutSec = timeoutSec || 120;
-    var startTime = Date.now();
-
-    while ((Date.now() - startTime) < timeoutSec * 1000) {
-        try {
-            var r = await fetch(API + '?action=progress&task=' + encodeURIComponent(taskId));
-            var d = await r.json();
-            if (d.percent !== undefined) {
-                showProgress(d.percent, d.message || 'Обработка...');
-                if (d.done && d.result) {
-                    return d.result;
-                }
-            }
-        } catch(e) {}
-        await new Promise(function(resolve) { setTimeout(resolve, 500); });
-    }
-    throw new Error('Таймаут поиска (' + timeoutSec + 'с)');
-}
-
 async function loadResults(){
+    // Генерируем taskId здесь — до поиска
+    var taskId = 'srch_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    var pollDone = false;
+    var searchDone = false;
+    var resultData = null;
+
     showProgress(0, 'Запуск поиска...');
 
-    try {
-        var r = await fetch(API+'?action=search&article='+encodeURIComponent(Q)+'&brand='+encodeURIComponent(B)+'&number='+encodeURIComponent(N));
-        var d = await r.json();
+    // Поллинг — запускаем СРАЗУ, параллельно с поиском
+    var pollPromise = (async function() {
+        var maxWait = 120, start = Date.now();
+        while ((Date.now() - start) < maxWait * 1000) {
+            if (searchDone && resultData) break;  // поиск уже всё отдал
+            try {
+                var pr = await fetch(API + '?action=progress&task=' + encodeURIComponent(taskId));
+                var pd = await pr.json();
+                if (pd.percent !== undefined) {
+                    showProgress(pd.percent, pd.message || '...');
+                    if (pd.done && pd.result) {
+                        resultData = pd.result;
+                        pollDone = true;
+                        break;
+                    }
+                }
+            } catch(e) { /* прогресс-файл ещё не создан */ }
+            await new Promise(function(r) { setTimeout(r, 500); });
+        }
+    })();
 
-        if (d.error) { showError(d.error); return; }
-
-        // Если есть task_id — поллим, иначе прямой результат
-        if (d.task_id && !d.exact && !d.analogs) {
-            var taskId = d.task_id, maxWait = 120, start = Date.now();
-            while ((Date.now() - start) < maxWait * 1000) {
-                await new Promise(function(r) { setTimeout(r, 500); });
-                try {
-                    var pr = await fetch(API+'?action=progress&task='+taskId);
-                    var pd = await pr.json();
-                    if (pd.percent !== undefined) showProgress(pd.percent, pd.message || '...');
-                    if (pd.done && pd.result) { d = pd.result; break; }
-                } catch(e) {}
+    // Поиск — передаём taskId, чтобы сервер писал в тот же файл
+    var searchPromise = (async function() {
+        try {
+            var r = await fetch(API + '?action=search&article=' + encodeURIComponent(Q)
+                + '&brand=' + encodeURIComponent(B)
+                + '&number=' + encodeURIComponent(N)
+                + '&task=' + encodeURIComponent(taskId));
+            var d = await r.json();
+            if (d.error) { resultData = d; searchDone = true; return; }
+            // Если сервер уже вернул результат (быстрый ответ), используем его
+            if (!pollDone) {
+                resultData = d;
+            }
+            searchDone = true;
+        } catch(e) {
+            searchDone = true;
+            if (!pollDone) {
+                resultData = { error: 'Ошибка соединения: ' + e.message };
             }
         }
+    })();
 
-        showProgress(100, 'Готово');
-        setTimeout(function(){ renderResults(d); }, 300);
-    } catch(e) {
-        showError('Ошибка: ' + e.message);
+    // Ждём любой из двух
+    await Promise.race([
+        pollPromise,
+        searchPromise
+    ]);
+    // Даём второму тоже завершиться (но не блокируем UI)
+    await Promise.all([pollPromise, searchPromise]);
+
+    if (!resultData) {
+        showError('Таймаут поиска (120с). Попробуйте ещё раз.');
+        return;
     }
+    if (resultData.error) {
+        showError(resultData.error);
+        return;
+    }
+
+    showProgress(100, 'Готово');
+    setTimeout(function(){ renderResults(resultData); }, 300);
 }
 
 function renderResults(d){
