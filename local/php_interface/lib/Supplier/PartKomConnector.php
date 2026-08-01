@@ -20,13 +20,14 @@ class PartKomConnector implements SupplierInterface
     private int $timeout;
     private ?array $brandsCache = null;
     private bool $lastWithCrosses = false;
+    private string $resolvedBrandName = '';  // ← бренд как его знает PartKom
 
     public function __construct(array $config = [])
     {
-        $this->login    = $config['LOGIN']    ?? 'lider16';
-        $this->password = $config['PASSWORD'] ?? 'LidGates16';
-        $this->baseUrl  = $config['BASE_URL'] ?? 'https://ws.part-kom.ru/v4';
-        $this->timeout  = $config['TIMEOUT']  ?? 8;
+        $this->login    = $config['LOGIN']     ?? 'lider16';
+        $this->password = $config['PASSWORD']  ?? 'LidGates16';
+        $this->baseUrl  = $config['BASE_URL']  ?? 'https://ws.part-kom.ru/v4';
+        $this->timeout  = $config['TIMEOUT']   ?? 8;
     }
 
     public function getCode(): string { return 'partkom'; }
@@ -103,13 +104,21 @@ class PartKomConnector implements SupplierInterface
     {
         if (!$this->isAvailable()) return null;
         $this->lastWithCrosses = $withCrosses;
+        $this->resolvedBrandName = '';  // сброс
 
         $params = ['number' => $article, 'find_substitutes' => ($withCrosses ? 1 : 0), 'store' => 1];
+
+        // Пытаемся найти maker_id
+        $makerId = null;
         if ($brand !== '') {
             $makerId = $this->resolveMakerId($brand);
-            if ($makerId) {
-                $params['maker_id'] = $makerId;
-            }
+        }
+
+        if ($makerId) {
+            $params['maker_id'] = $makerId;
+        } elseif ($brand !== '') {
+            // Не нашли бренд — логируем и пробуем без maker_id
+            $this->log("resolveMakerId FAILED for brand='{$brand}', searching without maker_id");
         }
 
         $url = $this->baseUrl . '/search/offers?' . http_build_query($params);
@@ -127,7 +136,10 @@ class PartKomConnector implements SupplierInterface
         $data = json_decode($responseBody, true);
         if (!is_array($data)) return $results;
 
-        $normBrand = BrandNormalizer::normalize($brand);
+        // Используем имя бренда как его знает PartKom (если resolveMakerId сработал)
+        // иначе — оригинальное
+        $matchBrand = $this->resolvedBrandName !== '' ? $this->resolvedBrandName : $brand;
+        $normBrand = BrandNormalizer::normalize($matchBrand);
         $normArt   = BrandNormalizer::normalizeArticle($article);
         $withCrosses = $this->lastWithCrosses;
 
@@ -148,7 +160,6 @@ class PartKomConnector implements SupplierInterface
                 }
             } else {
                 // Cross: выкидываем "однофамильцев" — тот же артикул, другой бренд
-                // (SANGSIN SP1401 колодки ≠ TRIALLI SP1401 стойка стабилизатора)
                 if ($normArt !== '' && $itemNumber !== ''
                     && BrandNormalizer::normalizeArticle($itemNumber) === $normArt
                     && $normBrand !== '' && BrandNormalizer::normalize($itemBrand) !== $normBrand
@@ -158,20 +169,12 @@ class PartKomConnector implements SupplierInterface
             }
 
             $itemName = (string)($item['description'] ?? '');
-            // family_skip_partkom: на cross отсекаем стойки/тяги при поиске колодок и т.п.
+            // family_skip_partkom
             if (!empty($this->lastWithCrosses)) {
-                $targetText = $brand . ' ' . $article;
-                // если в ответе есть exact-позиции — их имя лучше, но его нет здесь; используем эвристику по запросу + текущему item только reverse:
-                // отсекаем явный мусор семей stab/filter/pan если item явно не pad, а среди уже собранных exact pad... 
-                // Проще: если item family = stab/filter/pan/spring/tie, а article/brand запроса похож на pad-бренд-серию SP**** sangsin — 
-                // Используем: если family item определена и это stab/filter/pan при article SP+digits типичный pad — skip stab
                 $fam = $this->detectPartFamily($itemName . ' ' . $itemBrand);
                 if ($fam !== '' && in_array($fam, ['stab','filter','pan','spring','tie'], true)) {
-                    // не пропускаем, если target тоже такой — target family unknown; 
-                    // если exact brand SANGSIN/HI-Q и item stab — skip
                     $tb = BrandNormalizer::normalize($brand);
                     if (in_array($tb, ['sangsin','hiq','hi-q','lynxauto','trw','brembo','ferodo'], true) || preg_match('/^sp\d+/i', trim($article))) {
-                        // likely brake pads search
                         if ($fam !== 'pad' && $fam !== 'brake') {
                             continue;
                         }
@@ -179,12 +182,10 @@ class PartKomConnector implements SupplierInterface
                 }
             }
 
-
-            $$qty     = _parseQty($item['quantity'] ?? 0);
+            $qty     = _parseQty($item['quantity'] ?? 0);
             $isStock = !empty($item['isStock']);
             $isSched = !$isStock || $qty <= 0;
 
-            // Только со склада наличия (isStock=1), под заказ — мимо
             if ($isSched) continue;
 
             $r = new SearchResultItem();
@@ -251,7 +252,6 @@ class PartKomConnector implements SupplierInterface
             }
         }
 
-        // Сортировка: сначала по срокам, потом по цене (все склады свои)
         usort($unique, function (SearchResultItem $a, SearchResultItem $b) {
             $da = $a->deliveryDays ?? 0;
             $db = $b->deliveryDays ?? 0;
@@ -300,23 +300,52 @@ class PartKomConnector implements SupplierInterface
     {
         if ($brand === '') return null;
         $this->loadBrands();
-        if (!$this->brandsCache) return null;
+        if (!$this->brandsCache) {
+            $this->log("resolveMakerId: brandsCache is empty for '{$brand}'");
+            return null;
+        }
 
         $norm = BrandNormalizer::normalize($brand);
-        // exact normalize match
+
+        // 1. Точное совпадение нормализованных имён
         foreach ($this->brandsCache as $id => $name) {
             if (BrandNormalizer::normalize((string)$name) === $norm) {
+                $this->resolvedBrandName = (string)$name;
                 return (int)$id;
             }
         }
-        // substring fallback
+
+        // 2. Substring: ищем, является ли бренд PartKom частью запроса или наоборот
         $raw = mb_strtolower(trim($brand));
         foreach ($this->brandsCache as $id => $name) {
             $n = mb_strtolower(trim((string)$name));
             if ($n === $raw || mb_stripos($n, $raw) !== false || mb_stripos($raw, $n) !== false) {
+                $this->resolvedBrandName = (string)$name;
                 return (int)$id;
             }
         }
+
+        // 3. Фолбэк: убираем суффиксы типа "-FILTER", "-GERMANY" и пробуем снова
+        $stripped = preg_replace('/[-_\s].*$/', '', $brand);
+        if ($stripped !== $brand && $stripped !== '') {
+            $strippedNorm = BrandNormalizer::normalize($stripped);
+            foreach ($this->brandsCache as $id => $name) {
+                if (BrandNormalizer::normalize((string)$name) === $strippedNorm) {
+                    $this->resolvedBrandName = (string)$name;
+                    return (int)$id;
+                }
+            }
+            $strippedLower = mb_strtolower($stripped);
+            foreach ($this->brandsCache as $id => $name) {
+                $n = mb_strtolower(trim((string)$name));
+                if ($n === $strippedLower || mb_stripos($n, $strippedLower) !== false || mb_stripos($strippedLower, $n) !== false) {
+                    $this->resolvedBrandName = (string)$name;
+                    return (int)$id;
+                }
+            }
+        }
+
+        $this->log("resolveMakerId: no match for '{$brand}' in " . count($this->brandsCache) . " brands");
         return null;
     }
 
@@ -347,11 +376,9 @@ class PartKomConnector implements SupplierInterface
         $data = json_decode((string)$resp, true);
         if (is_array($data)) {
             foreach ($data as $item) {
-                // API может вернуть массив строк (только имена) или массив объектов {id, name}
                 if (is_array($item) && isset($item['id'], $item['name'])) {
                     $this->brandsCache[(int)$item['id']] = $item['name'];
                 } elseif (is_string($item)) {
-                    // Строка — используем как название бренда, id = хеш
                     $this->brandsCache[crc32($item)] = $item;
                 }
             }
@@ -386,7 +413,6 @@ class PartKomConnector implements SupplierInterface
         return $resp;
     }
 
-    
     private function detectPartFamily(string $text): string
     {
         $t = mb_strtolower($text);
@@ -406,6 +432,7 @@ class PartKomConnector implements SupplierInterface
         if (mb_strpos($t, 'тормоз') !== false) return 'brake';
         return '';
     }
+
     private function samePartFamily(string $a, string $b): bool
     {
         $fa = $this->detectPartFamily($a);
