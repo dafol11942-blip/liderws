@@ -209,39 +209,42 @@ if ($action === 'brands') {
     $crossPairs = array_slice($crossPairs, 0, 15, true);
     progWrite($taskId, 35, 'Найдено ' . count($crossPairs) . ' кросс-номеров. Запрашиваем цены...');
 
-    // 2. Crosses (чанками)
+    // 2. Crosses — по одному за раз (надёжнее чем чанки)
     $analogGroups = [];
     if (!empty($crossPairs)) {
-        $crossChunks = array_chunk($crossPairs, 15, true);
-        $chunkTotal = count($crossChunks); $chunkN = 0;
-        foreach ($crossChunks as $chunkPairs) {
-            $chunkN++;
+        $pairTotal = count($crossPairs);
+        $pairN = 0;
+        foreach ($crossPairs as $ck => $pair) {
+            $pairN++;
             $crReqs = [];
-            foreach ($chunkPairs as $ck => $pair) {
-                foreach ($suppliers as $code => $c) {
-                    $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig']);
-                    if ($req) $crReqs[$code . '|' . $ck] = $req;
-                }
+            foreach ($suppliers as $code => $c) {
+                $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig']);
+                if ($req) $crReqs[$code] = $req;
             }
-            $pct = 50 + (int)(30 * $chunkN / max($chunkTotal, 1));
-            progWrite($taskId, $pct, 'Аналоги ' . $chunkN . '/' . $chunkTotal);
+            $pct = 50 + (int)(30 * $pairN / max($pairTotal, 1));
+            progWrite($taskId, $pct, 'Аналог ' . $pairN . '/' . $pairTotal . ': ' . $pair['brand_orig'] . ' ' . $pair['article_orig']);
             $crResponses = curlExec($suppliers, $crReqs);
+
             foreach ($crResponses as $reqKey => $body) {
                 if (!$body) continue;
-                $parts = explode('|', $reqKey, 2); $code = $parts[0]; $ck = $parts[1] ?? '';
-                $pair = $chunkPairs[$ck] ?? null;
-                if (!$pair) continue;
-                try { $items = $suppliers[$code]->parseSearchResponse($body, $pair['brand_orig'], $pair['article_orig']); }
-                catch (\Throwable $e) { continue; }
+                $code = $reqKey;
+                $gk = $pair['brand_norm'] . '|' . $pair['article_norm'];
+
+                try {
+                    $items = $suppliers[$code]->parseSearchResponse($body, $pair['brand_orig'], $pair['article_orig']);
+                } catch (\Throwable $e) { continue; }
+
                 foreach ($items as $it) {
                     $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
                     $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
                     if ($ia !== $pair['article_norm'] || $ib !== $pair['brand_norm']) continue;
-                    $gk = $pair['brand_norm'] . '|' . $pair['article_norm'];
+
                     if (!isset($analogGroups[$gk])) {
                         $analogGroups[$gk] = [
-                            'brand_orig' => $pair['brand_orig'], 'article_orig' => $pair['article_orig'],
-                            'description' => (string)($it->description ?? ''), 'offers' => [],
+                            'brand_orig'   => $pair['brand_orig'],
+                            'article_orig' => $pair['article_orig'],
+                            'description'  => (string)($it->description ?? ''),
+                            'offers'       => [],
                         ];
                     }
                     $desc = (string)($it->description ?? '');
@@ -249,11 +252,12 @@ if ($action === 'brands') {
                         $analogGroups[$gk]['description'] = $desc;
                     }
                     $analogGroups[$gk]['offers'][] = [
-                        'supplier' => $code, 'warehouse' => (string)($it->warehouse ?? ''),
-                        'name' => (string)($it->name ?? ''),
-                        'description' => (string)($it->name ?? $it->description ?? ''),
-                        'price' => (float)($it->price ?? 0),
-                        'quantity' => (int)($it->quantity ?? 0),
+                        'supplier'      => $code,
+                        'warehouse'     => (string)($it->warehouse ?? ''),
+                        'name'          => (string)($it->name ?? ''),
+                        'description'   => (string)($it->name ?? $it->description ?? ''),
+                        'price'         => (float)($it->price ?? 0),
+                        'quantity'      => (int)($it->quantity ?? 0),
                         'delivery_days' => (int)($it->deliveryDays ?? -1),
                     ];
                 }
