@@ -20,6 +20,7 @@ class PartKomConnector implements SupplierInterface
     private int    $timeout;
     private bool   $lastWithCrosses    = false;
     private string $resolvedBrandName  = '';
+    private bool   $makerIdUsed        = false;   // ← новый флаг
     private ?array $brandsCache        = null;
 
     public function __construct(array $config = [])
@@ -30,7 +31,6 @@ class PartKomConnector implements SupplierInterface
         $this->timeout  = $config['TIMEOUT']   ?? 8;
     }
 
-    // ── Интерфейс ──────────────────────────────────────────
     public function getCode(): string           { return 'partkom'; }
     public function getName(): string           { return 'ПартКом'; }
     public function getWarehousePrefix(): string { return 'pk'; }
@@ -43,13 +43,12 @@ class PartKomConnector implements SupplierInterface
         return $this->generateWarehouseCode($realName);
     }
 
-    // ── AUTH ───────────────────────────────────────────────
     private function authHeader(): string
     {
         return 'Authorization: Basic ' . base64_encode($this->login . ':' . $this->password);
     }
 
-    // ── BRANDS ─────────────────────────────────────────────
+    // ── BRANDS ────────────────────────────────────────────
     public function buildBrandsRequest(string $article): ?array
     {
         if (!$this->isAvailable()) return null;
@@ -63,8 +62,8 @@ class PartKomConnector implements SupplierInterface
 
     public function parseBrandsResponse(string $body, string $requestArticle = ''): array
     {
-        $brands = [];
-        $data   = json_decode($body, true);
+        $brands  = [];
+        $data    = json_decode($body, true);
         if (!is_array($data)) return $brands;
 
         $article = trim($requestArticle);
@@ -84,13 +83,14 @@ class PartKomConnector implements SupplierInterface
         return array_values($brands);
     }
 
-    // ── SEARCH ─────────────────────────────────────────────
+    // ── SEARCH ────────────────────────────────────────────
     public function buildSearchRequest(string $brand, string $article, bool $withCrosses = false): ?array
     {
         if (!$this->isAvailable()) return null;
 
         $this->lastWithCrosses   = $withCrosses;
         $this->resolvedBrandName = '';
+        $this->makerIdUsed       = false;
 
         $params = [
             'number'           => $article,
@@ -101,8 +101,10 @@ class PartKomConnector implements SupplierInterface
         if ($brand !== '') {
             $makerId = $this->resolveMakerId($brand);
             if ($makerId) {
-                $params['maker_id'] = $makerId;
+                $params['maker_id']     = $makerId;
+                $this->makerIdUsed      = true;
             }
+            // если maker_id не найден — ищем без него, PartKom вернёт все бренды
         }
 
         return [
@@ -119,11 +121,17 @@ class PartKomConnector implements SupplierInterface
         $data    = json_decode($body, true);
         if (!is_array($data)) return $results;
 
-        // Бренд как его знает PartKom (если resolveMakerId сработал), иначе оригинал
-        $matchBrand = ($this->resolvedBrandName !== '') ? $this->resolvedBrandName : $brand;
-        $normBrand  = BrandNormalizer::normalize($matchBrand);
-        $normArt    = BrandNormalizer::normalizeArticle($article);
         $withCrosses = $this->lastWithCrosses;
+
+        // Если maker_id использовался — бренд уже отфильтрован API, сверяем для надёжности
+        // Если нет — PartKom вернул ВСЕ бренды, фильтруем по артикулу, бренд НЕ фильтруем
+        if ($this->makerIdUsed) {
+            $matchBrand = ($this->resolvedBrandName !== '') ? $this->resolvedBrandName : $brand;
+            $normBrand  = BrandNormalizer::normalize($matchBrand);
+        } else {
+            $normBrand = ''; // без maker_id — не фильтруем по бренду
+        }
+        $normArt = BrandNormalizer::normalizeArticle($article);
 
         foreach ($data as $item) {
             if (!is_array($item)) continue;
@@ -134,19 +142,29 @@ class PartKomConnector implements SupplierInterface
 
             // ── Фильтр: точное совпадение ──
             if (!$withCrosses) {
-                if ($normBrand !== '' && BrandNormalizer::normalize($itemBrand) !== $normBrand) continue;
-                if ($normArt !== '' && $itemNumber !== '' && BrandNormalizer::normalizeArticle($itemNumber) !== $normArt) continue;
+                // Артикул — всегда
+                if ($normArt !== '' && $itemNumber !== ''
+                    && BrandNormalizer::normalizeArticle($itemNumber) !== $normArt) {
+                    continue;
+                }
+                // Бренд — только если maker_id был (API уже отфильтровал или мы сверяем)
+                if ($normBrand !== '' && $itemBrand !== ''
+                    && BrandNormalizer::normalize($itemBrand) !== $normBrand) {
+                    continue;
+                }
             } else {
                 // ── Фильтр: кроссы ──
                 // Выкидываем «однофамильцев»: тот же артикул другой бренд
                 if ($normArt !== '' && $itemNumber !== ''
                     && BrandNormalizer::normalizeArticle($itemNumber) === $normArt
-                    && $normBrand !== '' && BrandNormalizer::normalize($itemBrand) !== $normBrand
+                    && $this->makerIdUsed
+                    && $normBrand !== ''
+                    && BrandNormalizer::normalize($itemBrand) !== $normBrand
                 ) {
                     continue;
                 }
 
-                // Семейный фильтр: не показывать стойки при поиске колодок
+                // Семейный фильтр
                 $fam = $this->detectFamily($itemName . ' ' . $itemBrand);
                 if ($fam !== '' && in_array($fam, ['stab','filter','pan','spring','tie'], true)) {
                     $tb = BrandNormalizer::normalize($brand);
@@ -157,32 +175,31 @@ class PartKomConnector implements SupplierInterface
                 }
             }
 
-            // ── Только со склада, не под заказ ──
+            // ── Только со склада ──
             $qty     = _parseQty($item['quantity'] ?? 0);
             $isStock = !empty($item['isStock']);
             if (!$isStock || $qty <= 0) continue;
 
-            // ── Собираем SearchResultItem ──
-            $r              = new SearchResultItem();
-            $r->source      = $this->getCode();
-            $r->article     = $itemNumber !== '' ? $itemNumber : $article;
-            $r->brand       = $itemBrand !== '' ? $itemBrand : $brand;
-            $r->name        = $itemName;
-            $r->price       = (float)($item['price'] ?? 0);
-            $r->quantity    = $qty;
-            $r->unit        = 'шт.';
-            $r->returnable  = empty($item['flagReturnImpossible']);
-            $r->multiplicity = max(1, (int)($item['minQuantity'] ?? 1));
-            $r->isSched     = false;
+            // ── SearchResultItem ──
+            $r                = new SearchResultItem();
+            $r->source        = $this->getCode();
+            $r->article       = $itemNumber !== '' ? $itemNumber : $article;
+            $r->brand         = $itemBrand !== '' ? $itemBrand : $brand;
+            $r->name          = $itemName;
+            $r->price         = (float)($item['price'] ?? 0);
+            $r->quantity      = $qty;
+            $r->unit          = 'шт.';
+            $r->returnable    = empty($item['flagReturnImpossible']);
+            $r->multiplicity  = max(1, (int)($item['minQuantity'] ?? 1));
+            $r->isSched       = false;
+            $r->supplierName  = $this->getName();
 
-            // Склад
             if (!empty($item['storehouse'])) {
                 $r->warehouse = 'ПартКом: ' . ($item['placement'] ?? 'Склад');
             } else {
                 $r->warehouse = ($item['providerDescription'] ?? '—') . ': ' . ($item['placement'] ?? '');
             }
-            $r->stockId      = (string)($item['placementId'] ?? $item['providerId'] ?? '');
-            $r->supplierName = $this->getName();
+            $r->stockId = (string)($item['placementId'] ?? $item['providerId'] ?? '');
 
             // Сроки
             $now = time();
@@ -194,7 +211,8 @@ class PartKomConnector implements SupplierInterface
             }
             if ($ts && $ts > $now) {
                 $r->deliveryPeriod = max(0, (int)(($ts - $now) / 3600));
-                $r->deliveryDays   = (date('Y-m-d', $ts) === date('Y-m-d', $now)) ? 0 : max(1, (int)ceil(($ts - $now) / 86400));
+                $r->deliveryDays   = (date('Y-m-d', $ts) === date('Y-m-d', $now))
+                    ? 0 : max(1, (int)ceil(($ts - $now) / 86400));
             } elseif (!empty($item['expectedHours'])) {
                 $r->deliveryPeriod = (int)$item['expectedHours'];
                 $r->deliveryDays   = (int)ceil($item['expectedHours'] / 24);
@@ -222,7 +240,6 @@ class PartKomConnector implements SupplierInterface
             if (!isset($seen[$dk])) { $seen[$dk] = true; $unique[] = $it; }
         }
 
-        // Сортировка: срок → цена
         usort($unique, function (SearchResultItem $a, SearchResultItem $b) {
             $da = $a->deliveryDays ?? 0;
             $db = $b->deliveryDays ?? 0;
@@ -233,20 +250,17 @@ class PartKomConnector implements SupplierInterface
         return $unique;
     }
 
-    // ── MAKER ID ───────────────────────────────────────────
+    // ── MAKER ID ──────────────────────────────────────────
     private function resolveMakerId(string $brand): ?int
     {
         if ($brand === '') return null;
 
         $this->loadBrands();
-        if (empty($this->brandsCache)) {
-            $this->log("resolveMakerId: brandsCache is empty for '{$brand}'");
-            return null;
-        }
+        if (empty($this->brandsCache)) return null;
 
         $norm = BrandNormalizer::normalize($brand);
 
-        // 1. Точное совпадение нормализованных имён
+        // 1. Точное совпадение
         foreach ($this->brandsCache as $id => $name) {
             if (BrandNormalizer::normalize((string)$name) === $norm) {
                 $this->resolvedBrandName = (string)$name;
@@ -266,12 +280,12 @@ class PartKomConnector implements SupplierInterface
             }
         }
 
-        // 3. Stripped suffix (MANN-FILTER → MANN)
+        // 3. Stripped suffix
         $stripped = preg_replace('/[-_\s].*$/u', '', $brand);
         if ($stripped !== $brand && $stripped !== '') {
-            $strippedNorm = BrandNormalizer::normalize($stripped);
+            $sn = BrandNormalizer::normalize($stripped);
             foreach ($this->brandsCache as $id => $name) {
-                if (BrandNormalizer::normalize((string)$name) === $strippedNorm) {
+                if (BrandNormalizer::normalize((string)$name) === $sn) {
                     $this->resolvedBrandName = (string)$name;
                     $this->log("resolveMakerId: stripped '{$brand}'→'{$stripped}' → id={$id} '{$name}'");
                     return (int)$id;
@@ -288,34 +302,26 @@ class PartKomConnector implements SupplierInterface
             }
         }
 
-        $this->log("resolveMakerId: no match for '{$brand}' in " . count($this->brandsCache) . " brands");
         return null;
     }
 
-    // ── LOAD BRANDS ────────────────────────────────────────
+    // ── LOAD BRANDS ───────────────────────────────────────
     private function loadBrands(): void
     {
-        // Пустой массив — не кэш, это значит «уже пробовали и не вышло».
-        // Разрешаем повторную попытку только если $this->brandsCache === null.
-        if ($this->brandsCache !== null) {
-            // Если не пуст — ок, если пуст — значит была ошибка, пробуем снова
-            if (!empty($this->brandsCache)) return;
-        }
+        if ($this->brandsCache !== null && !empty($this->brandsCache)) return;
 
         $cacheFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/partkom_brands.json';
 
-        // Пробуем из файлового кэша
         if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
             $cached = json_decode((string)@file_get_contents($cacheFile), true);
             if (is_array($cached) && !empty($cached)) {
                 $this->brandsCache = $cached;
-                $this->log("loadBrands: from cache (" . count($this->brandsCache) . " brands)");
+                $this->log("loadBrands: cache (" . count($this->brandsCache) . " brands)");
                 return;
             }
         }
 
-        // Запрос к API
-        $this->log("loadBrands: fetching from API...");
+        $this->log("loadBrands: API call...");
         $ch = curl_init($this->baseUrl . '/search/brands');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -331,34 +337,53 @@ class PartKomConnector implements SupplierInterface
         curl_close($ch);
 
         if ($err || $httpCode !== 200 || empty($resp)) {
-            $this->log("loadBrands: FAILED HTTP={$httpCode} err={$err}");
-            $this->brandsCache = null; // разрешит повторную попытку при следующем вызове
+            $this->log("loadBrands: FAIL HTTP={$httpCode} err={$err}");
+            $this->brandsCache = null;
             return;
         }
 
+        // Отладка: сохраняем сырой ответ
+        $this->log("loadBrands: raw=" . substr($resp, 0, 200));
+
         $this->brandsCache = [];
         $data = json_decode($resp, true);
+
         if (is_array($data)) {
-            foreach ($data as $item) {
+            // Формат 1: [{"id":1,"name":"MANN"}, ...]
+            // Формат 2: ["MANN","BOSCH",...]
+            // Формат 3: {"brands": [...]}
+            // Формат 4: {"data": [...]}
+
+            // Проверяем вложенность
+            $items = $data;
+            if (isset($data['brands']) && is_array($data['brands'])) $items = $data['brands'];
+            elseif (isset($data['data']) && is_array($data['data'])) $items = $data['data'];
+            elseif (isset($data['items']) && is_array($data['items'])) $items = $data['items'];
+
+            foreach ($items as $item) {
                 if (is_array($item) && isset($item['id'], $item['name'])) {
                     $this->brandsCache[(int)$item['id']] = $item['name'];
-                } elseif (is_string($item)) {
+                } elseif (is_array($item) && isset($item['name'])) {
+                    // id может быть maker_id, code, etc
+                    $id = $item['id'] ?? $item['maker_id'] ?? $item['code'] ?? crc32($item['name']);
+                    $this->brandsCache[(int)$id] = $item['name'];
+                } elseif (is_string($item) && $item !== '') {
                     $this->brandsCache[crc32($item)] = $item;
                 }
             }
         }
 
-        $this->log("loadBrands: from API (" . count($this->brandsCache) . " brands)");
+        $this->log("loadBrands: result=" . count($this->brandsCache) . " brands");
 
         if (!empty($this->brandsCache)) {
             @mkdir(dirname($cacheFile), 0755, true);
             @file_put_contents($cacheFile, json_encode($this->brandsCache, JSON_UNESCAPED_UNICODE));
         } else {
-            $this->brandsCache = null; // пустой ответ — тоже ошибка
+            $this->brandsCache = null;
         }
     }
 
-    // ── HELPERS ────────────────────────────────────────────
+    // ── HELPERS ───────────────────────────────────────────
     private function detectFamily(string $text): string
     {
         $t = mb_strtolower($text);
@@ -435,7 +460,6 @@ class PartKomConnector implements SupplierInterface
         );
     }
 
-    // ── Устаревшие public-методы (сохранены для совместимости) ──
     public function searchBrands(string $article): array
     {
         $req = $this->buildBrandsRequest($article);
