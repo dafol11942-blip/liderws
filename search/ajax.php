@@ -1,5 +1,6 @@
 <?php
-// search/ajax.php v9 — синхронный поиск + прогресс
+// search/ajax.php v10 — эндпоинты + фоновый worker
+ini_set('display_errors', 0);
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-cache');
@@ -158,141 +159,17 @@ if ($action === 'brands') {
     $taskId = md5($article . $brandOrig . time() . rand());
     progWrite($taskId, 0, 'Запуск поиска...');
 
-    $workerParams = json_encode([
+    $workerParams = escapeshellarg(json_encode([
         'brand'   => $brandOrig,
         'article' => $numberOrig,
         'taskId'  => $taskId,
         'docRoot' => $_SERVER['DOCUMENT_ROOT'],
-    ], JSON_UNESCAPED_UNICODE);
+    ], JSON_UNESCAPED_UNICODE));
 
-    $phpBin = '/usr/bin/php';
     $workerScript = $_SERVER['DOCUMENT_ROOT'] . '/search/worker.php';
-    $cmd = $phpBin . ' ' . escapeshellarg($workerScript) . ' ' . escapeshellarg($workerParams)
-         . ' > /dev/null 2>&1 &';
-
-    exec($cmd);
+    exec('/usr/bin/php ' . escapeshellarg($workerScript) . ' ' . $workerParams . ' > /dev/null 2>&1 &');
 
     echo json_encode(['task_id' => $taskId, 'status' => 'started'], JSON_UNESCAPED_UNICODE);
-
-    }
-
-    // Берём первые 15 кросс-пар
-    $crossPairs = array_slice($crossPairs, 0, 15, true);
-
-    $totalCross = count($crossPairs);
-    progWrite($taskId, 35, 'Найдено ' . $totalCross . ' кросс-номеров. Запрашиваем цены...');
-
-    // 2. Crosses (чанками)
-    $analogGroups = [];
-    if (!empty($crossPairs)) {
-        $crossChunks = array_chunk($crossPairs, 15, true);
-        $chunkTotal = count($crossChunks);
-        $chunkN = 0;
-
-        foreach ($crossChunks as $chunkPairs) {
-            $chunkN++;
-            $crReqs = [];
-            foreach ($chunkPairs as $ck => $pair) {
-                foreach ($suppliers as $code => $c) {
-                    $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig']);
-                    if ($req) $crReqs[$code . '|' . $ck] = $req;
-                }
-            }
-            $pct = 50 + (int)(30 * $chunkN / max($chunkTotal, 1));
-            progWrite($taskId, $pct, 'Аналоги ' . $chunkN . '/' . $chunkTotal . ' (' . count($crReqs) . ' запросов)...');
-            $crResponses = curlExec($suppliers, $crReqs);
-
-            foreach ($crResponses as $reqKey => $body) {
-                if (!$body) continue;
-                $parts = explode('|', $reqKey, 2);
-                $code  = $parts[0];
-                $ck    = $parts[1] ?? '';
-                $pair  = $chunkPairs[$ck] ?? null;
-                if (!$pair) continue;
-                $gk = $pair['brand_norm'] . '|' . $pair['article_norm'];
-
-                try {
-                    $items = $suppliers[$code]->parseSearchResponse($body, $pair['brand_orig'], $pair['article_orig']);
-                } catch (\Throwable $e) { continue; }
-
-                foreach ($items as $it) {
-                    $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
-                    $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
-                    if ($ia !== $pair['article_norm'] || $ib !== $pair['brand_norm']) continue;
-
-                    if (!isset($analogGroups[$gk])) {
-                        $analogGroups[$gk] = [
-                            'brand_orig'   => $pair['brand_orig'],
-                            'article_orig' => $pair['article_orig'],
-                            'description'  => (string)($it->description ?? ''),
-                            'offers'       => [],
-                        ];
-                    }
-                    $desc = (string)($it->description ?? '');
-                    if (mb_strlen($desc) > mb_strlen($analogGroups[$gk]['description'])) {
-                        $analogGroups[$gk]['description'] = $desc;
-                    }
-                    $analogGroups[$gk]['offers'][] = [
-                        'supplier'      => $code,
-                        'warehouse'     => (string)($it->warehouse ?? ''),
-                        'name'          => (string)($it->name ?? ''),
-                        'description'   => (string)($it->name ?? $it->description ?? ''),
-                        'price'         => (float)($it->price ?? 0),
-                        'quantity'      => (int)($it->quantity ?? 0),
-                        'delivery_days' => (int)($it->deliveryDays ?? -1),
-                    ];
-                }
-            }
-        }
-    }
-    progWrite($taskId, 80, 'Обработано ' . count($analogGroups) . ' аналогов...');
-    progWrite($taskId, 90, 'Формируем результат...');
-
-    // 3. Build response
-    $resp = [];
-    if (!empty($exactOffers)) {
-        usort($exactOffers, function($a, $b) {
-            if ($a['price'] != $b['price']) return $a['price'] - $b['price'];
-            return $a['delivery_days'] - $b['delivery_days'];
-        });
-        $resp['exact'] = ['brand' => $brandOrig, 'article' => $numberOrig, 'suppliers' => $exactOffers];
-    }
-
-    $analogs = [];
-    foreach ($analogGroups as $gk => $grp) {
-        $offers       = $grp['offers'];
-        $prices       = array_column($offers, 'price');
-        $days         = array_column($offers, 'delivery_days');
-        $qtys         = array_column($offers, 'quantity');
-        $activePrices = array_filter($prices, function($p) { return $p > 0; });
-        $activeDays   = array_filter($days, function($d) { return $d >= 0; });
-        usort($offers, function($a, $b) {
-            if ($a['price'] != $b['price']) return $a['price'] - $b['price'];
-            return $a['delivery_days'] - $b['delivery_days'];
-        });
-        $analogs[] = [
-            'brand'         => $grp['brand_orig'],
-            'article'       => $grp['article_orig'],
-            'description'   => $grp['description'],
-            'best_price'    => !empty($activePrices) ? min($activePrices) : 0,
-            'best_delivery' => !empty($activeDays) ? min($activeDays) : null,
-            'total_qty'     => array_sum($qtys),
-            'has_instock'   => count(array_filter($qtys, function($q) { return $q > 0; })) > 0,
-            'suppliers'     => $offers,
-        ];
-    }
-    usort($analogs, function($a, $b) {
-        if ($a['has_instock'] !== $b['has_instock']) return $b['has_instock'] - $a['has_instock'];
-        $dA = $a['best_delivery'] ?? 999;
-        $dB = $b['best_delivery'] ?? 999;
-        if ($dA !== $dB) return $dA - $dB;
-        return $a['best_price'] - $b['best_price'];
-    });
-
-    $resp['analogs'] = $analogs;
-    $resp['task_id'] = $taskId;
-    progWrite($taskId, 100, 'Готово', true, $resp);
-    echo json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_NUMERIC_CHECK);
 
 } else {
     echo json_encode(['error' => 'Неизвестный action']);
