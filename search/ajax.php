@@ -213,8 +213,28 @@ if ($action === 'brands') {
     progWrite($taskId, 35, 'Найдено ' . $totalCross . ' кросс-номеров. Запрашиваем цены...');
 
     // 2. Crosses
+    // Оставляем топ-15 кросс-пар (по числу поставщиков в Round 1)
    $analogGroups = [];
     if (!empty($crossPairs)) {
+        // Оставляем топ-15 кросс-пар (по числу поставщиков в Round 1)
+        $crossScores = [];
+        foreach ($crossPairs as $ck => $pair) {
+            $crossScores[$ck] = 0;
+        }
+        foreach ($responses as $code => $body) {
+            if (!$body) continue;
+            try { $items = $suppliers[$code]->parseSearchResponse($body, $brandOrig, $numberOrig); }
+            catch (\Throwable $e) { continue; }
+            foreach ($items as $it) {
+                $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
+                $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
+                $ck = $ib . '|' . $ia;
+                if (isset($crossScores[$ck])) $crossScores[$ck]++;
+            }
+        }
+        arsort($crossScores);
+        $topCrossKeys = array_slice(array_keys($crossScores), 0, 15);
+        $crossPairs = array_intersect_key($crossPairs, array_flip($topCrossKeys));
         $crossChunks = array_chunk($crossPairs, 15, true);
         $chunkTotal = count($crossChunks);
         $chunkN = 0;
