@@ -151,64 +151,29 @@ if ($action === 'brands') {
 // ═══ SEARCH ═══
 } elseif ($action === 'search') {
 
-    set_time_limit(120);
-
     $brandOrig  = trim($_GET['brand'] ?? '');
     $numberOrig = trim($_GET['number'] ?? '');
     if (!$brandOrig) { echo json_encode(['error' => 'Укажите бренд']); exit; }
 
-    $taskId     = trim($_GET['task'] ?? '');
-    if (!$taskId) $taskId = md5($article . $brandOrig . time() . rand());
+    $taskId = md5($article . $brandOrig . time() . rand());
+    progWrite($taskId, 0, 'Запуск поиска...');
 
-    $normBrand  = BrandNormalizer::normalize($brandOrig);
-    $normNum    = BrandNormalizer::normalizeArticle($numberOrig);
+    $workerParams = json_encode([
+        'brand'   => $brandOrig,
+        'article' => $numberOrig,
+        'taskId'  => $taskId,
+        'docRoot' => $_SERVER['DOCUMENT_ROOT'],
+    ], JSON_UNESCAPED_UNICODE);
 
-    progWrite($taskId, 5, 'Запрашиваем точное совпадение у ' . count($suppliers) . ' поставщиков...');
+    $phpBin = '/usr/bin/php';
+    $workerScript = $_SERVER['DOCUMENT_ROOT'] . '/search/worker.php';
+    $cmd = $phpBin . ' ' . escapeshellarg($workerScript) . ' ' . escapeshellarg($workerParams)
+         . ' > /dev/null 2>&1 &';
 
-    // 1. Exact
-    $exactReqs = [];
-    foreach ($suppliers as $code => $c) {
-        $req = $c->buildSearchRequest($brandOrig, $numberOrig, true);
-        if ($req) $exactReqs[$code] = $req;
-    }
-    $responses = curlExec($suppliers, $exactReqs);
-    progWrite($taskId, 20, 'Анализируем результаты точного поиска...');
+    exec($cmd);
 
-    $exactOffers = [];
-    $crossPairs  = [];
-    $seenCross   = [];
-    $seenCross[$normBrand . '|' . $normNum] = true;
+    echo json_encode(['task_id' => $taskId, 'status' => 'started'], JSON_UNESCAPED_UNICODE);
 
-    foreach ($responses as $code => $body) {
-        if (!$body) continue;
-        try {
-            $items = $suppliers[$code]->parseSearchResponse($body, $brandOrig, $numberOrig);
-        } catch (\Throwable $e) { continue; }
-        foreach ($items as $it) {
-            $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
-            $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
-            if ($ia === $normNum && $ib === $normBrand) {
-             $exactOffers[] = [
-                'supplier'      => $code,
-                'warehouse'     => (string)($it->warehouse ?? ''),
-                'name'          => (string)($it->name ?? ''),
-                'description'   => (string)($it->description ?? $it->name ?? ''),
-                'price'         => (float)($it->price ?? 0),
-                'quantity'      => (int)($it->quantity ?? 0),
-                'delivery_days' => (int)($it->deliveryDays ?? -1),
-            ];
-            }
-            $ck = $ib . '|' . $ia;
-            if (!isset($seenCross[$ck])) {
-                $seenCross[$ck] = true;
-                $crossPairs[$ck] = [
-                    'brand_orig'   => (string)($it->brand ?? ''),
-                    'article_orig' => (string)($it->article ?? ''),
-                    'brand_norm'   => $ib,
-                    'article_norm' => $ia,
-                ];
-            }
-        }
     }
 
     // Берём первые 15 кросс-пар
