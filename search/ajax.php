@@ -1,5 +1,5 @@
 <?php
-// search/ajax.php v14 — Round 2 одним чанком + дедлайн 12с
+// search/ajax.php v16 — одиночный чанк Round 2 + полные таймауты 10с + 15 кросс-пар
 ini_set('display_errors', 0);
 set_time_limit(120);
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
@@ -30,8 +30,7 @@ $normArt  = $article ? BrandNormalizer::normalizeArticle($article) : '';
 $factory  = getSupplierFactory();
 $suppliers = $factory->allAvailable();
 
-// ── curlExec: единый таймаут на ВЕСЬ чанк ──
-function curlExec(array $suppliers, array $requests, float $deadline = 12.0): array {
+function curlExec(array $suppliers, array $requests, float $deadline = 15.0): array {
     if (empty($requests)) return [];
     $mh = curl_multi_init();
     $handles = [];
@@ -73,7 +72,6 @@ function curlExec(array $suppliers, array $requests, float $deadline = 12.0): ar
     return $results;
 }
 
-// ── Progress file ──
 function progFile($taskId) {
     return sys_get_temp_dir() . '/srch_' . preg_replace('/[^a-f0-9]/', '', $taskId) . '.json';
 }
@@ -83,7 +81,6 @@ function progWrite($taskId, $pct, $msg, $done = false, $result = null) {
     @file_put_contents(progFile($taskId), json_encode($data, JSON_UNESCAPED_UNICODE));
 }
 
-// ── Log ──
 $logFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/search_ajax.log';
 function ajaxLog($msg) {
     global $logFile;
@@ -267,7 +264,6 @@ if ($action === 'brands') {
         }
     }
 
-    // Берём первые 15 кросс-пар
     $crossPairs = array_slice($crossPairs, 0, 15, true);
     $crossCount = count($crossPairs);
     ajaxLog("ROUND1 crossPairs=$crossCount exactOffers=" . count($exactOffers) . " analogGroups=" . count($analogGroups));
@@ -276,9 +272,7 @@ if ($action === 'brands') {
     if (!empty($crossPairs)) {
         progWrite($taskId, 35, 'Запрашиваем остатки для ' . $crossCount . ' аналогов у ' . count($suppliers) . ' поставщиков...');
 
-        // Собираем ВСЕ запросы в один плоский массив
         $allCrossReqs = [];
-        // Ключ: supplierCode|crossKey
         foreach ($crossPairs as $ck => $pair) {
             $skipSuppliers = $pair['_from'] ?? [];
             foreach ($suppliers as $code => $c) {
@@ -293,18 +287,15 @@ if ($action === 'brands') {
         ajaxLog("ROUND2 totalRequests=" . count($allCrossReqs) . " (single chunk)");
         $t2 = microtime(true);
 
-        // ОДИН вызов curlExec для всех запросов
-        $allCrossResponses = curlExec($suppliers, $allCrossReqs, 12.0);
+        $allCrossResponses = curlExec($suppliers, $allCrossReqs, 15.0);
 
         $round2Time = round(microtime(true) - $t2, 2);
         ajaxLog("ROUND2 done in {$round2Time}s responses=" . count(array_filter($allCrossResponses)));
 
         progWrite($taskId, 70, 'Обрабатываем ' . count(array_filter($allCrossResponses)) . ' ответов по кроссам...');
 
-        // Парсим ответы
         foreach ($allCrossResponses as $respKey => $body) {
             if (!$body) continue;
-            // respKey = "rossko|lynx|lc1610"
             $parts = explode('|', $respKey, 2);
             if (count($parts) < 2) continue;
             $code = $parts[0];
