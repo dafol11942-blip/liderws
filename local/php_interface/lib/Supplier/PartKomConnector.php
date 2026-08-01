@@ -17,10 +17,10 @@ class PartKomConnector implements SupplierInterface
     private string $login;
     private string $password;
     private string $baseUrl;
-    private int $timeout;
-    private ?array $brandsCache = null;
-    private bool $lastWithCrosses = false;
-    private string $resolvedBrandName = '';  // ← бренд как его знает PartKom
+    private int    $timeout;
+    private bool   $lastWithCrosses    = false;
+    private string $resolvedBrandName  = '';
+    private ?array $brandsCache        = null;
 
     public function __construct(array $config = [])
     {
@@ -30,52 +30,44 @@ class PartKomConnector implements SupplierInterface
         $this->timeout  = $config['TIMEOUT']   ?? 8;
     }
 
-    public function getCode(): string { return 'partkom'; }
-    public function getName(): string { return 'ПартКом'; }
+    // ── Интерфейс ──────────────────────────────────────────
+    public function getCode(): string           { return 'partkom'; }
+    public function getName(): string           { return 'ПартКом'; }
     public function getWarehousePrefix(): string { return 'pk'; }
+    public function isAvailable(): bool         { return !empty($this->login) && !empty($this->password); }
+    public function supportsCrossSearch(): bool { return true; }
+    public function getSearchTimeout(): int     { return 8; }
 
     public function maskWarehouseName(string $realName): string
     {
         return $this->generateWarehouseCode($realName);
     }
 
-    public function isAvailable(): bool
-    {
-        return !empty($this->login) && !empty($this->password);
-    }
-
-    private function getAuthHeader(): string
+    // ── AUTH ───────────────────────────────────────────────
+    private function authHeader(): string
     {
         return 'Authorization: Basic ' . base64_encode($this->login . ':' . $this->password);
     }
 
-    public function searchBrands(string $article): array
-    {
-        $req = $this->buildBrandsRequest($article);
-        if (!$req) return [];
-        $resp = $this->execCurl($req);
-        return $resp !== null ? $this->parseBrandsResponse($resp, $article) : [];
-    }
-
+    // ── BRANDS ─────────────────────────────────────────────
     public function buildBrandsRequest(string $article): ?array
     {
         if (!$this->isAvailable()) return null;
-        $url = $this->baseUrl . '/search/articule-brands?' . http_build_query(['number' => $article]);
         return [
-            'url'     => $url,
-            'headers' => [$this->getAuthHeader(), 'Accept: application/json'],
+            'url'     => $this->baseUrl . '/search/articule-brands?' . http_build_query(['number' => $article]),
+            'headers' => [$this->authHeader(), 'Accept: application/json'],
             'method'  => 'GET',
             'body'    => null,
         ];
     }
 
-    public function parseBrandsResponse(string $responseBody, string $requestArticle = ''): array
+    public function parseBrandsResponse(string $body, string $requestArticle = ''): array
     {
         $brands = [];
-        $article = trim($requestArticle);
-        $data = json_decode($responseBody, true);
+        $data   = json_decode($body, true);
         if (!is_array($data)) return $brands;
 
+        $article = trim($requestArticle);
         foreach ($data as $item) {
             $name = trim((string)($item['name'] ?? ''));
             if ($name === '') continue;
@@ -92,166 +84,145 @@ class PartKomConnector implements SupplierInterface
         return array_values($brands);
     }
 
-    public function searchByBrandArticle(string $brand, string $article): array
-    {
-        $req = $this->buildSearchRequest($brand, $article);
-        if (!$req) return [];
-        $resp = $this->execCurl($req);
-        return $resp !== null ? $this->parseSearchResponse($resp, $brand, $article) : [];
-    }
-
+    // ── SEARCH ─────────────────────────────────────────────
     public function buildSearchRequest(string $brand, string $article, bool $withCrosses = false): ?array
     {
         if (!$this->isAvailable()) return null;
-        $this->lastWithCrosses = $withCrosses;
-        $this->resolvedBrandName = '';  // сброс
 
-        $params = ['number' => $article, 'find_substitutes' => ($withCrosses ? 1 : 0), 'store' => 1];
+        $this->lastWithCrosses   = $withCrosses;
+        $this->resolvedBrandName = '';
 
-        // Пытаемся найти maker_id
-        $makerId = null;
+        $params = [
+            'number'           => $article,
+            'find_substitutes' => $withCrosses ? 1 : 0,
+            'store'            => 1,
+        ];
+
         if ($brand !== '') {
             $makerId = $this->resolveMakerId($brand);
+            if ($makerId) {
+                $params['maker_id'] = $makerId;
+            }
         }
 
-        if ($makerId) {
-            $params['maker_id'] = $makerId;
-        } elseif ($brand !== '') {
-            // Не нашли бренд — логируем и пробуем без maker_id
-            $this->log("resolveMakerId FAILED for brand='{$brand}', searching without maker_id");
-        }
-
-        $url = $this->baseUrl . '/search/offers?' . http_build_query($params);
         return [
-            'url'     => $url,
-            'headers' => [$this->getAuthHeader(), 'Accept: application/json'],
+            'url'     => $this->baseUrl . '/search/offers?' . http_build_query($params),
+            'headers' => [$this->authHeader(), 'Accept: application/json'],
             'method'  => 'GET',
             'body'    => null,
         ];
     }
 
-    public function parseSearchResponse(string $responseBody, string $brand, string $article): array
+    public function parseSearchResponse(string $body, string $brand, string $article): array
     {
         $results = [];
-        $data = json_decode($responseBody, true);
+        $data    = json_decode($body, true);
         if (!is_array($data)) return $results;
 
-        // Используем имя бренда как его знает PartKom (если resolveMakerId сработал)
-        // иначе — оригинальное
-        $matchBrand = $this->resolvedBrandName !== '' ? $this->resolvedBrandName : $brand;
-        $normBrand = BrandNormalizer::normalize($matchBrand);
-        $normArt   = BrandNormalizer::normalizeArticle($article);
+        // Бренд как его знает PartKom (если resolveMakerId сработал), иначе оригинал
+        $matchBrand = ($this->resolvedBrandName !== '') ? $this->resolvedBrandName : $brand;
+        $normBrand  = BrandNormalizer::normalize($matchBrand);
+        $normArt    = BrandNormalizer::normalizeArticle($article);
         $withCrosses = $this->lastWithCrosses;
 
         foreach ($data as $item) {
-            if (!is_array($item)) {
-                continue;
-            }
+            if (!is_array($item)) continue;
+
             $itemBrand  = trim((string)($item['maker'] ?? ''));
             $itemNumber = (string)($item['number'] ?? '');
+            $itemName   = (string)($item['description'] ?? '');
 
-            // Exact: строго бренд (+артикул если есть)
+            // ── Фильтр: точное совпадение ──
             if (!$withCrosses) {
-                if ($normBrand !== '' && BrandNormalizer::normalize($itemBrand) !== $normBrand) {
-                    continue;
-                }
-                if ($normArt !== '' && $itemNumber !== '' && BrandNormalizer::normalizeArticle($itemNumber) !== $normArt) {
-                    continue;
-                }
+                if ($normBrand !== '' && BrandNormalizer::normalize($itemBrand) !== $normBrand) continue;
+                if ($normArt !== '' && $itemNumber !== '' && BrandNormalizer::normalizeArticle($itemNumber) !== $normArt) continue;
             } else {
-                // Cross: выкидываем "однофамильцев" — тот же артикул, другой бренд
+                // ── Фильтр: кроссы ──
+                // Выкидываем «однофамильцев»: тот же артикул другой бренд
                 if ($normArt !== '' && $itemNumber !== ''
                     && BrandNormalizer::normalizeArticle($itemNumber) === $normArt
                     && $normBrand !== '' && BrandNormalizer::normalize($itemBrand) !== $normBrand
                 ) {
                     continue;
                 }
-            }
 
-            $itemName = (string)($item['description'] ?? '');
-            // family_skip_partkom
-            if (!empty($this->lastWithCrosses)) {
-                $fam = $this->detectPartFamily($itemName . ' ' . $itemBrand);
+                // Семейный фильтр: не показывать стойки при поиске колодок
+                $fam = $this->detectFamily($itemName . ' ' . $itemBrand);
                 if ($fam !== '' && in_array($fam, ['stab','filter','pan','spring','tie'], true)) {
                     $tb = BrandNormalizer::normalize($brand);
-                    if (in_array($tb, ['sangsin','hiq','hi-q','lynxauto','trw','brembo','ferodo'], true) || preg_match('/^sp\d+/i', trim($article))) {
-                        if ($fam !== 'pad' && $fam !== 'brake') {
-                            continue;
-                        }
+                    if (in_array($tb, ['sangsin','hiq','hi-q','lynxauto','trw','brembo','ferodo'], true)
+                        || preg_match('/^sp\d+/i', trim($article))) {
+                        if ($fam !== 'pad' && $fam !== 'brake') continue;
                     }
                 }
             }
 
+            // ── Только со склада, не под заказ ──
             $qty     = _parseQty($item['quantity'] ?? 0);
             $isStock = !empty($item['isStock']);
-            $isSched = !$isStock || $qty <= 0;
+            if (!$isStock || $qty <= 0) continue;
 
-            if ($isSched) continue;
+            // ── Собираем SearchResultItem ──
+            $r              = new SearchResultItem();
+            $r->source      = $this->getCode();
+            $r->article     = $itemNumber !== '' ? $itemNumber : $article;
+            $r->brand       = $itemBrand !== '' ? $itemBrand : $brand;
+            $r->name        = $itemName;
+            $r->price       = (float)($item['price'] ?? 0);
+            $r->quantity    = $qty;
+            $r->unit        = 'шт.';
+            $r->returnable  = empty($item['flagReturnImpossible']);
+            $r->multiplicity = max(1, (int)($item['minQuantity'] ?? 1));
+            $r->isSched     = false;
 
-            $r = new SearchResultItem();
-            $r->source       = $this->getCode();
-            $r->article      = $itemNumber !== '' ? $itemNumber : $article;
-            $r->brand        = $itemBrand !== '' ? $itemBrand : $brand;
-            $r->name         = (string)($item['description'] ?? '');
-            $r->price        = (float)($item['price'] ?? 0);
-            $r->quantity     = $qty;
-            $isStorehouse    = !empty($item['storehouse']);
-            if ($isStorehouse) {
+            // Склад
+            if (!empty($item['storehouse'])) {
                 $r->warehouse = 'ПартКом: ' . ($item['placement'] ?? 'Склад');
             } else {
                 $r->warehouse = ($item['providerDescription'] ?? '—') . ': ' . ($item['placement'] ?? '');
             }
             $r->stockId      = (string)($item['placementId'] ?? $item['providerId'] ?? '');
             $r->supplierName = $this->getName();
-            $r->isSched      = $isSched;
-            $r->multiplicity = max(1, (int)($item['minQuantity'] ?? 1));
-            $r->unit         = 'шт.';
-            $r->returnable   = empty($item['flagReturnImpossible']);
 
+            // Сроки
             $now = time();
-            $deliveryTs = null;
+            $ts  = null;
             if (!empty($item['deliveryDateFrom'])) {
-                $deliveryTs = strtotime($item['deliveryDateFrom']);
+                $ts = strtotime($item['deliveryDateFrom']);
             } elseif (!empty($item['expectedDate'])) {
-                $deliveryTs = strtotime($item['expectedDate']);
+                $ts = strtotime($item['expectedDate']);
             }
-
-            if ($deliveryTs && $deliveryTs > $now) {
-                $diffSeconds = $deliveryTs - $now;
-                $r->deliveryPeriod = max(0, (int)($diffSeconds / 3600));
-                if (date('Y-m-d', $deliveryTs) === date('Y-m-d', $now)) {
-                    $r->deliveryDays = 0;
-                } else {
-                    $r->deliveryDays = max(1, (int)ceil($diffSeconds / 86400));
-                }
+            if ($ts && $ts > $now) {
+                $r->deliveryPeriod = max(0, (int)(($ts - $now) / 3600));
+                $r->deliveryDays   = (date('Y-m-d', $ts) === date('Y-m-d', $now)) ? 0 : max(1, (int)ceil(($ts - $now) / 86400));
             } elseif (!empty($item['expectedHours'])) {
                 $r->deliveryPeriod = (int)$item['expectedHours'];
                 $r->deliveryDays   = (int)ceil($item['expectedHours'] / 24);
             }
 
             $r->raw = [
-                'deliveryDateFrom' => $item['deliveryDateFrom'] ?? null,
-                'deliveryDateTo'   => $item['expectedDate'] ?? ($item['deliveryDateTo'] ?? null),
-                'expectedHours'    => $item['expectedHours'] ?? null,
-                'isStock'          => $item['isStock'] ?? null,
-                'storehouse'       => $item['storehouse'] ?? null,
-                'flagReturnImpossible' => $item['flagReturnImpossible'] ?? null,
+                'deliveryDateFrom'      => $item['deliveryDateFrom'] ?? null,
+                'deliveryDateTo'        => $item['expectedDate'] ?? ($item['deliveryDateTo'] ?? null),
+                'expectedHours'         => $item['expectedHours'] ?? null,
+                'isStock'               => $item['isStock'] ?? null,
+                'storehouse'            => $item['storehouse'] ?? null,
+                'flagReturnImpossible'  => $item['flagReturnImpossible'] ?? null,
             ];
+
             if ($r->price <= 0 && $r->quantity <= 0) continue;
             $results[] = $r;
-            if (count($results) >= 160) { break; }
+            if (count($results) >= 160) break;
         }
 
-        $seen = [];
+        // Дедупликация
+        $seen   = [];
         $unique = [];
-        foreach ($results as $item) {
-            $dk = ($item->stockId ?: '') . '|' . $item->price;
-            if (!isset($seen[$dk])) {
-                $seen[$dk] = true;
-                $unique[] = $item;
-            }
+        foreach ($results as $it) {
+            $dk = ($it->stockId ?: '') . '|' . $it->price;
+            if (!isset($seen[$dk])) { $seen[$dk] = true; $unique[] = $it; }
         }
 
+        // Сортировка: срок → цена
         usort($unique, function (SearchResultItem $a, SearchResultItem $b) {
             $da = $a->deliveryDays ?? 0;
             $db = $b->deliveryDays ?? 0;
@@ -262,45 +233,13 @@ class PartKomConnector implements SupplierInterface
         return $unique;
     }
 
-    public function getDetail(string $article, string $brand): ?SearchResultItem
-    {
-        $items = $this->searchByBrandArticle($brand, $article);
-        foreach ($items as $item) {
-            if (!$item->isSched && $item->price > 0) return $item;
-        }
-        return $items[0] ?? null;
-    }
-
-    public function search(string $query): array
-    {
-        $results = [];
-        if (!$this->isAvailable()) return $results;
-        $query = trim($query);
-        if (mb_strlen($query) < 2) return $results;
-
-        $url = $this->baseUrl . '/search/offers?' . http_build_query(['number' => $query, 'find_substitutes' => 0]);
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => [$this->getAuthHeader(), 'Accept: application/json'],
-            CURLOPT_TIMEOUT        => $this->timeout,
-            CURLOPT_CONNECTTIMEOUT => 3,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => 0,
-        ]);
-        $resp = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($httpCode !== 200 || empty($resp)) return $results;
-
-        return $this->parseSearchResponse($resp, '', $query);
-    }
-
+    // ── MAKER ID ───────────────────────────────────────────
     private function resolveMakerId(string $brand): ?int
     {
         if ($brand === '') return null;
+
         $this->loadBrands();
-        if (!$this->brandsCache) {
+        if (empty($this->brandsCache)) {
             $this->log("resolveMakerId: brandsCache is empty for '{$brand}'");
             return null;
         }
@@ -311,35 +250,39 @@ class PartKomConnector implements SupplierInterface
         foreach ($this->brandsCache as $id => $name) {
             if (BrandNormalizer::normalize((string)$name) === $norm) {
                 $this->resolvedBrandName = (string)$name;
+                $this->log("resolveMakerId: exact '{$brand}' → id={$id} '{$name}'");
                 return (int)$id;
             }
         }
 
-        // 2. Substring: ищем, является ли бренд PartKom частью запроса или наоборот
+        // 2. Substring
         $raw = mb_strtolower(trim($brand));
         foreach ($this->brandsCache as $id => $name) {
             $n = mb_strtolower(trim((string)$name));
-            if ($n === $raw || mb_stripos($n, $raw) !== false || mb_stripos($raw, $n) !== false) {
+            if ($n === $raw || mb_strpos($n, $raw) !== false || mb_strpos($raw, $n) !== false) {
                 $this->resolvedBrandName = (string)$name;
+                $this->log("resolveMakerId: substring '{$brand}' → id={$id} '{$name}'");
                 return (int)$id;
             }
         }
 
-        // 3. Фолбэк: убираем суффиксы типа "-FILTER", "-GERMANY" и пробуем снова
-        $stripped = preg_replace('/[-_\s].*$/', '', $brand);
+        // 3. Stripped suffix (MANN-FILTER → MANN)
+        $stripped = preg_replace('/[-_\s].*$/u', '', $brand);
         if ($stripped !== $brand && $stripped !== '') {
             $strippedNorm = BrandNormalizer::normalize($stripped);
             foreach ($this->brandsCache as $id => $name) {
                 if (BrandNormalizer::normalize((string)$name) === $strippedNorm) {
                     $this->resolvedBrandName = (string)$name;
+                    $this->log("resolveMakerId: stripped '{$brand}'→'{$stripped}' → id={$id} '{$name}'");
                     return (int)$id;
                 }
             }
-            $strippedLower = mb_strtolower($stripped);
+            $sl = mb_strtolower($stripped);
             foreach ($this->brandsCache as $id => $name) {
                 $n = mb_strtolower(trim((string)$name));
-                if ($n === $strippedLower || mb_stripos($n, $strippedLower) !== false || mb_stripos($strippedLower, $n) !== false) {
+                if ($n === $sl || mb_strpos($n, $sl) !== false || mb_strpos($sl, $n) !== false) {
                     $this->resolvedBrandName = (string)$name;
+                    $this->log("resolveMakerId: stripped substring '{$brand}'→'{$stripped}' → id={$id} '{$name}'");
                     return (int)$id;
                 }
             }
@@ -349,31 +292,52 @@ class PartKomConnector implements SupplierInterface
         return null;
     }
 
+    // ── LOAD BRANDS ────────────────────────────────────────
     private function loadBrands(): void
     {
-        if ($this->brandsCache !== null) return;
-
-        $cacheFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/partkom_brands.json';
-        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
-            $this->brandsCache = json_decode((string)file_get_contents($cacheFile), true) ?: [];
+        // Пустой массив — не кэш, это значит «уже пробовали и не вышло».
+        // Разрешаем повторную попытку только если $this->brandsCache === null.
+        if ($this->brandsCache !== null) {
+            // Если не пуст — ок, если пуст — значит была ошибка, пробуем снова
             if (!empty($this->brandsCache)) return;
         }
 
-        $url = $this->baseUrl . '/search/brands';
-        $ch = curl_init($url);
+        $cacheFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/partkom_brands.json';
+
+        // Пробуем из файлового кэша
+        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
+            $cached = json_decode((string)@file_get_contents($cacheFile), true);
+            if (is_array($cached) && !empty($cached)) {
+                $this->brandsCache = $cached;
+                $this->log("loadBrands: from cache (" . count($this->brandsCache) . " brands)");
+                return;
+            }
+        }
+
+        // Запрос к API
+        $this->log("loadBrands: fetching from API...");
+        $ch = curl_init($this->baseUrl . '/search/brands');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => [$this->getAuthHeader(), 'Accept: application/json'],
-            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_HTTPHEADER     => [$this->authHeader(), 'Accept: application/json'],
+            CURLOPT_TIMEOUT        => 15,
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => 0,
         ]);
-        $resp = curl_exec($ch);
+        $resp     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err      = curl_error($ch);
         curl_close($ch);
 
+        if ($err || $httpCode !== 200 || empty($resp)) {
+            $this->log("loadBrands: FAILED HTTP={$httpCode} err={$err}");
+            $this->brandsCache = null; // разрешит повторную попытку при следующем вызове
+            return;
+        }
+
         $this->brandsCache = [];
-        $data = json_decode((string)$resp, true);
+        $data = json_decode($resp, true);
         if (is_array($data)) {
             foreach ($data as $item) {
                 if (is_array($item) && isset($item['id'], $item['name'])) {
@@ -383,46 +347,28 @@ class PartKomConnector implements SupplierInterface
                 }
             }
         }
-        @mkdir(dirname($cacheFile), 0755, true);
-        @file_put_contents($cacheFile, json_encode($this->brandsCache, JSON_UNESCAPED_UNICODE));
+
+        $this->log("loadBrands: from API (" . count($this->brandsCache) . " brands)");
+
+        if (!empty($this->brandsCache)) {
+            @mkdir(dirname($cacheFile), 0755, true);
+            @file_put_contents($cacheFile, json_encode($this->brandsCache, JSON_UNESCAPED_UNICODE));
+        } else {
+            $this->brandsCache = null; // пустой ответ — тоже ошибка
+        }
     }
 
-    private function execCurl(array $req): ?string
-    {
-        $ch = curl_init($req['url']);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => $req['headers'],
-            CURLOPT_TIMEOUT        => $this->timeout,
-            CURLOPT_CONNECTTIMEOUT => 3,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => 0,
-        ]);
-        if (($req['method'] ?? 'GET') === 'POST') {
-            curl_setopt($ch, CURLOPT_POST, true);
-            if (!empty($req['body'])) curl_setopt($ch, CURLOPT_POSTFIELDS, $req['body']);
-        }
-        $resp = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $err = curl_error($ch);
-        curl_close($ch);
-        if ($err || $httpCode !== 200) {
-            $this->log("HTTP {$httpCode} err={$err} url={$req['url']}");
-            return null;
-        }
-        return $resp;
-    }
-
-    private function detectPartFamily(string $text): string
+    // ── HELPERS ────────────────────────────────────────────
+    private function detectFamily(string $text): string
     {
         $t = mb_strtolower($text);
         $map = [
-            'pad' => ['колодк', 'brake pad', 'disc pad'],
-            'stab' => ['стабил', 'stabilizer', 'sway', 'тяга стаб', 'стойка стаб', 'anti-roll'],
+            'pad'    => ['колодк', 'brake pad', 'disc pad'],
+            'stab'   => ['стабил', 'stabilizer', 'sway', 'тяга стаб', 'стойка стаб', 'anti-roll'],
             'filter' => ['фильтр', 'filter'],
             'spring' => ['пружин', 'spring'],
-            'tie' => ['наконечник', 'tie rod', 'рулев'],
-            'pan' => ['поддон', 'oil pan'],
+            'tie'    => ['наконечник', 'tie rod', 'рулев'],
+            'pan'    => ['поддон', 'oil pan'],
         ];
         foreach ($map as $fam => $words) {
             foreach ($words as $w) {
@@ -431,16 +377,6 @@ class PartKomConnector implements SupplierInterface
         }
         if (mb_strpos($t, 'тормоз') !== false) return 'brake';
         return '';
-    }
-
-    private function samePartFamily(string $a, string $b): bool
-    {
-        $fa = $this->detectPartFamily($a);
-        $fb = $this->detectPartFamily($b);
-        if ($fa === '' || $fb === '') return true;
-        if ($fa === $fb) return true;
-        if (in_array($fa, ['pad','brake'], true) && in_array($fb, ['pad','brake'], true)) return true;
-        return false;
     }
 
     private function generateWarehouseCode(string $name): string
@@ -464,6 +400,32 @@ class PartKomConnector implements SupplierInterface
         return $this->getWarehousePrefix() . '_' . $abbr;
     }
 
+    private function execCurl(array $req): ?string
+    {
+        $ch = curl_init($req['url']);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => $req['headers'],
+            CURLOPT_TIMEOUT        => $this->timeout,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+        ]);
+        if (($req['method'] ?? 'GET') === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            if (!empty($req['body'])) curl_setopt($ch, CURLOPT_POSTFIELDS, $req['body']);
+        }
+        $resp     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err      = curl_error($ch);
+        curl_close($ch);
+        if ($err || $httpCode !== 200) {
+            $this->log("HTTP {$httpCode} err={$err} url={$req['url']}");
+            return null;
+        }
+        return $resp;
+    }
+
     private function log(string $message): void
     {
         @file_put_contents(
@@ -473,13 +435,54 @@ class PartKomConnector implements SupplierInterface
         );
     }
 
-    public function supportsCrossSearch(): bool
+    // ── Устаревшие public-методы (сохранены для совместимости) ──
+    public function searchBrands(string $article): array
     {
-        return true;
+        $req = $this->buildBrandsRequest($article);
+        if (!$req) return [];
+        $resp = $this->execCurl($req);
+        return $resp !== null ? $this->parseBrandsResponse($resp, $article) : [];
     }
 
-    public function getSearchTimeout(): int
+    public function searchByBrandArticle(string $brand, string $article): array
     {
-        return 8;
+        $req = $this->buildSearchRequest($brand, $article);
+        if (!$req) return [];
+        $resp = $this->execCurl($req);
+        return $resp !== null ? $this->parseSearchResponse($resp, $brand, $article) : [];
+    }
+
+    public function getDetail(string $article, string $brand): ?SearchResultItem
+    {
+        $items = $this->searchByBrandArticle($brand, $article);
+        foreach ($items as $item) {
+            if (!$item->isSched && $item->price > 0) return $item;
+        }
+        return $items[0] ?? null;
+    }
+
+    public function search(string $query): array
+    {
+        $results = [];
+        if (!$this->isAvailable()) return $results;
+        $query = trim($query);
+        if (mb_strlen($query) < 2) return $results;
+
+        $url = $this->baseUrl . '/search/offers?' . http_build_query(['number' => $query, 'find_substitutes' => 0]);
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => [$this->authHeader(), 'Accept: application/json'],
+            CURLOPT_TIMEOUT        => $this->timeout,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+        ]);
+        $resp     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($httpCode !== 200 || empty($resp)) return $results;
+
+        return $this->parseSearchResponse($resp, '', $query);
     }
 }
