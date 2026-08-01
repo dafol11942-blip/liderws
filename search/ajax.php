@@ -1,8 +1,14 @@
 <?php
-// search/ajax.php v11 — синхронный поиск, чанкинг 15 кросс-пар
+// search/ajax.php v12 — офферы аналогов сразу из Round 1 + сессия разблокирована
 ini_set('display_errors', 0);
 set_time_limit(120);
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
+
+// ⚡ Снять блокировку сессии — иначе progress-запросы висят
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-cache');
 
@@ -163,7 +169,7 @@ if ($action === 'brands') {
 
     progWrite($taskId, 5, 'Запрашиваем точное совпадение у ' . count($suppliers) . ' поставщиков...');
 
-    // 1. Exact
+    // ═══ ROUND 1: точное совпадение + сразу собираем офферы аналогов ═══
     $exactReqs = [];
     foreach ($suppliers as $code => $c) {
         $req = $c->buildSearchRequest($brandOrig, $numberOrig, true);
@@ -171,9 +177,12 @@ if ($action === 'brands') {
     }
     $responses = curlExec($suppliers, $exactReqs);
 
-    $exactOffers = [];
-    $crossPairs  = [];
-    $seenCross   = [];
+    progWrite($taskId, 20, 'Обрабатываем ответы, собираем кросс-номера и их остатки...');
+
+    $exactOffers  = [];
+    $crossPairs   = [];
+    $seenCross    = [];
+    $analogGroups = [];
     $seenCross[$normBrand . '|' . $normNum] = true;
 
     foreach ($responses as $code => $body) {
@@ -183,46 +192,91 @@ if ($action === 'brands') {
         foreach ($items as $it) {
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
             $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
+            $gk = $ib . '|' . $ia;
+
             if ($ia === $normNum && $ib === $normBrand) {
+                // Точное совпадение
                 $exactOffers[] = [
-                    'supplier' => $code, 'warehouse' => (string)($it->warehouse ?? ''),
-                    'name' => (string)($it->name ?? ''),
-                    'description' => (string)($it->description ?? $it->name ?? ''),
-                    'price' => (float)($it->price ?? 0),
-                    'quantity' => (int)($it->quantity ?? 0),
+                    'supplier'      => $code,
+                    'warehouse'     => (string)($it->warehouse ?? ''),
+                    'name'          => (string)($it->name ?? ''),
+                    'description'   => (string)($it->description ?? $it->name ?? ''),
+                    'price'         => (float)($it->price ?? 0),
+                    'quantity'      => (int)($it->quantity ?? 0),
+                    'delivery_days' => (int)($it->deliveryDays ?? -1),
+                ];
+            } else {
+                // Аналог — сохраняем оффер СРАЗУ, не дожидаясь Round 2
+                if (!isset($analogGroups[$gk])) {
+                    $analogGroups[$gk] = [
+                        'brand_orig'   => (string)($it->brand ?? ''),
+                        'article_orig' => (string)($it->article ?? ''),
+                        'description'  => (string)($it->description ?? ''),
+                        'offers'       => [],
+                    ];
+                }
+                $desc = (string)($it->description ?? '');
+                if (mb_strlen($desc) > mb_strlen($analogGroups[$gk]['description'])) {
+                    $analogGroups[$gk]['description'] = $desc;
+                }
+                $analogGroups[$gk]['offers'][] = [
+                    'supplier'      => $code,
+                    'warehouse'     => (string)($it->warehouse ?? ''),
+                    'name'          => (string)($it->name ?? ''),
+                    'description'   => (string)($it->name ?? $it->description ?? ''),
+                    'price'         => (float)($it->price ?? 0),
+                    'quantity'      => (int)($it->quantity ?? 0),
                     'delivery_days' => (int)($it->deliveryDays ?? -1),
                 ];
             }
-            $ck = $ib . '|' . $ia;
-            if (!isset($seenCross[$ck])) {
-                $seenCross[$ck] = true;
-                $crossPairs[$ck] = [
-                    'brand_orig' => (string)($it->brand ?? ''),
+
+            // Трекинг кросс-пар для Round 2 (кто уже отдал этот кросс)
+            if (!isset($seenCross[$gk])) {
+                $seenCross[$gk] = true;
+                $crossPairs[$gk] = [
+                    'brand_orig'   => (string)($it->brand ?? ''),
                     'article_orig' => (string)($it->article ?? ''),
-                    'brand_norm' => $ib, 'article_norm' => $ia,
+                    'brand_norm'   => $ib,
+                    'article_norm' => $ia,
+                    '_from'        => [$code],
                 ];
+            } else {
+                // Этот кросс уже был от другого поставщика — дополняем _from
+                if (isset($crossPairs[$gk]) && !in_array($code, $crossPairs[$gk]['_from'])) {
+                    $crossPairs[$gk]['_from'][] = $code;
+                }
             }
         }
     }
 
-    // Берём первые 15 кросс-пар
+    // Оставляем первые 15 кросс-пар для Round 2
     $crossPairs = array_slice($crossPairs, 0, 15, true);
-    progWrite($taskId, 35, 'Найдено ' . count($crossPairs) . ' кросс-номеров. Запрашиваем цены...');
+    $crossCount = count($crossPairs);
 
-    // 2. Crosses — по одному за раз (надёжнее чем чанки)
-    $analogGroups = [];
+    progWrite($taskId, 35, 'Найдено ' . $crossCount . ' кросс-номеров (часть остатков уже получена). Запрашиваем цены у остальных...');
+
+    // ═══ ROUND 2: дозапрос кроссов только у поставщиков, которые ещё не отдали ═══
     if (!empty($crossPairs)) {
-        $pairTotal = count($crossPairs);
         $pairN = 0;
         foreach ($crossPairs as $ck => $pair) {
             $pairN++;
+            $skipSuppliers = $pair['_from'] ?? [];
+
             $crReqs = [];
             foreach ($suppliers as $code => $c) {
+                if (in_array($code, $skipSuppliers, true)) continue;
                 $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig']);
                 if ($req) $crReqs[$code] = $req;
             }
-            $pct = 50 + (int)(30 * $pairN / max($pairTotal, 1));
-            progWrite($taskId, $pct, 'Аналог ' . $pairN . '/' . $pairTotal . ': ' . $pair['brand_orig'] . ' ' . $pair['article_orig']);
+
+            // Все поставщики уже отдали этот кросс в Round 1 — пропускаем
+            if (empty($crReqs)) {
+                continue;
+            }
+
+            $pct = 50 + (int)(30 * $pairN / max($crossCount, 1));
+            progWrite($taskId, $pct, 'Аналог ' . $pairN . '/' . $crossCount . ': ' . $pair['brand_orig'] . ' ' . $pair['article_orig'] . ' (' . count($crReqs) . ' поставщиков)');
+
             $crResponses = curlExec($suppliers, $crReqs);
 
             foreach ($crResponses as $reqKey => $body) {
@@ -264,9 +318,10 @@ if ($action === 'brands') {
             }
         }
     }
-    progWrite($taskId, 80, 'Обработано ' . count($analogGroups) . ' аналогов...');
 
-    // 3. Build response
+    progWrite($taskId, 80, 'Обработано ' . count($analogGroups) . ' аналогов. Сортируем...');
+
+    // ═══ BUILD RESPONSE ═══
     $resp = [];
     if (!empty($exactOffers)) {
         usort($exactOffers, function($a, $b) {
@@ -289,13 +344,14 @@ if ($action === 'brands') {
         $activePrices = array_filter($prices, function($p) { return $p > 0; });
         $activeDays = array_filter($days, function($d) { return $d >= 0; });
         $analogs[] = [
-            'brand' => $grp['brand_orig'], 'article' => $grp['article_orig'],
-            'description' => $grp['description'],
-            'best_price' => !empty($activePrices) ? min($activePrices) : 0,
+            'brand'         => $grp['brand_orig'],
+            'article'       => $grp['article_orig'],
+            'description'   => $grp['description'],
+            'best_price'    => !empty($activePrices) ? min($activePrices) : 0,
             'best_delivery' => !empty($activeDays) ? min($activeDays) : null,
-            'total_qty' => array_sum($qtys),
-            'has_instock' => count(array_filter($qtys, function($q) { return $q > 0; })) > 0,
-            'suppliers' => $offers,
+            'total_qty'     => array_sum($qtys),
+            'has_instock'   => count(array_filter($qtys, function($q) { return $q > 0; })) > 0,
+            'suppliers'     => $offers,
         ];
     }
     usort($analogs, function($a, $b) {
