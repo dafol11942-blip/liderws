@@ -1,6 +1,7 @@
 <?php
-// search/ajax.php v10 — эндпоинты + фоновый worker
+// search/ajax.php v11 — синхронный поиск, чанкинг 15 кросс-пар
 ini_set('display_errors', 0);
+set_time_limit(120);
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-cache');
@@ -157,19 +158,153 @@ if ($action === 'brands') {
     if (!$brandOrig) { echo json_encode(['error' => 'Укажите бренд']); exit; }
 
     $taskId = md5($article . $brandOrig . time() . rand());
-    progWrite($taskId, 0, 'Запуск поиска...');
+    $normBrand = BrandNormalizer::normalize($brandOrig);
+    $normNum   = BrandNormalizer::normalizeArticle($numberOrig);
 
-    $workerParams = escapeshellarg(json_encode([
-        'brand'   => $brandOrig,
-        'article' => $numberOrig,
-        'taskId'  => $taskId,
-        'docRoot' => $_SERVER['DOCUMENT_ROOT'],
-    ], JSON_UNESCAPED_UNICODE));
+    progWrite($taskId, 5, 'Запрашиваем точное совпадение у ' . count($suppliers) . ' поставщиков...');
 
-    $workerScript = $_SERVER['DOCUMENT_ROOT'] . '/search/worker.php';
-    exec('/usr/bin/php ' . escapeshellarg($workerScript) . ' ' . $workerParams . ' > /dev/null 2>&1 &');
+    // 1. Exact
+    $exactReqs = [];
+    foreach ($suppliers as $code => $c) {
+        $req = $c->buildSearchRequest($brandOrig, $numberOrig, true);
+        if ($req) $exactReqs[$code] = $req;
+    }
+    $responses = curlExec($suppliers, $exactReqs);
 
-    echo json_encode(['task_id' => $taskId, 'status' => 'started'], JSON_UNESCAPED_UNICODE);
+    $exactOffers = [];
+    $crossPairs  = [];
+    $seenCross   = [];
+    $seenCross[$normBrand . '|' . $normNum] = true;
+
+    foreach ($responses as $code => $body) {
+        if (!$body) continue;
+        try { $items = $suppliers[$code]->parseSearchResponse($body, $brandOrig, $numberOrig); }
+        catch (\Throwable $e) { continue; }
+        foreach ($items as $it) {
+            $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
+            $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
+            if ($ia === $normNum && $ib === $normBrand) {
+                $exactOffers[] = [
+                    'supplier' => $code, 'warehouse' => (string)($it->warehouse ?? ''),
+                    'name' => (string)($it->name ?? ''),
+                    'description' => (string)($it->description ?? $it->name ?? ''),
+                    'price' => (float)($it->price ?? 0),
+                    'quantity' => (int)($it->quantity ?? 0),
+                    'delivery_days' => (int)($it->deliveryDays ?? -1),
+                ];
+            }
+            $ck = $ib . '|' . $ia;
+            if (!isset($seenCross[$ck])) {
+                $seenCross[$ck] = true;
+                $crossPairs[$ck] = [
+                    'brand_orig' => (string)($it->brand ?? ''),
+                    'article_orig' => (string)($it->article ?? ''),
+                    'brand_norm' => $ib, 'article_norm' => $ia,
+                ];
+            }
+        }
+    }
+
+    // Берём первые 15 кросс-пар
+    $crossPairs = array_slice($crossPairs, 0, 15, true);
+    progWrite($taskId, 35, 'Найдено ' . count($crossPairs) . ' кросс-номеров. Запрашиваем цены...');
+
+    // 2. Crosses (чанками)
+    $analogGroups = [];
+    if (!empty($crossPairs)) {
+        $crossChunks = array_chunk($crossPairs, 15, true);
+        $chunkTotal = count($crossChunks); $chunkN = 0;
+        foreach ($crossChunks as $chunkPairs) {
+            $chunkN++;
+            $crReqs = [];
+            foreach ($chunkPairs as $ck => $pair) {
+                foreach ($suppliers as $code => $c) {
+                    $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig']);
+                    if ($req) $crReqs[$code . '|' . $ck] = $req;
+                }
+            }
+            $pct = 50 + (int)(30 * $chunkN / max($chunkTotal, 1));
+            progWrite($taskId, $pct, 'Аналоги ' . $chunkN . '/' . $chunkTotal);
+            $crResponses = curlExec($suppliers, $crReqs);
+            foreach ($crResponses as $reqKey => $body) {
+                if (!$body) continue;
+                $parts = explode('|', $reqKey, 2); $code = $parts[0]; $ck = $parts[1] ?? '';
+                $pair = $chunkPairs[$ck] ?? null;
+                if (!$pair) continue;
+                try { $items = $suppliers[$code]->parseSearchResponse($body, $pair['brand_orig'], $pair['article_orig']); }
+                catch (\Throwable $e) { continue; }
+                foreach ($items as $it) {
+                    $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
+                    $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
+                    if ($ia !== $pair['article_norm'] || $ib !== $pair['brand_norm']) continue;
+                    $gk = $pair['brand_norm'] . '|' . $pair['article_norm'];
+                    if (!isset($analogGroups[$gk])) {
+                        $analogGroups[$gk] = [
+                            'brand_orig' => $pair['brand_orig'], 'article_orig' => $pair['article_orig'],
+                            'description' => (string)($it->description ?? ''), 'offers' => [],
+                        ];
+                    }
+                    $desc = (string)($it->description ?? '');
+                    if (mb_strlen($desc) > mb_strlen($analogGroups[$gk]['description'])) {
+                        $analogGroups[$gk]['description'] = $desc;
+                    }
+                    $analogGroups[$gk]['offers'][] = [
+                        'supplier' => $code, 'warehouse' => (string)($it->warehouse ?? ''),
+                        'name' => (string)($it->name ?? ''),
+                        'description' => (string)($it->name ?? $it->description ?? ''),
+                        'price' => (float)($it->price ?? 0),
+                        'quantity' => (int)($it->quantity ?? 0),
+                        'delivery_days' => (int)($it->deliveryDays ?? -1),
+                    ];
+                }
+            }
+        }
+    }
+    progWrite($taskId, 80, 'Обработано ' . count($analogGroups) . ' аналогов...');
+
+    // 3. Build response
+    $resp = [];
+    if (!empty($exactOffers)) {
+        usort($exactOffers, function($a, $b) {
+            if ($a['price'] != $b['price']) return $a['price'] - $b['price'];
+            return $a['delivery_days'] - $b['delivery_days'];
+        });
+        $resp['exact'] = ['brand' => $brandOrig, 'article' => $numberOrig, 'suppliers' => $exactOffers];
+    }
+
+    $analogs = [];
+    foreach ($analogGroups as $gk => $grp) {
+        $offers = $grp['offers'];
+        usort($offers, function($a, $b) {
+            if ($a['price'] != $b['price']) return $a['price'] - $b['price'];
+            return $a['delivery_days'] - $b['delivery_days'];
+        });
+        $prices = array_column($offers, 'price');
+        $days = array_column($offers, 'delivery_days');
+        $qtys = array_column($offers, 'quantity');
+        $activePrices = array_filter($prices, function($p) { return $p > 0; });
+        $activeDays = array_filter($days, function($d) { return $d >= 0; });
+        $analogs[] = [
+            'brand' => $grp['brand_orig'], 'article' => $grp['article_orig'],
+            'description' => $grp['description'],
+            'best_price' => !empty($activePrices) ? min($activePrices) : 0,
+            'best_delivery' => !empty($activeDays) ? min($activeDays) : null,
+            'total_qty' => array_sum($qtys),
+            'has_instock' => count(array_filter($qtys, function($q) { return $q > 0; })) > 0,
+            'suppliers' => $offers,
+        ];
+    }
+    usort($analogs, function($a, $b) {
+        if ($a['has_instock'] !== $b['has_instock']) return $b['has_instock'] - $a['has_instock'];
+        $dA = $a['best_delivery'] ?? 999; $dB = $b['best_delivery'] ?? 999;
+        if ($dA !== $dB) return $dA - $dB;
+        return $a['best_price'] - $b['best_price'];
+    });
+
+    $resp['analogs'] = $analogs;
+    $resp['task_id'] = $taskId;
+    progWrite($taskId, 100, 'Готово', true, $resp);
+    echo json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_NUMERIC_CHECK);
 
 } else {
     echo json_encode(['error' => 'Неизвестный action']);

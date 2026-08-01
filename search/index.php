@@ -155,30 +155,23 @@ async function loadResults(){
         var d = await r.json();
 
         if (d.error) { showError(d.error); return; }
-        if (!d.task_id) { showError('Нет ID задачи'); return; }
 
-        // Поллим прогресс пока не готово
-        var taskId = d.task_id;
-        var maxWait = 120;
-        var startTime = Date.now();
-
-        while ((Date.now() - startTime) < maxWait * 1000) {
-            try {
-                var pr = await fetch(API+'?action=progress&task='+encodeURIComponent(taskId));
-                var pd = await pr.json();
-                if (pd.percent !== undefined) {
-                    showProgress(pd.percent, pd.message || 'Обработка...');
-                    if (pd.done && pd.result) {
-                        showProgress(100, 'Готово');
-                        setTimeout(function(){ renderResults(pd.result); }, 300);
-                        return;
-                    }
-                }
-            } catch(e) {}
-            await new Promise(function(resolve) { setTimeout(resolve, 500); });
+        // Если есть task_id — поллим, иначе прямой результат
+        if (d.task_id && !d.exact && !d.analogs) {
+            var taskId = d.task_id, maxWait = 120, start = Date.now();
+            while ((Date.now() - start) < maxWait * 1000) {
+                await new Promise(function(r) { setTimeout(r, 500); });
+                try {
+                    var pr = await fetch(API+'?action=progress&task='+taskId);
+                    var pd = await pr.json();
+                    if (pd.percent !== undefined) showProgress(pd.percent, pd.message || '...');
+                    if (pd.done && pd.result) { d = pd.result; break; }
+                } catch(e) {}
+            }
         }
 
-        showError('Таймаут поиска');
+        showProgress(100, 'Готово');
+        setTimeout(function(){ renderResults(d); }, 300);
     } catch(e) {
         showError('Ошибка: ' + e.message);
     }
