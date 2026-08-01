@@ -127,31 +127,44 @@ function showProgress(pct, msg) {
         '</div>';
 }
 
+async function pollProgress(taskId, timeoutSec) {
+    timeoutSec = timeoutSec || 120;
+    var startTime = Date.now();
+
+    while ((Date.now() - startTime) < timeoutSec * 1000) {
+        try {
+            var r = await fetch(API + '?action=progress&task=' + encodeURIComponent(taskId));
+            var d = await r.json();
+            if (d.percent !== undefined) {
+                showProgress(d.percent, d.message || 'Обработка...');
+                if (d.done && d.result) {
+                    return d.result;
+                }
+            }
+        } catch(e) {}
+        await new Promise(function(resolve) { setTimeout(resolve, 500); });
+    }
+    throw new Error('Таймаут поиска (' + timeoutSec + 'с)');
+}
+
 async function loadResults(){
     showProgress(0, 'Запуск поиска...');
 
-    // Фейковый прогресс — плавно растёт пока ждём ответ
-    var fakePct = 0;
-    var fakeInterval = setInterval(function() {
-        if (fakePct < 90) {
-            fakePct += Math.random() * 15;
-            if (fakePct > 90) fakePct = 90;
-            var msgs = ['Запрашиваем точное совпадение...','Анализируем результаты...','Ищем кросс-номера...','Запрашиваем цены у поставщиков...','Обрабатываем ответы...','Группируем результаты...'];
-            var m = msgs[Math.floor(fakePct / 20)] || 'Обработка...';
-            showProgress(Math.floor(fakePct), m);
-        }
-    }, 600);
-
     try {
-        var r = await fetch(API+'?action=search&article='+encodeURIComponent(Q)+'&brand='+encodeURIComponent(B)+'&number='+encodeURIComponent(N));
-        var d = await r.json();
-        clearInterval(fakeInterval);
-        if(d.error){showError(d.error);return}
+        var r1 = await fetch(API+'?action=search&article='+encodeURIComponent(Q)+'&brand='+encodeURIComponent(B)+'&number='+encodeURIComponent(N));
+        var startData = await r1.json();
+
+        if (startData.error) { showError(startData.error); return; }
+
+        var taskId = startData.task_id;
+        if (!taskId) { showError('Не получен ID задачи'); return; }
+
+        var d = await pollProgress(taskId, 120);
         showProgress(100, 'Готово');
         setTimeout(function(){ renderResults(d); }, 300);
+
     } catch(e) {
-        clearInterval(fakeInterval);
-        showError('Ошибка соединения: ' + e.message);
+        showError('Ошибка: ' + e.message);
     }
 }
 
