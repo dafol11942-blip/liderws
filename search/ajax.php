@@ -166,7 +166,7 @@ if ($action === 'brands') {
     // 1. Exact
     $exactReqs = [];
     foreach ($suppliers as $code => $c) {
-        $req = $c->buildSearchRequest($brandOrig, $numberOrig);
+        $req = $c->buildSearchRequest($brandOrig, $numberOrig, true);
         if ($req) $exactReqs[$code] = $req;
     }
     $responses = curlExec($suppliers, $exactReqs);

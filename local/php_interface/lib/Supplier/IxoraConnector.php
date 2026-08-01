@@ -177,6 +177,9 @@ class IxoraConnector implements SupplierInterface
         }
         $isCrossResponse = count($brandSet) > 1;
 
+        $own = [];
+        $other = [];
+
         foreach ($details as $d) {
             $itemBrand   = trim((string)($d->xpath('*[local-name()="maker"]')[0] ?? ''));
             $itemNumber  = trim((string)($d->xpath('*[local-name()="number"]')[0] ?? ''));
