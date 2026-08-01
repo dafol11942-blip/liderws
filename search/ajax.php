@@ -213,62 +213,69 @@ if ($action === 'brands') {
     progWrite($taskId, 35, 'Найдено ' . $totalCross . ' кросс-номеров. Запрашиваем цены...');
 
     // 2. Crosses
-    $analogGroups = [];
+   $analogGroups = [];
     if (!empty($crossPairs)) {
-        $crReqs = [];
-        foreach ($crossPairs as $ck => $pair) {
-            foreach ($suppliers as $code => $c) {
-                $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig']);
-                if ($req) $crReqs[$code . '|' . $ck] = $req;
+        $crossChunks = array_chunk($crossPairs, 15, true);
+        $chunkTotal = count($crossChunks);
+        $chunkN = 0;
+
+        foreach ($crossChunks as $chunkPairs) {
+            $chunkN++;
+            $crReqs = [];
+            foreach ($chunkPairs as $ck => $pair) {
+                foreach ($suppliers as $code => $c) {
+                    $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig']);
+                    if ($req) $crReqs[$code . '|' . $ck] = $req;
+                }
             }
-        }
-        $totalReqs = count($crReqs);
-        progWrite($taskId, 50, 'Запрашиваем ' . $totalReqs . ' позиций у поставщиков...');
-        $crResponses = curlExec($suppliers, $crReqs);
-        progWrite($taskId, 80, 'Обрабатываем ' . count($crResponses) . ' ответов...');
+            $pct = 50 + (int)(30 * $chunkN / max($chunkTotal, 1));
+            progWrite($taskId, $pct, 'Аналоги ' . $chunkN . '/' . $chunkTotal . ' (' . count($crReqs) . ' запросов)...');
+            $crResponses = curlExec($suppliers, $crReqs);
 
-        foreach ($crResponses as $reqKey => $body) {
-            if (!$body) continue;
-            $parts = explode('|', $reqKey, 2);
-            $code  = $parts[0];
-            $ck    = $parts[1] ?? '';
-            $pair  = $crossPairs[$ck] ?? null;
-            if (!$pair) continue;
-            $gk = $pair['brand_norm'] . '|' . $pair['article_norm'];
+            foreach ($crResponses as $reqKey => $body) {
+                if (!$body) continue;
+                $parts = explode('|', $reqKey, 2);
+                $code  = $parts[0];
+                $ck    = $parts[1] ?? '';
+                $pair  = $chunkPairs[$ck] ?? null;
+                if (!$pair) continue;
+                $gk = $pair['brand_norm'] . '|' . $pair['article_norm'];
 
-            try {
-                $items = $suppliers[$code]->parseSearchResponse($body, $pair['brand_orig'], $pair['article_orig']);
-            } catch (\Throwable $e) { continue; }
+                try {
+                    $items = $suppliers[$code]->parseSearchResponse($body, $pair['brand_orig'], $pair['article_orig']);
+                } catch (\Throwable $e) { continue; }
 
-            foreach ($items as $it) {
-                $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
-                $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
-                if ($ia !== $pair['article_norm'] || $ib !== $pair['brand_norm']) continue;
+                foreach ($items as $it) {
+                    $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
+                    $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
+                    if ($ia !== $pair['article_norm'] || $ib !== $pair['brand_norm']) continue;
 
-                if (!isset($analogGroups[$gk])) {
-                    $analogGroups[$gk] = [
-                        'brand_orig'   => $pair['brand_orig'],
-                        'article_orig' => $pair['article_orig'],
-                        'description'  => (string)($it->description ?? ''),
-                        'offers'       => [],
+                    if (!isset($analogGroups[$gk])) {
+                        $analogGroups[$gk] = [
+                            'brand_orig'   => $pair['brand_orig'],
+                            'article_orig' => $pair['article_orig'],
+                            'description'  => (string)($it->description ?? ''),
+                            'offers'       => [],
+                        ];
+                    }
+                    $desc = (string)($it->description ?? '');
+                    if (mb_strlen($desc) > mb_strlen($analogGroups[$gk]['description'])) {
+                        $analogGroups[$gk]['description'] = $desc;
+                    }
+                    $analogGroups[$gk]['offers'][] = [
+                        'supplier'      => $code,
+                        'warehouse'     => (string)($it->warehouse ?? ''),
+                        'name'          => (string)($it->name ?? ''),
+                        'description'   => (string)($it->name ?? $it->description ?? ''),
+                        'price'         => (float)($it->price ?? 0),
+                        'quantity'      => (int)($it->quantity ?? 0),
+                        'delivery_days' => (int)($it->deliveryDays ?? -1),
                     ];
                 }
-                $desc = (string)($it->description ?? '');
-                if (mb_strlen($desc) > mb_strlen($analogGroups[$gk]['description'])) {
-                    $analogGroups[$gk]['description'] = $desc;
-                }
-                $analogGroups[$gk]['offers'][] = [
-                'supplier'      => $code,
-                'warehouse'     => (string)($it->warehouse ?? ''),
-                'name'          => (string)($it->name ?? ''),
-                'description'   => (string)($it->name ?? $it->description ?? ''),
-                'price'         => (float)($it->price ?? 0),
-                'quantity'      => (int)($it->quantity ?? 0),
-                'delivery_days' => (int)($it->deliveryDays ?? -1),
-            ];
             }
         }
     }
+    progWrite($taskId, 80, 'Обработано ' . count($analogGroups) . ' аналогов...');
     progWrite($taskId, 90, 'Формируем результат...');
 
     // 3. Build response
