@@ -1,5 +1,5 @@
 <?php
-// search/ajax.php v7 — эндпоинты с прогрессом + чанкинг
+// search/ajax.php v9 — синхронный поиск + прогресс
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-cache');
@@ -32,7 +32,7 @@ function curlExec(array $suppliers, array $requests): array {
             CURLOPT_URL            => $req['url'],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER     => $req['headers'] ?? [],
-            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_TIMEOUT        => 10,
             CURLOPT_CONNECTTIMEOUT => 3,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => 0,
@@ -151,6 +151,8 @@ if ($action === 'brands') {
 // ═══ SEARCH ═══
 } elseif ($action === 'search') {
 
+    set_time_limit(120);
+
     $brandOrig  = trim($_GET['brand'] ?? '');
     $numberOrig = trim($_GET['number'] ?? '');
     if (!$brandOrig) { echo json_encode(['error' => 'Укажите бренд']); exit; }
@@ -209,7 +211,7 @@ if ($action === 'brands') {
         }
     }
 
-    // Берём первые 15 кросс-пар (Rossko/Autoeuro/Ixora — самые надёжные)
+    // Берём первые 15 кросс-пар
     $crossPairs = array_slice($crossPairs, 0, 15, true);
 
     $totalCross = count($crossPairs);

@@ -151,18 +151,34 @@ async function loadResults(){
     showProgress(0, 'Запуск поиска...');
 
     try {
-        var r1 = await fetch(API+'?action=search&article='+encodeURIComponent(Q)+'&brand='+encodeURIComponent(B)+'&number='+encodeURIComponent(N));
-        var startData = await r1.json();
+        var r = await fetch(API+'?action=search&article='+encodeURIComponent(Q)+'&brand='+encodeURIComponent(B)+'&number='+encodeURIComponent(N));
+        var d = await r.json();
 
-        if (startData.error) { showError(startData.error); return; }
+        if (d.error) { showError(d.error); return; }
+        if (!d.task_id) { showError('Нет ID задачи'); return; }
 
-        var taskId = startData.task_id;
-        if (!taskId) { showError('Не получен ID задачи'); return; }
+        // Поллим прогресс пока не готово
+        var taskId = d.task_id;
+        var maxWait = 120;
+        var startTime = Date.now();
 
-        var d = await pollProgress(taskId, 120);
-        showProgress(100, 'Готово');
-        setTimeout(function(){ renderResults(d); }, 300);
+        while ((Date.now() - startTime) < maxWait * 1000) {
+            try {
+                var pr = await fetch(API+'?action=progress&task='+encodeURIComponent(taskId));
+                var pd = await pr.json();
+                if (pd.percent !== undefined) {
+                    showProgress(pd.percent, pd.message || 'Обработка...');
+                    if (pd.done && pd.result) {
+                        showProgress(100, 'Готово');
+                        setTimeout(function(){ renderResults(pd.result); }, 300);
+                        return;
+                    }
+                }
+            } catch(e) {}
+            await new Promise(function(resolve) { setTimeout(resolve, 500); });
+        }
 
+        showError('Таймаут поиска');
     } catch(e) {
         showError('Ошибка: ' + e.message);
     }
