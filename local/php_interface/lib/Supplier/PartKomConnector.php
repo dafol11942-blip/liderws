@@ -20,7 +20,7 @@ class PartKomConnector implements SupplierInterface
     private int    $timeout;
     private bool   $lastWithCrosses    = false;
     private string $resolvedBrandName  = '';
-    private bool   $makerIdUsed        = false;   // ← новый флаг
+    private bool   $makerIdUsed        = false;
     private ?array $brandsCache        = null;
 
     public function __construct(array $config = [])
@@ -65,7 +65,6 @@ class PartKomConnector implements SupplierInterface
         $brands  = [];
         $data    = json_decode($body, true);
         if (!is_array($data)) return $brands;
-
         $article = trim($requestArticle);
         foreach ($data as $item) {
             $name = trim((string)($item['name'] ?? ''));
@@ -87,7 +86,6 @@ class PartKomConnector implements SupplierInterface
     public function buildSearchRequest(string $brand, string $article, bool $withCrosses = false): ?array
     {
         if (!$this->isAvailable()) return null;
-
         $this->lastWithCrosses   = $withCrosses;
         $this->resolvedBrandName = '';
         $this->makerIdUsed       = false;
@@ -104,7 +102,6 @@ class PartKomConnector implements SupplierInterface
                 $params['maker_id']     = $makerId;
                 $this->makerIdUsed      = true;
             }
-            // если maker_id не найден — ищем без него, PartKom вернёт все бренды
         }
 
         return [
@@ -123,48 +120,31 @@ class PartKomConnector implements SupplierInterface
 
         $withCrosses = $this->lastWithCrosses;
 
-        // Если maker_id использовался — бренд уже отфильтрован API, сверяем для надёжности
-        // Если нет — PartKom вернул ВСЕ бренды, фильтруем по артикулу, бренд НЕ фильтруем
         if ($this->makerIdUsed) {
             $matchBrand = ($this->resolvedBrandName !== '') ? $this->resolvedBrandName : $brand;
             $normBrand  = BrandNormalizer::normalize($matchBrand);
         } else {
-            $normBrand = ''; // без maker_id — не фильтруем по бренду
+            $normBrand = '';
         }
         $normArt = BrandNormalizer::normalizeArticle($article);
 
         foreach ($data as $item) {
             if (!is_array($item)) continue;
-
             $itemBrand  = trim((string)($item['maker'] ?? ''));
             $itemNumber = (string)($item['number'] ?? '');
             $itemName   = (string)($item['description'] ?? '');
 
-            // ── Фильтр: точное совпадение ──
             if (!$withCrosses) {
-                // Артикул — всегда
                 if ($normArt !== '' && $itemNumber !== ''
-                    && BrandNormalizer::normalizeArticle($itemNumber) !== $normArt) {
-                    continue;
-                }
-                // Бренд — только если maker_id был (API уже отфильтровал или мы сверяем)
+                    && BrandNormalizer::normalizeArticle($itemNumber) !== $normArt) continue;
                 if ($normBrand !== '' && $itemBrand !== ''
-                    && BrandNormalizer::normalize($itemBrand) !== $normBrand) {
-                    continue;
-                }
+                    && BrandNormalizer::normalize($itemBrand) !== $normBrand) continue;
             } else {
-                // ── Фильтр: кроссы ──
-                // Выкидываем «однофамильцев»: тот же артикул другой бренд
                 if ($normArt !== '' && $itemNumber !== ''
                     && BrandNormalizer::normalizeArticle($itemNumber) === $normArt
-                    && $this->makerIdUsed
-                    && $normBrand !== ''
-                    && BrandNormalizer::normalize($itemBrand) !== $normBrand
-                ) {
-                    continue;
-                }
+                    && $this->makerIdUsed && $normBrand !== ''
+                    && BrandNormalizer::normalize($itemBrand) !== $normBrand) continue;
 
-                // Семейный фильтр
                 $fam = $this->detectFamily($itemName . ' ' . $itemBrand);
                 if ($fam !== '' && in_array($fam, ['stab','filter','pan','spring','tie'], true)) {
                     $tb = BrandNormalizer::normalize($brand);
@@ -175,12 +155,10 @@ class PartKomConnector implements SupplierInterface
                 }
             }
 
-            // ── Только со склада ──
             $qty     = _parseQty($item['quantity'] ?? 0);
             $isStock = !empty($item['isStock']);
             if (!$isStock || $qty <= 0) continue;
 
-            // ── SearchResultItem ──
             $r                = new SearchResultItem();
             $r->source        = $this->getCode();
             $r->article       = $itemNumber !== '' ? $itemNumber : $article;
@@ -201,7 +179,6 @@ class PartKomConnector implements SupplierInterface
             }
             $r->stockId = (string)($item['placementId'] ?? $item['providerId'] ?? '');
 
-            // Сроки
             $now = time();
             $ts  = null;
             if (!empty($item['deliveryDateFrom'])) {
@@ -232,7 +209,6 @@ class PartKomConnector implements SupplierInterface
             if (count($results) >= 160) break;
         }
 
-        // Дедупликация
         $seen   = [];
         $unique = [];
         foreach ($results as $it) {
@@ -250,7 +226,7 @@ class PartKomConnector implements SupplierInterface
         return $unique;
     }
 
-    // ── MAKER ID ──────────────────────────────────────────
+    // ── MAKER ID (v5: без substring, только точные совпадения) ──
     private function resolveMakerId(string $brand): ?int
     {
         if ($brand === '') return null;
@@ -258,45 +234,52 @@ class PartKomConnector implements SupplierInterface
         $this->loadBrands();
         if (empty($this->brandsCache)) return null;
 
-        $norm = BrandNormalizer::normalize($brand);
+        $norm  = BrandNormalizer::normalize($brand);
+        $lower = mb_strtolower(trim($brand));
 
-        // 1. Точное совпадение
+        // 1. Точное совпадение нормализованных имён
         foreach ($this->brandsCache as $id => $name) {
             if (BrandNormalizer::normalize((string)$name) === $norm) {
+                // Санитарная проверка: не должны совпадать слова разной длины
+                // MANN-FILTER и MANNOL могут иметь одинаковую normal-форму
+                $nameLower = mb_strtolower(trim((string)$name));
+                // Проверяем, что одно содержит другое (MANN-FILTER содержит MANN, но не MANNOL)
+                if (mb_strlen($lower) >= 3 && mb_strlen($nameLower) >= 3) {
+                    $shorter = mb_strlen($lower) < mb_strlen($nameLower) ? $lower : $nameLower;
+                    $longer  = mb_strlen($lower) < mb_strlen($nameLower) ? $nameLower : $lower;
+                    // Если короткое слово содержится в длинном — это ОК (MANN в MANN-FILTER)
+                    // Если нет (MANNOL vs MANN-FILTER) — пропускаем
+                    if (mb_strpos($longer, $shorter) === false && $shorter !== $longer) {
+                        continue; // MANNOL не содержится в MANN-FILTER и наоборот
+                    }
+                }
                 $this->resolvedBrandName = (string)$name;
                 $this->log("resolveMakerId: exact '{$brand}' → id={$id} '{$name}'");
                 return (int)$id;
             }
         }
 
-        // 2. Substring
-        $raw = mb_strtolower(trim($brand));
+        // 2. Точное регистронезависимое совпадение (без normalizer)
         foreach ($this->brandsCache as $id => $name) {
-            $n = mb_strtolower(trim((string)$name));
-            if ($n === $raw || mb_strpos($n, $raw) !== false || mb_strpos($raw, $n) !== false) {
+            if (mb_strtolower(trim((string)$name)) === $lower) {
                 $this->resolvedBrandName = (string)$name;
-                $this->log("resolveMakerId: substring '{$brand}' → id={$id} '{$name}'");
+                $this->log("resolveMakerId: exact-lower '{$brand}' → id={$id} '{$name}'");
                 return (int)$id;
             }
         }
 
-        // 3. Stripped suffix
+        // 3. Stripped suffix: MANN-FILTER → MANN
         $stripped = preg_replace('/[-_\s].*$/u', '', $brand);
-        if ($stripped !== $brand && $stripped !== '') {
-            $sn = BrandNormalizer::normalize($stripped);
-            foreach ($this->brandsCache as $id => $name) {
-                if (BrandNormalizer::normalize((string)$name) === $sn) {
-                    $this->resolvedBrandName = (string)$name;
-                    $this->log("resolveMakerId: stripped '{$brand}'→'{$stripped}' → id={$id} '{$name}'");
-                    return (int)$id;
-                }
-            }
-            $sl = mb_strtolower($stripped);
+        if ($stripped !== $brand && mb_strlen($stripped) >= 3) {
+            $sn    = BrandNormalizer::normalize($stripped);
+            $slower = mb_strtolower($stripped);
+
             foreach ($this->brandsCache as $id => $name) {
                 $n = mb_strtolower(trim((string)$name));
-                if ($n === $sl || mb_strpos($n, $sl) !== false || mb_strpos($sl, $n) !== false) {
+                // Точное совпадение stripped
+                if ($n === $slower || BrandNormalizer::normalize((string)$name) === $sn) {
                     $this->resolvedBrandName = (string)$name;
-                    $this->log("resolveMakerId: stripped substring '{$brand}'→'{$stripped}' → id={$id} '{$name}'");
+                    $this->log("resolveMakerId: stripped '{$brand}'→'{$stripped}' → id={$id} '{$name}'");
                     return (int)$id;
                 }
             }
@@ -311,17 +294,14 @@ class PartKomConnector implements SupplierInterface
         if ($this->brandsCache !== null && !empty($this->brandsCache)) return;
 
         $cacheFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/partkom_brands.json';
-
         if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
             $cached = json_decode((string)@file_get_contents($cacheFile), true);
             if (is_array($cached) && !empty($cached)) {
                 $this->brandsCache = $cached;
-                $this->log("loadBrands: cache (" . count($this->brandsCache) . " brands)");
                 return;
             }
         }
 
-        $this->log("loadBrands: API call...");
         $ch = curl_init($this->baseUrl . '/search/brands');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -342,29 +322,13 @@ class PartKomConnector implements SupplierInterface
             return;
         }
 
-        // Отладка: сохраняем сырой ответ
-        $this->log("loadBrands: raw=" . substr($resp, 0, 200));
-
         $this->brandsCache = [];
-        $data = json_decode($resp, true);
+        $json = json_decode($resp, true);
+        $items = $json['data'] ?? $json['brands'] ?? $json['items'] ?? $json ?? [];
 
-        if (is_array($data)) {
-            // Формат 1: [{"id":1,"name":"MANN"}, ...]
-            // Формат 2: ["MANN","BOSCH",...]
-            // Формат 3: {"brands": [...]}
-            // Формат 4: {"data": [...]}
-
-            // Проверяем вложенность
-            $items = $data;
-            if (isset($data['brands']) && is_array($data['brands'])) $items = $data['brands'];
-            elseif (isset($data['data']) && is_array($data['data'])) $items = $data['data'];
-            elseif (isset($data['items']) && is_array($data['items'])) $items = $data['items'];
-
+        if (is_array($items)) {
             foreach ($items as $item) {
-                if (is_array($item) && isset($item['id'], $item['name'])) {
-                    $this->brandsCache[(int)$item['id']] = $item['name'];
-                } elseif (is_array($item) && isset($item['name'])) {
-                    // id может быть maker_id, code, etc
+                if (is_array($item) && isset($item['name'])) {
                     $id = $item['id'] ?? $item['maker_id'] ?? $item['code'] ?? crc32($item['name']);
                     $this->brandsCache[(int)$id] = $item['name'];
                 } elseif (is_string($item) && $item !== '') {
@@ -373,7 +337,7 @@ class PartKomConnector implements SupplierInterface
             }
         }
 
-        $this->log("loadBrands: result=" . count($this->brandsCache) . " brands");
+        $this->log("loadBrands: " . count($this->brandsCache) . " brands");
 
         if (!empty($this->brandsCache)) {
             @mkdir(dirname($cacheFile), 0755, true);
