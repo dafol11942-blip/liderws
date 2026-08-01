@@ -128,76 +128,101 @@ function showProgress(pct, msg) {
 }
 
 async function loadResults(){
-    // Генерируем taskId здесь — до поиска
     var taskId = 'srch_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    var pollDone = false;
-    var searchDone = false;
-    var resultData = null;
 
     showProgress(0, 'Запуск поиска...');
 
-    // Поллинг — запускаем СРАЗУ, параллельно с поиском
-    var pollPromise = (async function() {
-        var maxWait = 120, start = Date.now();
-        while ((Date.now() - start) < maxWait * 1000) {
-            if (searchDone && resultData) break;  // поиск уже всё отдал
-            try {
-                var pr = await fetch(API + '?action=progress&task=' + encodeURIComponent(taskId));
-                var pd = await pr.json();
-                if (pd.percent !== undefined) {
-                    showProgress(pd.percent, pd.message || '...');
-                    if (pd.done && pd.result) {
-                        resultData = pd.result;
-                        pollDone = true;
-                        break;
-                    }
-                }
-            } catch(e) { /* прогресс-файл ещё не создан */ }
-            await new Promise(function(r) { setTimeout(r, 500); });
-        }
-    })();
-
-    // Поиск — передаём taskId, чтобы сервер писал в тот же файл
-    var searchPromise = (async function() {
-        try {
-            var r = await fetch(API + '?action=search&article=' + encodeURIComponent(Q)
-                + '&brand=' + encodeURIComponent(B)
-                + '&number=' + encodeURIComponent(N)
-                + '&task=' + encodeURIComponent(taskId));
-            var d = await r.json();
-            if (d.error) { resultData = d; searchDone = true; return; }
-            // Если сервер уже вернул результат (быстрый ответ), используем его
-            if (!pollDone) {
-                resultData = d;
-            }
-            searchDone = true;
-        } catch(e) {
-            searchDone = true;
-            if (!pollDone) {
-                resultData = { error: 'Ошибка соединения: ' + e.message };
-            }
-        }
-    })();
-
-    // Ждём любой из двух
-    await Promise.race([
-        pollPromise,
-        searchPromise
-    ]);
-    // Даём второму тоже завершиться (но не блокируем UI)
-    await Promise.all([pollPromise, searchPromise]);
-
-    if (!resultData) {
-        showError('Таймаут поиска (120с). Попробуйте ещё раз.');
+    // ═══ PHASE 1: показываем результаты сразу ═══
+    var d1;
+    try {
+        var r1 = await fetch(API + '?action=search&article=' + encodeURIComponent(Q)
+            + '&brand=' + encodeURIComponent(B)
+            + '&number=' + encodeURIComponent(N)
+            + '&task=' + encodeURIComponent(taskId));
+        d1 = await r1.json();
+    } catch(e) {
+        showError('Ошибка соединения: ' + e.message);
         return;
     }
-    if (resultData.error) {
-        showError(resultData.error);
-        return;
-    }
+
+    if (d1.error) { showError(d1.error); return; }
 
     showProgress(100, 'Готово');
-    setTimeout(function(){ renderResults(resultData); }, 300);
+    setTimeout(function(){ renderResults(d1); }, 200);
+
+    // ═══ PHASE 2: добор кросс-номеров в фоне ═══
+    if (d1.phase === 1 && d1.cross_count > 0) {
+        var resultEl = qs('#resultContent');
+        var loadDiv = document.createElement('div');
+        loadDiv.className = 'cross-loading';
+        loadDiv.innerHTML = '<div class="loader-inline"><span class="spinner-inline"></span> Подбираем цены для ' + d1.cross_count + ' аналогов у всех поставщиков...</div>';
+        resultEl.appendChild(loadDiv);
+
+        try {
+            var r2 = await fetch(API + '?action=crossload&task=' + encodeURIComponent(taskId));
+            var d2 = await r2.json();
+            if (d2.analog_offers && Object.keys(d2.analog_offers).length > 0) {
+                mergeAnalogOffers(d1, d2.analog_offers);
+                renderResults(d1);
+            }
+        } catch(e) { /* молча */ }
+        loadDiv.remove();
+    }
+}
+
+function mergeAnalogOffers(d1, analogOffers) {
+    if (!d1.analogs) return;
+
+    // Индекс существующих групп по нормализованному ключу
+    var keyToIdx = {};
+    d1.analogs.forEach(function(a, i) {
+        var key = (a.brand + '|' + a.article).toLowerCase().replace(/[^a-z0-9|]/g, '');
+        keyToIdx[key] = i;
+    });
+
+    for (var gk in analogOffers) {
+        if (!analogOffers.hasOwnProperty(gk)) continue;
+        var idx = keyToIdx[gk];
+        if (idx === undefined) continue;
+
+        var existing = d1.analogs[idx];
+        var newOffs = analogOffers[gk];
+        var seenSuppliers = {};
+        existing.suppliers.forEach(function(s) {
+            seenSuppliers[s.supplier + '|' + s.price] = true;
+        });
+
+        newOffs.forEach(function(o) {
+            if (!seenSuppliers[o.supplier + '|' + o.price]) {
+                existing.suppliers.push(o);
+                seenSuppliers[o.supplier + '|' + o.price] = true;
+            }
+        });
+
+        // Пересортировка офферов внутри группы
+        existing.suppliers.sort(function(x, y) {
+            if (x.price != y.price) return x.price - y.price;
+            return (x.delivery_days || 0) - (y.delivery_days || 0);
+        });
+
+        // Пересчёт агрегатов
+        var prices = existing.suppliers.map(function(s){return s.price;}).filter(function(p){return p>0;});
+        var days   = existing.suppliers.map(function(s){return s.delivery_days;}).filter(function(d){return d>=0;});
+        var qtys   = existing.suppliers.map(function(s){return s.quantity;});
+        existing.best_price    = prices.length ? Math.min.apply(null, prices) : 0;
+        existing.best_delivery = days.length ? Math.min.apply(null, days) : null;
+        existing.total_qty     = qtys.reduce(function(sum, q){return sum+q;}, 0);
+        existing.has_instock   = qtys.some(function(q){return q>0;});
+    }
+
+    // Пересортировка аналогов
+    d1.analogs.sort(function(a, b) {
+        if (a.has_instock !== b.has_instock) return b.has_instock - a.has_instock;
+        var da = a.best_delivery != null ? a.best_delivery : 999;
+        var db = b.best_delivery != null ? b.best_delivery : 999;
+        if (da !== db) return da - db;
+        return a.best_price - b.best_price;
+    });
 }
 
 function renderResults(d){

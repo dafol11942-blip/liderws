@@ -169,3 +169,15 @@
     .ft-sec,.phead { padding: 14px 16px; }
     .ft-th--skl { width: auto; }
 }
+
+/* Инлайн-спиннер для Phase 2 */
+.loader-inline {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 0; color: #888; font-size: 14px;
+}
+.spinner-inline {
+    display: inline-block; width: 16px; height: 16px;
+    border: 2px solid #e0e0e0; border-top-color: var(--blue, #668BEA);
+    border-radius: 50%; animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
