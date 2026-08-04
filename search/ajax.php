@@ -385,8 +385,8 @@ if ($action === 'brands') {
 
     foreach ($responses as $respKey => $body) {
         if (!$body) continue;
-        if (strpos($respKey, 'cross|') !== 0) continue;
-        $code = substr($respKey, 6);
+        if (strpos($respKey, 'cross|') !== 0 && strpos($respKey, 'exact|') !== 0) continue;
+        $code = substr($respKey, strpos($respKey, '|') + 1);
 
         try { $items = $suppliers[$code]->parseSearchResponse($body, $brandOrig, $numberOrig); }
         catch (\Throwable $e) { continue; }
