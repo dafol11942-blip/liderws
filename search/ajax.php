@@ -345,7 +345,7 @@ if ($action === 'brands') {
     foreach ($suppliers as $code => $c) {
         $reqExact = $c->buildSearchRequest($brandOrig, $numberOrig, false);
         if ($reqExact) $r1Reqs['exact|' . $code] = $reqExact;
-        $reqCross = $c->buildSearchRequest($brandOrig, $numberOrig, true);
+        $reqCross = $c->buildSearchRequest($brandOrig, $numberOrig, !in_array($code, ['autoeuro', 'ixora', 'tatparts', 'autopiter'], true));
         if ($reqCross) $r1Reqs['cross|' . $code] = $reqCross;
     }
 
