@@ -176,7 +176,7 @@ if ($action === 'crossload') {
             $sa = $sArt[$code] ?? null;
             if (!$sa) continue;
 
-            $req = $c->buildSearchRequest($sa['brand'], $sa['article'], true);
+            $req = $c->buildSearchRequest($sa['brand'], $sa['article'], false);
             if ($req) {
                 $key = $code . '|' . $ck;
                 $allReqs[$key] = $req;
