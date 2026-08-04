@@ -280,7 +280,7 @@ class AutoeuroConnector implements SupplierInterface
     {
         $stock   = !empty($item['stock']);
         $amount  = (int)($item['amount'] ?? 0);
-        $isSched = !$stock || $amount <= 0;
+        $isSched = ($amount <= 0);
 
         // Срок доставки: delivery_time = точное время прибытия
         // Доставка всегда минимум завтра (день в день не возят)
