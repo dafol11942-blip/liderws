@@ -166,7 +166,7 @@ class TatpartsConnector implements SupplierInterface
             return $a->price <=> $b->price;
         });
 
-        return array_slice($results, 0, 10);
+        return array_slice($results, 0, 30);
     }
 
     public function getDetail(string $article, string $brand): ?SearchResultItem

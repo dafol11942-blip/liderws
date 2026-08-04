@@ -260,7 +260,7 @@ class AutorussConnector implements SupplierInterface
             return $a->price <=> $b->price;
         });
 
-        return array_slice($unique, 0, 10);
+        return array_slice($unique, 0, 30);
     }
 
     // ==================== ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ====================
