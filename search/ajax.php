@@ -103,7 +103,7 @@ if ($action === 'progress') {
     exit;
 }
 
-// ═══ CROSSLOAD — Phase 2: brands API → supplier-specific search ═══
+// ═══ CROSSLOAD — Phase 2: прямой поиск brand+article из Phase 1 ═══
 if ($action === 'crossload') {
     $crossJson = trim($_REQUEST['crossPairs'] ?? '');
     if ($crossJson === '') { echo json_encode(['done' => true, 'analog_offers' => []]); exit; }
@@ -115,66 +115,15 @@ if ($action === 'crossload') {
 
     ajaxLog("CROSSLOAD START task=$taskId pairs=" . count($crossPairs));
 
-    // ── Шаг 1: brands API — узнаём supplier-specific brand+article для каждого артикула ──
-    $brandReqs = [];
-    $brandReqMap = [];
-    foreach ($crossPairs as $ck => $pair) {
-        $skip = $pair['_from'] ?? [];
-        foreach ($suppliers as $code => $c) {
-            if (in_array($code, $skip, true)) continue;
-            $key = $code . '|' . $pair['article_orig'];
-            if (isset($brandReqs[$key])) continue;
-            $req = $c->buildBrandsRequest($pair['article_orig']);
-            if ($req) {
-                $brandReqs[$key] = $req;
-                $brandReqMap[$key] = [$code, $pair['article_orig']];
-            }
-        }
-    }
-
-    $supplierArticles = [];
-
-    if (!empty($brandReqs)) {
-        $tBrands = microtime(true);
-        $brandResponses = curlExec($suppliers, $brandReqs, 8.0);
-        ajaxLog("CROSSLOAD brands done in " . round(microtime(true) - $tBrands, 2) . "s requests=" . count($brandReqs) . " responses=" . count(array_filter($brandResponses)));
-
-        foreach ($brandResponses as $key => $body) {
-            if (!$body) continue;
-            $map = $brandReqMap[$key] ?? null;
-            if (!$map) continue;
-            [$code, $artOrig] = $map;
-
-            try {
-                $brands = $suppliers[$code]->parseBrandsResponse($body);
-            } catch (\Throwable $e) { continue; }
-
-            if (empty($brands)) continue;
-
-            $first = $brands[0];
-            $b = trim((string)($first['brand'] ?? ''));
-            $a = trim((string)($first['article_nr'] ?? $first['article_fix'] ?? $first['article'] ?? ''));
-            if ($b === '' || $a === '') continue;
-
-            if (!isset($supplierArticles[$artOrig])) $supplierArticles[$artOrig] = [];
-            $supplierArticles[$artOrig][$code] = ['brand' => $b, 'article' => $a];
-        }
-    }
-
-    // ── Шаг 2: search с supplier-specific brand+article ──
+    // Прямой поиск: brand_orig + article_orig у каждого поставщика
     $allReqs = [];
     $reqInfo = [];
 
     foreach ($crossPairs as $ck => $pair) {
         $skip = $pair['_from'] ?? [];
-        $sArt = $supplierArticles[$pair['article_orig']] ?? [];
-
         foreach ($suppliers as $code => $c) {
             if (in_array($code, $skip, true)) continue;
-            $sa = $sArt[$code] ?? null;
-            if (!$sa) continue;
-
-            $req = $c->buildSearchRequest($sa['brand'], $sa['article'], false);
+            $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig'], false);
             if ($req) {
                 $key = $code . '|' . $ck;
                 $allReqs[$key] = $req;
@@ -188,7 +137,7 @@ if ($action === 'crossload') {
     $responses = curlExec($suppliers, $allReqs, 15.0);
     ajaxLog("CROSSLOAD done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses)));
 
-    // ── Шаг 3: parse → group under canonical key ──
+    // Парсим и группируем
     $analogOffers = [];
     $suppStats = [];
 
@@ -206,7 +155,7 @@ if ($action === 'crossload') {
         if (!$pair) continue;
 
         try {
-            $items = $suppliers[$code]->parseSearchResponse($body, '', $pair['article_orig']);
+            $items = $suppliers[$code]->parseSearchResponse($body, $pair['brand_orig'], $pair['article_orig']);
         } catch (\Throwable $e) { continue; }
 
         $gk = $pair['brand_norm'] . '|' . $pair['article_norm'];
