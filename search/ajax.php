@@ -268,18 +268,20 @@ if ($action === 'brands') {
     $normBrand = BrandNormalizer::normalize($brandOrig);
     $normNum   = BrandNormalizer::normalizeArticle($numberOrig);
 
-    progWrite($taskId, 5, 'Запрашиваем точное совпадение...');
+    progWrite($taskId, 5, 'Запрашиваем поставщиков...');
 
-    // ═══ ROUND 1 ═══
-    $exactReqs = [];
+    // ═══ ROUND 1 — два запроса на поставщика: exact + cross ═══
+    $r1Reqs = [];
     foreach ($suppliers as $code => $c) {
-        $req = $c->buildSearchRequest($brandOrig, $numberOrig, true);
-        if ($req) $exactReqs[$code] = $req;
+        $reqExact = $c->buildSearchRequest($brandOrig, $numberOrig, false);
+        if ($reqExact) $r1Reqs['exact|' . $code] = $reqExact;
+        $reqCross = $c->buildSearchRequest($brandOrig, $numberOrig, true);
+        if ($reqCross) $r1Reqs['cross|' . $code] = $reqCross;
     }
 
     $t0 = microtime(true);
-    $responses = curlExec($suppliers, $exactReqs, 12.0);
-    ajaxLog("PHASE1 R1 done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses)));
+    $responses = curlExec($suppliers, $r1Reqs, 12.0);
+    ajaxLog("PHASE1 R1 done in " . round(microtime(true) - $t0, 2) . "s requests=" . count($r1Reqs) . " responses=" . count(array_filter($responses)));
 
     $exactOffers  = [];
     $crossPairs   = [];
@@ -287,8 +289,36 @@ if ($action === 'brands') {
     $analogGroups = [];
     $seenCross[$normBrand . '|' . $normNum] = true;
 
-    foreach ($responses as $code => $body) {
+    // ── Обработка exact-запросов (без кроссов) → только exact-офферы ──
+    foreach ($responses as $respKey => $body) {
         if (!$body) continue;
+        if (strpos($respKey, 'exact|') !== 0) continue;
+        $code = substr($respKey, 6);
+
+        try { $items = $suppliers[$code]->parseSearchResponse($body, $brandOrig, $numberOrig); }
+        catch (\Throwable $e) { continue; }
+        foreach ($items as $it) {
+            $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
+            $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
+            if ($ia !== $normNum || $ib !== $normBrand) continue;
+            $exactOffers[] = [
+                'supplier'      => $code,
+                'warehouse'     => (string)($it->warehouse ?? ''),
+                'name'          => (string)($it->name ?? ''),
+                'description'   => (string)($it->description ?? $it->name ?? ''),
+                'price'         => (float)($it->price ?? 0),
+                'quantity'      => (int)($it->quantity ?? 0),
+                'delivery_days' => (int)($it->deliveryDays ?? -1),
+            ];
+        }
+    }
+
+    // ── Обработка cross-запросов (с кроссами) → analogGroups + crossPairs ──
+    foreach ($responses as $respKey => $body) {
+        if (!$body) continue;
+        if (strpos($respKey, 'cross|') !== 0) continue;
+        $code = substr($respKey, 6);
+
         try { $items = $suppliers[$code]->parseSearchResponse($body, $brandOrig, $numberOrig); }
         catch (\Throwable $e) { continue; }
         foreach ($items as $it) {
@@ -297,6 +327,7 @@ if ($action === 'brands') {
             $gk = $ib . '|' . $ia;
 
             if ($ia === $normNum && $ib === $normBrand) {
+                // exact с кроссами тоже собираем (может быть больше складов)
                 $exactOffers[] = [
                     'supplier'      => $code,
                     'warehouse'     => (string)($it->warehouse ?? ''),
@@ -346,6 +377,15 @@ if ($action === 'brands') {
             }
         }
     }
+
+    // Дедупликация exact (могли прийти из exact-запроса и cross-запроса)
+    $seenExact = [];
+    $uniqueExact = [];
+    foreach ($exactOffers as $o) {
+        $key = $o['supplier'] . '|' . $o['warehouse'] . '|' . $o['price'];
+        if (!isset($seenExact[$key])) { $seenExact[$key] = true; $uniqueExact[] = $o; }
+    }
+    $exactOffers = $uniqueExact;
 
     $crossPairs = array_slice($crossPairs, 0, 30, true);
     $crossCount = count($crossPairs);
