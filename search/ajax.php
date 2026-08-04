@@ -133,9 +133,22 @@ if ($action === 'crossload') {
     }
 
     ajaxLog("CROSSLOAD search requests=" . count($allReqs));
+    $perPairReqs = [];
+    foreach ($allReqs as $k => $v) {
+        $ck = explode('|', $k)[1] ?? '?';
+        $perPairReqs[$ck] = ($perPairReqs[$ck] ?? 0) + 1;
+    }
+    ajaxLog("CROSSLOAD reqs_per_pair: " . count($perPairReqs) . " pairs, top5=" . json_encode(array_slice($perPairReqs, 0, 5, true)));
     $t0 = microtime(true);
     $responses = curlExec($suppliers, $allReqs, 15.0);
     ajaxLog("CROSSLOAD done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses)));
+    $perPairResps = [];
+    foreach ($responses as $k => $v) {
+        if (!$v) continue;
+        $ck = explode('|', $k)[1] ?? '?';
+        $perPairResps[$ck] = ($perPairResps[$ck] ?? 0) + 1;
+    }
+    ajaxLog("CROSSLOAD resps_per_pair: " . count($perPairResps) . " pairs, top5=" . json_encode(array_slice($perPairResps, 0, 5, true)));
 
     // Парсим и группируем
     $analogOffers = [];
