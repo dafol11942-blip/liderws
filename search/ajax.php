@@ -1,5 +1,5 @@
 <?php
-// search/ajax.php v21 — debug crossload
+// search/ajax.php v22 — crossload без бренда, article-only
 ini_set('display_errors', 0);
 set_time_limit(120);
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
@@ -74,7 +74,7 @@ function curlExec(array $suppliers, array $requests, float $deadline = 15.0): ar
         $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_multi_remove_handle($mh, $ch);
         curl_close($ch);
-        $results[$key] = ($http === 200 && $body) ? $body : null;
+        $results[$key] = ($http === 200 && $body && strlen($body) > 10) ? $body : null;
     }
     curl_multi_close($mh);
     return $results;
@@ -103,7 +103,7 @@ if ($action === 'progress') {
     exit;
 }
 
-// ═══ CROSSLOAD — Phase 2 ═══
+// ═══ CROSSLOAD — Phase 2: поиск кросс-пар БЕЗ бренда ═══
 if ($action === 'crossload') {
     $crossJson = trim($_REQUEST['crossPairs'] ?? '');
     if ($crossJson === '') { echo json_encode(['done' => true, 'analog_offers' => []]); exit; }
@@ -120,7 +120,8 @@ if ($action === 'crossload') {
         $skip = $pair['_from'] ?? [];
         foreach ($suppliers as $code => $c) {
             if (in_array($code, $skip, true)) continue;
-            $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig'], true);
+            // Ищем ТОЛЬКО по артикулу (без бренда) — brandsMatch отфильтрует
+            $req = $c->buildSearchRequest('', $pair['article_orig'], false);
             if ($req) $allReqs[$code . '|' . $ck] = $req;
         }
     }
@@ -131,36 +132,44 @@ if ($action === 'crossload') {
     ajaxLog("CROSSLOAD done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses)));
 
     $analogOffers = [];
+    $suppStats = []; // $code => [total, passed, added]
+
     foreach ($responses as $respKey => $body) {
+        $parts = explode('|', $respKey, 2);
+        $code = $parts[0] ?? '?';
+        $ck   = $parts[1] ?? '';
+
         if (!$body) {
-            $parts = explode('|', $respKey, 2);
-            ajaxLog("CROSSLOAD EMPTY key=$respKey supplier=" . ($parts[0] ?? '?'));
+            $suppStats[$code] = ($suppStats[$code] ?? [0,0,0]);
+            $suppStats[$code][0]++;
             continue;
         }
-        $parts = explode('|', $respKey, 2);
-        if (count($parts) < 2) continue;
-        $code = $parts[0];
-        $ck   = $parts[1];
+
         $pair = $crossPairs[$ck] ?? null;
         if (!$pair) continue;
 
         try {
             $items = $suppliers[$code]->parseSearchResponse($body, $pair['brand_orig'], $pair['article_orig']);
         } catch (\Throwable $e) {
-            ajaxLog("CROSSLOAD PARSE ERROR $code|{$pair['article_orig']}: " . $e->getMessage());
+            $suppStats[$code] = ($suppStats[$code] ?? [0,0,0]);
+            $suppStats[$code][0]++;
             continue;
         }
 
-        $totalBefore = count($items);
-        $passed = 0;
+        if (!isset($suppStats[$code])) $suppStats[$code] = [0,0,0];
+        $suppStats[$code][0]++;
+
         $gk = $pair['brand_norm'] . '|' . $pair['article_norm'];
+        $added = 0;
         foreach ($items as $it) {
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
             $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
 
             if ($ia !== $pair['article_norm']) continue;
             if (!brandsMatch($ib, $pair['brand_norm'])) continue;
-            $passed++;
+
+            $suppStats[$code][1]++;
+            $added++;
 
             if (!isset($analogOffers[$gk])) $analogOffers[$gk] = [];
             $analogOffers[$gk][] = [
@@ -173,8 +182,15 @@ if ($action === 'crossload') {
                 'delivery_days' => (int)($it->deliveryDays ?? -1),
             ];
         }
-        ajaxLog("CROSSLOAD $code|{$pair['brand_orig']}|{$pair['article_orig']} total=$totalBefore passed=$passed added=" . ($analogOffers[$gk] ? count($analogOffers[$gk]) : 0));
+        $suppStats[$code][2] += $added;
     }
+
+    // Сводка по поставщикам
+    $statsLines = [];
+    foreach ($suppStats as $code => $st) {
+        $statsLines[] = "$code:{$st[0]}req/{$st[1]}pass/{$st[2]}add";
+    }
+    ajaxLog("CROSSLOAD STATS " . implode(' | ', $statsLines));
 
     foreach ($analogOffers as $gk => &$offers) {
         usort($offers, function($a, $b) {
@@ -182,13 +198,6 @@ if ($action === 'crossload') {
             return $a['delivery_days'] - $b['delivery_days'];
         });
     }
-
-    $summary = [];
-    foreach ($analogOffers as $gk => $offers) {
-        $supCodes = array_unique(array_column($offers, 'supplier'));
-        $summary[] = "$gk: " . count($offers) . " offers from " . implode(',', $supCodes);
-    }
-    ajaxLog("CROSSLOAD RESULT " . implode(' | ', $summary));
 
     echo json_encode(['done' => true, 'analog_offers' => $analogOffers], JSON_UNESCAPED_UNICODE);
     exit;
@@ -284,7 +293,6 @@ if ($action === 'brands') {
 
     progWrite($taskId, 5, 'Запрашиваем поставщиков...');
 
-    // ═══ ROUND 1 — два запроса на поставщика: exact + cross ═══
     $r1Reqs = [];
     foreach ($suppliers as $code => $c) {
         $reqExact = $c->buildSearchRequest($brandOrig, $numberOrig, false);
@@ -303,7 +311,6 @@ if ($action === 'brands') {
     $analogGroups = [];
     $seenCross[$normBrand . '|' . $normNum] = true;
 
-    // ── exact-запросы (без кроссов) → exact-офферы ──
     foreach ($responses as $respKey => $body) {
         if (!$body) continue;
         if (strpos($respKey, 'exact|') !== 0) continue;
@@ -328,7 +335,6 @@ if ($action === 'brands') {
         }
     }
 
-    // ── cross-запросы (с кроссами) → exact-офферы + analogGroups + crossPairs ──
     foreach ($responses as $respKey => $body) {
         if (!$body) continue;
         if (strpos($respKey, 'cross|') !== 0) continue;
@@ -392,7 +398,6 @@ if ($action === 'brands') {
         }
     }
 
-    // Дедупликация exact
     $seenExact = [];
     $uniqueExact = [];
     foreach ($exactOffers as $o) {
@@ -408,7 +413,6 @@ if ($action === 'brands') {
 
     ajaxLog("PHASE1 done task=$taskId crossPairs=$crossCount exact=" . count($exactOffers) . " analogs=" . count($analogGroups) . " time=" . round(microtime(true) - $tTotal, 2) . "s");
 
-    // ═══ BUILD PHASE 1 RESPONSE ═══
     $resp = [];
     if (!empty($exactOffers)) {
         usort($exactOffers, function($a, $b) {
