@@ -103,7 +103,7 @@ if ($action === 'progress') {
     exit;
 }
 
-// ═══ CROSSLOAD — Phase 2: поиск кросс-пар БЕЗ бренда ═══
+// ═══ CROSSLOAD — Phase 2: поиск кросс-пар БЕЗ фильтра по бренду ═══
 if ($action === 'crossload') {
     $crossJson = trim($_REQUEST['crossPairs'] ?? '');
     if ($crossJson === '') { echo json_encode(['done' => true, 'analog_offers' => []]); exit; }
@@ -120,8 +120,8 @@ if ($action === 'crossload') {
         $skip = $pair['_from'] ?? [];
         foreach ($suppliers as $code => $c) {
             if (in_array($code, $skip, true)) continue;
-            // Ищем ТОЛЬКО по артикулу (без бренда) — brandsMatch отфильтрует
-            $req = $c->buildSearchRequest('', $pair['article_orig'], false);
+            // Бренд ОБЯЗАТЕЛЕН (API требует), кроссы ВКЛ (поставщик сам найдёт артикул под своим брендом)
+            $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig'], true);
             if ($req) $allReqs[$code . '|' . $ck] = $req;
         }
     }
@@ -132,7 +132,7 @@ if ($action === 'crossload') {
     ajaxLog("CROSSLOAD done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses)));
 
     $analogOffers = [];
-    $suppStats = []; // $code => [total, passed, added]
+    $suppStats = [];
 
     foreach ($responses as $respKey => $body) {
         $parts = explode('|', $respKey, 2);
@@ -163,10 +163,9 @@ if ($action === 'crossload') {
         $added = 0;
         foreach ($items as $it) {
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
-            $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
 
+            // ТОЛЬКО артикул — бренд не проверяем (поставщик мог отдать кросс под другим брендом)
             if ($ia !== $pair['article_norm']) continue;
-            if (!brandsMatch($ib, $pair['brand_norm'])) continue;
 
             $suppStats[$code][1]++;
             $added++;
@@ -185,7 +184,6 @@ if ($action === 'crossload') {
         $suppStats[$code][2] += $added;
     }
 
-    // Сводка по поставщикам
     $statsLines = [];
     foreach ($suppStats as $code => $st) {
         $statsLines[] = "$code:{$st[0]}req/{$st[1]}pass/{$st[2]}add";
