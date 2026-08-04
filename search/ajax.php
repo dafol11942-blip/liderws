@@ -1,5 +1,5 @@
 <?php
-// search/ajax.php v20 — мягкий фильтр бренда во всех путях
+// search/ajax.php v21 — debug crossload
 ini_set('display_errors', 0);
 set_time_limit(120);
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
@@ -30,11 +30,6 @@ $normArt  = $article ? BrandNormalizer::normalizeArticle($article) : '';
 $factory  = getSupplierFactory();
 $suppliers = $factory->allAvailable();
 
-/**
- * Мягкое сравнение нормализованных брендов.
- * Точное совпадение ИЛИ одно содержится в другом (мин. 4 символа).
- * Защита: MANN не матчится с MANNOL (4-символьная проверка не проходит).
- */
 function brandsMatch(string $a, string $b): bool {
     if ($a === $b) return true;
     $lenA = mb_strlen($a);
@@ -137,7 +132,11 @@ if ($action === 'crossload') {
 
     $analogOffers = [];
     foreach ($responses as $respKey => $body) {
-        if (!$body) continue;
+        if (!$body) {
+            $parts = explode('|', $respKey, 2);
+            ajaxLog("CROSSLOAD EMPTY key=$respKey supplier=" . ($parts[0] ?? '?'));
+            continue;
+        }
         $parts = explode('|', $respKey, 2);
         if (count($parts) < 2) continue;
         $code = $parts[0];
@@ -147,8 +146,13 @@ if ($action === 'crossload') {
 
         try {
             $items = $suppliers[$code]->parseSearchResponse($body, $pair['brand_orig'], $pair['article_orig']);
-        } catch (\Throwable $e) { continue; }
+        } catch (\Throwable $e) {
+            ajaxLog("CROSSLOAD PARSE ERROR $code|{$pair['article_orig']}: " . $e->getMessage());
+            continue;
+        }
 
+        $totalBefore = count($items);
+        $passed = 0;
         $gk = $pair['brand_norm'] . '|' . $pair['article_norm'];
         foreach ($items as $it) {
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
@@ -156,6 +160,7 @@ if ($action === 'crossload') {
 
             if ($ia !== $pair['article_norm']) continue;
             if (!brandsMatch($ib, $pair['brand_norm'])) continue;
+            $passed++;
 
             if (!isset($analogOffers[$gk])) $analogOffers[$gk] = [];
             $analogOffers[$gk][] = [
@@ -168,6 +173,7 @@ if ($action === 'crossload') {
                 'delivery_days' => (int)($it->deliveryDays ?? -1),
             ];
         }
+        ajaxLog("CROSSLOAD $code|{$pair['brand_orig']}|{$pair['article_orig']} total=$totalBefore passed=$passed added=" . ($analogOffers[$gk] ? count($analogOffers[$gk]) : 0));
     }
 
     foreach ($analogOffers as $gk => &$offers) {
@@ -176,6 +182,13 @@ if ($action === 'crossload') {
             return $a['delivery_days'] - $b['delivery_days'];
         });
     }
+
+    $summary = [];
+    foreach ($analogOffers as $gk => $offers) {
+        $supCodes = array_unique(array_column($offers, 'supplier'));
+        $summary[] = "$gk: " . count($offers) . " offers from " . implode(',', $supCodes);
+    }
+    ajaxLog("CROSSLOAD RESULT " . implode(' | ', $summary));
 
     echo json_encode(['done' => true, 'analog_offers' => $analogOffers], JSON_UNESCAPED_UNICODE);
     exit;
@@ -290,7 +303,7 @@ if ($action === 'brands') {
     $analogGroups = [];
     $seenCross[$normBrand . '|' . $normNum] = true;
 
-    // ── exact-запросы (без кроссов) → exact-офферы с мягким брендом ──
+    // ── exact-запросы (без кроссов) → exact-офферы ──
     foreach ($responses as $respKey => $body) {
         if (!$body) continue;
         if (strpos($respKey, 'exact|') !== 0) continue;
