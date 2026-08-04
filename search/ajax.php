@@ -149,7 +149,7 @@ if ($action === 'crossload') {
         if (!$pair) continue;
 
         try {
-            $items = $suppliers[$code]->parseSearchResponse($body, $pair['brand_orig'], $pair['article_orig']);
+            $items = $suppliers[$code]->parseSearchResponse($body, '', $pair['article_orig']);
         } catch (\Throwable $e) {
             $suppStats[$code] = ($suppStats[$code] ?? [0,0,0]);
             $suppStats[$code][0]++;
