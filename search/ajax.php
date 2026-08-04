@@ -398,6 +398,7 @@ if ($action === 'brands') {
         catch (\Throwable $e) { continue; }
         foreach ($items as $it) {
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
+            if ($code === 'rossko' && empty($debugRossko)) { $debugRossko = true; ajaxLog("ROSSKO FIRST: ia=$ia ib=$ib normNum=$normNum normBrand=$normBrand match_ia=" . ($ia === $normNum ? 'Y' : 'N') . " match_brand=" . (brandsMatch($ib, $normBrand) ? 'Y' : 'N')); }
             $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
             $gk = $ib . '|' . $ia;
 
