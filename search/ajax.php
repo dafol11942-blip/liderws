@@ -1,5 +1,5 @@
 <?php
-// search/ajax.php v26 — b_brand_spelling + brands API
+// search/ajax.php v27 — фикс normNum + cross| only во втором цикле
 ini_set('display_errors', 0);
 set_time_limit(120);
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
@@ -117,7 +117,7 @@ if ($action === 'crossload') {
 
     // ── Шаг 1: brands API — узнаём supplier-specific brand+article для каждого артикула ──
     $brandReqs = [];
-    $brandReqMap = []; // key => [code, article_orig]
+    $brandReqMap = [];
     foreach ($crossPairs as $ck => $pair) {
         $skip = $pair['_from'] ?? [];
         foreach ($suppliers as $code => $c) {
@@ -132,7 +132,6 @@ if ($action === 'crossload') {
         }
     }
 
-    // supplierArticles: article_orig => { supplier_code => ['brand' => 'SAKURA', 'article' => 'C17410'] }
     $supplierArticles = [];
 
     if (!empty($brandReqs)) {
@@ -152,7 +151,6 @@ if ($action === 'crossload') {
 
             if (empty($brands)) continue;
 
-            // Берём первый результат — это и есть supplier-specific brand+article
             $first = $brands[0];
             $b = trim((string)($first['brand'] ?? ''));
             $a = trim((string)($first['article_nr'] ?? $first['article_fix'] ?? $first['article'] ?? ''));
@@ -341,21 +339,19 @@ if ($action === 'brands') {
 
     progWrite($taskId, 5, 'Запрашиваем поставщиков...');
 
+    // exact| = запрос без кроссов, cross| = запрос с кроссами
     $r1Reqs = [];
+    $noCrossSuppliers = ['autoeuro', 'ixora', 'tatparts', 'autopiter'];
     foreach ($suppliers as $code => $c) {
         $reqExact = $c->buildSearchRequest($brandOrig, $numberOrig, false);
         if ($reqExact) $r1Reqs['exact|' . $code] = $reqExact;
-        $reqCross = $c->buildSearchRequest($brandOrig, $numberOrig, !in_array($code, ['autoeuro', 'ixora', 'tatparts', 'autopiter'], true));
+        $withCrosses = !in_array($code, $noCrossSuppliers, true);
+        $reqCross = $c->buildSearchRequest($brandOrig, $numberOrig, $withCrosses);
         if ($reqCross) $r1Reqs['cross|' . $code] = $reqCross;
     }
 
     $t0 = microtime(true);
     $responses = curlExec($suppliers, $r1Reqs, 15.0);
-    $tmpSizes = [];
-    foreach ($responses as $k => $v) {
-        $tmpSizes[] = $k . ':' . ($v ? strlen($v) : 0);
-    }
-    ajaxLog("RESP_RAW " . implode(' ', $tmpSizes));
     ajaxLog("PHASE1 R1 done in " . round(microtime(true) - $t0, 2) . "s requests=" . count($r1Reqs) . " responses=" . count(array_filter($responses)));
 
     $exactOffers  = [];
@@ -364,11 +360,11 @@ if ($action === 'brands') {
     $analogGroups = [];
     $seenCross[$normBrand . '|' . $normNum] = true;
 
+    // ── Цикл 1: exact| ответы → только точные совпадения ──
     foreach ($responses as $respKey => $body) {
         if (!$body) continue;
         if (strpos($respKey, 'exact|') !== 0) continue;
         $code = substr($respKey, 6);
-        ajaxLog("PROCESS $respKey -> code=$code items_start");
 
         try { $items = $suppliers[$code]->parseSearchResponse($body, $brandOrig, $numberOrig); }
         catch (\Throwable $e) { continue; }
@@ -389,16 +385,16 @@ if ($action === 'brands') {
         }
     }
 
+    // ── Цикл 2: cross| ответы → точные + аналоги ──
     foreach ($responses as $respKey => $body) {
         if (!$body) continue;
-        if (strpos($respKey, 'cross|') !== 0 && strpos($respKey, 'exact|') !== 0) continue;
-        $code = substr($respKey, strpos($respKey, '|') + 1);
+        if (strpos($respKey, 'cross|') !== 0) continue;
+        $code = substr($respKey, 6);
 
         try { $items = $suppliers[$code]->parseSearchResponse($body, $brandOrig, $numberOrig); }
         catch (\Throwable $e) { continue; }
         foreach ($items as $it) {
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
-            if ($code === 'rossko' && empty($debugRossko)) { $debugRossko = true; ajaxLog("ROSSKO FIRST: ia=$ia ib=$ib normNum=$normNum normBrand=$normBrand match_ia=" . ($ia === $normNum ? 'Y' : 'N') . " match_brand=" . (brandsMatch($ib, $normBrand) ? 'Y' : 'N')); }
             $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
             $gk = $ib . '|' . $ia;
 
