@@ -48,7 +48,7 @@ function curlExec(array $suppliers, array $requests, float $deadline = 15.0): ar
             CURLOPT_URL            => $req['url'],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER     => $req['headers'] ?? [],
-            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_TIMEOUT        => 12,
             CURLOPT_CONNECTTIMEOUT => 3,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => 0,
@@ -128,7 +128,7 @@ if ($action === 'crossload') {
 
     ajaxLog("CROSSLOAD requests=" . count($allReqs));
     $t0 = microtime(true);
-    $responses = curlExec($suppliers, $allReqs, 12.0);
+    $responses = curlExec($suppliers, $allReqs, 15.0);
     ajaxLog("CROSSLOAD done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses)));
 
     $analogOffers = [];
@@ -300,7 +300,7 @@ if ($action === 'brands') {
     }
 
     $t0 = microtime(true);
-    $responses = curlExec($suppliers, $r1Reqs, 12.0);
+    $responses = curlExec($suppliers, $r1Reqs, 15.0);
     ajaxLog("PHASE1 R1 done in " . round(microtime(true) - $t0, 2) . "s requests=" . count($r1Reqs) . " responses=" . count(array_filter($responses)));
 
     $exactOffers  = [];
