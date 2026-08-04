@@ -326,7 +326,7 @@ if ($action === 'brands') {
 } elseif ($action === 'search') {
 
     $brandOrig  = trim($_GET['brand'] ?? '');
-    $numberOrig = trim($_GET['number'] ?? '');
+    $numberOrig = trim($_GET['number'] ?? $_GET['article'] ?? '');
     if (!$brandOrig) { echo json_encode(['error' => 'Укажите бренд']); exit; }
 
     if (!$taskId) {
