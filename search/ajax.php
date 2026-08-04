@@ -125,7 +125,7 @@ if ($action === 'crossload') {
         $skip = $pair['_from'] ?? [];
         foreach ($suppliers as $code => $c) {
             if (in_array($code, $skip, true)) continue;
-            $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig'], false);
+            $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig'], true);
             if ($req) $allReqs[$code . '|' . $ck] = $req;
         }
     }
