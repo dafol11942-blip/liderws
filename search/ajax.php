@@ -1,5 +1,5 @@
 <?php
-// search/ajax.php v19-final — двухфазная загрузка, crossPairs через JSON
+// search/ajax.php v20 — мягкий фильтр бренда во всех путях
 ini_set('display_errors', 0);
 set_time_limit(120);
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
@@ -29,6 +29,19 @@ if (!$article && $action !== 'progress' && $action !== 'crossload') {
 $normArt  = $article ? BrandNormalizer::normalizeArticle($article) : '';
 $factory  = getSupplierFactory();
 $suppliers = $factory->allAvailable();
+
+/**
+ * Мягкое сравнение нормализованных брендов.
+ * Точное совпадение ИЛИ одно содержится в другом (мин. 4 символа).
+ * Защита: MANN не матчится с MANNOL (4-символьная проверка не проходит).
+ */
+function brandsMatch(string $a, string $b): bool {
+    if ($a === $b) return true;
+    $lenA = mb_strlen($a);
+    $lenB = mb_strlen($b);
+    if ($lenA < 4 || $lenB < 4) return false;
+    return mb_strpos($a, $b) !== false || mb_strpos($b, $a) !== false;
+}
 
 function curlExec(array $suppliers, array $requests, float $deadline = 15.0): array {
     if (empty($requests)) return [];
@@ -95,7 +108,7 @@ if ($action === 'progress') {
     exit;
 }
 
-// ═══ CROSSLOAD — Phase 2: добор кросс-номеров ═══
+// ═══ CROSSLOAD — Phase 2 ═══
 if ($action === 'crossload') {
     $crossJson = trim($_REQUEST['crossPairs'] ?? '');
     if ($crossJson === '') { echo json_encode(['done' => true, 'analog_offers' => []]); exit; }
@@ -141,20 +154,8 @@ if ($action === 'crossload') {
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
             $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
 
-            // ── МЯГКИЙ ФИЛЬТР БРЕНДА ──
-            // Артикул должен совпадать точно
             if ($ia !== $pair['article_norm']) continue;
-
-            // Бренд: точное совпадение ИЛИ одно содержится в другом
-            if ($ib !== $pair['brand_norm']) {
-                // Защита от ложных срабатываний: короткая строка (<4 символов)
-                // не должна находиться внутри длинной (MANN ≠ MANNOL)
-                $lenIb = mb_strlen($ib);
-                $lenPb = mb_strlen($pair['brand_norm']);
-                if ($lenIb < 4 || $lenPb < 4) continue;
-                if (mb_strpos($ib, $pair['brand_norm']) === false &&
-                    mb_strpos($pair['brand_norm'], $ib) === false) continue;
-            }
+            if (!brandsMatch($ib, $pair['brand_norm'])) continue;
 
             if (!isset($analogOffers[$gk])) $analogOffers[$gk] = [];
             $analogOffers[$gk][] = [
@@ -289,7 +290,7 @@ if ($action === 'brands') {
     $analogGroups = [];
     $seenCross[$normBrand . '|' . $normNum] = true;
 
-    // ── Обработка exact-запросов (без кроссов) → только exact-офферы ──
+    // ── exact-запросы (без кроссов) → exact-офферы с мягким брендом ──
     foreach ($responses as $respKey => $body) {
         if (!$body) continue;
         if (strpos($respKey, 'exact|') !== 0) continue;
@@ -300,7 +301,8 @@ if ($action === 'brands') {
         foreach ($items as $it) {
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
             $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
-            if ($ia !== $normNum || $ib !== $normBrand) continue;
+            if ($ia !== $normNum) continue;
+            if (!brandsMatch($ib, $normBrand)) continue;
             $exactOffers[] = [
                 'supplier'      => $code,
                 'warehouse'     => (string)($it->warehouse ?? ''),
@@ -313,7 +315,7 @@ if ($action === 'brands') {
         }
     }
 
-    // ── Обработка cross-запросов (с кроссами) → analogGroups + crossPairs ──
+    // ── cross-запросы (с кроссами) → exact-офферы + analogGroups + crossPairs ──
     foreach ($responses as $respKey => $body) {
         if (!$body) continue;
         if (strpos($respKey, 'cross|') !== 0) continue;
@@ -326,8 +328,7 @@ if ($action === 'brands') {
             $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
             $gk = $ib . '|' . $ia;
 
-            if ($ia === $normNum && $ib === $normBrand) {
-                // exact с кроссами тоже собираем (может быть больше складов)
+            if ($ia === $normNum && brandsMatch($ib, $normBrand)) {
                 $exactOffers[] = [
                     'supplier'      => $code,
                     'warehouse'     => (string)($it->warehouse ?? ''),
@@ -378,7 +379,7 @@ if ($action === 'brands') {
         }
     }
 
-    // Дедупликация exact (могли прийти из exact-запроса и cross-запроса)
+    // Дедупликация exact
     $seenExact = [];
     $uniqueExact = [];
     foreach ($exactOffers as $o) {
