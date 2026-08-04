@@ -351,6 +351,11 @@ if ($action === 'brands') {
 
     $t0 = microtime(true);
     $responses = curlExec($suppliers, $r1Reqs, 15.0);
+    $tmpSizes = [];
+    foreach ($responses as $k => $v) {
+        $tmpSizes[] = $k . ':' . ($v ? strlen($v) : 0);
+    }
+    ajaxLog("RESP_RAW " . implode(' ', $tmpSizes));
     ajaxLog("PHASE1 R1 done in " . round(microtime(true) - $t0, 2) . "s requests=" . count($r1Reqs) . " responses=" . count(array_filter($responses)));
 
     $exactOffers  = [];
@@ -363,6 +368,7 @@ if ($action === 'brands') {
         if (!$body) continue;
         if (strpos($respKey, 'exact|') !== 0) continue;
         $code = substr($respKey, 6);
+        ajaxLog("PROCESS $respKey -> code=$code items_start");
 
         try { $items = $suppliers[$code]->parseSearchResponse($body, $brandOrig, $numberOrig); }
         catch (\Throwable $e) { continue; }
