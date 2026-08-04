@@ -1,5 +1,5 @@
 <?php
-// search/ajax.php v19 — двухфазная загрузка: Phase 1 сразу + Phase 2 добор 30 кросс-пар
+// search/ajax.php v19-final — двухфазная загрузка, crossPairs через JSON
 ini_set('display_errors', 0);
 set_time_limit(120);
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
@@ -80,21 +80,6 @@ function progWrite($taskId, $pct, $msg, $done = false, $result = null) {
     if ($result !== null) $data['result'] = $result;
     @file_put_contents(progFile($taskId), json_encode($data, JSON_UNESCAPED_UNICODE));
 }
-function progRead($taskId): ?array {
-    $f = progFile($taskId);
-    if (!file_exists($f)) return null;
-    $raw = @file_get_contents($f);
-    if (!$raw) return null;
-    $data = json_decode($raw, true);
-    if (!is_array($data)) return null;
-    // Поднимаем поля result на верхний уровень
-    if (isset($data['result']) && is_array($data['result'])) {
-        $nested = $data['result'];
-        unset($data['result']);
-        $data = array_merge($data, $nested);
-    }
-    return $data;
-}
 
 $logFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/search_ajax.log';
 function ajaxLog($msg) {
@@ -105,22 +90,21 @@ function ajaxLog($msg) {
 // ═══ PROGRESS ═══
 if ($action === 'progress') {
     if (!$taskId) { echo json_encode(['percent' => 0, 'message' => 'Нет задачи', 'done' => false]); exit; }
-    $d = progRead($taskId);
-    echo json_encode($d ?: ['percent' => 0, 'message' => 'Ожидание...', 'done' => false]);
+    $f = progFile($taskId);
+    if (file_exists($f)) { readfile($f); } else { echo json_encode(['percent' => 0, 'message' => 'Ожидание...', 'done' => false]); }
     exit;
 }
 
 // ═══ CROSSLOAD — Phase 2: добор кросс-номеров ═══
 if ($action === 'crossload') {
-    if (!$taskId) { echo json_encode(['error' => 'Укажите task']); exit; }
-
-    $state = progRead($taskId);
-    if (!$state || empty($state['crossPairs'])) {
+    $crossJson = trim($_REQUEST['crossPairs'] ?? '');
+    if ($crossJson === '') { echo json_encode(['done' => true, 'analog_offers' => []]); exit; }
+    $crossPairs = json_decode($crossJson, true);
+    if (!is_array($crossPairs) || empty($crossPairs)) {
         echo json_encode(['done' => true, 'analog_offers' => []]);
         exit;
     }
 
-    $crossPairs = $state['crossPairs'];
     ajaxLog("CROSSLOAD START task=$taskId pairs=" . count($crossPairs));
 
     $allReqs = [];
@@ -253,7 +237,7 @@ if ($action === 'brands') {
         'article'     => $article,
     ], JSON_UNESCAPED_UNICODE);
 
-// ═══ SEARCH — Phase 1: только Round 1 ═══
+// ═══ SEARCH — Phase 1 ═══
 } elseif ($action === 'search') {
 
     $brandOrig  = trim($_GET['brand'] ?? '');
@@ -349,11 +333,10 @@ if ($action === 'brands') {
         }
     }
 
-    // 30 кросс-пар для Phase 2
     $crossPairs = array_slice($crossPairs, 0, 30, true);
     $crossCount = count($crossPairs);
 
-    progWrite($taskId, 40, 'Загружаем аналоги...', false, ['crossPairs' => $crossPairs]);
+    progWrite($taskId, 100, 'Готово');
 
     ajaxLog("PHASE1 done task=$taskId crossPairs=$crossCount exact=" . count($exactOffers) . " analogs=" . count($analogGroups) . " time=" . round(microtime(true) - $tTotal, 2) . "s");
 
@@ -401,6 +384,7 @@ if ($action === 'brands') {
     $resp['task_id']     = $taskId;
     $resp['phase']       = 1;
     $resp['cross_count'] = $crossCount;
+    $resp['crossPairs']  = $crossPairs;
 
     $totalTime = round(microtime(true) - $tTotal, 2);
     ajaxLog("PHASE1 RESPOND task=$taskId time={$totalTime}s");

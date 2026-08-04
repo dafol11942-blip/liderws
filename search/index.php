@@ -132,7 +132,7 @@ async function loadResults(){
 
     showProgress(0, 'Запуск поиска...');
 
-    // ═══ PHASE 1: показываем результаты сразу ═══
+    // ═══ PHASE 1 ═══
     var d1;
     try {
         var r1 = await fetch(API + '?action=search&article=' + encodeURIComponent(Q)
@@ -150,8 +150,8 @@ async function loadResults(){
     showProgress(100, 'Готово');
     setTimeout(function(){ renderResults(d1); }, 200);
 
-    // ═══ PHASE 2: добор кросс-номеров в фоне ═══
-    if (d1.phase === 1 && d1.cross_count > 0) {
+    // ═══ PHASE 2: добор в фоне ═══
+    if (d1.phase === 1 && d1.cross_count > 0 && d1.crossPairs) {
         var resultEl = qs('#resultContent');
         var loadDiv = document.createElement('div');
         loadDiv.className = 'cross-loading';
@@ -159,7 +159,8 @@ async function loadResults(){
         resultEl.appendChild(loadDiv);
 
         try {
-            var r2 = await fetch(API + '?action=crossload&task=' + encodeURIComponent(taskId));
+            var r2 = await fetch(API + '?action=crossload&task=' + encodeURIComponent(taskId)
+                + '&crossPairs=' + encodeURIComponent(JSON.stringify(d1.crossPairs)));
             var d2 = await r2.json();
             if (d2.analog_offers && Object.keys(d2.analog_offers).length > 0) {
                 mergeAnalogOffers(d1, d2.analog_offers);
@@ -172,40 +173,28 @@ async function loadResults(){
 
 function mergeAnalogOffers(d1, analogOffers) {
     if (!d1.analogs) return;
-
-    // Индекс существующих групп по нормализованному ключу
     var keyToIdx = {};
     d1.analogs.forEach(function(a, i) {
         var key = (a.brand + '|' + a.article).toLowerCase().replace(/[^a-z0-9|]/g, '');
         keyToIdx[key] = i;
     });
-
     for (var gk in analogOffers) {
         if (!analogOffers.hasOwnProperty(gk)) continue;
         var idx = keyToIdx[gk];
         if (idx === undefined) continue;
-
         var existing = d1.analogs[idx];
-        var newOffs = analogOffers[gk];
-        var seenSuppliers = {};
-        existing.suppliers.forEach(function(s) {
-            seenSuppliers[s.supplier + '|' + s.price] = true;
-        });
-
-        newOffs.forEach(function(o) {
-            if (!seenSuppliers[o.supplier + '|' + o.price]) {
+        var seen = {};
+        existing.suppliers.forEach(function(s) { seen[s.supplier + '|' + s.price] = true; });
+        analogOffers[gk].forEach(function(o) {
+            if (!seen[o.supplier + '|' + o.price]) {
                 existing.suppliers.push(o);
-                seenSuppliers[o.supplier + '|' + o.price] = true;
+                seen[o.supplier + '|' + o.price] = true;
             }
         });
-
-        // Пересортировка офферов внутри группы
         existing.suppliers.sort(function(x, y) {
             if (x.price != y.price) return x.price - y.price;
             return (x.delivery_days || 0) - (y.delivery_days || 0);
         });
-
-        // Пересчёт агрегатов
         var prices = existing.suppliers.map(function(s){return s.price;}).filter(function(p){return p>0;});
         var days   = existing.suppliers.map(function(s){return s.delivery_days;}).filter(function(d){return d>=0;});
         var qtys   = existing.suppliers.map(function(s){return s.quantity;});
@@ -214,8 +203,6 @@ function mergeAnalogOffers(d1, analogOffers) {
         existing.total_qty     = qtys.reduce(function(sum, q){return sum+q;}, 0);
         existing.has_instock   = qtys.some(function(q){return q>0;});
     }
-
-    // Пересортировка аналогов
     d1.analogs.sort(function(a, b) {
         if (a.has_instock !== b.has_instock) return b.has_instock - a.has_instock;
         var da = a.best_delivery != null ? a.best_delivery : 999;
