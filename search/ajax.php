@@ -103,7 +103,7 @@ if ($action === 'progress') {
     exit;
 }
 
-// ═══ CROSSLOAD — Phase 2: b_brand_spelling + brands API ═══
+// ═══ CROSSLOAD — Phase 2: brands API → supplier-specific search ═══
 if ($action === 'crossload') {
     $crossJson = trim($_REQUEST['crossPairs'] ?? '');
     if ($crossJson === '') { echo json_encode(['done' => true, 'analog_offers' => []]); exit; }
@@ -114,157 +114,90 @@ if ($action === 'crossload') {
     }
 
     ajaxLog("CROSSLOAD START task=$taskId pairs=" . count($crossPairs));
-    global $DB;
 
-    // ── Шаг 1: собираем brand_canonical для всех кросс-пар ──
-    $brandCanonicals = [];
+    // ── Шаг 1: brands API — узнаём supplier-specific brand+article для каждого артикула ──
+    $brandReqs = [];
+    $brandReqMap = []; // key => [code, article_orig]
     foreach ($crossPairs as $ck => $pair) {
-        $bc = BrandNormalizer::normalize($pair['brand_orig']);
-        $brandCanonicals[$ck] = $bc;
-    }
-    $uniqueCanonicals = array_unique(array_values($brandCanonicals));
-
-    // ── Шаг 2: загружаем brand_spelling из таблицы ──
-    $spellingMap = []; // brand_canonical => { supplier_code => brand_spelling }
-    if (!empty($uniqueCanonicals)) {
-        $in = "'" . implode("','", array_map([$DB, 'ForSql'], $uniqueCanonicals)) . "'";
-        $sql = "SELECT brand_canonical, supplier_code, brand_spelling FROM b_brand_spelling WHERE brand_canonical IN ($in)";
-        $res = $DB->Query($sql);
-        while ($row = $res->Fetch()) {
-            $bc = $row['brand_canonical'];
-            if (!isset($spellingMap[$bc])) $spellingMap[$bc] = [];
-            $spellingMap[$bc][$row['supplier_code']] = $row['brand_spelling'];
+        $skip = $pair['_from'] ?? [];
+        foreach ($suppliers as $code => $c) {
+            if (in_array($code, $skip, true)) continue;
+            $key = $code . '|' . $pair['article_orig'];
+            if (isset($brandReqs[$key])) continue;
+            $req = $c->buildBrandsRequest($pair['article_orig']);
+            if ($req) {
+                $brandReqs[$key] = $req;
+                $brandReqMap[$key] = [$code, $pair['article_orig']];
+            }
         }
-        ajaxLog("CROSSLOAD spelling: " . count($spellingMap) . " brands from table");
     }
 
-    // ── Шаг 3: первый поиск — с brand_spelling из таблицы ──
+    // supplierArticles: article_orig => { supplier_code => ['brand' => 'SAKURA', 'article' => 'C17410'] }
+    $supplierArticles = [];
+
+    if (!empty($brandReqs)) {
+        $tBrands = microtime(true);
+        $brandResponses = curlExec($suppliers, $brandReqs, 8.0);
+        ajaxLog("CROSSLOAD brands done in " . round(microtime(true) - $tBrands, 2) . "s requests=" . count($brandReqs) . " responses=" . count(array_filter($brandResponses)));
+
+        foreach ($brandResponses as $key => $body) {
+            if (!$body) continue;
+            $map = $brandReqMap[$key] ?? null;
+            if (!$map) continue;
+            [$code, $artOrig] = $map;
+
+            try {
+                $brands = $suppliers[$code]->parseBrandsResponse($body);
+            } catch (\Throwable $e) { continue; }
+
+            if (empty($brands)) continue;
+
+            // Берём первый результат — это и есть supplier-specific brand+article
+            $first = $brands[0];
+            $b = trim((string)($first['brand'] ?? ''));
+            $a = trim((string)($first['article_nr'] ?? $first['article_fix'] ?? $first['article'] ?? ''));
+            if ($b === '' || $a === '') continue;
+
+            if (!isset($supplierArticles[$artOrig])) $supplierArticles[$artOrig] = [];
+            $supplierArticles[$artOrig][$code] = ['brand' => $b, 'article' => $a];
+        }
+    }
+
+    // ── Шаг 2: search с supplier-specific brand+article ──
     $allReqs = [];
     $reqInfo = [];
-    $needBrands = []; // article_orig => [supplier_codes...] — кому нужен brands API
 
     foreach ($crossPairs as $ck => $pair) {
-        $bc = $brandCanonicals[$ck];
         $skip = $pair['_from'] ?? [];
-        $spell = $spellingMap[$bc] ?? [];
+        $sArt = $supplierArticles[$pair['article_orig']] ?? [];
 
         foreach ($suppliers as $code => $c) {
             if (in_array($code, $skip, true)) continue;
+            $sa = $sArt[$code] ?? null;
+            if (!$sa) continue;
 
-            if (isset($spell[$code])) {
-                // Знаем правильное написание
-                $req = $c->buildSearchRequest($spell[$code], $pair['article_orig'], true);
-                if ($req) {
-                    $key = $code . '|' . $ck;
-                    $allReqs[$key] = $req;
-                    $reqInfo[$key] = [$code, $ck, $spell[$code], $pair['article_orig']];
-                }
-            } else {
-                // Нужен brands API — запомним
-                if (!isset($needBrands[$pair['article_orig']])) $needBrands[$pair['article_orig']] = [];
-                if (!in_array($code, $needBrands[$pair['article_orig']])) {
-                    $needBrands[$pair['article_orig']][] = $code;
-                }
+            $req = $c->buildSearchRequest($sa['brand'], $sa['article'], true);
+            if ($req) {
+                $key = $code . '|' . $ck;
+                $allReqs[$key] = $req;
+                $reqInfo[$key] = [$code, $ck];
             }
         }
     }
 
-    // ── Шаг 4: brands API для недостающих ──
-    $supplierArticles = []; // article_orig => { supplier_code => ['brand'=>..., 'article'=>...] }
-
-    if (!empty($needBrands)) {
-        $brandReqs = [];
-        $brandReqMap = []; // key => [code, article_orig]
-        foreach ($needBrands as $artOrig => $codes) {
-            foreach ($codes as $code) {
-                $c = $suppliers[$code] ?? null;
-                if (!$c) continue;
-                $req = $c->buildBrandsRequest($artOrig);
-                if ($req) {
-                    $key = $code . '|' . $artOrig;
-                    $brandReqs[$key] = $req;
-                    $brandReqMap[$key] = [$code, $artOrig];
-                }
-            }
-        }
-
-        if (!empty($brandReqs)) {
-            $tBrands = microtime(true);
-            $brandResponses = curlExec($suppliers, $brandReqs, 8.0);
-            ajaxLog("CROSSLOAD brands done in " . round(microtime(true) - $tBrands, 2) . "s requests=" . count($brandReqs) . " responses=" . count(array_filter($brandResponses)));
-
-            foreach ($brandResponses as $key => $body) {
-                if (!$body) continue;
-                $map = $brandReqMap[$key] ?? null;
-                if (!$map) continue;
-                [$code, $artOrig] = $map;
-
-                try {
-                    $brands = $suppliers[$code]->parseBrandsResponse($body);
-                } catch (\Throwable $e) { continue; }
-
-                if (empty($brands)) continue;
-
-                // Для каждого бренда: нормализуем, сохраняем в b_brand_spelling
-                foreach ($brands as $br) {
-                    $b = trim((string)($br['brand'] ?? ''));
-                    $a = trim((string)($br['article_nr'] ?? $br['article_fix'] ?? $br['article'] ?? ''));
-                    if ($b === '' || $a === '') continue;
-
-                    $bn = BrandNormalizer::normalize($b);
-
-                    // Сохраняем в таблицу
-                    $DB->Query("INSERT IGNORE INTO b_brand_spelling (brand_canonical, supplier_code, brand_spelling)
-                        VALUES ('" . $DB->ForSql($bn) . "', '" . $DB->ForSql($code) . "', '" . $DB->ForSql($b) . "')");
-
-                    if (!isset($supplierArticles[$artOrig])) $supplierArticles[$artOrig] = [];
-                    $supplierArticles[$artOrig][$code] = ['brand' => $b, 'article' => $a];
-                }
-            }
-        }
-    }
-
-    // ── Шаг 5: для тех кто получил данные из brands API → search ──
-    foreach ($crossPairs as $ck => $pair) {
-        $bc = $brandCanonicals[$ck];
-        $artOrig = $pair['article_orig'];
-        $skip = $pair['_from'] ?? [];
-        $spell = $spellingMap[$bc] ?? [];
-        $artMap = $supplierArticles[$artOrig] ?? [];
-
-        foreach ($suppliers as $code => $c) {
-            if (in_array($code, $skip, true)) continue;
-            if (isset($spell[$code])) continue; // уже отправили в шаге 3
-
-            $map = $artMap[$code] ?? null;
-            if (!$map) continue;
-
-            // Проверяем: совпадает ли brand_canonical с нормализованным брендом от поставщика?
-            $suppCanon = BrandNormalizer::normalize($map['brand']);
-            if ($suppCanon === $bc || brandsMatch($suppCanon, $bc)) {
-                $req = $c->buildSearchRequest($map['brand'], $map['article'], true);
-                if ($req) {
-                    $key = $code . '|' . $ck;
-                    $allReqs[$key] = $req;
-                    $reqInfo[$key] = [$code, $ck, $map['brand'], $map['article']];
-                }
-            }
-        }
-    }
-
-    // ── Шаг 6: выполняем все search-запросы ──
     ajaxLog("CROSSLOAD search requests=" . count($allReqs));
     $t0 = microtime(true);
     $responses = curlExec($suppliers, $allReqs, 15.0);
     ajaxLog("CROSSLOAD done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses)));
 
+    // ── Шаг 3: parse → group under canonical key ──
     $analogOffers = [];
     $suppStats = [];
 
     foreach ($responses as $respKey => $body) {
         $info = $reqInfo[$respKey] ?? null;
         if (!$info) continue;
-        [$code, $ck, $usedBrand, $usedArticle] = $info;
+        [$code, $ck] = $info;
 
         if (!isset($suppStats[$code])) $suppStats[$code] = [0, 0, 0];
         $suppStats[$code][0]++;
