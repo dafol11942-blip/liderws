@@ -1,5 +1,5 @@
 <?php
-// search/ajax.php v22 — crossload без бренда, article-only
+// search/ajax.php v26 — b_brand_spelling + brands API
 ini_set('display_errors', 0);
 set_time_limit(120);
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
@@ -103,7 +103,7 @@ if ($action === 'progress') {
     exit;
 }
 
-// ═══ CROSSLOAD — Phase 2: поиск кросс-пар БЕЗ фильтра по бренду ═══
+// ═══ CROSSLOAD — Phase 2: b_brand_spelling + brands API ═══
 if ($action === 'crossload') {
     $crossJson = trim($_REQUEST['crossPairs'] ?? '');
     if ($crossJson === '') { echo json_encode(['done' => true, 'analog_offers' => []]); exit; }
@@ -114,19 +114,146 @@ if ($action === 'crossload') {
     }
 
     ajaxLog("CROSSLOAD START task=$taskId pairs=" . count($crossPairs));
+    global $DB;
 
-    $allReqs = [];
+    // ── Шаг 1: собираем brand_canonical для всех кросс-пар ──
+    $brandCanonicals = [];
     foreach ($crossPairs as $ck => $pair) {
+        $bc = BrandNormalizer::normalize($pair['brand_orig']);
+        $brandCanonicals[$ck] = $bc;
+    }
+    $uniqueCanonicals = array_unique(array_values($brandCanonicals));
+
+    // ── Шаг 2: загружаем brand_spelling из таблицы ──
+    $spellingMap = []; // brand_canonical => { supplier_code => brand_spelling }
+    if (!empty($uniqueCanonicals)) {
+        $in = "'" . implode("','", array_map([$DB, 'ForSql'], $uniqueCanonicals)) . "'";
+        $sql = "SELECT brand_canonical, supplier_code, brand_spelling FROM b_brand_spelling WHERE brand_canonical IN ($in)";
+        $res = $DB->Query($sql);
+        while ($row = $res->Fetch()) {
+            $bc = $row['brand_canonical'];
+            if (!isset($spellingMap[$bc])) $spellingMap[$bc] = [];
+            $spellingMap[$bc][$row['supplier_code']] = $row['brand_spelling'];
+        }
+        ajaxLog("CROSSLOAD spelling: " . count($spellingMap) . " brands from table");
+    }
+
+    // ── Шаг 3: первый поиск — с brand_spelling из таблицы ──
+    $allReqs = [];
+    $reqInfo = [];
+    $needBrands = []; // article_orig => [supplier_codes...] — кому нужен brands API
+
+    foreach ($crossPairs as $ck => $pair) {
+        $bc = $brandCanonicals[$ck];
         $skip = $pair['_from'] ?? [];
+        $spell = $spellingMap[$bc] ?? [];
+
         foreach ($suppliers as $code => $c) {
             if (in_array($code, $skip, true)) continue;
-            // Бренд ОБЯЗАТЕЛЕН (API требует), кроссы ВКЛ (поставщик сам найдёт артикул под своим брендом)
-            $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig'], true);
-            if ($req) $allReqs[$code . '|' . $ck] = $req;
+
+            if (isset($spell[$code])) {
+                // Знаем правильное написание
+                $req = $c->buildSearchRequest($spell[$code], $pair['article_orig'], true);
+                if ($req) {
+                    $key = $code . '|' . $ck;
+                    $allReqs[$key] = $req;
+                    $reqInfo[$key] = [$code, $ck, $spell[$code], $pair['article_orig']];
+                }
+            } else {
+                // Нужен brands API — запомним
+                if (!isset($needBrands[$pair['article_orig']])) $needBrands[$pair['article_orig']] = [];
+                if (!in_array($code, $needBrands[$pair['article_orig']])) {
+                    $needBrands[$pair['article_orig']][] = $code;
+                }
+            }
         }
     }
 
-    ajaxLog("CROSSLOAD requests=" . count($allReqs));
+    // ── Шаг 4: brands API для недостающих ──
+    $supplierArticles = []; // article_orig => { supplier_code => ['brand'=>..., 'article'=>...] }
+
+    if (!empty($needBrands)) {
+        $brandReqs = [];
+        $brandReqMap = []; // key => [code, article_orig]
+        foreach ($needBrands as $artOrig => $codes) {
+            foreach ($codes as $code) {
+                $c = $suppliers[$code] ?? null;
+                if (!$c) continue;
+                $req = $c->buildBrandsRequest($artOrig);
+                if ($req) {
+                    $key = $code . '|' . $artOrig;
+                    $brandReqs[$key] = $req;
+                    $brandReqMap[$key] = [$code, $artOrig];
+                }
+            }
+        }
+
+        if (!empty($brandReqs)) {
+            $tBrands = microtime(true);
+            $brandResponses = curlExec($suppliers, $brandReqs, 8.0);
+            ajaxLog("CROSSLOAD brands done in " . round(microtime(true) - $tBrands, 2) . "s requests=" . count($brandReqs) . " responses=" . count(array_filter($brandResponses)));
+
+            foreach ($brandResponses as $key => $body) {
+                if (!$body) continue;
+                $map = $brandReqMap[$key] ?? null;
+                if (!$map) continue;
+                [$code, $artOrig] = $map;
+
+                try {
+                    $brands = $suppliers[$code]->parseBrandsResponse($body);
+                } catch (\Throwable $e) { continue; }
+
+                if (empty($brands)) continue;
+
+                // Для каждого бренда: нормализуем, сохраняем в b_brand_spelling
+                foreach ($brands as $br) {
+                    $b = trim((string)($br['brand'] ?? ''));
+                    $a = trim((string)($br['article_nr'] ?? $br['article_fix'] ?? $br['article'] ?? ''));
+                    if ($b === '' || $a === '') continue;
+
+                    $bn = BrandNormalizer::normalize($b);
+
+                    // Сохраняем в таблицу
+                    $DB->Query("INSERT IGNORE INTO b_brand_spelling (brand_canonical, supplier_code, brand_spelling)
+                        VALUES ('" . $DB->ForSql($bn) . "', '" . $DB->ForSql($code) . "', '" . $DB->ForSql($b) . "')");
+
+                    if (!isset($supplierArticles[$artOrig])) $supplierArticles[$artOrig] = [];
+                    $supplierArticles[$artOrig][$code] = ['brand' => $b, 'article' => $a];
+                }
+            }
+        }
+    }
+
+    // ── Шаг 5: для тех кто получил данные из brands API → search ──
+    foreach ($crossPairs as $ck => $pair) {
+        $bc = $brandCanonicals[$ck];
+        $artOrig = $pair['article_orig'];
+        $skip = $pair['_from'] ?? [];
+        $spell = $spellingMap[$bc] ?? [];
+        $artMap = $supplierArticles[$artOrig] ?? [];
+
+        foreach ($suppliers as $code => $c) {
+            if (in_array($code, $skip, true)) continue;
+            if (isset($spell[$code])) continue; // уже отправили в шаге 3
+
+            $map = $artMap[$code] ?? null;
+            if (!$map) continue;
+
+            // Проверяем: совпадает ли brand_canonical с нормализованным брендом от поставщика?
+            $suppCanon = BrandNormalizer::normalize($map['brand']);
+            if ($suppCanon === $bc || brandsMatch($suppCanon, $bc)) {
+                $req = $c->buildSearchRequest($map['brand'], $map['article'], true);
+                if ($req) {
+                    $key = $code . '|' . $ck;
+                    $allReqs[$key] = $req;
+                    $reqInfo[$key] = [$code, $ck, $map['brand'], $map['article']];
+                }
+            }
+        }
+    }
+
+    // ── Шаг 6: выполняем все search-запросы ──
+    ajaxLog("CROSSLOAD search requests=" . count($allReqs));
     $t0 = microtime(true);
     $responses = curlExec($suppliers, $allReqs, 15.0);
     ajaxLog("CROSSLOAD done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses)));
@@ -135,36 +262,26 @@ if ($action === 'crossload') {
     $suppStats = [];
 
     foreach ($responses as $respKey => $body) {
-        $parts = explode('|', $respKey, 2);
-        $code = $parts[0] ?? '?';
-        $ck   = $parts[1] ?? '';
+        $info = $reqInfo[$respKey] ?? null;
+        if (!$info) continue;
+        [$code, $ck, $usedBrand, $usedArticle] = $info;
 
-        if (!$body) {
-            $suppStats[$code] = ($suppStats[$code] ?? [0,0,0]);
-            $suppStats[$code][0]++;
-            continue;
-        }
+        if (!isset($suppStats[$code])) $suppStats[$code] = [0, 0, 0];
+        $suppStats[$code][0]++;
+
+        if (!$body) continue;
 
         $pair = $crossPairs[$ck] ?? null;
         if (!$pair) continue;
 
         try {
             $items = $suppliers[$code]->parseSearchResponse($body, '', $pair['article_orig']);
-        } catch (\Throwable $e) {
-            $suppStats[$code] = ($suppStats[$code] ?? [0,0,0]);
-            $suppStats[$code][0]++;
-            continue;
-        }
-
-        if (!isset($suppStats[$code])) $suppStats[$code] = [0,0,0];
-        $suppStats[$code][0]++;
+        } catch (\Throwable $e) { continue; }
 
         $gk = $pair['brand_norm'] . '|' . $pair['article_norm'];
         $added = 0;
         foreach ($items as $it) {
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
-
-            // ТОЛЬКО артикул — бренд не проверяем (поставщик мог отдать кросс под другим брендом)
             if ($ia !== $pair['article_norm']) continue;
 
             $suppStats[$code][1]++;
