@@ -140,7 +140,21 @@ if ($action === 'crossload') {
         foreach ($items as $it) {
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
             $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
-            if ($ia !== $pair['article_norm'] || $ib !== $pair['brand_norm']) continue;
+
+            // ── МЯГКИЙ ФИЛЬТР БРЕНДА ──
+            // Артикул должен совпадать точно
+            if ($ia !== $pair['article_norm']) continue;
+
+            // Бренд: точное совпадение ИЛИ одно содержится в другом
+            if ($ib !== $pair['brand_norm']) {
+                // Защита от ложных срабатываний: короткая строка (<4 символов)
+                // не должна находиться внутри длинной (MANN ≠ MANNOL)
+                $lenIb = mb_strlen($ib);
+                $lenPb = mb_strlen($pair['brand_norm']);
+                if ($lenIb < 4 || $lenPb < 4) continue;
+                if (mb_strpos($ib, $pair['brand_norm']) === false &&
+                    mb_strpos($pair['brand_norm'], $ib) === false) continue;
+            }
 
             if (!isset($analogOffers[$gk])) $analogOffers[$gk] = [];
             $analogOffers[$gk][] = [

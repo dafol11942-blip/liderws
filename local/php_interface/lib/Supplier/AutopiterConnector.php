@@ -53,9 +53,7 @@ class AutopiterConnector implements SupplierInterface
         $resp = $this->execSoap($xml, true);
         if ($resp === null) return false;
 
-        // Парсим Cookie из ответа
         if (preg_match('/AuthorizationResult>true</', $resp)) {
-            // Cookie уже сохранён в $this->authCookie через execSoap
             return true;
         }
         return false;
@@ -102,7 +100,6 @@ class AutopiterConnector implements SupplierInterface
         $brands = [];
         $article = trim($requestArticle);
 
-        // Парсим XML: SearchCatalogModel -> ArticleId, CatalogName, Name, Number
         if (!preg_match_all('/<SearchCatalogModel>(.*?)<\/SearchCatalogModel>/s', $responseBody, $matches)) {
             return $brands;
         }
@@ -144,7 +141,6 @@ class AutopiterConnector implements SupplierInterface
     {
         if (!$this->isAvailable()) return null;
 
-        // Сначала нужно найти ArticleId через FindCatalog
         $articleId = $this->resolveArticleId($brand, $article);
         if (!$articleId) return null;
 
@@ -176,8 +172,6 @@ class AutopiterConnector implements SupplierInterface
     {
         $own = [];    // StoreType 0,2 — на складе Автопитера
         $other = [];  // StoreType 1,3,4,9 — чужие
-        $normBrand = BrandNormalizer::normalize($brand);
-        $normArt   = BrandNormalizer::normalizeArticle($article);
 
         if (!preg_match_all('/<PriceSearchModel>(.*?)<\/PriceSearchModel>/s', $responseBody, $matches)) {
             return [];
@@ -195,6 +189,10 @@ class AutopiterConnector implements SupplierInterface
             $storeType    = (int)($this->xmlTag($block, 'StoreType') ?: 3);
             $nameStatus   = $this->xmlTag($block, 'NameStatus');
 
+            // ═══ ИЗВЛЕКАЕМ РЕАЛЬНЫЙ БРЕНД И АРТИКУЛ ИЗ XML ═══
+            $xmlBrand   = $this->xmlTag($block, 'CatalogName');
+            $xmlArticle = $this->xmlTag($block, 'Number');
+
             if (empty($salePrice) || (float)$salePrice <= 0) continue;
 
             $price = (float)$salePrice;
@@ -202,19 +200,18 @@ class AutopiterConnector implements SupplierInterface
             $minSalesVal = max(1, (int)($minSales ?: 1));
             $daysVal = (int)(($daysSupply !== null && $daysSupply !== '') ? $daysSupply : 0);
 
-            // Только в наличии (avail > 0 или -1/-2/-3 — неточное наличие)
             if ($avail <= 0 && $avail > -10) {
-                // -1,-2,-3 — неточное наличие, пропускаем (нельзя гарантировать)
+                // -1,-2,-3 — неточное наличие, пропускаем
             }
-            // avail = 0 или -10 = точно нет → пропускаем
             if ($avail === 0 || $avail === -10) continue;
 
             $deliveryDays = ($daysVal <= 0) ? 2 : $daysVal + 2;
 
             $r = new SearchResultItem();
             $r->source       = $this->getCode();
-            $r->article      = $article;
-            $r->brand        = $brand;
+            // Используем реальные бренд/артикул из XML вместо переданных в запросе
+            $r->article      = $xmlArticle ?: $article;
+            $r->brand        = $xmlBrand ?: $brand;
             $r->name         = '';
             $r->price        = $price;
             $r->quantity     = max(0, $avail);
@@ -242,7 +239,6 @@ class AutopiterConnector implements SupplierInterface
                 'deliveryDays' => $daysVal,
             ]);
 
-            // Свои: StoreType 0 или 2 — на складе Автопитера
             if ($storeType === 0 || $storeType === 2) {
                 $own[] = $r;
             } else {
@@ -250,7 +246,6 @@ class AutopiterConnector implements SupplierInterface
             }
         }
 
-        // Свои — сортировка по срокам+цене, все
         usort($own, function (SearchResultItem $a, SearchResultItem $b) {
             $da = $a->deliveryDays ?? 0;
             $db = $b->deliveryDays ?? 0;
@@ -258,7 +253,6 @@ class AutopiterConnector implements SupplierInterface
             return $a->price <=> $b->price;
         });
 
-        // Чужие — сортировка + лимит 10
         usort($other, function (SearchResultItem $a, SearchResultItem $b) {
             $da = $a->deliveryDays ?? 0;
             $db = $b->deliveryDays ?? 0;
@@ -325,14 +319,12 @@ class AutopiterConnector implements SupplierInterface
         $brands = $this->searchBrands($article);
         $norm = BrandNormalizer::normalize($brand);
 
-        // 1. Exact match
         foreach ($brands as $br) {
             if (BrandNormalizer::normalize($br['brand']) === $norm) {
                 return $br['article_id'] ?? null;
             }
         }
 
-        // 2. Fuzzy match (substring)
         $raw = mb_strtolower(trim($brand));
         foreach ($brands as $br) {
             $b = mb_strtolower(trim($br['brand']));
@@ -341,7 +333,6 @@ class AutopiterConnector implements SupplierInterface
             }
         }
 
-        // 3. Fallback: first FindCatalog result for this article
         if (!empty($brands[0]['article_id'])) {
             return $brands[0]['article_id'];
         }
