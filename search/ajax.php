@@ -38,9 +38,12 @@ function brandsMatch(string $a, string $b): bool {
     return mb_strpos($a, $b) !== false || mb_strpos($b, $a) !== false;
 }
 
-function curlExec(array $suppliers, array $requests, float $deadline = 15.0): array {
+function curlExec(array $suppliers, array $requests, float $deadline = 15.0, int $maxPerHost = 0): array {
     if (empty($requests)) return [];
     $mh = curl_multi_init();
+    if ($maxPerHost > 0 && defined('CURLMOPT_MAX_HOST_CONNECTIONS')) {
+        curl_multi_setopt($mh, CURLMOPT_MAX_HOST_CONNECTIONS, $maxPerHost);
+    }
     $handles = [];
     foreach ($requests as $key => $req) {
         $ch = curl_init();
@@ -140,7 +143,21 @@ if ($action === 'crossload') {
     }
     ajaxLog("CROSSLOAD reqs_per_pair: " . count($perPairReqs) . " pairs, top5=" . json_encode(array_slice($perPairReqs, 0, 5, true)));
     $t0 = microtime(true);
-    $responses = curlExec($suppliers, $allReqs, 15.0);
+    // Чанкинг: не более CROSSLOAD_CHUNK запросов в одном curl_multi,
+    // чтобы не открывать десятки параллельных соединений на один и тот же хост поставщика
+    // (см. Этап 22/23 — 22 из 30 пар не добирали ответы именно на bulk-запросе).
+    $CROSSLOAD_CHUNK = 40;
+    $responses = [];
+    $chunks = array_chunk($allReqs, $CROSSLOAD_CHUNK, true);
+    foreach ($chunks as $i => $chunk) {
+        $tc = microtime(true);
+        $partial = curlExec($suppliers, $chunk, 15.0, 6);
+        $responses += $partial;
+        ajaxLog("CROSSLOAD chunk " . ($i + 1) . "/" . count($chunks)
+            . " requests=" . count($chunk)
+            . " responses=" . count(array_filter($partial))
+            . " time=" . round(microtime(true) - $tc, 2) . "s");
+    }
     ajaxLog("CROSSLOAD done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses)));
     $perPairResps = [];
     foreach ($responses as $k => $v) {
