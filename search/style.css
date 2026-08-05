@@ -186,9 +186,13 @@
 }
 
 /* Инлайн-спиннер для Phase 2 */
+.cross-loading {
+    background: #eef4ff; border: 1px solid #d6e4ff; border-radius: var(--radius);
+    padding: 4px 16px; margin-bottom: 16px;
+}
 .loader-inline {
     display: flex; align-items: center; gap: 8px;
-    padding: 10px 0; color: #888; font-size: 14px;
+    padding: 10px 0; color: #4a5b7a; font-size: 14px;
 }
 .spinner-inline {
     display: inline-block; width: 16px; height: 16px;

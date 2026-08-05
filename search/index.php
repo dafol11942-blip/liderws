@@ -125,10 +125,24 @@ function showProgress(pct, msg) {
         '</div>';
 }
 
+function pollProgress(taskId, onTick) {
+    var stopped = false;
+    var timer = setInterval(async function(){
+        if (stopped) return;
+        try {
+            var r = await fetch(API + '?action=progress&task=' + encodeURIComponent(taskId));
+            var d = await r.json();
+            onTick(d.percent || 0, d.message || '');
+        } catch(e) { /* следующий тик попробует снова */ }
+    }, 700);
+    return function stop(){ stopped = true; clearInterval(timer); };
+}
+
 async function loadResults(){
     var taskId = 'srch_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
     showProgress(0, 'Запуск поиска...');
+    var stopP1 = pollProgress(taskId, function(pct, msg){ showProgress(pct, msg); });
 
     // ═══ PHASE 1 ═══
     var d1;
@@ -139,22 +153,28 @@ async function loadResults(){
             + '&task=' + encodeURIComponent(taskId));
         d1 = await r1.json();
     } catch(e) {
+        stopP1();
         showError('Ошибка соединения: ' + e.message);
         return;
     }
+    stopP1();
 
     if (d1.error) { showError(d1.error); return; }
 
-    showProgress(100, 'Готово');
-    setTimeout(function(){ renderResults(d1); }, 200);
+    renderResults(d1);
 
     // ═══ PHASE 2: добор в фоне ═══
     if (d1.phase === 1 && d1.cross_count > 0 && d1.crossPairs) {
         var resultEl = qs('#resultContent');
         var loadDiv = document.createElement('div');
         loadDiv.className = 'cross-loading';
-        loadDiv.innerHTML = '<div class="loader-inline"><span class="spinner-inline"></span> Подбираем цены для ' + d1.cross_count + ' аналогов у всех поставщиков...</div>';
-        resultEl.appendChild(loadDiv);
+        loadDiv.innerHTML = '<div class="loader-inline"><span class="spinner-inline"></span> <span class="cross-loading-text">Подбираем цены для ' + d1.cross_count + ' аналогов у всех поставщиков...</span></div>';
+        resultEl.insertBefore(loadDiv, resultEl.firstChild);
+        var textEl = loadDiv.querySelector('.cross-loading-text');
+
+        var stopP2 = pollProgress(taskId, function(pct, msg){
+            if (textEl) textEl.textContent = (msg || 'Докручиваем аналоги') + ' (' + pct + '%)';
+        });
 
         try {
             var r2 = await fetch(API + '?action=crossload&task=' + encodeURIComponent(taskId)
@@ -178,7 +198,9 @@ async function loadResults(){
             console.error('crossload failed:', e);
             showToast('⚠️ Не удалось доподбрать часть предложений у поставщиков', 'warn');
         }
-        loadDiv.remove();
+        stopP2();
+        var liveDiv = qs('.cross-loading');
+        if (liveDiv) liveDiv.remove();
     }
 }
 
@@ -186,7 +208,7 @@ function mergeAnalogOffers(d1, analogOffers) {
     if (!d1.analogs) return {offers: 0, suppliers: 0};
     var keyToIdx = {};
     d1.analogs.forEach(function(a, i) {
-        var key = (a.brand + '|' + a.article).toLowerCase().replace(/[^a-z0-9|]/g, '');
+        var key = a.key || (a.brand + '|' + a.article).toLowerCase().replace(/[^a-z0-9|]/g, '');
         keyToIdx[key] = i;
     });
     var addedOffers = 0;

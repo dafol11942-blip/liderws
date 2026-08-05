@@ -156,6 +156,7 @@ if ($action === 'crossload') {
     foreach ($bySupplier as $code => $keys) {
         $maxWaves = max($maxWaves, (int)ceil(count($keys) / $MAX_PER_HOST));
     }
+    progWrite($taskId, 10, "Докручиваем аналоги: 0/$maxWaves волн");
     $responses = [];
     for ($w = 0; $w < $maxWaves; $w++) {
         $wave = [];
@@ -171,8 +172,11 @@ if ($action === 'crossload') {
             . " requests=" . count($wave)
             . " responses=" . count(array_filter($partial))
             . " time=" . round(microtime(true) - $tc, 2) . "s");
+        $pct = 10 + (int)round(85 * ($w + 1) / $maxWaves);
+        progWrite($taskId, $pct, "Докручиваем аналоги: " . ($w + 1) . "/$maxWaves волн");
     }
     ajaxLog("CROSSLOAD done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses)));
+    progWrite($taskId, 100, 'Докрутка завершена');
     $perPairResps = [];
     foreach ($responses as $k => $v) {
         if (!$v) continue;
@@ -346,6 +350,7 @@ if ($action === 'brands') {
     $t0 = microtime(true);
     $responses = curlExec($suppliers, $r1Reqs, 15.0);
     ajaxLog("PHASE1 R1 done in " . round(microtime(true) - $t0, 2) . "s requests=" . count($r1Reqs) . " responses=" . count(array_filter($responses)));
+    progWrite($taskId, 75, 'Обрабатываем ответы поставщиков...');
 
     $exactOffers  = [];
     $crossPairs   = [];
@@ -479,6 +484,7 @@ if ($action === 'brands') {
         $activePrices = array_filter($prices, function($p) { return $p > 0; });
         $activeDays   = array_filter($days, function($d) { return $d >= 0; });
         $analogs[] = [
+            'key'           => $gk,
             'brand'         => $grp['brand_orig'],
             'article'       => $grp['article_orig'],
             'description'   => $grp['description'],
