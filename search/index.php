@@ -133,6 +133,7 @@ function pollProgress(taskId, onTick) {
             var r = await fetch(API + '?action=progress&task=' + encodeURIComponent(taskId));
             var d = await r.json();
             onTick(d.percent || 0, d.message || '');
+            if ((d.percent || 0) >= 100) { stopped = true; clearInterval(timer); }
         } catch(e) { /* следующий тик попробует снова */ }
     }, 700);
     return function stop(){ stopped = true; clearInterval(timer); };
@@ -262,11 +263,132 @@ function showToast(msg, kind) {
     }, 4500);
 }
 
+var lastData = null;
+var filterState = { suppliers: null, brands: null, maxDelivery: null, minQty: null }; // null = не ограничено
+
+function normBrandKey(s){ return (s||'').toLowerCase().trim(); }
+
+function getAllSuppliers(d){
+    var set = {};
+    if (d.exact && d.exact.suppliers) d.exact.suppliers.forEach(function(s){ set[s.supplier]=true; });
+    (d.analogs||[]).forEach(function(a){ a.suppliers.forEach(function(s){ set[s.supplier]=true; }); });
+    return Object.keys(set).sort();
+}
+function getAllBrands(d){
+    var map = {};
+    if (d.exact) map[normBrandKey(B)] = B;
+    (d.analogs||[]).forEach(function(a){ map[normBrandKey(a.brand)] = a.brand; });
+    return map; // key -> отображаемое имя
+}
+function brandAllowed(brandDisplay){
+    if (!filterState.brands) return true;
+    return filterState.brands.has(normBrandKey(brandDisplay));
+}
+function passesRowFilter(s){
+    if (filterState.suppliers && !filterState.suppliers.has(s.supplier)) return false;
+    if (filterState.maxDelivery != null && !(s.delivery_days >= 0 && s.delivery_days <= filterState.maxDelivery)) return false;
+    if (filterState.minQty != null && !(s.quantity >= filterState.minQty)) return false;
+    return true;
+}
+
+window.toggleFilterSupplier = function(code){
+    if (!filterState.suppliers) filterState.suppliers = new Set(getAllSuppliers(lastData));
+    if (filterState.suppliers.has(code)) filterState.suppliers.delete(code); else filterState.suppliers.add(code);
+    if (lastData) renderResults(lastData);
+};
+window.toggleFilterBrand = function(key){
+    if (!filterState.brands) filterState.brands = new Set(Object.keys(getAllBrands(lastData)));
+    if (filterState.brands.has(key)) filterState.brands.delete(key); else filterState.brands.add(key);
+    if (lastData) renderResults(lastData);
+};
+window.setFilterDelivery = function(val){
+    filterState.maxDelivery = val;
+    if (lastData) renderResults(lastData);
+};
+window.setFilterQty = function(val){
+    filterState.minQty = val;
+    if (lastData) renderResults(lastData);
+};
+window.resetFilters = function(){
+    filterState = { suppliers: null, brands: null, maxDelivery: null, minQty: null };
+    if (lastData) renderResults(lastData);
+};
+
+var DELIVERY_OPTS = [[null,'Любой'],[0,'Сегодня'],[2,'До 2 дней'],[5,'До 5 дней'],[10,'До 10 дней']];
+var QTY_OPTS = [[null,'Любое'],[1,'В наличии'],[10,'От 10 шт.'],[50,'От 50 шт.']];
+
+function renderFilterBar(d){
+    var suppliers = getAllSuppliers(d);
+    var brandsMap = getAllBrands(d);
+    var brandKeys = Object.keys(brandsMap).sort();
+    if (!suppliers.length && !brandKeys.length) return '';
+
+    var isActive = !!filterState.suppliers || !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
+
+    var h = '<div class="filter-bar">';
+
+    h += '<details class="filter-dd"><summary>Поставщик<span class="filter-dd-arrow">▾</span></summary><div class="filter-dd-panel">';
+    suppliers.forEach(function(code){
+        var checked = !filterState.suppliers || filterState.suppliers.has(code);
+        h += '<label class="filter-opt"><input type="checkbox" onchange="toggleFilterSupplier(\'' + code + '\')"' + (checked?' checked':'') + '><span class="src-tag src-tag--' + esc(code) + '">' + esc(code) + '</span></label>';
+    });
+    h += '</div></details>';
+
+    if (brandKeys.length > 1) {
+        h += '<details class="filter-dd"><summary>Бренд<span class="filter-dd-arrow">▾</span></summary><div class="filter-dd-panel">';
+        brandKeys.forEach(function(key){
+            var checked = !filterState.brands || filterState.brands.has(key);
+            h += '<label class="filter-opt"><input type="checkbox" onchange="toggleFilterBrand(\'' + key + '\')"' + (checked?' checked':'') + '>' + esc(brandsMap[key]) + '</label>';
+        });
+        h += '</div></details>';
+    }
+
+    h += '<details class="filter-dd"><summary>Срок доставки<span class="filter-dd-arrow">▾</span></summary><div class="filter-dd-panel">';
+    DELIVERY_OPTS.forEach(function(opt){
+        var val = opt[0], label = opt[1];
+        var checked = (filterState.maxDelivery === val);
+        h += '<label class="filter-opt"><input type="radio" name="flt-deliv" onchange="setFilterDelivery(' + (val===null?'null':val) + ')"' + (checked?' checked':'') + '>' + label + '</label>';
+    });
+    h += '</div></details>';
+
+    h += '<details class="filter-dd"><summary>Доступное количество<span class="filter-dd-arrow">▾</span></summary><div class="filter-dd-panel">';
+    QTY_OPTS.forEach(function(opt){
+        var val = opt[0], label = opt[1];
+        var checked = (filterState.minQty === val);
+        h += '<label class="filter-opt"><input type="radio" name="flt-qty" onchange="setFilterQty(' + (val===null?'null':val) + ')"' + (checked?' checked':'') + '>' + label + '</label>';
+    });
+    h += '</div></details>';
+
+    if (isActive) h += '<button type="button" class="filter-reset" onclick="resetFilters()">Сбросить</button>';
+    h += '</div>';
+    return h;
+}
+
 function renderResults(d){
-    var exact=d.exact||null,analogs=d.analogs||[];
+    lastData = d;
+    var exact=d.exact||null,analogsAll=d.analogs||[];
+
+    var exactVisible = (exact && exact.suppliers && brandAllowed(B)) ? exact.suppliers.filter(passesRowFilter) : [];
+    var analogsVisible = analogsAll.map(function(a){
+        if (!brandAllowed(a.brand)) return null;
+        var visible = a.suppliers.filter(passesRowFilter);
+        if (!visible.length) return null;
+        var prices = visible.map(function(s){return s.price;}).filter(function(p){return p>0;});
+        var days   = visible.map(function(s){return s.delivery_days;}).filter(function(dd){return dd>=0;});
+        var qtys   = visible.map(function(s){return s.quantity;});
+        return {
+            brand: a.brand, article: a.article, description: a.description,
+            suppliers: visible,
+            best_price:    prices.length ? Math.min.apply(null, prices) : 0,
+            best_delivery: days.length ? Math.min.apply(null, days) : null,
+            total_qty:     qtys.reduce(function(s,q){return s+q;}, 0),
+            has_instock:   qtys.some(function(q){return q>0;})
+        };
+    }).filter(function(a){ return a !== null; });
+
     var allOffers=[];
-    if(exact&&exact.suppliers){exact.suppliers.forEach(function(s){s._type='exact';s._brand=exact.brand;s._article=exact.article;s._description=s.description||'';allOffers.push(s)});}
-    analogs.forEach(function(a){a.suppliers.forEach(function(s){s._type='analog';s._brand=a.brand;s._article=a.article;s._description=a.description||'';allOffers.push(s)});});
+    exactVisible.forEach(function(s){s._type='exact';s._brand=exact.brand;s._article=exact.article;s._description=s.description||'';allOffers.push(s)});
+    analogsVisible.forEach(function(a){a.suppliers.forEach(function(s){s._type='analog';s._brand=a.brand;s._article=a.article;s._description=a.description||'';allOffers.push(s)});});
 
     var bestPriceExact=null,bestPriceAnalog=null,bestDelivery=null;
     allOffers.forEach(function(o){
@@ -279,8 +401,16 @@ function renderResults(d){
 
     var h='';
     h+='<div class="phead"><h1 class="phead-title">'+esc(N)+' '+esc(B)+'</h1>';
-    if(exact&&exact.suppliers)h+='<p class="phead-sub">Найдено '+exact.suppliers.length+' предл. искомого + '+analogs.length+' аналогов</p>';
+    if(exact&&exact.suppliers){
+        var filterOn = !!filterState.suppliers || !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
+        var subtxt = filterOn
+            ? 'Показано '+exactVisible.length+' из '+exact.suppliers.length+' предл. искомого + '+analogsVisible.length+' из '+analogsAll.length+' аналогов (фильтр применён)'
+            : 'Найдено '+exact.suppliers.length+' предл. искомого + '+analogsAll.length+' аналогов';
+        h+='<p class="phead-sub">'+subtxt+'</p>';
+    }
     h+='</div>';
+
+    h+=renderFilterBar(d);
 
     if(bestPriceExact||bestPriceAnalog||bestDelivery){
         h+='<div class="hl-cards">';
@@ -292,15 +422,15 @@ function renderResults(d){
 
     h+='<div class="full-tbl">';
 
-    if(exact&&exact.suppliers&&exact.suppliers.length){
-        h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head"><span class="ft-sec-title">✅ Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+' — '+exact.suppliers.length+' складов</span></div>';
-        h+=supplierTable(exact.suppliers,'exact');
+    if(exactVisible.length){
+        h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head"><span class="ft-sec-title">✅ Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+' — '+exactVisible.length+' складов</span></div>';
+        h+=supplierTable(exactVisible,'exact');
         h+='</div>';
     }
 
-    if(analogs.length){
-        h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title">🔄 Аналоги ('+analogs.length+')</span></div>';
-        analogs.forEach(function(a){
+    if(analogsVisible.length){
+        h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title">🔄 Аналоги ('+analogsVisible.length+')</span></div>';
+        analogsVisible.forEach(function(a){
             h+='<div class="ft-group"><div class="ft-ghead"><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery!==null?a.best_delivery+' дн.':'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty+' шт.</span></div></div>';
             h+=supplierTable(a.suppliers,'analog');
             h+='</div>';
@@ -308,7 +438,14 @@ function renderResults(d){
         h+='</div>';
     }
 
-    if(!exact&&!analogs.length)h='<div class="hero" style="margin-top:16px"><div class="hero-icon">⚠️</div><p>По запросу «'+esc(B)+' '+esc(N)+'» ничего не найдено</p><a href="/search/?q='+encodeURIComponent(Q)+'" class="hero-back">← К выбору бренда</a></div>';
+    if(!exactVisible.length&&!analogsVisible.length){
+        var filterOn2 = !!filterState.suppliers || !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
+        if (filterOn2 && (exact||analogsAll.length)) {
+            h+='<div class="hero" style="margin-top:16px"><div class="hero-icon">🔍</div><p>Под текущий фильтр ничего не подходит</p><button type="button" class="btn-sel" onclick="resetFilters()">Сбросить фильтр</button></div>';
+        } else {
+            h='<div class="hero" style="margin-top:16px"><div class="hero-icon">⚠️</div><p>По запросу «'+esc(B)+' '+esc(N)+'» ничего не найдено</p><a href="/search/?q='+encodeURIComponent(Q)+'" class="hero-back">← К выбору бренда</a></div>';
+        }
+    }
 
     h+='</div>';
     qs('#resultContent').innerHTML=h;
@@ -327,7 +464,7 @@ function hlCard(o,title,cardCls,badgeCls,type){
 }
 
 function supplierTable(suppliers,type){
-    var limit=type==='exact'?15:5;
+    var limit=type==='exact'?5:2;
     var h='<table class="ft-tbl"><colgroup><col class="ft-col--det"><col class="ft-col--skl"><col class="ft-col--qty"><col class="ft-col--del"><col class="ft-col--prc"></colgroup><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th><th class="ft-th--num">Цена</th></tr></thead><tbody>';
     suppliers.forEach(function(s,i){
         var cls=i>=limit?' class="ft-more" style="display:none"':'';

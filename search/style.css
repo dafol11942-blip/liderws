@@ -169,6 +169,39 @@
 .toast--warn { background: #b45309; }
 .toast--show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* ====== ФИЛЬТР (выпадающие списки) ====== */
+.filter-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 14px; margin-bottom: 16px; box-shadow: var(--shadow-sm); position: relative;
+}
+.filter-dd { position: relative; }
+.filter-dd summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border: 1px solid var(--border); border-radius: var(--radius);
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+    color: var(--black); background: var(--bg); user-select: none; white-space: nowrap;
+}
+.filter-dd summary::-webkit-details-marker { display: none; }
+.filter-dd summary::marker { content: ''; }
+.filter-dd:hover summary { border-color: var(--blue); }
+.filter-dd[open] summary { border-color: var(--blue); color: var(--blue); background: rgba(102,139,234,.08); }
+.filter-dd-arrow { font-size: 10px; color: var(--gray); }
+.filter-dd-panel {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+    background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow-lg); padding: 10px 14px; min-width: 200px; max-height: 280px;
+    overflow-y: auto; display: flex; flex-direction: column; gap: 9px;
+}
+.filter-opt { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--black); cursor: pointer; white-space: nowrap; }
+.filter-opt input { cursor: pointer; accent-color: var(--blue); width: 14px; height: 14px; flex: none; }
+.filter-reset {
+    margin-left: auto; background: var(--blue); color: #fff; border: none; border-radius: var(--radius);
+    padding: 9px 18px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+    cursor: pointer; font-family: var(--font);
+}
+.filter-reset:hover { background: var(--blue-dark); }
+
 /* ====== АДАПТИВ ====== */
 @media (max-width: 768px) {
     .bt-head { display: none; }
@@ -183,6 +216,10 @@
     .hl-cards { flex-direction: column; }
     .hl-card { min-width: auto; }
     .ft-sec,.phead { padding: 14px 16px; }
+    .filter-bar { padding: 10px; }
+    .filter-dd summary { padding: 7px 10px; font-size: 11px; }
+    .filter-dd-panel { left: 0; right: 0; min-width: auto; }
+    .filter-reset { width: 100%; margin-left: 0; order: 99; }
 }
 
 /* Инлайн-спиннер для Phase 2 */
