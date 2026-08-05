@@ -56,21 +56,20 @@
 .sec-h--brand { color: #d97706; }
 .sec-p { color: var(--gray); font-size: 14px; margin-bottom: 18px; line-height: 1.5; }
 
-/* ====== ТАБЛИЦА БРЕНДОВ ====== */
+/* ====== ТАБЛИЦА БРЕНДОВ (колонка источников убрана — описание занимает освободившееся место) ====== */
 .bt { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 20px; overflow: hidden; }
 .bt-head { display: flex; padding: 10px 16px; background: var(--bg); font-size: 11px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); }
 .bt-row { display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f0f0f0; transition: background .12s; }
 .bt-row:last-child { border-bottom: none; }
 .bt-row:hover { background: #fafbfc; }
 .bt-c { padding: 0 10px; }
-.bt-c--brand { flex: 0 0 170px; font-weight: 700; font-size: 15px; }
+.bt-c--brand { flex: 0 0 190px; font-weight: 700; font-size: 15px; }
 .bt-c--art { flex: 0 0 150px; }
 .bt-c--art code { font-family: monospace; font-size: 13px; background: #f0f0f0; padding: 3px 8px; border-radius: var(--radius); color: var(--gray); }
 .bt-c--desc { flex: 1; font-size: 14px; color: #444; }
-.bt-c--src { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 3px; }
-.bt-c--act { flex: 0 0 110px; text-align: right; }
+.bt-c--act { flex: 0 0 130px; text-align: right; }
 
-/* ====== ТЕГИ ИСТОЧНИКОВ ====== */
+/* ====== ТЕГИ ПОСТАВЩИКОВ (используются в таблице результатов) ====== */
 .src-tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: var(--radius); text-transform: uppercase; letter-spacing: .03em; line-height: 1.6; }
 .src-tag--moskvorechie{background:#e0f2fe;color:#0369a1}.src-tag--rossko{background:#fce7f3;color:#9d174d}
 .src-tag--berg{background:#d1fae5;color:#065f46}.src-tag--autoeuro{background:#fce4ec;color:#c62828}
@@ -134,40 +133,56 @@
 .ft-gbest { color: var(--gray); }
 .ft-gbest b { color: var(--black); font-size: 15px; font-weight: 700; }
 
-/* Таблица */
-.ft-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-.ft-tbl thead th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); }
-.ft-tbl tbody td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+/* Таблица — table-layout:fixed + colgroup дают ОДИНАКОВЫЕ ширины колонок
+   во всех таблицах секции (искомый номер + каждая группа аналогов),
+   поэтому колонки больше не "гуляют" между блоками */
+.ft-tbl { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
+.ft-col--det { width: 34%; }
+.ft-col--skl { width: 30%; }
+.ft-col--qty { width: 12%; }
+.ft-col--del { width: 12%; }
+.ft-col--prc { width: 12%; }
+.ft-tbl thead th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ft-tbl tbody td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
 .ft-tbl tbody tr:last-child td { border-bottom: none; }
 .ft-tbl tbody tr:nth-child(even) { background: #fafbfc; }
 .ft-tbl tbody tr:hover { background: #f0f4ff; }
-.ft-th--det { }
-.ft-th--skl { width: 35%; }
 .ft-th--num { text-align: right !important; white-space: nowrap; }
 .ft-td--num { text-align: right; white-space: nowrap; }
 .ft-td--prc { text-align: right; white-space: nowrap; }
 .ft-td--prc strong { font-size: 14px; font-weight: 800; }
-.ft-td--det { line-height: 1.4; }
-.ft-skl-name { display: block; font-size: 12px; color: var(--black); margin-bottom: 3px; word-break: break-word; }
+.ft-td--det { line-height: 1.4; word-break: break-word; white-space: normal; }
+.ft-skl-name { display: block; font-size: 12px; color: var(--black); margin-bottom: 3px; word-break: break-word; white-space: normal; }
 
 /* Показать ещё */
 .ft-showmore { display: block; width: 100%; padding: 10px; background: var(--bg); border: none; border-top: 1px solid var(--border); color: var(--blue); font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; }
 .ft-showmore:hover { background: #e8ecf2; }
 
+/* ====== ФОНОВЫЙ ДОБОР (Phase 2) — тост-уведомление ====== */
+.toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+    background: var(--black, #222); color: #fff; padding: 12px 20px; border-radius: var(--radius);
+    font-size: 14px; font-weight: 600; box-shadow: var(--shadow-lg, 0 6px 20px rgba(0,0,0,.25));
+    opacity: 0; transition: opacity .25s ease, transform .25s ease; z-index: 9999; max-width: 90vw;
+}
+.toast--ok { background: #1f8a4c; }
+.toast--warn { background: #b45309; }
+.toast--show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
 /* ====== АДАПТИВ ====== */
 @media (max-width: 768px) {
     .bt-head { display: none; }
     .bt-row { flex-wrap: wrap; gap: 6px; padding: 12px; }
-    .bt-c--brand,.bt-c--src { flex: 0 0 100%; }
+    .bt-c--brand { flex: 0 0 100%; }
     .bt-c--act { flex: 1; text-align: left; }
+    .ft-tbl { table-layout: auto; }
     .ft-tbl thead { display: none; }
-    .ft-tbl tbody td { display: block; text-align: left !important; padding: 8px 12px; }
+    .ft-tbl tbody td { display: block; text-align: left !important; padding: 8px 12px; white-space: normal; }
     .ft-tbl tbody td[data-label]::before { content: attr(data-label); font-weight: 700; font-size: 10px; color: var(--gray); text-transform: uppercase; display: block; margin-bottom: 3px; }
     .ft-ghead { flex-direction: column; align-items: flex-start; }
     .hl-cards { flex-direction: column; }
     .hl-card { min-width: auto; }
     .ft-sec,.phead { padding: 14px 16px; }
-    .ft-th--skl { width: auto; }
 }
 
 /* Инлайн-спиннер для Phase 2 */
@@ -180,4 +195,3 @@
     border: 2px solid #e0e0e0; border-top-color: var(--blue, #668BEA);
     border-radius: 50%; animation: spin 0.6s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }

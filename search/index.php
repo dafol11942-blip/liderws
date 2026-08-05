@@ -72,18 +72,16 @@ async function loadBrands(article){
         if(exact.length){
             h+='<h2 class="sec-h sec-h--brand">🟠 Выберите бренд для «'+esc(article)+'»</h2>';
             h+='<p class="sec-p">Под этим артикулом у разных производителей могут быть разные детали.</p>';
-            h+='<div class="bt"><div class="bt-head"><span class="bt-c bt-c--brand">Производитель</span><span class="bt-c bt-c--art">Артикул</span><span class="bt-c bt-c--desc">Описание</span><span class="bt-c bt-c--src">Источники</span><span class="bt-c bt-c--act"></span></div>';
+            h+='<div class="bt"><div class="bt-head"><span class="bt-c bt-c--brand">Производитель</span><span class="bt-c bt-c--art">Артикул</span><span class="bt-c bt-c--desc">Описание</span><span class="bt-c bt-c--act"></span></div>';
             exact.forEach(function(b){
-                var srcs=(b.sources||[]).map(function(s){return '<span class="src-tag src-tag--'+s+'">'+s+'</span>'}).join(' ');
-                h+='<div class="bt-row"><span class="bt-c bt-c--brand"><strong>'+esc(b.brand)+'</strong></span><span class="bt-c bt-c--art"><code>'+esc(b.article)+'</code></span><span class="bt-c bt-c--desc">'+esc(b.description||'—')+'</span><span class="bt-c bt-c--src">'+srcs+'</span><span class="bt-c bt-c--act"><a href="/search/?q='+encodeURIComponent(article)+'&brand='+encodeURIComponent(b.brand)+'&number='+encodeURIComponent(b.article)+'" class="btn-sel">Выбрать →</a></span></div>';
+                h+='<div class="bt-row"><span class="bt-c bt-c--brand"><strong>'+esc(b.brand)+'</strong></span><span class="bt-c bt-c--art"><code>'+esc(b.article)+'</code></span><span class="bt-c bt-c--desc">'+esc(b.description||'—')+'</span><span class="bt-c bt-c--act"><a href="/search/?q='+encodeURIComponent(article)+'&brand='+encodeURIComponent(b.brand)+'&number='+encodeURIComponent(b.article)+'" class="btn-sel">Выбрать →</a></span></div>';
             });
             h+='</div>';
         }
         if(analogs.length){
             h+='<details class="dt"><summary class="dt-sum">📋 Аналоги и кросс-номера ('+analogs.length+')</summary><div class="bt" style="margin-top:12px">';
             analogs.forEach(function(b){
-                var srcs=(b.sources||[]).map(function(s){return '<span class="src-tag src-tag--'+s+'">'+s+'</span>'}).join(' ');
-                h+='<div class="bt-row"><span class="bt-c bt-c--brand">'+esc(b.brand)+'</span><span class="bt-c bt-c--art"><code>'+esc(b.article)+'</code></span><span class="bt-c bt-c--desc">'+esc(b.description||'—')+'</span><span class="bt-c bt-c--src">'+srcs+'</span><span class="bt-c bt-c--act"><a href="/search/?q='+encodeURIComponent(article)+'&brand='+encodeURIComponent(b.brand)+'&number='+encodeURIComponent(b.article)+'" class="btn-sel btn-sel--sm">Выбрать →</a></span></div>';
+                h+='<div class="bt-row"><span class="bt-c bt-c--brand">'+esc(b.brand)+'</span><span class="bt-c bt-c--art"><code>'+esc(b.article)+'</code></span><span class="bt-c bt-c--desc">'+esc(b.description||'—')+'</span><span class="bt-c bt-c--act"><a href="/search/?q='+encodeURIComponent(article)+'&brand='+encodeURIComponent(b.brand)+'&number='+encodeURIComponent(b.article)+'" class="btn-sel btn-sel--sm">Выбрать →</a></span></div>';
             });
             h+='</div></details>';
         }
@@ -163,29 +161,36 @@ async function loadResults(){
                 + '&crossPairs=' + encodeURIComponent(JSON.stringify(d1.crossPairs)));
             if (!r2.ok) {
                 console.error('crossload HTTP error', r2.status, await r2.text());
+                showToast('⚠️ Не удалось доподбрать часть предложений у поставщиков', 'warn');
             } else {
                 var d2 = await r2.json();
                 if (d2.analog_offers && Object.keys(d2.analog_offers).length > 0) {
-                    mergeAnalogOffers(d1, d2.analog_offers);
+                    var addedCount = mergeAnalogOffers(d1, d2.analog_offers);
                     renderResults(d1);
+                    if (addedCount.offers > 0) {
+                        showToast('✅ Добавлено ' + addedCount.offers + ' предл. от ' + addedCount.suppliers + ' поставщиков', 'ok');
+                    }
                 } else {
                     console.warn('crossload вернул пусто', d2);
                 }
             }
         } catch(e) {
             console.error('crossload failed:', e);
+            showToast('⚠️ Не удалось доподбрать часть предложений у поставщиков', 'warn');
         }
         loadDiv.remove();
     }
 }
 
 function mergeAnalogOffers(d1, analogOffers) {
-    if (!d1.analogs) return;
+    if (!d1.analogs) return {offers: 0, suppliers: 0};
     var keyToIdx = {};
     d1.analogs.forEach(function(a, i) {
         var key = (a.brand + '|' + a.article).toLowerCase().replace(/[^a-z0-9|]/g, '');
         keyToIdx[key] = i;
     });
+    var addedOffers = 0;
+    var addedSuppliers = {};
     for (var gk in analogOffers) {
         if (!analogOffers.hasOwnProperty(gk)) continue;
         var idx = keyToIdx[gk];
@@ -197,6 +202,8 @@ function mergeAnalogOffers(d1, analogOffers) {
             if (!seen[o.supplier + '|' + o.price]) {
                 existing.suppliers.push(o);
                 seen[o.supplier + '|' + o.price] = true;
+                addedOffers++;
+                addedSuppliers[o.supplier] = true;
             }
         });
         existing.suppliers.sort(function(x, y) {
@@ -218,6 +225,19 @@ function mergeAnalogOffers(d1, analogOffers) {
         if (da !== db) return da - db;
         return a.best_price - b.best_price;
     });
+    return {offers: addedOffers, suppliers: Object.keys(addedSuppliers).length};
+}
+
+function showToast(msg, kind) {
+    var t = document.createElement('div');
+    t.className = 'toast toast--' + (kind || 'ok');
+    t.textContent = msg;
+    document.body.appendChild(t);
+    requestAnimationFrame(function(){ t.classList.add('toast--show'); });
+    setTimeout(function(){
+        t.classList.remove('toast--show');
+        setTimeout(function(){ t.remove(); }, 300);
+    }, 4500);
 }
 
 function renderResults(d){
@@ -286,7 +306,7 @@ function hlCard(o,title,cardCls,badgeCls,type){
 
 function supplierTable(suppliers,type){
     var limit=type==='exact'?15:5;
-    var h='<table class="ft-tbl"><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th><th class="ft-th--num">Цена</th></tr></thead><tbody>';
+    var h='<table class="ft-tbl"><colgroup><col class="ft-col--det"><col class="ft-col--skl"><col class="ft-col--qty"><col class="ft-col--del"><col class="ft-col--prc"></colgroup><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th><th class="ft-th--num">Цена</th></tr></thead><tbody>';
     suppliers.forEach(function(s,i){
         var cls=i>=limit?' class="ft-more" style="display:none"':'';
         var det=s._description||s.description||'—';
