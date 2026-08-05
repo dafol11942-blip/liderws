@@ -1,7 +1,21 @@
 <?php
-// search/ajax.php v27 — фикс normNum + cross| only во втором цикле
+// search/ajax.php v28 — progress без битрикс-бутстрапа (фикс зависания поллинга на 100%)
 ini_set('display_errors', 0);
 set_time_limit(120);
+
+// ═══ PROGRESS — лёгкий путь БЕЗ Bitrix bootstrap ═══
+// Опрашивается каждые 700мс с фронта; полный bitrix prolog_before.php здесь не нужен
+// и раньше создавал конкуренцию за PHP-FPM воркеры с самим поиском/crossload.
+if (($_GET['action'] ?? '') === 'progress') {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-cache');
+    $taskId = trim($_GET['task'] ?? '');
+    $f = sys_get_temp_dir() . '/srch_' . preg_replace('/[^a-f0-9]/', '', $taskId) . '.json';
+    if (!$taskId) { echo json_encode(['percent' => 0, 'message' => 'Нет задачи', 'done' => false]); exit; }
+    if (file_exists($f)) { readfile($f); } else { echo json_encode(['percent' => 0, 'message' => 'Ожидание...', 'done' => false]); }
+    exit;
+}
+
 require_once $_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php';
 
 if (session_status() === PHP_SESSION_ACTIVE) {
@@ -96,14 +110,6 @@ $logFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/search_ajax.log';
 function ajaxLog($msg) {
     global $logFile;
     @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . '] ' . $msg . "\n", FILE_APPEND);
-}
-
-// ═══ PROGRESS ═══
-if ($action === 'progress') {
-    if (!$taskId) { echo json_encode(['percent' => 0, 'message' => 'Нет задачи', 'done' => false]); exit; }
-    $f = progFile($taskId);
-    if (file_exists($f)) { readfile($f); } else { echo json_encode(['percent' => 0, 'message' => 'Ожидание...', 'done' => false]); }
-    exit;
 }
 
 // ═══ CROSSLOAD — Phase 2: прямой поиск brand+article из Phase 1 ═══

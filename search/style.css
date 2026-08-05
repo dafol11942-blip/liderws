@@ -10,16 +10,18 @@
     font-size: 14px;
 }
 
-/* ====== ПУСТОЙ ПОИСК ====== */
-.srch-empty { text-align: center; padding: 100px 20px; }
-.srch-empty-icon { font-size: 56px; margin-bottom: 20px; opacity: 0.5; }
-.srch-empty p { font-size: 16px; color: var(--gray); margin-bottom: 28px; }
-.srch-empty-form { display: flex; gap: 0; max-width: 540px; margin: 0 auto; box-shadow: var(--shadow); border-radius: var(--radius); overflow: hidden; }
-.srch-empty-inp { flex: 1; padding: 13px 16px; font-size: 15px; font-family: var(--font); border: 1px solid var(--border); border-right: none; border-radius: var(--radius) 0 0 var(--radius); outline: none; }
-.srch-empty-inp:focus { border-color: var(--blue); }
-.srch-empty-btn { padding: 0 28px; background: var(--blue); color: #fff; border: none; border-radius: 0 var(--radius) var(--radius) 0; font-size: 14px; font-weight: 700; cursor: pointer; font-family: var(--font); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
-.srch-empty-btn:hover { background: var(--blue-dark); }
-.srch-empty-btn::before { content: '🔍'; font-size: 16px; }
+/* ====== ПУСТОЙ ПОИСК / СООБЩЕНИЯ (пустой результат, ошибка, фильтр без совпадений) ====== */
+.hero { text-align: center; padding: 60px 20px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.hero h1 { font-size: 26px; font-weight: 800; margin-bottom: 8px; }
+.hero-icon { font-size: 44px; margin-bottom: 16px; opacity: 0.6; }
+.hero p { font-size: 15px; color: var(--gray); margin-bottom: 24px; }
+.hero-frm { display: flex; gap: 0; max-width: 480px; margin: 0 auto; box-shadow: var(--shadow-sm); border-radius: var(--radius); overflow: hidden; }
+.hero-inp { flex: 1; padding: 12px 16px; font-size: 15px; font-family: var(--font); border: 1px solid var(--border); border-right: none; border-radius: var(--radius) 0 0 var(--radius); outline: none; }
+.hero-inp:focus { border-color: var(--blue); }
+.hero-btn { padding: 0 26px; background: var(--blue); color: #fff; border: none; border-radius: 0 var(--radius) var(--radius) 0; font-size: 14px; font-weight: 700; cursor: pointer; font-family: var(--font); white-space: nowrap; }
+.hero-btn:hover { background: var(--blue-dark); }
+.hero-back { display: inline-block; color: var(--blue); text-decoration: none; font-size: 14px; font-weight: 700; }
+.hero-back:hover { text-decoration: underline; }
 
 /* ====== ТОПБАР (поиск на странице брендов/результатов) ====== */
 .topbar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; box-shadow: var(--shadow-sm); flex-wrap: wrap; }
@@ -120,6 +122,7 @@
 .ft-sec--analog { border-left: 3px solid var(--green); }
 .ft-sec-head { padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .ft-sec-title { font-size: 16px; font-weight: 700; }
+.ft-sec-sub { font-size: 13px; color: var(--gray); }
 
 /* Группа аналога */
 .ft-group { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }

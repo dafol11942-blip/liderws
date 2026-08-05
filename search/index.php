@@ -20,7 +20,7 @@ function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
 </head>
 <body>
 
-<div class="container">
+<div class="container srch-box">
 
 <?php if (!$q): ?>
 <div class="hero">
@@ -132,6 +132,7 @@ function pollProgress(taskId, onTick) {
         try {
             var r = await fetch(API + '?action=progress&task=' + encodeURIComponent(taskId));
             var d = await r.json();
+            if (stopped) return; // ответ пришёл ПОСЛЕ stop() — отбрасываем, иначе затрёт уже отрисованные результаты
             onTick(d.percent || 0, d.message || '');
             if ((d.percent || 0) >= 100) { stopped = true; clearInterval(timer); }
         } catch(e) { /* следующий тик попробует снова */ }
