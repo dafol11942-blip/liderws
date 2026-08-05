@@ -114,6 +114,7 @@ function ajaxLog($msg) {
 
 // ═══ CROSSLOAD — Phase 2: прямой поиск brand+article из Phase 1 ═══
 if ($action === 'crossload') {
+    progWrite($taskId, 1, 'Начинаем докрутку аналогов...');
     $crossJson = trim($_REQUEST['crossPairs'] ?? '');
     if ($crossJson === '') { echo json_encode(['done' => true, 'analog_offers' => []]); exit; }
     $crossPairs = json_decode($crossJson, true);

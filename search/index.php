@@ -134,7 +134,9 @@ function pollProgress(taskId, onTick) {
             var d = await r.json();
             if (stopped) return; // ответ пришёл ПОСЛЕ stop() — отбрасываем, иначе затрёт уже отрисованные результаты
             onTick(d.percent || 0, d.message || '');
-            if ((d.percent || 0) >= 100) { stopped = true; clearInterval(timer); }
+            // Авто-остановку по percent>=100 намеренно не делаем: файл прогресса переиспользуется
+            // между Phase 1 и crossload, и в момент старта докрутки там ещё лежит старое "100% Готово"
+            // от Phase 1 — остановка по этому значению обрывала бы поллинг докрутки до её начала.
         } catch(e) { /* следующий тик попробует снова */ }
     }, 700);
     return function stop(){ stopped = true; clearInterval(timer); };
@@ -265,16 +267,10 @@ function showToast(msg, kind) {
 }
 
 var lastData = null;
-var filterState = { suppliers: null, brands: null, maxDelivery: null, minQty: null }; // null = не ограничено
+var filterState = { brands: null, maxDelivery: null, minQty: null }; // null = не ограничено
 
 function normBrandKey(s){ return (s||'').toLowerCase().trim(); }
 
-function getAllSuppliers(d){
-    var set = {};
-    if (d.exact && d.exact.suppliers) d.exact.suppliers.forEach(function(s){ set[s.supplier]=true; });
-    (d.analogs||[]).forEach(function(a){ a.suppliers.forEach(function(s){ set[s.supplier]=true; }); });
-    return Object.keys(set).sort();
-}
 function getAllBrands(d){
     var map = {};
     if (d.exact) map[normBrandKey(B)] = B;
@@ -286,21 +282,24 @@ function brandAllowed(brandDisplay){
     return filterState.brands.has(normBrandKey(brandDisplay));
 }
 function passesRowFilter(s){
-    if (filterState.suppliers && !filterState.suppliers.has(s.supplier)) return false;
     if (filterState.maxDelivery != null && !(s.delivery_days >= 0 && s.delivery_days <= filterState.maxDelivery)) return false;
     if (filterState.minQty != null && !(s.quantity >= filterState.minQty)) return false;
     return true;
 }
 
-window.toggleFilterSupplier = function(code){
-    if (!filterState.suppliers) filterState.suppliers = new Set(getAllSuppliers(lastData));
-    if (filterState.suppliers.has(code)) filterState.suppliers.delete(code); else filterState.suppliers.add(code);
+window.toggleFilterBrand = function(key){
+    if (!filterState.brands) filterState.brands = new Set();
+    if (filterState.brands.has(key)) filterState.brands.delete(key); else filterState.brands.add(key);
+    if (filterState.brands.size === 0) filterState.brands = null; // ничего не выбрано — показываем всё
     if (lastData) renderResults(lastData);
 };
-window.toggleFilterBrand = function(key){
-    if (!filterState.brands) filterState.brands = new Set(Object.keys(getAllBrands(lastData)));
-    if (filterState.brands.has(key)) filterState.brands.delete(key); else filterState.brands.add(key);
-    if (lastData) renderResults(lastData);
+window.filterBrandOptions = function(inputEl){
+    var q = inputEl.value.trim().toLowerCase();
+    var panel = inputEl.closest('.filter-dd-panel');
+    panel.querySelectorAll('.filter-opt[data-label]').forEach(function(row){
+        var label = row.getAttribute('data-label');
+        row.style.display = (!q || label.indexOf(q) !== -1) ? '' : 'none';
+    });
 };
 window.setFilterDelivery = function(val){
     filterState.maxDelivery = val;
@@ -311,7 +310,7 @@ window.setFilterQty = function(val){
     if (lastData) renderResults(lastData);
 };
 window.resetFilters = function(){
-    filterState = { suppliers: null, brands: null, maxDelivery: null, minQty: null };
+    filterState = { brands: null, maxDelivery: null, minQty: null };
     if (lastData) renderResults(lastData);
 };
 
@@ -319,27 +318,20 @@ var DELIVERY_OPTS = [[null,'Любой'],[0,'Сегодня'],[2,'До 2 дне�
 var QTY_OPTS = [[null,'Любое'],[1,'В наличии'],[10,'От 10 шт.'],[50,'От 50 шт.']];
 
 function renderFilterBar(d){
-    var suppliers = getAllSuppliers(d);
     var brandsMap = getAllBrands(d);
     var brandKeys = Object.keys(brandsMap).sort();
-    if (!suppliers.length && !brandKeys.length) return '';
+    if (!brandKeys.length) return '';
 
-    var isActive = !!filterState.suppliers || !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
+    var isActive = !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
 
     var h = '<div class="filter-bar">';
 
-    h += '<details class="filter-dd"><summary>Поставщик<span class="filter-dd-arrow">▾</span></summary><div class="filter-dd-panel">';
-    suppliers.forEach(function(code){
-        var checked = !filterState.suppliers || filterState.suppliers.has(code);
-        h += '<label class="filter-opt"><input type="checkbox" onchange="toggleFilterSupplier(\'' + code + '\')"' + (checked?' checked':'') + '><span class="src-tag src-tag--' + esc(code) + '">' + esc(code) + '</span></label>';
-    });
-    h += '</div></details>';
-
     if (brandKeys.length > 1) {
-        h += '<details class="filter-dd"><summary>Бренд<span class="filter-dd-arrow">▾</span></summary><div class="filter-dd-panel">';
+        h += '<details class="filter-dd"><summary>Бренд<span class="filter-dd-arrow">▾</span></summary><div class="filter-dd-panel filter-dd-panel--wide">';
+        h += '<input type="text" class="filter-search" placeholder="Введите бренд" oninput="filterBrandOptions(this)">';
         brandKeys.forEach(function(key){
-            var checked = !filterState.brands || filterState.brands.has(key);
-            h += '<label class="filter-opt"><input type="checkbox" onchange="toggleFilterBrand(\'' + key + '\')"' + (checked?' checked':'') + '>' + esc(brandsMap[key]) + '</label>';
+            var checked = !!filterState.brands && filterState.brands.has(key);
+            h += '<label class="filter-opt" data-label="' + esc(key) + '"><input type="checkbox" onchange="toggleFilterBrand(\'' + key + '\')"' + (checked?' checked':'') + '>' + esc(brandsMap[key]) + '</label>';
         });
         h += '</div></details>';
     }
@@ -403,7 +395,7 @@ function renderResults(d){
     var h='';
     h+='<div class="phead"><h1 class="phead-title">'+esc(N)+' '+esc(B)+'</h1>';
     if(exact&&exact.suppliers){
-        var filterOn = !!filterState.suppliers || !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
+        var filterOn = !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
         var subtxt = filterOn
             ? 'Показано '+exactVisible.length+' из '+exact.suppliers.length+' предл. искомого + '+analogsVisible.length+' из '+analogsAll.length+' аналогов (фильтр применён)'
             : 'Найдено '+exact.suppliers.length+' предл. искомого + '+analogsAll.length+' аналогов';
@@ -440,7 +432,7 @@ function renderResults(d){
     }
 
     if(!exactVisible.length&&!analogsVisible.length){
-        var filterOn2 = !!filterState.suppliers || !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
+        var filterOn2 = !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
         if (filterOn2 && (exact||analogsAll.length)) {
             h+='<div class="hero" style="margin-top:16px"><div class="hero-icon">🔍</div><p>Под текущий фильтр ничего не подходит</p><button type="button" class="btn-sel" onclick="resetFilters()">Сбросить фильтр</button></div>';
         } else {

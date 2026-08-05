@@ -198,6 +198,13 @@
 }
 .filter-opt { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--black); cursor: pointer; white-space: nowrap; }
 .filter-opt input { cursor: pointer; accent-color: var(--blue); width: 14px; height: 14px; flex: none; }
+.filter-dd-panel--wide { min-width: 240px; }
+.filter-search {
+    font-family: var(--font); font-size: 13px; padding: 7px 10px; border: 1px solid var(--border);
+    border-radius: var(--radius); outline: none; margin-bottom: 4px; position: sticky; top: -10px;
+    background: var(--white); z-index: 1;
+}
+.filter-search:focus { border-color: var(--blue); }
 .filter-reset {
     margin-left: auto; background: var(--blue); color: #fff; border: none; border-radius: var(--radius);
     padding: 9px 18px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
