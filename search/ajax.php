@@ -143,18 +143,32 @@ if ($action === 'crossload') {
     }
     ajaxLog("CROSSLOAD reqs_per_pair: " . count($perPairReqs) . " pairs, top5=" . json_encode(array_slice($perPairReqs, 0, 5, true)));
     $t0 = microtime(true);
-    // Чанкинг: не более CROSSLOAD_CHUNK запросов в одном curl_multi,
-    // чтобы не открывать десятки параллельных соединений на один и тот же хост поставщика
-    // (см. Этап 22/23 — 22 из 30 пар не добирали ответы именно на bulk-запросе).
-    $CROSSLOAD_CHUNK = 120;
+    // Волновой чанкинг: группируем запросы по поставщику (хосту) и формируем волны так,
+    // чтобы в каждой волне было не больше MAX_PER_HOST запросов к одному поставщику одновременно.
+    // Это устраняет очередь на стороне libcurl/поставщика вместо угадывания размера чанка вслепую.
+    $MAX_PER_HOST = 6;
+    $bySupplier = [];
+    foreach ($allReqs as $key => $req) {
+        $code = $reqInfo[$key][0];
+        $bySupplier[$code][] = $key;
+    }
+    $maxWaves = 0;
+    foreach ($bySupplier as $code => $keys) {
+        $maxWaves = max($maxWaves, (int)ceil(count($keys) / $MAX_PER_HOST));
+    }
     $responses = [];
-    $chunks = array_chunk($allReqs, $CROSSLOAD_CHUNK, true);
-    foreach ($chunks as $i => $chunk) {
+    for ($w = 0; $w < $maxWaves; $w++) {
+        $wave = [];
+        foreach ($bySupplier as $code => $keys) {
+            $slice = array_slice($keys, $w * $MAX_PER_HOST, $MAX_PER_HOST);
+            foreach ($slice as $key) { $wave[$key] = $allReqs[$key]; }
+        }
+        if (empty($wave)) continue;
         $tc = microtime(true);
-        $partial = curlExec($suppliers, $chunk, 15.0, 6);
+        $partial = curlExec($suppliers, $wave, 15.0, $MAX_PER_HOST);
         $responses += $partial;
-        ajaxLog("CROSSLOAD chunk " . ($i + 1) . "/" . count($chunks)
-            . " requests=" . count($chunk)
+        ajaxLog("CROSSLOAD wave " . ($w + 1) . "/" . $maxWaves
+            . " requests=" . count($wave)
             . " responses=" . count(array_filter($partial))
             . " time=" . round(microtime(true) - $tc, 2) . "s");
     }
