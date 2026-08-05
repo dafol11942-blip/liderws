@@ -146,7 +146,7 @@ if ($action === 'crossload') {
     // Чанкинг: не более CROSSLOAD_CHUNK запросов в одном curl_multi,
     // чтобы не открывать десятки параллельных соединений на один и тот же хост поставщика
     // (см. Этап 22/23 — 22 из 30 пар не добирали ответы именно на bulk-запросе).
-    $CROSSLOAD_CHUNK = 40;
+    $CROSSLOAD_CHUNK = 120;
     $responses = [];
     $chunks = array_chunk($allReqs, $CROSSLOAD_CHUNK, true);
     foreach ($chunks as $i => $chunk) {

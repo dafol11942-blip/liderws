@@ -161,12 +161,20 @@ async function loadResults(){
         try {
             var r2 = await fetch(API + '?action=crossload&task=' + encodeURIComponent(taskId)
                 + '&crossPairs=' + encodeURIComponent(JSON.stringify(d1.crossPairs)));
-            var d2 = await r2.json();
-            if (d2.analog_offers && Object.keys(d2.analog_offers).length > 0) {
-                mergeAnalogOffers(d1, d2.analog_offers);
-                renderResults(d1);
+            if (!r2.ok) {
+                console.error('crossload HTTP error', r2.status, await r2.text());
+            } else {
+                var d2 = await r2.json();
+                if (d2.analog_offers && Object.keys(d2.analog_offers).length > 0) {
+                    mergeAnalogOffers(d1, d2.analog_offers);
+                    renderResults(d1);
+                } else {
+                    console.warn('crossload вернул пусто', d2);
+                }
             }
-        } catch(e) { /* молча */ }
+        } catch(e) {
+            console.error('crossload failed:', e);
+        }
         loadDiv.remove();
     }
 }
