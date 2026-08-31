@@ -212,7 +212,10 @@ class AutopiterConnector implements SupplierInterface
             // Используем реальные бренд/артикул из XML вместо переданных в запросе
             $r->article      = $xmlArticle ?: $article;
             $r->brand        = $xmlBrand ?: $brand;
-            $r->name         = '';
+            // PriceSearchModel не содержит текстового названия детали (в отличие от
+            // SearchCatalogModel в брендах) — собираем название из того, что есть,
+            // иначе колонка "Деталь" оставалась бы пустой (только "—").
+            $r->name         = trim($r->brand . ' ' . $r->article);
             $r->price        = $price;
             $r->quantity     = max(0, $avail);
             $r->warehouse    = ($region ?: 'Склад') . ($sellerId ? ' (' . $sellerId . ')' : '');

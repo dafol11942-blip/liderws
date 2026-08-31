@@ -465,8 +465,11 @@ function renderResults(d){
     document.querySelectorAll('.ft-showmore').forEach(function(btn){
         btn.addEventListener('click',function(){
             var group=btn.closest('.ft-sec, .ft-group');
-            group.querySelectorAll('.ft-more').forEach(function(r){r.style.display=''});
-            btn.style.display='none';
+            var hidden=group.querySelectorAll('.ft-more');
+            var expanded=btn.getAttribute('data-expanded')==='1';
+            hidden.forEach(function(r){r.style.display=expanded?'none':''});
+            btn.setAttribute('data-expanded',expanded?'0':'1');
+            btn.textContent=expanded?('Показать еще '+btn.dataset.count+' товаров'):'Свернуть';
         });
     });
 }
@@ -484,7 +487,7 @@ function supplierTable(suppliers,type){
         h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span><span class="src-tag src-tag--'+s.supplier+'">'+s.supplier+'</span></td><td class="ft-td--num" data-label="Кол.">'+s.quantity+' шт.</td><td class="ft-td--num" data-label="Доставка">'+dRange(s.delivery_days)+'</td><td class="ft-td--prc" data-label="Цена"><strong>'+fmt(s.price)+' р.</strong></td></tr>';
     });
     h+='</tbody></table>';
-    if(suppliers.length>limit)h+='<button class="ft-showmore">Показать еще '+(suppliers.length-limit)+' товаров</button>';
+    if(suppliers.length>limit)h+='<button class="ft-showmore" data-count="'+(suppliers.length-limit)+'">Показать еще '+(suppliers.length-limit)+' товаров</button>';
     return h;
 }
 
