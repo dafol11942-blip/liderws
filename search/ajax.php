@@ -1,5 +1,5 @@
 <?php
-// search/ajax.php v28 — progress без битрикс-бутстрапа (фикс зависания поллинга на 100%)
+// search/ajax.php v29 — кэш b_search_offer_cache для crossload (все поставщики на аналог + скорость без лимита пар)
 ini_set('display_errors', 0);
 set_time_limit(120);
 
@@ -30,6 +30,16 @@ CModule::IncludeModule('catalog');
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/BrandNormalizer.php';
 use Lider\Search\BrandNormalizer;
+use Bitrix\Main\Application;
+
+// Кэш живых ответов поставщиков по паре (бренд+артикул). Своя таблица —
+// НЕ b_supplier_stock, там у старых систем (parts-search/, analog_search.php v5)
+// разные и несовместимые ожидания по колонкам (last_updated vs source_updated).
+const SEARCH_CACHE_TTL_HOURS = 6;
+// Верхняя граница числа кросс-пар за один поиск (защита от аномально длинных списков кроссов).
+// Раньше здесь был жёсткий cross_count=30, из-за которого часть аналогов не докручивалась вовсе —
+// теперь ограничение снято до разумного потолка, а не влияет на скорость благодаря кэшу ниже.
+const MAX_ANALOG_PAIRS = 80;
 
 $action  = $_GET['action'] ?? '';
 $article = trim($_GET['article'] ?? '');
@@ -112,6 +122,102 @@ function ajaxLog($msg) {
     @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . '] ' . $msg . "\n", FILE_APPEND);
 }
 
+// ═══ КЭШ ОТВЕТОВ ПОСТАВЩИКОВ (b_search_offer_cache) ═══
+// Ключ — (supplier_code, brand_norm, article_norm). Хранит либо реальные офферы,
+// либо «сентинел»-строку (quantity=-1) — значит поставщика уже спрашивали и у него пусто.
+// Это позволяет НЕ спрашивать поставщика живьём на каждый повторный поиск той же пары.
+
+function cacheDb() {
+    return Application::getConnection();
+}
+
+/**
+ * @param array $pairs [['brand_norm'=>..,'article_norm'=>..], ...]
+ * @return array{offers: array<string,array>, fresh: array<string,bool>}
+ *         offers: pairKey("brand|article") => [offer,...] (без сентинелов)
+ *         fresh:  "supplier|brand|article" => true — этого поставщика по этой паре спрашивать не нужно
+ */
+function cacheLookup(array $pairs, int $ttlHours): array {
+    $empty = ['offers' => [], 'fresh' => []];
+    if (empty($pairs)) return $empty;
+    $db = cacheDb();
+    $helper = $db->getSqlHelper();
+    $conds = [];
+    $seen = [];
+    foreach ($pairs as $p) {
+        $k = $p['brand_norm'] . '|' . $p['article_norm'];
+        if (isset($seen[$k])) continue;
+        $seen[$k] = true;
+        $conds[] = "(brand_norm='" . $helper->forSql($p['brand_norm']) . "' AND article_norm='" . $helper->forSql($p['article_norm']) . "')";
+    }
+    if (empty($conds)) return $empty;
+
+    $ttlHours = max(1, $ttlHours);
+    $sql = "SELECT supplier_code, brand_norm, article_norm, warehouse, name, description, price, quantity, delivery_days
+            FROM b_search_offer_cache
+            WHERE updated_at > (NOW() - INTERVAL {$ttlHours} HOUR) AND (" . implode(' OR ', $conds) . ")";
+
+    $offers = [];
+    $fresh  = [];
+    try {
+        $rows = $db->query($sql)->fetchAll();
+    } catch (\Throwable $e) {
+        ajaxLog('CACHE lookup error: ' . $e->getMessage());
+        return $empty;
+    }
+    foreach ($rows as $row) {
+        $pairKey  = $row['brand_norm'] . '|' . $row['article_norm'];
+        $freshKey = $row['supplier_code'] . '|' . $pairKey;
+        $fresh[$freshKey] = true;
+        if ((int)$row['quantity'] < 0) continue; // сентинел «проверено, пусто»
+        $offers[$pairKey][] = [
+            'supplier'      => $row['supplier_code'],
+            'warehouse'     => (string)$row['warehouse'],
+            'name'          => (string)$row['name'],
+            'description'   => (string)$row['description'],
+            'price'         => (float)$row['price'],
+            'quantity'      => (int)$row['quantity'],
+            'delivery_days' => (int)$row['delivery_days'],
+        ];
+    }
+    return ['offers' => $offers, 'fresh' => $fresh];
+}
+
+/**
+ * Сохраняет живой ответ поставщика по паре в кэш.
+ * $offers может быть пустым массивом — тогда пишется сентинел (значит поставщика спросили, офферов нет).
+ */
+function cacheSave(string $supplierCode, string $brandNorm, string $articleNorm, array $offers): void {
+    $db = cacheDb();
+    $helper = $db->getSqlHelper();
+    try {
+        if (empty($offers)) {
+            $sql = "INSERT INTO b_search_offer_cache
+                    (supplier_code, brand_norm, article_norm, warehouse, name, description, price, quantity, delivery_days, updated_at)
+                    VALUES ('" . $helper->forSql($supplierCode) . "','" . $helper->forSql($brandNorm) . "','" . $helper->forSql($articleNorm) . "','','','',0,-1,-1,NOW())
+                    ON DUPLICATE KEY UPDATE quantity = -1, updated_at = NOW()";
+            $db->query($sql);
+            return;
+        }
+        $values = [];
+        foreach ($offers as $o) {
+            $values[] = "('" . $helper->forSql($supplierCode) . "','" . $helper->forSql($brandNorm) . "','" . $helper->forSql($articleNorm) . "','"
+                . $helper->forSql(mb_substr((string)($o['warehouse'] ?? ''), 0, 190)) . "','"
+                . $helper->forSql(mb_substr((string)($o['name'] ?? ''), 0, 255)) . "','"
+                . $helper->forSql(mb_substr((string)($o['description'] ?? ''), 0, 500)) . "',"
+                . (float)($o['price'] ?? 0) . "," . (int)($o['quantity'] ?? 0) . "," . (int)($o['delivery_days'] ?? -1) . ",NOW())";
+        }
+        $sql = "INSERT INTO b_search_offer_cache
+                (supplier_code, brand_norm, article_norm, warehouse, name, description, price, quantity, delivery_days, updated_at)
+                VALUES " . implode(',', $values) . "
+                ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description),
+                    quantity=VALUES(quantity), delivery_days=VALUES(delivery_days), updated_at=NOW()";
+        $db->query($sql);
+    } catch (\Throwable $e) {
+        ajaxLog('CACHE save error: ' . $e->getMessage());
+    }
+}
+
 // ═══ CROSSLOAD — Phase 2: прямой поиск brand+article из Phase 1 ═══
 if ($action === 'crossload') {
     progWrite($taskId, 1, 'Начинаем докрутку аналогов...');
@@ -122,10 +228,24 @@ if ($action === 'crossload') {
         echo json_encode(['done' => true, 'analog_offers' => []]);
         exit;
     }
+    $crossPairs = array_slice($crossPairs, 0, MAX_ANALOG_PAIRS, true);
 
     ajaxLog("CROSSLOAD START task=$taskId pairs=" . count($crossPairs));
 
-    // Прямой поиск: brand_orig + article_orig у каждого поставщика
+    // ═══ Кэш: какие (поставщик, пара) уже известны свежими — их живьём не спрашиваем ═══
+    // Ключ пары ($ck) уже равен "brand_norm|article_norm" (так строился в Phase1), поэтому
+    // отдельный pairKey не нужен — используем $ck напрямую как ключ кэша/офферов.
+    $lookupPairs = [];
+    foreach ($crossPairs as $pair) {
+        $lookupPairs[] = ['brand_norm' => $pair['brand_norm'], 'article_norm' => $pair['article_norm']];
+    }
+    $cacheHit = cacheLookup($lookupPairs, SEARCH_CACHE_TTL_HOURS);
+    $cacheOfferCount = 0;
+    foreach ($cacheHit['offers'] as $o) { $cacheOfferCount += count($o); }
+    ajaxLog("CROSSLOAD cache: " . count($cacheHit['fresh']) . " supplier×pair свежих, {$cacheOfferCount} офферов из кэша");
+
+    // Прямой поиск: brand_orig + article_orig у каждого поставщика — только для того,
+    // чего нет ни в Phase1 (_from), ни в свежем кэше.
     $allReqs = [];
     $reqInfo = [];
 
@@ -133,6 +253,7 @@ if ($action === 'crossload') {
         $skip = $pair['_from'] ?? [];
         foreach ($suppliers as $code => $c) {
             if (in_array($code, $skip, true)) continue;
+            if (isset($cacheHit['fresh'][$code . '|' . $ck])) continue;
             $req = $c->buildSearchRequest($pair['brand_orig'], $pair['article_orig'], false);
             if ($req) {
                 $key = $code . '|' . $ck;
@@ -142,7 +263,7 @@ if ($action === 'crossload') {
         }
     }
 
-    ajaxLog("CROSSLOAD search requests=" . count($allReqs));
+    ajaxLog("CROSSLOAD search requests=" . count($allReqs) . " (после вычета кэша и Phase1)");
     $perPairReqs = [];
     foreach ($allReqs as $k => $v) {
         $ck = explode('|', $k)[1] ?? '?';
@@ -195,6 +316,7 @@ if ($action === 'crossload') {
     // Парсим и группируем
     $analogOffers = [];
     $suppStats = [];
+    $toCache = []; // "$code|$ck" => offers[] — что реально спросили живьём (даже пустой ответ)
 
     foreach ($responses as $respKey => $body) {
         $info = $reqInfo[$respKey] ?? null;
@@ -204,7 +326,7 @@ if ($action === 'crossload') {
         if (!isset($suppStats[$code])) $suppStats[$code] = [0, 0, 0];
         $suppStats[$code][0]++;
 
-        if (!$body) continue;
+        if (!$body) continue; // нет ответа/таймаут — в кэш не пишем, попробуем в следующий поиск
 
         $pair = $crossPairs[$ck] ?? null;
         if (!$pair) continue;
@@ -213,17 +335,19 @@ if ($action === 'crossload') {
             $items = $suppliers[$code]->parseSearchResponse($body, $pair['brand_orig'], $pair['article_orig']);
         } catch (\Throwable $e) { continue; }
 
-        $gk = $pair['brand_norm'] . '|' . $pair['article_norm'];
+        $gk = $ck; // ck уже равен brand_norm|article_norm
+        $toCache[$code . '|' . $ck] = []; // отмечаем: живой ответ получен, даже если ниже 0 совпадений
         $added = 0;
         foreach ($items as $it) {
             $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
             if ($ia !== $pair['article_norm']) continue;
+            $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
+            if (!brandsMatch($ib, $pair['brand_norm'])) continue; // не пускаем чужой бренд в группу аналога
 
             $suppStats[$code][1]++;
             $added++;
 
-            if (!isset($analogOffers[$gk])) $analogOffers[$gk] = [];
-            $analogOffers[$gk][] = [
+            $offer = [
                 'supplier'      => $code,
                 'warehouse'     => (string)($it->warehouse ?? ''),
                 'name'          => (string)($it->name ?? ''),
@@ -232,15 +356,33 @@ if ($action === 'crossload') {
                 'quantity'      => (int)($it->quantity ?? 0),
                 'delivery_days' => (int)($it->deliveryDays ?? -1),
             ];
+            if (!isset($analogOffers[$gk])) $analogOffers[$gk] = [];
+            $analogOffers[$gk][] = $offer;
+            $toCache[$code . '|' . $ck][] = $offer;
         }
         $suppStats[$code][2] += $added;
+    }
+
+    // Сохраняем в кэш то, что реально спросили живьём сейчас — включая пустые (сентинел)
+    foreach ($toCache as $cacheKey => $offers) {
+        [$code, $ck] = explode('|', $cacheKey, 2);
+        $pair = $crossPairs[$ck] ?? null;
+        if (!$pair) continue;
+        cacheSave($code, $pair['brand_norm'], $pair['article_norm'], $offers);
+    }
+
+    // Добавляем то, что не спрашивали живьём — взяли из кэша
+    foreach ($cacheHit['offers'] as $gk => $offers) {
+        foreach ($offers as $o) {
+            $analogOffers[$gk][] = $o;
+        }
     }
 
     $statsLines = [];
     foreach ($suppStats as $code => $st) {
         $statsLines[] = "$code:{$st[0]}req/{$st[1]}pass/{$st[2]}add";
     }
-    ajaxLog("CROSSLOAD STATS " . implode(' | ', $statsLines));
+    ajaxLog("CROSSLOAD STATS " . implode(' | ', $statsLines) . " | cache_offers={$cacheOfferCount}");
 
     foreach ($analogOffers as $gk => &$offers) {
         usort($offers, function($a, $b) {
@@ -391,6 +533,7 @@ if ($action === 'brands') {
     }
 
     // ── Цикл 2: cross| ответы → точные + аналоги ──
+    $toCachePhase1 = []; // "$code|$gk" => offers[] — кросс-офферы, найденные живьём в Phase1, тоже кладём в кэш
     foreach ($responses as $respKey => $body) {
         if (!$body) continue;
         if (strpos($respKey, 'cross|') !== 0) continue;
@@ -426,7 +569,7 @@ if ($action === 'brands') {
                 if (mb_strlen($desc) > mb_strlen($analogGroups[$gk]['description'])) {
                     $analogGroups[$gk]['description'] = $desc;
                 }
-                $analogGroups[$gk]['offers'][] = [
+                $offerRow = [
                     'supplier'      => $code,
                     'warehouse'     => (string)($it->warehouse ?? ''),
                     'name'          => (string)($it->name ?? ''),
@@ -435,6 +578,8 @@ if ($action === 'brands') {
                     'quantity'      => (int)($it->quantity ?? 0),
                     'delivery_days' => (int)($it->deliveryDays ?? -1),
                 ];
+                $analogGroups[$gk]['offers'][] = $offerRow;
+                $toCachePhase1[$code . '|' . $gk][] = $offerRow;
             }
 
             if (!isset($seenCross[$gk])) {
@@ -454,6 +599,16 @@ if ($action === 'brands') {
         }
     }
 
+    // Кросс-офферы, живьём найденные в Phase1, тоже кладём в кэш — будущие поиски
+    // с пересекающимся набором аналогов смогут не спрашивать этих поставщиков заново.
+    foreach ($toCachePhase1 as $cacheKey => $offers) {
+        [$code, $gk] = explode('|', $cacheKey, 2);
+        // $gk уже равен "brand_norm|article_norm" (см. построение $gk выше в цикле 2)
+        [$bn, $an] = array_pad(explode('|', $gk, 2), 2, '');
+        if ($bn === '' || $an === '') continue;
+        cacheSave($code, $bn, $an, $offers);
+    }
+
     $seenExact = [];
     $uniqueExact = [];
     foreach ($exactOffers as $o) {
@@ -462,7 +617,7 @@ if ($action === 'brands') {
     }
     $exactOffers = $uniqueExact;
 
-    $crossPairs = array_slice($crossPairs, 0, 30, true);
+    $crossPairs = array_slice($crossPairs, 0, MAX_ANALOG_PAIRS, true);
     $crossCount = count($crossPairs);
 
     progWrite($taskId, 100, 'Готово');
