@@ -182,18 +182,22 @@ async function loadResults(){
 
         try {
             var r2 = await fetch(API + '?action=crossload&task=' + encodeURIComponent(taskId)
+                + '&brand=' + encodeURIComponent(B) + '&number=' + encodeURIComponent(N)
                 + '&crossPairs=' + encodeURIComponent(JSON.stringify(d1.crossPairs)));
             if (!r2.ok) {
                 console.error('crossload HTTP error', r2.status, await r2.text());
                 showToast('⚠️ Не удалось доподбрать часть предложений у поставщиков', 'warn');
             } else {
                 var d2 = await r2.json();
-                if (d2.analog_offers && Object.keys(d2.analog_offers).length > 0) {
-                    var addedCount = mergeAnalogOffers(d1, d2.analog_offers);
+                var hasOffers = d2.analog_offers && Object.keys(d2.analog_offers).length > 0;
+                var hasNew = d2.new_analogs && Object.keys(d2.new_analogs).length > 0;
+                if (hasOffers || hasNew) {
+                    var addedCount = mergeAnalogOffers(d1, d2.analog_offers || {}, d2.new_analogs || {});
                     renderResults(d1);
-                    if (addedCount.offers > 0) {
-                        showToast('✅ Добавлено ' + addedCount.offers + ' предл. от ' + addedCount.suppliers + ' поставщиков', 'ok');
-                    }
+                    var parts = [];
+                    if (addedCount.groups > 0) parts.push(addedCount.groups + ' новых аналогов');
+                    if (addedCount.offers > 0) parts.push(addedCount.offers + ' предл. от ' + addedCount.suppliers + ' поставщиков');
+                    if (parts.length) showToast('✅ Добавлено: ' + parts.join(', '), 'ok');
                 } else {
                     console.warn('crossload вернул пусто', d2);
                 }
@@ -208,13 +212,28 @@ async function loadResults(){
     }
 }
 
-function mergeAnalogOffers(d1, analogOffers) {
-    if (!d1.analogs) return {offers: 0, suppliers: 0};
+function mergeAnalogOffers(d1, analogOffers, newAnalogs) {
+    if (!d1.analogs) d1.analogs = [];
     var keyToIdx = {};
     d1.analogs.forEach(function(a, i) {
         var key = a.key || (a.brand + '|' + a.article).toLowerCase().replace(/[^a-z0-9|]/g, '');
         keyToIdx[key] = i;
     });
+
+    // Новые карточки аналогов, найденные при докрутке (докрутка умеет не только
+    // добирать склады к уже известным аналогам, но и открывать новые — см. discovery в ajax.php)
+    var addedGroups = 0;
+    for (var nk in (newAnalogs || {})) {
+        if (!newAnalogs.hasOwnProperty(nk) || keyToIdx[nk] !== undefined) continue;
+        var info = newAnalogs[nk];
+        d1.analogs.push({
+            key: nk, brand: info.brand, article: info.article, description: info.description || '',
+            suppliers: [], best_price: 0, best_delivery: null, total_qty: 0, has_instock: false
+        });
+        keyToIdx[nk] = d1.analogs.length - 1;
+        addedGroups++;
+    }
+
     var addedOffers = 0;
     var addedSuppliers = {};
     for (var gk in analogOffers) {
@@ -251,7 +270,7 @@ function mergeAnalogOffers(d1, analogOffers) {
         if (da !== db) return da - db;
         return a.best_price - b.best_price;
     });
-    return {offers: addedOffers, suppliers: Object.keys(addedSuppliers).length};
+    return {offers: addedOffers, suppliers: Object.keys(addedSuppliers).length, groups: addedGroups};
 }
 
 function showToast(msg, kind) {
