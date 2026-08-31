@@ -93,7 +93,11 @@ class PartKomConnector implements SupplierInterface
         $params = [
             'number'           => $article,
             'find_substitutes' => $withCrosses ? 1 : 0,
-            'store'            => 1,
+            // store=1 — ТОЛЬКО собственный склад ПартКома, отфильтровывает всех
+            // остальных поставщиков, агрегируемых через ПартКом (providerId/
+            // providerDescription в ответе — это именно сторонние поставщики).
+            // По документации 0 — "все предложения поставщиков", это и нужно.
+            'store'            => 0,
         ];
 
         if ($brand !== '') {
