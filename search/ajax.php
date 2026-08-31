@@ -47,6 +47,13 @@ const MAX_ANALOG_PAIRS = 80;
 // поэтому в Phase1 их спрашивают только на точное совпадение. Их СОБСТВЕННЫЙ список кроссов
 // узнаём отдельно в crossload (фон, не блокирует первый экран) — см. ниже "discovery".
 const NO_CROSS_DISCOVERY_SUPPLIERS = ['autoeuro', 'ixora', 'tatparts', 'autopiter'];
+// Эти поставщики в crossload стабильно возвращают 0 результатов на ЛЮБУЮ пару, хотя
+// при одиночном запросе (Phase1, старый parts-search/) отвечают нормально. По логам
+// это похоже на анти-бот/rate-limit защиту на стороне поставщика: crossload шлёт им
+// одновременно ~10 запросов через curl_multi, и это триггерит блокировку по IP
+// (диагностика: HTTP 400/403/500 с текстом про "IP" даже у изолированного запроса —
+// см. debug_supplier_pair.php). Для них — не более 1 соединения одновременно.
+const RATE_SENSITIVE_SUPPLIERS = ['moskvorechie', 'partkom', 'ixora', 'autoruss'];
 
 $action  = $_GET['action'] ?? '';
 $article = trim($_GET['article'] ?? '');
@@ -328,10 +335,24 @@ if ($action === 'crossload') {
     // подхватывает следующий запрос к тому же хосту, как только освобождается слот.
     // Волны заставляли ВСЕ хосты синхронно ждать самого медленного в каждой волне —
     // это и была основная причина «медленно при снятии лимитов».
-    $MAX_PER_HOST = 6;
+    //
+    // RATE_SENSITIVE_SUPPLIERS идут ОТДЕЛЬНЫМ пулом с MAX_PER_HOST=1 — залп из 6+
+    // одновременных запросов триггерит у них анти-бот защиту по IP и все ответы
+    // теряются (см. debug_supplier_pair.php и историю CROSSLOAD STATS в логе).
+    $fastReqs = [];
+    $slowReqs = [];
+    foreach ($allReqs as $key => $req) {
+        $code = $reqInfo[$key][0];
+        if (in_array($code, RATE_SENSITIVE_SUPPLIERS, true)) { $slowReqs[$key] = $req; }
+        else { $fastReqs[$key] = $req; }
+    }
     progWrite($taskId, 10, "Докручиваем аналоги: опрашиваем " . count($allReqs) . " предложений...");
-    $responses = curlExec($suppliers, $allReqs, 25.0, $MAX_PER_HOST);
-    ajaxLog("CROSSLOAD done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses)));
+    $responses = curlExec($suppliers, $fastReqs, 25.0, 6);
+    if (!empty($slowReqs)) {
+        $responses += curlExec($suppliers, $slowReqs, 20.0, 1);
+    }
+    ajaxLog("CROSSLOAD done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses))
+        . " (fast=" . count($fastReqs) . " slow=" . count($slowReqs) . ")");
     progWrite($taskId, 90, 'Обрабатываем ответы поставщиков...');
     $perPairResps = [];
     foreach ($responses as $k => $v) {
