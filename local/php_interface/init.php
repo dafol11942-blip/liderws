@@ -35,7 +35,7 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
         $factory = new \Lider\Supplier\SupplierFactory();
 
         $factory->register(new \Lider\Supplier\MoskvorechieConnector([
-            'API_KEY' => '2Ek7PUswoRDK:x1W5M70Y3KF8vZ52ETr2zi53d6SUOoPf',
+            'API_KEY' => 'hRohAwdf9nEy:qb9WatcqtLCdxunJ6klPootnydulyYMZ',
         ]));
 
         $factory->register(new \Lider\Supplier\RosskoConnector([
