@@ -188,12 +188,21 @@ class AutopiterConnector implements SupplierInterface
             $region       = $this->xmlTag($block, 'Region');
             $storeType    = (int)($this->xmlTag($block, 'StoreType') ?: 3);
             $nameStatus   = $this->xmlTag($block, 'NameStatus');
+            $numberChange = $this->xmlTag($block, 'NumberChange');
+            $isDimension  = $this->xmlTag($block, 'IsDimension');
+            $typeRefusal  = $this->xmlTag($block, 'TypeRefusal');
+            $xmlName      = $this->xmlTag($block, 'Name');
 
             // ═══ ИЗВЛЕКАЕМ РЕАЛЬНЫЙ БРЕНД И АРТИКУЛ ИЗ XML ═══
             $xmlBrand   = $this->xmlTag($block, 'CatalogName');
             $xmlArticle = $this->xmlTag($block, 'Number');
 
             if (empty($salePrice) || (float)$salePrice <= 0) continue;
+            // NumberChange непустой → по документации заказ по этой позиции невозможен
+            // (нужно искать по номеру замены отдельным FindCatalog) — не показываем.
+            if (!empty($numberChange)) continue;
+            // IsDimension=true → "крупногабаритный товар, будет отказ по детали".
+            if ($isDimension === 'true' || $isDimension === '1') continue;
 
             $price = (float)$salePrice;
             $avail = ($numAvail !== null && $numAvail !== '') ? (int)$numAvail : -1;
@@ -212,10 +221,7 @@ class AutopiterConnector implements SupplierInterface
             // Используем реальные бренд/артикул из XML вместо переданных в запросе
             $r->article      = $xmlArticle ?: $article;
             $r->brand        = $xmlBrand ?: $brand;
-            // PriceSearchModel не содержит текстового названия детали (в отличие от
-            // SearchCatalogModel в брендах) — собираем название из того, что есть,
-            // иначе колонка "Деталь" оставалась бы пустой (только "—").
-            $r->name         = trim($r->brand . ' ' . $r->article);
+            $r->name         = $xmlName ?: trim($r->brand . ' ' . $r->article);
             $r->price        = $price;
             $r->quantity     = max(0, $avail);
             $r->warehouse    = ($region ?: 'Склад') . ($sellerId ? ' (' . $sellerId . ')' : '');
@@ -224,7 +230,8 @@ class AutopiterConnector implements SupplierInterface
             $r->isSched      = false;
             $r->multiplicity = $minSalesVal;
             $r->unit         = 'шт.';
-            $r->returnable   = false;
+            // TypeRefusal 3 и 4 — возврат невозможен, иначе (в т.ч. если поле отсутствует) возможен.
+            $r->returnable   = !in_array((int)$typeRefusal, [3, 4], true);
             $r->deliveryDays = $deliveryDays;
 
             if (!empty($deliveryDate)) {
