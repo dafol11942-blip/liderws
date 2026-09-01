@@ -10,14 +10,6 @@ global $arrFilter;
 
 $APPLICATION->SetTitle("Каталог автозапчастей");
 
-if (!empty($_REQUEST['set_filter']) && $_REQUEST['set_filter'] === 'Y') {
-    file_put_contents($_SERVER['DOCUMENT_ROOT'] . '/upload/filter_debug.log',
-        date('Y-m-d H:i:s') . ' | GET: ' . json_encode($_GET) . "\n" .
-        ' | arrFilter: ' . json_encode($arrFilter ?? []) . "\n",
-        FILE_APPEND
-    );
-}
-
 $iblockId = 42;
 
 // --- Парсим URL ---
@@ -62,6 +54,29 @@ if ($sectionCode) {
     $res = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'CODE' => end($segments)], false, ['ID', 'NAME']);
     if ($arSection = $res->GetNext()) {
         $sectionId = $arSection['ID'];
+    }
+}
+
+// --- Сортировка (общая для раздела и корня каталога) ---
+switch ($_GET['sort'] ?? '') {
+    case 'price_asc':  $sortField = 'catalog_PRICE_1'; $sortOrder = 'asc';  break;
+    case 'price_desc': $sortField = 'catalog_PRICE_1'; $sortOrder = 'desc'; break;
+    case 'stock':       $sortField = 'CATALOG_QUANTITY'; $sortOrder = 'desc'; break;
+    case 'name':        $sortField = 'name'; $sortOrder = 'asc'; break;
+    default:            $sortField = 'sort'; $sortOrder = 'asc';
+}
+
+// --- Категории для фильтра в сайдбаре (верхний уровень + подсветка текущей ветки) ---
+$sidebarTopSections = [];
+$rsSidebarTop = CIBlockSection::GetList(['SORT' => 'ASC'], ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => 0, 'ACTIVE' => 'Y'], false, ['ID', 'NAME', 'CODE']);
+while ($row = $rsSidebarTop->GetNext()) { $sidebarTopSections[] = $row; }
+
+$sidebarActiveTopId = 0;
+if ($sectionId > 0) {
+    $sidebarActiveTopId = (int)$sectionId;
+    $rsChainTop = CIBlockSection::GetNavChain($iblockId, $sectionId, ['ID']);
+    if ($firstAncestor = $rsChainTop->GetNext()) {
+        $sidebarActiveTopId = (int)$firstAncestor['ID'];
     }
 }
 ?>
@@ -136,16 +151,26 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
     if (!empty($_REQUEST['arrFilter_P1_MAX'])) {
         $arrFilter['<=CATALOG_PRICE_1'] = (int)$_REQUEST['arrFilter_P1_MAX'];
     }
-    file_put_contents($_SERVER['DOCUMENT_ROOT'] . '/upload/filter_debug.log',
-        date('Y-m-d H:i:s') . " | MANUAL arrFilter: " . json_encode($arrFilter) . "\n",
-        FILE_APPEND
-    );
 }
 ?>
 <?php if (!$isElement): ?>
 <div class="catalog-layout">
     <aside class="catalog-sidebar">
         <h3><svg class="icon"><use href="#icon-filter"></use></svg> Фильтр</h3>
+
+        <div class="filter__box">
+            <div class="filter__title" onclick="this.parentElement.classList.toggle('closed')">
+                Категория
+                <span class="filter__arrow">▾</span>
+            </div>
+            <div class="filter__body">
+                <a href="/catalog/" class="filter__cat-link<?= $sectionId == 0 ? ' active' : '' ?>">Все товары</a>
+                <?php foreach ($sidebarTopSections as $topSec): ?>
+                    <a href="/catalog/<?= $topSec['CODE'] ?>/" class="filter__cat-link<?= $sidebarActiveTopId == $topSec['ID'] ? ' active' : '' ?>"><?= htmlspecialchars($topSec['NAME']) ?></a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+
         <?php $APPLICATION->IncludeComponent(
             "bitrix:catalog.smart.filter",
             "lider_style",
@@ -256,6 +281,7 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
                         <option value="?sort=popular">По популярности</option>
                         <option value="?sort=price_asc">Цена ↑</option>
                         <option value="?sort=price_desc">Цена ↓</option>
+                        <option value="?sort=stock">По наличию</option>
                         <option value="?sort=name">По названию</option>
                     </select>
                 </div>
@@ -270,8 +296,8 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
                     "SECTION_ID"        => $sectionId,
                     "SECTION_CODE"      => $sectionCode,
                     "INCLUDE_SUBSECTIONS" => "N",
-                    "ELEMENT_SORT_FIELD"  => $_GET["sort"] === "price_asc" ? "catalog_PRICE_1" : ($_GET["sort"] === "name" ? "name" : "sort"),
-                    "ELEMENT_SORT_ORDER"  => $_GET["sort"] === "price_desc" ? "desc" : "asc",
+                    "ELEMENT_SORT_FIELD"  => $sortField,
+                    "ELEMENT_SORT_ORDER"  => $sortOrder,
                     "FILTER_NAME"       => "arrFilter",
                     "PRICE_CODE"        => array("Ручная розничная цена"),
                     "PROPERTY_CODE"     => array("CML2_ARTICLE", "CML2_MANUFACTURER", "IN_STOCK"),
@@ -330,15 +356,11 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
                         <option value="?sort=popular">По популярности</option>
                         <option value="?sort=price_asc">Цена ↑</option>
                         <option value="?sort=price_desc">Цена ↓</option>
+                        <option value="?sort=stock">По наличию</option>
                         <option value="?sort=name">По названию</option>
                     </select>
                 </div>
             </div>
-<?php file_put_contents($_SERVER['DOCUMENT_ROOT'] . '/upload/filter_debug.log',
-                date('Y-m-d H:i:s') . " | BEFORE_SECTION arrFilter: " . json_encode($arrFilter ?? 'NULL') . "\n",
-                FILE_APPEND
-            );
-            ?>
             <?php $APPLICATION->IncludeComponent(
                 "bitrix:catalog.section",
                 "lider_style",
@@ -347,8 +369,8 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
                     "IBLOCK_ID"         => $iblockId,
                     "INCLUDE_SUBSECTIONS" => "Y",
                     "SHOW_ALL_WO_SECTION" => "Y",
-                    "ELEMENT_SORT_FIELD"  => $_GET["sort"] === "price_asc" ? "catalog_PRICE_1" : ($_GET["sort"] === "name" ? "name" : "sort"),
-                    "ELEMENT_SORT_ORDER"  => $_GET["sort"] === "price_desc" ? "desc" : "asc",
+                    "ELEMENT_SORT_FIELD"  => $sortField,
+                    "ELEMENT_SORT_ORDER"  => $sortOrder,
                     "FILTER_NAME"       => "arrFilter",
                     "PRICE_CODE"        => array("Ручная розничная цена"),
                     "PROPERTY_CODE"     => array("CML2_ARTICLE", "CML2_MANUFACTURER", "IN_STOCK"),

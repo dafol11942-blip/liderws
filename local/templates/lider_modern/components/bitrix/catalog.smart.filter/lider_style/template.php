@@ -1,14 +1,8 @@
 <?php if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true) die();
 
 if (empty($arResult['ITEMS'])) {
-    echo '<!-- FILTER_DEBUG: ITEMS EMPTY -->';
     return;
 }
-echo '<!-- FILTER_DEBUG: ' . count($arResult['ITEMS']) . ' items: ';
-foreach ($arResult['ITEMS'] as $k => $v) {
-    echo $v['CODE'] . '|' . $v['NAME'] . ' (vals:' . (is_array($v['VALUES']) ? count($v['VALUES']) : 'range') . '), ';
-}
-echo ' -->';
 ?>
 <div class="filter">
     <form name="<?= $arResult['FILTER_NAME'] . '_form' ?>" action="<?= $arResult['FORM_ACTION'] ?>" method="get" id="smartFilterForm">
