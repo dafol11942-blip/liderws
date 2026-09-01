@@ -52,6 +52,7 @@ $localOrBlock = ['LOGIC' => 'OR',
 $localCountRes = CIBlockElement::GetList([], [
     'IBLOCK_ID' => 42,
     'ACTIVE'    => 'Y',
+    'CATALOG_AVAILABLE' => 'Y', // держим в паре с HIDE_NOT_AVAILABLE=>Y у catalog.section ниже, иначе счётчик считает и то, что компонент скроет
     $localOrBlock,
 ], false, false, ['ID']);
 $localCount = $localCountRes->SelectedRowsCount();
