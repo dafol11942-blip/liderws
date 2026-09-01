@@ -146,8 +146,13 @@ function sortOffers(array &$offers): void {
     });
 }
 
-/** Параллельный пул запросов. $maxPerHost=0 — без ограничения соединений на хост. */
-function curlExec(array $requests, float $deadline = 15.0, int $maxPerHost = 0): array {
+/**
+ * Параллельный пул запросов. $maxPerHost=0 — без ограничения соединений на хост.
+ * Если передан $taskId — во время ожидания ответов плавно пишет прогресс
+ * $pctFrom..$pctTo (по доле прошедшего времени от $deadline), чтобы фронт видел
+ * не два скачка (5%→75%), а реально двигающийся индикатор.
+ */
+function curlExec(array $requests, float $deadline = 15.0, int $maxPerHost = 0, ?string $taskId = null, int $pctFrom = 0, int $pctTo = 0, string $msg = ''): array {
     if (empty($requests)) return [];
     $mh = curl_multi_init();
     if ($maxPerHost > 0 && defined('CURLMOPT_MAX_HOST_CONNECTIONS')) {
@@ -175,9 +180,14 @@ function curlExec(array $requests, float $deadline = 15.0, int $maxPerHost = 0):
     }
     $running = null;
     $start = microtime(true);
+    $reportProgress = $taskId !== null && $pctTo > $pctFrom;
     do {
         curl_multi_exec($mh, $running);
         if ($running > 0) curl_multi_select($mh, 0.1);
+        if ($reportProgress) {
+            $frac = $deadline > 0 ? min(1.0, (microtime(true) - $start) / $deadline) : 1.0;
+            progWrite($taskId, $pctFrom + ($pctTo - $pctFrom) * $frac, $msg);
+        }
         if (microtime(true) - $start > $deadline) break;
     } while ($running > 0);
     $results = [];
@@ -196,17 +206,19 @@ function curlExec(array $requests, float $deadline = 15.0, int $maxPerHost = 0):
  * Как curlExec(), но RATE_SENSITIVE_SUPPLIERS уходят отдельным пулом с
  * limit=1 соединение на хост — общий залп им нельзя (см. константу выше).
  * $codeOf($key) должна вернуть код поставщика по ключу запроса.
+ * Прогресс (если передан $taskId) делится на два отрезка: $pctFrom..$pctMid —
+ * быстрый пул, $pctMid..$pctTo — медленный (rate-sensitive).
  */
-function curlExecSplit(array $requests, callable $codeOf, float $fastDeadline = 25.0, float $slowDeadline = 20.0, int $fastPerHost = 6): array {
+function curlExecSplit(array $requests, callable $codeOf, float $fastDeadline = 25.0, float $slowDeadline = 20.0, int $fastPerHost = 6, ?string $taskId = null, int $pctFrom = 0, int $pctMid = 0, int $pctTo = 0, string $msg = ''): array {
     $fast = [];
     $slow = [];
     foreach ($requests as $key => $req) {
         if (in_array($codeOf($key), RATE_SENSITIVE_SUPPLIERS, true)) { $slow[$key] = $req; }
         else { $fast[$key] = $req; }
     }
-    $responses = curlExec($fast, $fastDeadline, $fastPerHost);
+    $responses = curlExec($fast, $fastDeadline, $fastPerHost, $taskId, $pctFrom, empty($slow) ? $pctTo : $pctMid, $msg);
     if (!empty($slow)) {
-        $responses += curlExec($slow, $slowDeadline, 1);
+        $responses += curlExec($slow, $slowDeadline, 1, $taskId, $pctMid, $pctTo, $msg);
     }
     return $responses;
 }
@@ -313,11 +325,14 @@ if ($action === 'crossload') {
 
     $brandOrig  = trim($_REQUEST['brand'] ?? '');
     $numberOrig = trim($_REQUEST['number'] ?? '');
+    $normBrand  = BrandNormalizer::normalize($brandOrig);
+    $normNum    = BrandNormalizer::normalizeArticle($numberOrig);
 
     ajaxLog("CROSSLOAD START task=$taskId pairs=" . count($crossPairs));
 
     $analogOffers   = [];  // gk => [offer, ...]
     $newAnalogsMeta = [];  // gk => {brand, article, description} — новые карточки для фронтенда
+    $exactOffersD   = [];  // доп. предложения ИСКОМОГО товара, найденные при discovery (не аналоги)
 
     // ── DISCOVERY: поставщики вне Phase1-кросс-поиска (NO_CROSS_DISCOVERY_SUPPLIERS)
     // спрашиваются на СВОЙ список кроссов по исходному запросу — иначе аналоги,
@@ -331,7 +346,7 @@ if ($action === 'crossload') {
         }
         if (!empty($discReqs)) {
             $tDisc = microtime(true);
-            $discResponses = curlExec($discReqs, 15.0);
+            $discResponses = curlExec($discReqs, 15.0, 0, $taskId, 1, 8, 'Ищем дополнительные аналоги...');
             $newPairs = 0;
             foreach ($discResponses as $code => $body) {
                 if (!$body) continue;
@@ -341,6 +356,15 @@ if ($action === 'crossload') {
                     if (count($crossPairs) >= MAX_ANALOG_PAIRS) break;
                     $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
                     $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
+
+                    // Свой список кроссов у поставщика обычно включает и сам искомый товар
+                    // (просто с другим написанием бренда, напр. MANN вместо MANN-FILTER) —
+                    // это доп. предложение искомого, а не отдельный "аналог самому себе".
+                    if ($ia === $normNum && brandsMatch($ib, $normBrand)) {
+                        $exactOffersD[] = offerRow($code, $it, true);
+                        continue;
+                    }
+
                     $gk = $ib . '|' . $ia;
                     if (isset($crossPairs[$gk])) continue; // уже знаем эту пару от других поставщиков
                     $crossPairs[$gk] = [
@@ -365,7 +389,7 @@ if ($action === 'crossload') {
 
     if (empty($crossPairs)) {
         progWrite($taskId, 100, 'Докрутка завершена');
-        echo json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta, 'exact_offers' => $exactOffersD], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -397,11 +421,12 @@ if ($action === 'crossload') {
     ajaxLog("CROSSLOAD requests=" . count($allReqs) . " (после вычета Phase1 и заведомо пустых)");
 
     $t0 = microtime(true);
-    progWrite($taskId, 10, "Докручиваем аналоги: опрашиваем " . count($allReqs) . " предложений...");
+    $coverageMsg = "Докручиваем аналоги: опрашиваем " . count($allReqs) . " предложений...";
+    progWrite($taskId, 10, $coverageMsg);
     // Один параллельный пул вместо ручных "волн" — curl сам держит лимит соединений
     // на хост и тут же подхватывает следующий запрос, не дожидаясь остальных хостов.
     // RATE_SENSITIVE_SUPPLIERS — отдельно, см. curlExecSplit().
-    $responses = curlExecSplit($allReqs, fn($key) => $reqInfo[$key][0]);
+    $responses = curlExecSplit($allReqs, fn($key) => $reqInfo[$key][0], 25.0, 20.0, 6, $taskId, 10, 60, 85, $coverageMsg);
     ajaxLog("CROSSLOAD done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses)));
     progWrite($taskId, 90, 'Обрабатываем ответы поставщиков...');
 
@@ -457,7 +482,7 @@ if ($action === 'crossload') {
     unset($offers);
 
     progWrite($taskId, 100, 'Докрутка завершена');
-    echo json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta, 'exact_offers' => $exactOffersD], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -571,7 +596,7 @@ if ($action === 'brands') {
     }
 
     $t0 = microtime(true);
-    $responses = curlExec($r1Reqs, 15.0);
+    $responses = curlExec($r1Reqs, 15.0, 0, $taskId, 10, 70, 'Опрашиваем поставщиков...');
     ajaxLog("PHASE1 done in " . round(microtime(true) - $t0, 2) . "s requests=" . count($r1Reqs) . " responses=" . count(array_filter($responses)));
     progWrite($taskId, 75, 'Обрабатываем ответы поставщиков...');
 
