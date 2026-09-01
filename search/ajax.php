@@ -465,12 +465,19 @@ if ($action === 'crossload') {
 
 if ($action === 'brands') {
 
-    $arrFilter = [['LOGIC' => 'OR',
-        ['%NAME' => $article], ['PROPERTY_CML2_ARTICLE' => $article],
-        ['%PROPERTY_CML2_ARTICLE' => $article], ['%DETAIL_TEXT' => $article],
-        ['PROPERTY_CML2_MANUFACTURER' => $article], ['%PROPERTY_CML2_MANUFACTURER' => $article],
-    ]];
-    $localRes   = CIBlockElement::GetList([], array_merge(['IBLOCK_ID' => 42, 'ACTIVE' => 'Y'], $arrFilter[0]), false, false, ['ID']);
+    // ВАЖНО: LOGIC=>OR должен остаться ВЛОЖЕННЫМ подмассивом, а не слитым в один
+    // уровень с IBLOCK_ID/ACTIVE через array_merge — иначе весь фильтр становится
+    // "IBLOCK_ID=42 ИЛИ ACTIVE=Y ИЛИ ..." и возвращает почти весь каталог.
+    $localFilter = [
+        'IBLOCK_ID' => 42,
+        'ACTIVE'    => 'Y',
+        ['LOGIC' => 'OR',
+            ['%NAME' => $article], ['PROPERTY_CML2_ARTICLE' => $article],
+            ['%PROPERTY_CML2_ARTICLE' => $article], ['%DETAIL_TEXT' => $article],
+            ['PROPERTY_CML2_MANUFACTURER' => $article], ['%PROPERTY_CML2_MANUFACTURER' => $article],
+        ],
+    ];
+    $localRes   = CIBlockElement::GetList([], $localFilter, false, false, ['ID']);
     $localCount = $localRes->SelectedRowsCount();
 
     $brandReqs = [];

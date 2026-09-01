@@ -40,7 +40,46 @@ function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
     </form>
     <span class="topbar-info">Поиск: <strong><?=esc($q)?></strong></span>
 </div>
-<div id="localStock"></div>
+<?php
+// Собственный склад — рендерим сразу серверно (как parts-search/), без AJAX-заглушки
+// с мёртвой ссылкой "Показать →". LOGIC=>OR должен быть ВЛОЖЕННЫМ подмассивом —
+// слитый на один уровень с IBLOCK_ID/ACTIVE превращает фильтр в "IBLOCK_ID=42 ИЛИ ACTIVE=Y ИЛИ ...".
+$localOrBlock = ['LOGIC' => 'OR',
+    ['%NAME' => $q], ['PROPERTY_CML2_ARTICLE' => $q],
+    ['%PROPERTY_CML2_ARTICLE' => $q], ['%DETAIL_TEXT' => $q],
+    ['PROPERTY_CML2_MANUFACTURER' => $q], ['%PROPERTY_CML2_MANUFACTURER' => $q],
+];
+$localCountRes = CIBlockElement::GetList([], [
+    'IBLOCK_ID' => 42,
+    'ACTIVE'    => 'Y',
+    $localOrBlock,
+], false, false, ['ID']);
+$localCount = $localCountRes->SelectedRowsCount();
+?>
+<?php if ($localCount > 0): ?>
+<h2 class="sec-h sec-h--local">🔵 На нашем складе <span class="topbar-info">(<?=$localCount?>)</span></h2>
+<?php
+global $arrFilter;
+$arrFilter = [$localOrBlock];
+$APPLICATION->IncludeComponent("bitrix:catalog.section", "lider_style", [
+    "IBLOCK_TYPE"          => "1c_catalog",
+    "IBLOCK_ID"            => 42,
+    "INCLUDE_SUBSECTIONS"  => "Y",
+    "SHOW_ALL_WO_SECTION"  => "Y",
+    "ELEMENT_SORT_FIELD"   => "sort",
+    "ELEMENT_SORT_ORDER"   => "asc",
+    "FILTER_NAME"          => "arrFilter",
+    "PRICE_CODE"           => ["Ручная розничная цена"],
+    "PROPERTY_CODE"        => ["CML2_ARTICLE", "CML2_MANUFACTURER", "IN_STOCK"],
+    "PAGE_ELEMENT_COUNT"   => "12",
+    "HIDE_NOT_AVAILABLE"   => "Y",
+    "BASKET_URL"           => "/personal/cart/",
+    "CACHE_TYPE"           => "A",
+    "CACHE_TIME"           => "300",
+    "SET_TITLE"            => "N",
+], false);
+?>
+<?php endif; ?>
 <div id="loader" class="loader hidden"><div class="spinner"></div><div id="loaderText">Ищем бренды...</div></div>
 <div id="brandStep"></div>
 <div id="emptyMsg" class="hero hidden"></div>
@@ -54,17 +93,13 @@ function show(id){qs('#'+id).classList.remove('hidden')}
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 
 async function loadBrands(article){
-    hide('localStock');hide('brandStep');hide('emptyMsg');
+    hide('brandStep');hide('emptyMsg');
     show('loader');qs('#loaderText').textContent='Ищем бренды у поставщиков...';
     try{
         var r=await fetch(API+'?action=brands&article='+encodeURIComponent(article));
         var d=await r.json();
         hide('loader');
         if(d.error){showError(d.error);return}
-        if(d.local_count>0){
-            show('localStock');
-            qs('#localStock').innerHTML='<div class="local-box"><h2 class="sec-h sec-h--local">🔵 На нашем складе</h2><p class="local-txt">Найдено <strong>'+d.local_count+'</strong> позиций. <a href="/search/?q='+encodeURIComponent(article)+'&show_local=1">Показать →</a></p></div>';
-        }
         if(!d.brands||!d.brands.length){showError('По артикулу «'+esc(article)+'» ничего не найдено');return}
         var exact=d.brands.filter(function(b){return b.type==='exact'});
         var analogs=d.brands.filter(function(b){return b.type==='analog'});
@@ -88,7 +123,7 @@ async function loadBrands(article){
         show('brandStep');qs('#brandStep').innerHTML=h;
     }catch(e){hide('loader');showError('Ошибка: '+e.message)}
 }
-function showError(msg){hide('localStock');hide('brandStep');show('emptyMsg');qs('#emptyMsg').innerHTML='<div class="hero-icon">⚠️</div><p>'+esc(msg)+'</p><form class="hero-frm" method="get"><input type="text" name="q" class="hero-inp" placeholder="Попробуйте другой артикул" autofocus><button class="hero-btn">Найти</button></form>'}
+function showError(msg){hide('brandStep');show('emptyMsg');qs('#emptyMsg').innerHTML='<div class="hero-icon">⚠️</div><p>'+esc(msg)+'</p><form class="hero-frm" method="get"><input type="text" name="q" class="hero-inp" placeholder="Попробуйте другой артикул" autofocus><button class="hero-btn">Найти</button></form>'}
 
 document.addEventListener('DOMContentLoaded',function(){loadBrands(Q)});
 })();
