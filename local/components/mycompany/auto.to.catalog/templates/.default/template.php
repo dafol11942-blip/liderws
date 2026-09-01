@@ -26,16 +26,20 @@ function hlGet(string $name, array $filter = [], array $order = [], int $limit =
     return $q->exec()->fetchAll();
 }
 
-// Функция поиска картинки (ищет по коду, затем по ID, любое расширение)
-function findImage(string $dir, string $code, int $id): string
+// Функция поиска картинки (ищет по коду, затем по ID, любое расширение).
+// $dirs — список директорий по приоритету: сначала папка в шаблоне (версионируется в git,
+// доставляется обычным git pull), затем /upload/... (не в git, только прямая заливка на сервер).
+function findImage(array $dirs, string $code, int $id): string
 {
-    foreach (['png','jpg','jpeg','svg','webp'] as $ext) {
-        $test = $dir . strtolower($code) . '.' . $ext;
-        if (file_exists($_SERVER['DOCUMENT_ROOT'] . $test)) return $test;
-    }
-    foreach (['png','jpg','jpeg','svg','webp'] as $ext) {
-        $test = $dir . $id . '.' . $ext;
-        if (file_exists($_SERVER['DOCUMENT_ROOT'] . $test)) return $test;
+    foreach ($dirs as $dir) {
+        foreach (['png','jpg','jpeg','svg','webp'] as $ext) {
+            $test = $dir . strtolower($code) . '.' . $ext;
+            if (file_exists($_SERVER['DOCUMENT_ROOT'] . $test)) return $test;
+        }
+        foreach (['png','jpg','jpeg','svg','webp'] as $ext) {
+            $test = $dir . $id . '.' . $ext;
+            if (file_exists($_SERVER['DOCUMENT_ROOT'] . $test)) return $test;
+        }
     }
     return '';
 }
@@ -231,7 +235,11 @@ elseif ($urlBrand):
 <div class="to-brands-grid">
     <?php foreach ($models as $m):
         $modelCode = strtolower(preg_replace('/[^a-z0-9]+/', '_', \CUtil::translit($m['UF_NAME'], 'ru', ['replace_space'=>'_','replace_other'=>''])));
-        $imgPath = findImage('/upload/models/', $brandCode . '_' . $modelCode, $m['UF_MODEL_ID']);
+        $imgPath = findImage(
+            ['/local/templates/lider_modern/assets/images/models/', '/upload/models/'],
+            $brandCode . '_' . $modelCode,
+            $m['UF_MODEL_ID']
+        );
         $hasImg = $imgPath !== '';
     ?>
         <a href="?brand=<?= $urlBrand ?>&model=<?= $m['UF_MODEL_ID'] ?>" class="to-brand-card" style="text-decoration:none;">
@@ -255,7 +263,11 @@ else:
 <input type="text" placeholder="Быстрый поиск марки..." style="width:100%;max-width:400px;padding:10px 14px;border:2px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:var(--font);margin-bottom:16px;box-shadow:var(--shadow-sm);" oninput="var q=this.value.toLowerCase();document.querySelectorAll('.to-brand-card').forEach(function(c){c.style.display=c.querySelector('.to-brand-name').textContent.toLowerCase().includes(q)?'':'none';});">
 <div class="to-brands-grid">
     <?php foreach ($brands as $b):
-        $imgPath = findImage('/upload/brands/', $b['UF_CODE'], $b['UF_BRAND_ID']);
+        $imgPath = findImage(
+            ['/local/templates/lider_modern/assets/images/brands/', '/upload/brands/'],
+            $b['UF_CODE'],
+            $b['UF_BRAND_ID']
+        );
         $hasImg = $imgPath !== '';
     ?>
         <a href="?brand=<?= $b['UF_BRAND_ID'] ?>" class="to-brand-card" style="text-decoration:none;">
