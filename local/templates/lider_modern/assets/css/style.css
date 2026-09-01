@@ -284,7 +284,8 @@ ul, ol { list-style: none; }
 .product-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); transition: all var(--transition); display: flex; flex-direction: column; position: relative; }
 .product-card:hover { box-shadow: var(--shadow-lg); border-color: #bbb; transform: translateY(-2px); }
 .product-card__img { position: relative; height: 200px; display: flex; align-items: center; justify-content: center; background: #fafafa; padding: 16px; border-bottom: 1px solid var(--border); }
-.product-card__img img { max-height: 160px; object-fit: contain; transition: transform var(--transition); }
+.product-card__img a { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+.product-card__img img { width: 100%; height: 100%; object-fit: contain; transition: transform var(--transition); }
 .product-card:hover .product-card__img img { transform: scale(1.04); }
 .product-card__badge { position: absolute; top: 0; left: 0; background: var(--red); color: #fff; padding: 4px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; z-index: 2; }
 .product-card__badge--hit { background: var(--red); }
@@ -804,7 +805,6 @@ ul, ol { list-style: none; }
     .products-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .catalog-section { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .product-card__img { height: 150px; padding: 10px; }
-    .product-card__img img { max-height: 120px; }
     .product-card__body { padding: 10px 12px 14px; }
     .product-card__price { font-size: 15px; }
     .catalog-section .product-item-image-wrapper { height: 150px !important; }
@@ -858,7 +858,6 @@ ul, ol { list-style: none; }
     .products-grid { gap: 6px; }
     .catalog-section { gap: 6px; }
     .product-card__img { height: 130px; padding: 8px; }
-    .product-card__img img { max-height: 100px; }
     .product-card__name { font-size: 11px; }
     .product-card__price { font-size: 14px; }
     .product-card .btn { padding: 6px 10px; font-size: 11px; }
