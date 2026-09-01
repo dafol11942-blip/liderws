@@ -58,7 +58,8 @@ if ($sectionCode) {
 }
 
 // --- Сортировка (общая для раздела и корня каталога) ---
-switch ($_GET['sort'] ?? '') {
+$currentSort = $_GET['sort'] ?? 'popular';
+switch ($currentSort) {
     case 'price_asc':  $sortField = 'catalog_PRICE_1'; $sortOrder = 'asc';  break;
     case 'price_desc': $sortField = 'catalog_PRICE_1'; $sortOrder = 'desc'; break;
     case 'stock':       $sortField = 'CATALOG_QUANTITY'; $sortOrder = 'desc'; break;
@@ -278,11 +279,11 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
                 <span class="catalog-toolbar__count">Товары в разделе</span>
                 <div class="catalog-toolbar__sort">
                     <select onchange="window.location.href=this.value">
-                        <option value="?sort=popular">По популярности</option>
-                        <option value="?sort=price_asc">Цена ↑</option>
-                        <option value="?sort=price_desc">Цена ↓</option>
-                        <option value="?sort=stock">По наличию</option>
-                        <option value="?sort=name">По названию</option>
+                        <option value="?sort=popular" <?= $currentSort === 'popular' ? 'selected' : '' ?>>По популярности</option>
+                        <option value="?sort=price_asc" <?= $currentSort === 'price_asc' ? 'selected' : '' ?>>Цена ↑</option>
+                        <option value="?sort=price_desc" <?= $currentSort === 'price_desc' ? 'selected' : '' ?>>Цена ↓</option>
+                        <option value="?sort=stock" <?= $currentSort === 'stock' ? 'selected' : '' ?>>По наличию</option>
+                        <option value="?sort=name" <?= $currentSort === 'name' ? 'selected' : '' ?>>По названию</option>
                     </select>
                 </div>
             </div>
@@ -353,11 +354,11 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
                 <span class="catalog-toolbar__count">Товары</span>
                 <div class="catalog-toolbar__sort">
                     <select onchange="window.location.href=this.value">
-                        <option value="?sort=popular">По популярности</option>
-                        <option value="?sort=price_asc">Цена ↑</option>
-                        <option value="?sort=price_desc">Цена ↓</option>
-                        <option value="?sort=stock">По наличию</option>
-                        <option value="?sort=name">По названию</option>
+                        <option value="?sort=popular" <?= $currentSort === 'popular' ? 'selected' : '' ?>>По популярности</option>
+                        <option value="?sort=price_asc" <?= $currentSort === 'price_asc' ? 'selected' : '' ?>>Цена ↑</option>
+                        <option value="?sort=price_desc" <?= $currentSort === 'price_desc' ? 'selected' : '' ?>>Цена ↓</option>
+                        <option value="?sort=stock" <?= $currentSort === 'stock' ? 'selected' : '' ?>>По наличию</option>
+                        <option value="?sort=name" <?= $currentSort === 'name' ? 'selected' : '' ?>>По названию</option>
                     </select>
                 </div>
             </div>
