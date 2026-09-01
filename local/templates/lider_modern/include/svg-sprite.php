@@ -163,4 +163,8 @@
         <path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.57 3H4a1 1 0 0 0-1 1v5.57a2 2 0 0 0 .59 1.42l9.58 9.58a2 2 0 0 0 2.82 0l4.6-4.6a2 2 0 0 0 0-2.83z"/>
         <circle cx="7.5" cy="7.5" r="1.25"/>
     </symbol>
+    <symbol id="icon-arrow-up" viewBox="0 0 24 24">
+        <line x1="12" y1="19" x2="12" y2="5"/>
+        <polyline points="5 12 12 5 19 12"/>
+    </symbol>
 </svg>

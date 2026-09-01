@@ -52,6 +52,11 @@
         </div>
     </footer>
 
+    <button type="button" id="backToTop" class="back-to-top" title="Наверх">
+        <svg class="icon"><use href="#icon-arrow-up"></use></svg>
+        <span>Наверх</span>
+    </button>
+
     <script src="<?= SITE_TEMPLATE_PATH ?>/assets/js/main.js"></script>
 </body>
 </html>

@@ -1164,3 +1164,57 @@ ul, ol { list-style: none; }
         gap: 4px;
     }
 }
+
+/* =============================================
+   КНОПКА «НАВЕРХ»
+   ============================================= */
+.back-to-top {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+    background: var(--blue);
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(12px);
+    transition: opacity var(--transition), transform var(--transition), background var(--transition), box-shadow var(--transition);
+}
+.back-to-top .icon {
+    width: 16px;
+    height: 16px;
+}
+.back-to-top:hover {
+    background: var(--blue-dark);
+    box-shadow: var(--shadow-xl);
+}
+.back-to-top.is-visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+    .back-to-top {
+        right: 16px;
+        bottom: 16px;
+        padding: 12px;
+        border-radius: 50%;
+    }
+    .back-to-top span {
+        display: none;
+    }
+}
