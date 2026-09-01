@@ -227,15 +227,12 @@ async function loadResults(){
                 var d2 = await r2.json();
                 var hasOffers = d2.analog_offers && Object.keys(d2.analog_offers).length > 0;
                 var hasNew = d2.new_analogs && Object.keys(d2.new_analogs).length > 0;
-                var hasExact = d2.exact_offers && d2.exact_offers.length > 0;
-                if (hasOffers || hasNew || hasExact) {
+                if (hasOffers || hasNew) {
                     var addedCount = mergeAnalogOffers(d1, d2.analog_offers || {}, d2.new_analogs || {});
-                    var addedExact = mergeExactOffers(d1, d2.exact_offers || []);
                     renderResults(d1);
                     var parts = [];
                     if (addedCount.groups > 0) parts.push(addedCount.groups + ' новых аналогов');
                     if (addedCount.offers > 0) parts.push(addedCount.offers + ' предл. от ' + addedCount.suppliers + ' поставщиков');
-                    if (addedExact.offers > 0) parts.push(addedExact.offers + ' предл. искомого номера');
                     if (parts.length) showToast('Добавлено: ' + parts.join(', '), 'ok');
                 } else {
                     console.warn('crossload вернул пусто', d2);
@@ -310,25 +307,6 @@ function mergeAnalogOffers(d1, analogOffers, newAnalogs) {
         return a.best_price - b.best_price;
     });
     return {offers: addedOffers, suppliers: Object.keys(addedSuppliers).length, groups: addedGroups};
-}
-
-// Доп. предложения ИСКОМОГО номера, найденные при докрутке (напр. поставщик
-// отдал их под вариантом бренда вроде MANN вместо MANN-FILTER — see ajax.php discovery)
-function mergeExactOffers(d1, exactOffers) {
-    if (!exactOffers || !exactOffers.length) return {offers: 0};
-    if (!d1.exact) d1.exact = {brand: B, article: N, suppliers: []};
-    var seen = {};
-    d1.exact.suppliers.forEach(function(s) { seen[s.supplier + '|' + s.price] = true; });
-    var added = 0;
-    exactOffers.forEach(function(o) {
-        var key = o.supplier + '|' + o.price;
-        if (!seen[key]) { d1.exact.suppliers.push(o); seen[key] = true; added++; }
-    });
-    d1.exact.suppliers.sort(function(x, y) {
-        if (x.price != y.price) return x.price - y.price;
-        return (x.delivery_days || 0) - (y.delivery_days || 0);
-    });
-    return {offers: added};
 }
 
 function showToast(msg, kind) {
