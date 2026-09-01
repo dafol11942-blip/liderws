@@ -36,17 +36,17 @@
             <div class="delivery-options">
                 <label class="radio-card">
                     <input type="radio" name="DELIVERY" value="pickup" checked>
-                    <span class="radio-card__title">🏪 Самовывоз</span>
+                    <span class="radio-card__title"><svg class="icon"><use href="#icon-store"></use></svg> Самовывоз</span>
                     <span class="radio-card__desc">пр-т Нефтяников, 4 — бесплатно</span>
                 </label>
                 <label class="radio-card">
                     <input type="radio" name="DELIVERY" value="courier">
-                    <span class="radio-card__title">🚗 Курьер по Елабуге</span>
+                    <span class="radio-card__title"><svg class="icon"><use href="#icon-car"></use></svg> Курьер по Елабуге</span>
                     <span class="radio-card__desc">от 300 ₽, 1-2 дня</span>
                 </label>
                 <label class="radio-card">
                     <input type="radio" name="DELIVERY" value="sdek">
-                    <span class="radio-card__title">📦 СДЭК / Почта</span>
+                    <span class="radio-card__title"><svg class="icon"><use href="#icon-box"></use></svg> СДЭК / Почта</span>
                     <span class="radio-card__desc">от 500 ₽, рассчитывается индивидуально</span>
                 </label>
             </div>
@@ -61,11 +61,11 @@
             <div class="payment-options">
                 <label class="radio-card">
                     <input type="radio" name="PAYMENT" value="cash" checked>
-                    <span>💵 При получении</span>
+                    <span><svg class="icon"><use href="#icon-banknote"></use></svg> При получении</span>
                 </label>
                 <label class="radio-card">
                     <input type="radio" name="PAYMENT" value="online">
-                    <span>💳 Онлайн (картой)</span>
+                    <span><svg class="icon"><use href="#icon-card"></use></svg> Онлайн (картой)</span>
                 </label>
             </div>
             <div class="form-group">
@@ -74,7 +74,7 @@
             </div>
             <div class="step-buttons">
                 <button type="button" class="btn btn--outline prev-step">← Назад</button>
-                <button type="submit" class="btn btn--success btn--lg">✅ Подтвердить заказ</button>
+                <button type="submit" class="btn btn--success btn--lg"><svg class="icon"><use href="#icon-check-circle"></use></svg> Подтвердить заказ</button>
             </div>
         </div>
     </form>

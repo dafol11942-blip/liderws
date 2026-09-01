@@ -46,7 +46,7 @@ $totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
 <div class="cart-page">
     <h1 class="cart-page__title">Корзина</h1>
     <div class="cart-empty">
-        <div class="cart-empty__icon">🛒</div>
+        <div class="cart-empty__icon"><svg class="icon"><use href="#icon-cart"></use></svg></div>
         <h2>Ваша корзина пуста</h2>
         <p>Перейдите в каталог, чтобы найти нужные запчасти</p>
         <a href="/catalog/" class="btn btn--primary">Перейти в каталог</a>
@@ -78,7 +78,7 @@ $totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
                 <div class="cart-item__price">
                     <div class="cart-item__sum" id="sum-<?= $item['ID'] ?>"><?= $item['SUM_FMT'] ?></div>
                 </div>
-                <button class="cart-item__remove" onclick="basketDelete(<?= $item['ID'] ?>)" title="Удалить">✕</button>
+                <button class="cart-item__remove" onclick="basketDelete(<?= $item['ID'] ?>)" title="Удалить"><svg class="icon"><use href="#icon-x"></use></svg></button>
             </div>
             <?php endforeach; ?>
         </div>

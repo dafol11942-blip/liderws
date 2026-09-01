@@ -171,6 +171,7 @@
 .toast--ok { background: #1f8a4c; }
 .toast--warn { background: #b45309; }
 .toast--show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #fff; margin-right: 10px; vertical-align: middle; opacity: 0.8; }
 
 /* ====== ФИЛЬТР (выпадающие списки) ====== */
 .filter-bar {

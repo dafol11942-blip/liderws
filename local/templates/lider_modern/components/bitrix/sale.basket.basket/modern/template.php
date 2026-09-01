@@ -4,7 +4,7 @@
     
     <?php if (empty($arResult['ITEMS'])): ?>
         <div class="basket-empty">
-            <p>🛒 Ваша корзина пуста</p>
+            <p><svg class="icon"><use href="#icon-cart"></use></svg> Ваша корзина пуста</p>
             <a href="/catalog/" class="btn btn--primary">Перейти в каталог</a>
         </div>
     <?php else: ?>
@@ -40,7 +40,7 @@
                         </td>
                         <td class="basket-sum"><?= number_format($item['SUM'], 0, ',', ' ') ?> ₽</td>
                         <td>
-                            <button class="basket-delete" title="Удалить">✕</button>
+                            <button class="basket-delete" title="Удалить"><svg class="icon"><use href="#icon-x"></use></svg></button>
                         </td>
                     </tr>
                     <?php endforeach; ?>

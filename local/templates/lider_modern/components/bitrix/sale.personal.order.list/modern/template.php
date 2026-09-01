@@ -22,7 +22,7 @@ $statusList = $arResult['INFO']['STATUS'] ?? [];
 
 if (empty($arResult['ORDERS'])): ?>
     <div class="empty-state">
-        <div class="empty-state__icon">📦</div>
+        <div class="empty-state__icon"><svg class="icon"><use href="#icon-box"></use></svg></div>
         <h3>У вас пока нет заказов</h3>
         <p>Здесь будут отображаться ваши заказы</p>
         <a href="/catalog/" class="btn btn--primary">Перейти в каталог</a>
@@ -50,7 +50,7 @@ if (empty($arResult['ORDERS'])): ?>
                 <div class="order-card__header-right">
                     <span class="order-card__price"><?= $o['FORMATED_PRICE'] ?></span>
                     <span class="order-card__badge order-card__badge--<?= $o['PAYED'] === 'Y' ? 'paid' : 'unpaid' ?>">
-                        <?= $o['PAYED'] === 'Y' ? '✅ Оплачен' : '⏳ Не оплачен' ?>
+                        <?= $o['PAYED'] === 'Y' ? '<svg class="icon"><use href="#icon-check-circle"></use></svg> Оплачен' : '<svg class="icon"><use href="#icon-hourglass"></use></svg> Не оплачен' ?>
                     </span>
                     <span class="order-card__arrow">▾</span>
                 </div>
@@ -104,13 +104,13 @@ if (empty($arResult['ORDERS'])): ?>
                 </div>
                 <div class="order-card__actions">
                     <?php if (!empty($o['URL_TO_COPY'])): ?>
-                        <a href="<?= htmlspecialcharsbx($o['URL_TO_COPY']) ?>" class="btn btn--outline btn--sm">🔄 Повторить</a>
+                        <a href="<?= htmlspecialcharsbx($o['URL_TO_COPY']) ?>" class="btn btn--outline btn--sm"><svg class="icon"><use href="#icon-refresh"></use></svg> Повторить</a>
                     <?php endif; ?>
                     <?php if ($o['PAYED'] !== 'Y' && !empty($payment['PSA_ACTION_FILE'])): ?>
-                        <a href="<?= htmlspecialcharsbx($payment['PSA_ACTION_FILE']) ?>" class="btn btn--primary btn--sm">💳 Оплатить</a>
+                        <a href="<?= htmlspecialcharsbx($payment['PSA_ACTION_FILE']) ?>" class="btn btn--primary btn--sm"><svg class="icon"><use href="#icon-card"></use></svg> Оплатить</a>
                     <?php endif; ?>
                     <?php if (!empty($o['URL_TO_DETAIL'])): ?>
-                        <a href="<?= htmlspecialcharsbx($o['URL_TO_DETAIL']) ?>" class="btn btn--white btn--sm">📋 Подробнее</a>
+                        <a href="<?= htmlspecialcharsbx($o['URL_TO_DETAIL']) ?>" class="btn btn--white btn--sm"><svg class="icon"><use href="#icon-list"></use></svg> Подробнее</a>
                     <?php endif; ?>
                 </div>
             </div>

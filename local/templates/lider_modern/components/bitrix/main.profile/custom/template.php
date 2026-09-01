@@ -50,5 +50,5 @@
 
     <input type="hidden" name="save" value="Y">
 
-    <button type="submit" class="btn btn--primary">💾 Сохранить изменения</button>
+    <button type="submit" class="btn btn--primary"><svg class="icon"><use href="#icon-save"></use></svg> Сохранить изменения</button>
 </form>

@@ -24,7 +24,7 @@ function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
 
 <?php if (!$q): ?>
 <div class="hero">
-    <h1>🔍 Поиск автозапчастей</h1>
+    <h1><svg class="icon"><use href="#icon-search"></use></svg> Поиск автозапчастей</h1>
     <p>Введите артикул запчасти</p>
     <form class="hero-frm" method="get">
         <input type="text" name="q" class="hero-inp" placeholder="Например: W7008" autofocus autocomplete="off">
@@ -36,7 +36,7 @@ function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
 <div class="topbar">
     <form class="topbar-frm" method="get">
         <input type="text" name="q" class="topbar-inp" value="<?=esc($q)?>">
-        <button type="submit" class="topbar-btn">🔍</button>
+        <button type="submit" class="topbar-btn"><svg class="icon"><use href="#icon-search"></use></svg></button>
     </form>
     <span class="topbar-info">Поиск: <strong><?=esc($q)?></strong></span>
 </div>
@@ -57,7 +57,7 @@ $localCountRes = CIBlockElement::GetList([], [
 $localCount = $localCountRes->SelectedRowsCount();
 ?>
 <?php if ($localCount > 0): ?>
-<h2 class="sec-h sec-h--local">🔵 На нашем складе <span class="topbar-info">(<?=$localCount?>)</span></h2>
+<h2 class="sec-h sec-h--local"><svg class="icon"><use href="#icon-check-circle"></use></svg> На нашем складе <span class="topbar-info">(<?=$localCount?>)</span></h2>
 <?php
 global $arrFilter;
 $arrFilter = [$localOrBlock];
@@ -105,7 +105,7 @@ async function loadBrands(article){
         var analogs=d.brands.filter(function(b){return b.type==='analog'});
         var h='';
         if(exact.length){
-            h+='<h2 class="sec-h sec-h--brand">🟠 Выберите бренд для «'+esc(article)+'»</h2>';
+            h+='<h2 class="sec-h sec-h--brand"><svg class="icon"><use href="#icon-compare"></use></svg> Выберите бренд для «'+esc(article)+'»</h2>';
             h+='<p class="sec-p">Под этим артикулом у разных производителей могут быть разные детали.</p>';
             h+='<div class="bt"><div class="bt-head"><span class="bt-c bt-c--brand">Производитель</span><span class="bt-c bt-c--art">Артикул</span><span class="bt-c bt-c--desc">Описание</span><span class="bt-c bt-c--act"></span></div>';
             exact.forEach(function(b){
@@ -114,7 +114,7 @@ async function loadBrands(article){
             h+='</div>';
         }
         if(analogs.length){
-            h+='<details class="dt"><summary class="dt-sum">📋 Аналоги и кросс-номера ('+analogs.length+')</summary><div class="bt" style="margin-top:12px">';
+            h+='<details class="dt"><summary class="dt-sum"><svg class="icon"><use href="#icon-list"></use></svg> Аналоги и кросс-номера ('+analogs.length+')</summary><div class="bt" style="margin-top:12px">';
             analogs.forEach(function(b){
                 h+='<div class="bt-row"><span class="bt-c bt-c--brand">'+esc(b.brand)+'</span><span class="bt-c bt-c--art"><code>'+esc(b.article)+'</code></span><span class="bt-c bt-c--desc">'+esc(b.description||'—')+'</span><span class="bt-c bt-c--act"><a href="/search/?q='+encodeURIComponent(article)+'&brand='+encodeURIComponent(b.brand)+'&number='+encodeURIComponent(b.article)+'" class="btn-sel btn-sel--sm">Выбрать →</a></span></div>';
             });
@@ -123,7 +123,7 @@ async function loadBrands(article){
         show('brandStep');qs('#brandStep').innerHTML=h;
     }catch(e){hide('loader');showError('Ошибка: '+e.message)}
 }
-function showError(msg){hide('brandStep');show('emptyMsg');qs('#emptyMsg').innerHTML='<div class="hero-icon">⚠️</div><p>'+esc(msg)+'</p><form class="hero-frm" method="get"><input type="text" name="q" class="hero-inp" placeholder="Попробуйте другой артикул" autofocus><button class="hero-btn">Найти</button></form>'}
+function showError(msg){hide('brandStep');show('emptyMsg');qs('#emptyMsg').innerHTML='<div class="hero-icon"><svg class="icon"><use href="#icon-alert"></use></svg></div><p>'+esc(msg)+'</p><form class="hero-frm" method="get"><input type="text" name="q" class="hero-inp" placeholder="Попробуйте другой артикул" autofocus><button class="hero-btn">Найти</button></form>'}
 
 document.addEventListener('DOMContentLoaded',function(){loadBrands(Q)});
 })();
@@ -133,7 +133,7 @@ document.addEventListener('DOMContentLoaded',function(){loadBrands(Q)});
 <div class="topbar">
     <form class="topbar-frm" method="get">
         <input type="text" name="q" class="topbar-inp" value="<?=esc($q)?>">
-        <button type="submit" class="topbar-btn">🔍</button>
+        <button type="submit" class="topbar-btn"><svg class="icon"><use href="#icon-search"></use></svg></button>
     </form>
     <a href="/search/?q=<?=urlencode($q)?>" class="back">← К выбору бренда</a>
 </div>
@@ -221,7 +221,7 @@ async function loadResults(){
                 + '&crossPairs=' + encodeURIComponent(JSON.stringify(d1.crossPairs)));
             if (!r2.ok) {
                 console.error('crossload HTTP error', r2.status, await r2.text());
-                showToast('⚠️ Не удалось доподбрать часть предложений у поставщиков', 'warn');
+                showToast('Не удалось доподбрать часть предложений у поставщиков', 'warn');
             } else {
                 var d2 = await r2.json();
                 var hasOffers = d2.analog_offers && Object.keys(d2.analog_offers).length > 0;
@@ -232,14 +232,14 @@ async function loadResults(){
                     var parts = [];
                     if (addedCount.groups > 0) parts.push(addedCount.groups + ' новых аналогов');
                     if (addedCount.offers > 0) parts.push(addedCount.offers + ' предл. от ' + addedCount.suppliers + ' поставщиков');
-                    if (parts.length) showToast('✅ Добавлено: ' + parts.join(', '), 'ok');
+                    if (parts.length) showToast('Добавлено: ' + parts.join(', '), 'ok');
                 } else {
                     console.warn('crossload вернул пусто', d2);
                 }
             }
         } catch(e) {
             console.error('crossload failed:', e);
-            showToast('⚠️ Не удалось доподбрать часть предложений у поставщиков', 'warn');
+            showToast('Не удалось доподбрать часть предложений у поставщиков', 'warn');
         }
         stopP2();
         var liveDiv = qs('.cross-loading');
@@ -470,13 +470,13 @@ function renderResults(d){
     h+='<div class="full-tbl">';
 
     if(exactVisible.length){
-        h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head"><span class="ft-sec-title">✅ Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+' — '+exactVisible.length+' складов</span></div>';
+        h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head"><span class="ft-sec-title"><svg class="icon"><use href="#icon-check-circle"></use></svg> Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+' — '+exactVisible.length+' складов</span></div>';
         h+=supplierTable(exactVisible,'exact');
         h+='</div>';
     }
 
     if(analogsVisible.length){
-        h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title">🔄 Аналоги ('+analogsVisible.length+')</span></div>';
+        h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title"><svg class="icon"><use href="#icon-refresh"></use></svg> Аналоги ('+analogsVisible.length+')</span></div>';
         analogsVisible.forEach(function(a){
             h+='<div class="ft-group"><div class="ft-ghead"><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery!==null?a.best_delivery+' дн.':'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty+' шт.</span></div></div>';
             h+=supplierTable(a.suppliers,'analog');
@@ -488,9 +488,9 @@ function renderResults(d){
     if(!exactVisible.length&&!analogsVisible.length){
         var filterOn2 = !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
         if (filterOn2 && (exact||analogsAll.length)) {
-            h+='<div class="hero" style="margin-top:16px"><div class="hero-icon">🔍</div><p>Под текущий фильтр ничего не подходит</p><button type="button" class="btn-sel" onclick="resetFilters()">Сбросить фильтр</button></div>';
+            h+='<div class="hero" style="margin-top:16px"><div class="hero-icon"><svg class="icon"><use href="#icon-search"></use></svg></div><p>Под текущий фильтр ничего не подходит</p><button type="button" class="btn-sel" onclick="resetFilters()">Сбросить фильтр</button></div>';
         } else {
-            h='<div class="hero" style="margin-top:16px"><div class="hero-icon">⚠️</div><p>По запросу «'+esc(B)+' '+esc(N)+'» ничего не найдено</p><a href="/search/?q='+encodeURIComponent(Q)+'" class="hero-back">← К выбору бренда</a></div>';
+            h='<div class="hero" style="margin-top:16px"><div class="hero-icon"><svg class="icon"><use href="#icon-alert"></use></svg></div><p>По запросу «'+esc(B)+' '+esc(N)+'» ничего не найдено</p><a href="/search/?q='+encodeURIComponent(Q)+'" class="hero-back">← К выбору бренда</a></div>';
         }
     }
 
@@ -527,7 +527,7 @@ function supplierTable(suppliers,type){
 }
 
 function showError(msg){
-    qs('#resultContent').innerHTML='<div class="hero" style="margin-top:16px"><div class="hero-icon">⚠️</div><p>'+esc(msg)+'</p><a href="/search/?q='+encodeURIComponent(Q)+'" class="hero-back">← К выбору бренда</a></div>';
+    qs('#resultContent').innerHTML='<div class="hero" style="margin-top:16px"><div class="hero-icon"><svg class="icon"><use href="#icon-alert"></use></svg></div><p>'+esc(msg)+'</p><a href="/search/?q='+encodeURIComponent(Q)+'" class="hero-back">← К выбору бренда</a></div>';
 }
 
 document.addEventListener('DOMContentLoaded',function(){loadResults()});

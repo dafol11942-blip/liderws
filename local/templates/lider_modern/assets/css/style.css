@@ -36,7 +36,8 @@
     --bg-dark: #DAE2EF;
     --white: #FFFFFF;
     --border: #E2E2E2;
-    --radius: 2px;
+    --radius: 10px;
+    --radius-sm: 6px;
     --shadow-sm: 0 1px 3px rgba(0,0,0,0.10);
     --shadow: 0 2px 10px rgba(0,0,0,0.12);
     --shadow-lg: 0 4px 24px rgba(0,0,0,0.16);
@@ -75,6 +76,23 @@ a:hover { color: var(--blue); text-decoration: none; }
 
 img { max-width: 100%; height: auto; display: block; }
 ul, ol { list-style: none; }
+
+/* =============================================
+   ИКОНКИ (инлайн SVG-спрайт вместо эмодзи)
+   ============================================= */
+.icon {
+    width: 1em;
+    height: 1em;
+    display: inline-block;
+    flex-shrink: 0;
+    vertical-align: -0.125em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.icon--fill { fill: currentColor; stroke: none; }
 
 /* =============================================
    КНОПКИ
@@ -128,8 +146,8 @@ ul, ol { list-style: none; }
    ============================================= */
 .top-bar { background: var(--blue-dark); color: #ccc; font-size: 13px; padding: 8px 0; border-bottom: 2px solid var(--blue); }
 .top-bar .container { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-.top-bar__city { color: #ddd; font-size: 12px; border-bottom: 1px dashed rgba(255,255,255,0.5); }
-.top-bar__phone { color: #fff; font-weight: 700; font-size: 14px; }
+.top-bar__city { display: inline-flex; align-items: center; gap: 6px; color: #ddd; font-size: 12px; border-bottom: 1px dashed rgba(255,255,255,0.5); }
+.top-bar__phone { display: inline-flex; align-items: center; gap: 6px; color: #fff; font-weight: 700; font-size: 14px; }
 .top-bar__phone:hover { color: var(--green); }
 .top-bar__links { display: flex; gap: 18px; align-items: center; }
 .top-bar__link { color: #ccc; font-size: 12px; }
@@ -141,8 +159,13 @@ ul, ol { list-style: none; }
 .header { background: var(--white); padding: 0; box-shadow: var(--shadow-lg); position: sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--border); }
 .header__inner { display: flex; align-items: center; gap: 16px; padding: 10px 0; }
 
-.logo { display: flex; align-items: center; flex-shrink: 0; }
-.logo img { height: 48px; width: auto; }
+.logo { display: flex; align-items: center; gap: 10px; flex-shrink: 0; color: var(--black); }
+.logo:hover { color: var(--black); }
+.logo__mark { width: 40px; height: 40px; color: var(--blue); flex-shrink: 0; }
+.logo__mark .icon { width: 100%; height: 100%; stroke-width: 1.6; }
+.logo__text { display: flex; flex-direction: column; line-height: 1.15; }
+.logo__title { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+.logo__subtitle { font-size: 11px; font-weight: 600; color: var(--gray); text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* Кнопка Каталог + выпадающее меню */
 .catalog-dropdown-wrapper { position: relative; flex-shrink: 0; }
@@ -204,7 +227,7 @@ ul, ol { list-style: none; }
 .header-nav { background: #fff; border-bottom: 1px solid var(--border); box-shadow: var(--shadow-sm); }
 .header-nav .container { display: flex; align-items: center; }
 .header-nav__menu { display: flex; flex-wrap: wrap; }
-.header-nav__menu a { display: block; padding: 14px 20px; color: var(--black); font-size: 14px; font-weight: 700; text-transform: uppercase; border-bottom: 3px solid transparent; transition: border-color var(--transition); }
+.header-nav__menu a { display: flex; align-items: center; gap: 6px; padding: 14px 20px; color: var(--black); font-size: 14px; font-weight: 700; text-transform: uppercase; border-bottom: 3px solid transparent; transition: border-color var(--transition); }
 .header-nav__menu a:hover, .header-nav__menu a.active { border-bottom-color: var(--blue); color: var(--black); }
 
 /* =============================================
@@ -390,7 +413,7 @@ ul, ol { list-style: none; }
 .footer__col h4 { color: #fff; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 14px; }
 .footer__col a { color: #bbb; font-size: 13px; display: block; padding: 3px 0; transition: color var(--transition); }
 .footer__col a:hover { color: var(--green); }
-.footer__col p { font-size: 13px; color: #bbb; padding: 2px 0; }
+.footer__col p { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #bbb; padding: 2px 0; }
 .footer__bottom { border-top: 1px solid rgba(255,255,255,0.1); padding: 16px 0; text-align: center; font-size: 12px; color: #999; }
 
 /* =============================================

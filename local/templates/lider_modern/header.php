@@ -10,13 +10,14 @@
 </head>
 <body>
     <?php $APPLICATION->ShowPanel(); ?>
-    
+    <?php require __DIR__ . '/include/svg-sprite.php'; ?>
+
     <!-- Верхняя полоса -->
     <div class="top-bar">
         <div class="container">
-            <span class="top-bar__city">📍 Елабуга, пр-т Нефтяников, 4 &nbsp;|&nbsp; Пн-Вс: 9:00–20:00</span>
+            <span class="top-bar__city"><svg class="icon"><use href="#icon-pin"></use></svg> Елабуга, пр-т Нефтяников, 4 &nbsp;|&nbsp; Пн-Вс: 9:00–20:00</span>
             <div class="top-bar__links">
-                <a href="tel:+78000000000" class="top-bar__phone">📞 8-800-000-00-00</a>
+                <a href="tel:+78000000000" class="top-bar__phone"><svg class="icon"><use href="#icon-phone"></use></svg> 8-800-000-00-00</a>
                 <a href="/about/" class="top-bar__link">О компании</a>
                 <a href="/contacts/" class="top-bar__link">Контакты</a>
             </div>
@@ -27,9 +28,13 @@
     <header class="header">
         <div class="container header__inner">
             <a href="/" class="logo">
-                <img src="<?= SITE_TEMPLATE_PATH ?>/assets/images/logo.png" alt="Лидер — автозапчасти">
+                <span class="logo__mark"><svg class="icon"><use href="#icon-logo"></use></svg></span>
+                <span class="logo__text">
+                    <span class="logo__title">Лидер</span>
+                    <span class="logo__subtitle">Автозапчасти</span>
+                </span>
             </a>
-            
+
 <!-- Кнопка Каталог + выпадающее меню -->
 <div class="catalog-dropdown-wrapper">
     <a href="/catalog/" class="catalog-btn" id="catalogBtn">
@@ -88,20 +93,20 @@
 </div>
             
             <div class="header__search">
-                <form class="search-form" action="/parts-search/">
+                <form class="search-form" action="/search/">
                     <input type="text" name="q" placeholder="Поиск по VIN, названию или артикулу...">
-                    <button type="submit">🔍</button>
+                    <button type="submit"><svg class="icon"><use href="#icon-search"></use></svg></button>
                 </form>
             </div>
-            
+
             <div class="header__actions">
-                <a href="/personal/favorites/" class="header__icon" title="Избранное">❤️</a>
-                <a href="/personal/compare/" class="header__icon" title="Сравнение">⚖️</a>
+                <a href="/personal/favorites/" class="header__icon" title="Избранное"><svg class="icon"><use href="#icon-heart"></use></svg></a>
+                <a href="/personal/compare/" class="header__icon" title="Сравнение"><svg class="icon"><use href="#icon-compare"></use></svg></a>
                 <a href="/cart/" class="header__icon" title="Корзина">
-                    🛒
+                    <svg class="icon"><use href="#icon-cart"></use></svg>
                     <span class="badge" id="cartBadge" style="display:none;">0</span>
                 </a>
-                <a href="/personal/" class="header__icon" title="Личный кабинет">👤</a>
+                <a href="/personal/" class="header__icon" title="Личный кабинет"><svg class="icon"><use href="#icon-user"></use></svg></a>
             </div>
         </div>
     </header>
@@ -110,7 +115,7 @@
     <div class="header-nav">
         <div class="container">
             <nav class="header-nav__menu">
-<a href="/service-parts/" style="color:var(--blue);">🔧 Запчасти для ТО</a>
+<a href="/service-parts/" style="color:var(--blue);"><svg class="icon"><use href="#icon-wrench"></use></svg> Запчасти для ТО</a>
                 <a href="/catalog/masla/">Масла</a>
                 <a href="/catalog/filtry/">Фильтры</a>
                 <a href="/catalog/tormoznye-kolodki/">Тормозные колодки</a>

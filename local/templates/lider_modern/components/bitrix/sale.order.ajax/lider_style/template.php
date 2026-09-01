@@ -47,7 +47,7 @@ $orderConfirmed = (($_GET["ORDER_CONFIRMED"] ?? $arResult["ORDER_CONFIRMED"] ?? 
     <div class="checkout-page">
         <h1 class="checkout-page__title">Заказ №<?= $orderId ?> оформлен</h1>
         <div class="checkout-block" style="text-align:center;padding:60px 20px;">
-            <div style="font-size:48px;margin-bottom:16px;">✅</div>
+            <div style="font-size:48px;margin-bottom:16px;color:var(--green);"><svg class="icon"><use href="#icon-check-circle"></use></svg></div>
             <h2 style="font-size:20px;margin-bottom:8px;">Спасибо за заказ!</h2>
             <p style="color:var(--gray);margin-bottom:20px;">Мы свяжемся с вами в ближайшее время для подтверждения</p>
             <a href="/catalog/" class="btn btn--primary">Продолжить покупки</a>
@@ -127,7 +127,7 @@ $orderConfirmed = (($_GET["ORDER_CONFIRMED"] ?? $arResult["ORDER_CONFIRMED"] ?? 
                                 <input type="radio" name="DELIVERY_ID" value="<?= $del['ID'] ?>"
                                        <?= ($del['CHECKED'] ?? '') === 'Y' ? 'checked' : '' ?>>
                                 <div class="option-card__box">
-                                    <div class="option-card__icon">🚚</div>
+                                    <div class="option-card__icon"><svg class="icon"><use href="#icon-truck"></use></svg></div>
                                     <div class="option-card__info">
                                         <div class="option-card__title"><?= $del['NAME'] ?></div>
                                         <?php if (!empty($del['DESCRIPTION'])): ?>
@@ -158,7 +158,7 @@ $orderConfirmed = (($_GET["ORDER_CONFIRMED"] ?? $arResult["ORDER_CONFIRMED"] ?? 
                                 <input type="radio" name="PAY_SYSTEM_ID" value="<?= $pay['ID'] ?>"
                                        <?= ($pay['CHECKED'] ?? '') === 'Y' ? 'checked' : '' ?>>
                                 <div class="option-card__box">
-                                    <div class="option-card__icon">💳</div>
+                                    <div class="option-card__icon"><svg class="icon"><use href="#icon-card"></use></svg></div>
                                     <div class="option-card__info">
                                         <div class="option-card__title"><?= $pay['NAME'] ?></div>
                                     </div>

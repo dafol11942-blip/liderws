@@ -7,7 +7,7 @@ if (empty($arResult['STORES'])) return;
     <?php foreach ($arResult['STORES'] as $store): ?>
         <div class="stores-item">
             <div class="stores-item__header">
-                <span class="stores-item__name">📍 <?= $store['TITLE'] ?></span>
+                <span class="stores-item__name"><svg class="icon"><use href="#icon-pin"></use></svg> <?= $store['TITLE'] ?></span>
                 <?php if ($store['AMOUNT'] > 0): ?>
                     <span class="stores-item__badge stores-item__badge--yes">
                         <?= $store['AMOUNT'] ?> шт.
@@ -20,7 +20,7 @@ if (empty($arResult['STORES'])) return;
                 <div class="stores-item__address"><?= $store['ADDRESS'] ?></div>
             <?php endif; ?>
             <?php if (!empty($store['SCHEDULE'])): ?>
-                <div class="stores-item__schedule">🕒 <?= $store['SCHEDULE'] ?></div>
+                <div class="stores-item__schedule"><svg class="icon"><use href="#icon-clock"></use></svg> <?= $store['SCHEDULE'] ?></div>
             <?php endif; ?>
         </div>
     <?php endforeach; ?>

@@ -36,10 +36,10 @@
             </div>
             <div class="footer__col">
                 <h4>Контакты</h4>
-                <p>📍 РТ, Елабуга, пр-т Нефтяников, 4</p>
-                <p>📞 <a href="tel:+78000000000" style="color:#fff;font-weight:700;">8-800-000-00-00</a></p>
-                <p>📧 info@liderws.ru</p>
-                <p>🕒 Пн-Вс: 9:00–20:00</p>
+                <p><svg class="icon"><use href="#icon-pin"></use></svg> РТ, Елабуга, пр-т Нефтяников, 4</p>
+                <p><svg class="icon"><use href="#icon-phone"></use></svg> <a href="tel:+78000000000" style="color:#fff;font-weight:700;">8-800-000-00-00</a></p>
+                <p><svg class="icon"><use href="#icon-mail"></use></svg> info@liderws.ru</p>
+                <p><svg class="icon"><use href="#icon-clock"></use></svg> Пн-Вс: 9:00–20:00</p>
             </div>
         </div>
         <div class="footer__bottom">

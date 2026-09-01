@@ -42,9 +42,9 @@ $inStock = $totalAmount > 0;
 
         <div class="product-detail__stock">
             <?php if ($inStock): ?>
-                <span class="stock-badge stock-badge--yes">✅ В наличии (<?= $totalAmount ?> шт.)</span>
+                <span class="stock-badge stock-badge--yes"><svg class="icon"><use href="#icon-check-circle"></use></svg> В наличии (<?= $totalAmount ?> шт.)</span>
             <?php else: ?>
-                <span class="stock-badge stock-badge--no">❌ Нет в наличии</span>
+                <span class="stock-badge stock-badge--no"><svg class="icon"><use href="#icon-x-circle"></use></svg> Нет в наличии</span>
             <?php endif; ?>
         </div>
 
@@ -66,7 +66,7 @@ $inStock = $totalAmount > 0;
                 </div>
                 <button class="btn btn--primary btn--lg"
                         onclick="addToCartDetail(<?= $item['ID'] ?>)">
-                    🛒 В корзину
+                    <svg class="icon"><use href="#icon-cart"></use></svg> В корзину
                 </button>
             <?php else: ?>
                 <button class="btn btn--outline btn--lg" disabled>Нет в наличии</button>
@@ -74,7 +74,7 @@ $inStock = $totalAmount > 0;
         </div>
 
         <div class="product-detail__stores">
-            <h3>📦 Наличие на складах</h3>
+            <h3><svg class="icon"><use href="#icon-box"></use></svg> Наличие на складах</h3>
             <?php $APPLICATION->IncludeComponent(
                 "bitrix:catalog.store.amount",
                 "lider_style",
@@ -98,7 +98,7 @@ $inStock = $totalAmount > 0;
 
         <?php if (!empty($item['PROPERTIES'])): ?>
             <div class="product-detail__props">
-                <h3>📋 Характеристики</h3>
+                <h3><svg class="icon"><use href="#icon-list"></use></svg> Характеристики</h3>
                 <?php foreach ($item['PROPERTIES'] as $prop): ?>
                     <?php if (!empty($prop['VALUE']) && !in_array($prop['CODE'], ['CML2_ARTICLE', 'CML2_MANUFACTURER', 'IN_STOCK', 'IN_STOCK_LIST'])): ?>
                         <div class="prop-row">
@@ -138,7 +138,7 @@ function addToCartDetail(id) {
             if (resp.status === 'ok') {
                 if (btn) { btn.textContent = '✓ В корзине'; btn.style.background = '#4DCD71'; btn.style.opacity = '1'; btn.style.pointerEvents = 'none'; }
             } else {
-                if (btn) { btn.textContent = '🛒 В корзину'; btn.style.opacity = '1'; }
+                if (btn) { btn.innerHTML = '<svg class="icon"><use href="#icon-cart"></use></svg> В корзину'; btn.style.opacity = '1'; }
             }
         } catch(e) { window.location.href = '/cart/?action=ADD2BASKET&id=' + id; }
     };
