@@ -28,11 +28,7 @@
     <header class="header">
         <div class="container header__inner">
             <a href="/" class="logo">
-                <span class="logo__mark"><svg class="icon"><use href="#icon-logo"></use></svg></span>
-                <span class="logo__text">
-                    <span class="logo__title">Лидер</span>
-                    <span class="logo__subtitle">Автозапчасти</span>
-                </span>
+                <img src="<?= SITE_TEMPLATE_PATH ?>/assets/images/logo.png" alt="Лидер — автотехцентр">
             </a>
 
 <!-- Кнопка Каталог + выпадающее меню -->

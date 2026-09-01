@@ -10,6 +10,9 @@
 <?php endif; ?>
 
     <footer class="footer">
+        <div class="container footer__brand">
+            <img src="<?= SITE_TEMPLATE_PATH ?>/assets/images/logo.png" alt="Лидер — автотехцентр">
+        </div>
         <div class="container footer__grid">
             <div class="footer__col">
                 <h4>Каталог</h4>
