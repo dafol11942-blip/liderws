@@ -313,11 +313,14 @@ if ($action === 'crossload') {
 
     $brandOrig  = trim($_REQUEST['brand'] ?? '');
     $numberOrig = trim($_REQUEST['number'] ?? '');
+    $normBrand  = BrandNormalizer::normalize($brandOrig);
+    $normNum    = BrandNormalizer::normalizeArticle($numberOrig);
 
     ajaxLog("CROSSLOAD START task=$taskId pairs=" . count($crossPairs));
 
     $analogOffers   = [];  // gk => [offer, ...]
     $newAnalogsMeta = [];  // gk => {brand, article, description} — новые карточки для фронтенда
+    $exactOffersD   = [];  // доп. предложения ИСКОМОГО товара, найденные при discovery (не аналоги)
 
     // ── DISCOVERY: поставщики вне Phase1-кросс-поиска (NO_CROSS_DISCOVERY_SUPPLIERS)
     // спрашиваются на СВОЙ список кроссов по исходному запросу — иначе аналоги,
@@ -341,6 +344,15 @@ if ($action === 'crossload') {
                     if (count($crossPairs) >= MAX_ANALOG_PAIRS) break;
                     $ia = BrandNormalizer::normalizeArticle((string)($it->article ?? ''));
                     $ib = BrandNormalizer::normalize((string)($it->brand ?? ''));
+
+                    // Свой список кроссов у поставщика обычно включает и сам искомый товар
+                    // (просто с другим написанием бренда, напр. MANN вместо MANN-FILTER) —
+                    // это доп. предложение искомого, а не отдельный "аналог самому себе".
+                    if ($ia === $normNum && brandsMatch($ib, $normBrand)) {
+                        $exactOffersD[] = offerRow($code, $it, true);
+                        continue;
+                    }
+
                     $gk = $ib . '|' . $ia;
                     if (isset($crossPairs[$gk])) continue; // уже знаем эту пару от других поставщиков
                     $crossPairs[$gk] = [
@@ -365,7 +377,7 @@ if ($action === 'crossload') {
 
     if (empty($crossPairs)) {
         progWrite($taskId, 100, 'Докрутка завершена');
-        echo json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta, 'exact_offers' => $exactOffersD], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -457,7 +469,7 @@ if ($action === 'crossload') {
     unset($offers);
 
     progWrite($taskId, 100, 'Докрутка завершена');
-    echo json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta, 'exact_offers' => $exactOffersD], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
