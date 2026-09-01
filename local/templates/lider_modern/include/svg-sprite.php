@@ -167,4 +167,7 @@
         <line x1="12" y1="19" x2="12" y2="5"/>
         <polyline points="5 12 12 5 19 12"/>
     </symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24">
+        <polyline points="6 9 12 15 18 9"/>
+    </symbol>
 </svg>

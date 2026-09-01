@@ -479,8 +479,8 @@ function renderResults(d){
     if(analogsVisible.length){
         h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title"><svg class="icon"><use href="#icon-refresh"></use></svg> Аналоги ('+analogsVisible.length+')</span></div>';
         analogsVisible.forEach(function(a){
-            h+='<div class="ft-group"><div class="ft-ghead"><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery!==null?a.best_delivery+' дн.':'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty+' шт.</span></div></div>';
-            h+=supplierTable(a.suppliers,'analog');
+            h+='<div class="ft-group"><div class="ft-ghead" data-ft-toggle><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery!==null?a.best_delivery+' дн.':'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty+' шт.</span><button type="button" class="ft-gtoggle" aria-expanded="true" title="Свернуть/развернуть список складов"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button></div></div>';
+            h+='<div class="ft-gbody">'+supplierTable(a.suppliers,'analog')+'</div>';
             h+='</div>';
         });
         h+='</div>';
@@ -506,6 +506,15 @@ function renderResults(d){
             hidden.forEach(function(r){r.style.display=expanded?'none':''});
             btn.setAttribute('data-expanded',expanded?'0':'1');
             btn.textContent=expanded?('Показать еще '+btn.dataset.count+' товаров'):'Свернуть';
+        });
+    });
+
+    document.querySelectorAll('.ft-ghead[data-ft-toggle]').forEach(function(head){
+        head.addEventListener('click',function(){
+            var group=head.closest('.ft-group');
+            var collapsed=group.classList.toggle('ft-group--collapsed');
+            var btn=head.querySelector('.ft-gtoggle');
+            if(btn)btn.setAttribute('aria-expanded',collapsed?'false':'true');
         });
     });
 }
