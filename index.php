@@ -46,22 +46,18 @@ $APPLICATION->SetTitle("ЛИДЕР — автозапчасти для ином�
     <h2 class="section-title"><svg class="icon"><use href="#icon-star"></use></svg> Популярные товары</h2>
     <a href="/catalog/" class="section-link">Все товары →</a>
 </div>
-<?php $APPLICATION->IncludeComponent("bitrix:catalog.section", ".default", [
-    "IBLOCK_TYPE" => "catalog", "IBLOCK_ID" => "1", "SECTION_ID" => "",
+<?php $APPLICATION->IncludeComponent("bitrix:catalog.section", "lider_style", [
+    "IBLOCK_TYPE" => "1c_catalog", "IBLOCK_ID" => "42", "SECTION_ID" => "",
     "ELEMENT_SORT_FIELD" => "sort", "ELEMENT_SORT_ORDER" => "asc",
     "INCLUDE_SUBSECTIONS" => "Y", "SHOW_ALL_WO_SECTION" => "Y",
     "PAGE_ELEMENT_COUNT" => "8", "LINE_ELEMENT_COUNT" => "4",
-    "PROPERTY_CODE" => ["ARTICLE", "BRAND"],
+    "PRICE_CODE" => ["Ручная розничная цена"],
+    "PROPERTY_CODE" => ["CML2_ARTICLE", "CML2_MANUFACTURER", "IN_STOCK"],
+    "HIDE_NOT_AVAILABLE" => "Y",
+    "BASKET_URL" => "/cart/",
     "CACHE_TYPE" => "A", "CACHE_TIME" => "36000000",
+    "SET_TITLE" => "N",
 ], false); ?>
-
-<!-- БРЕНДЫ -->
-<div class="section-header mt-20"><h2 class="section-title"><svg class="icon"><use href="#icon-tag"></use></svg> Бренды</h2></div>
-<div class="categories-grid">
-    <?php foreach (['Bosch','Mann Filter','Castrol','Brembo','KYB','Gates','Denso','Febi','Lemförder','Sachs','Valeo','NTN-SNR'] as $b): ?>
-        <div class="category-card"><span class="category-card__name"><?= $b ?></span></div>
-    <?php endforeach; ?>
-</div>
 
 <!-- АВТОСЕРВИС -->
 <div class="hero mt-20">

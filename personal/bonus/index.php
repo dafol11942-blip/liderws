@@ -2,25 +2,11 @@
 $APPLICATION->SetTitle("Бонусная программа"); ?>
 
 <div class="lk-layout">
-    <aside class="lk-sidebar">
-        <div class="lk-user-block">
-            <div class="lk-user-avatar">
-                <?= mb_substr($USER->GetFullName() ?: $USER->GetLogin(), 0, 1) ?>
-            </div>
-            <div class="lk-user-name"><?= $USER->GetFullName() ?: $USER->GetLogin() ?></div>
-        </div>
-        <nav class="lk-nav">
-            <a href="/personal/">👤 Профиль</a>
-            <a href="/personal/orders/">📦 История заказов</a>
-            <a href="/personal/favorites/">⭐ Избранное</a>
-            <a href="/personal/bonus/" class="active">🎁 Бонусная программа</a>
-            <a href="/?logout=yes" class="lk-nav--logout">🚪 Выйти</a>
-        </nav>
-    </aside>
+    <?php $lkNavActive = 'bonus'; require $_SERVER["DOCUMENT_ROOT"] . "/local/templates/lider_modern/include/lk-sidebar.php"; ?>
     <div class="lk-content">
-        <h2>🎁 Бонусная программа</h2>
+        <h2><svg class="icon"><use href="#icon-gift"></use></svg> Бонусная программа</h2>
         <div class="empty-state">
-            <div class="empty-state__icon">🎁</div>
+            <div class="empty-state__icon"><svg class="icon"><use href="#icon-gift"></use></svg></div>
             <h3>Скоро появится</h3>
             <p>Бонусная программа находится в разработке</p>
             <a href="/catalog/" class="btn btn--primary">Перейти в каталог</a>
