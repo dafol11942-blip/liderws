@@ -111,6 +111,7 @@
 .hl-price { font-size: 24px; font-weight: 800; }
 .hl-meta { font-size: 13px; color: var(--gray); margin-top: 6px; }
 .hl-src { margin-top: 10px; }
+.hl-actl { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 
 /* Бейджи */
 .badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius); font-size: 12px; font-weight: 700; }
@@ -147,11 +148,12 @@
    во всех таблицах секции (искомый номер + каждая группа аналогов),
    поэтому колонки больше не "гуляют" между блоками */
 .ft-tbl { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
-.ft-col--det { width: 34%; }
-.ft-col--skl { width: 30%; }
-.ft-col--qty { width: 12%; }
-.ft-col--del { width: 12%; }
+.ft-col--det { width: 27%; }
+.ft-col--skl { width: 23%; }
+.ft-col--qty { width: 10%; }
+.ft-col--del { width: 10%; }
 .ft-col--prc { width: 12%; }
+.ft-col--act { width: 18%; }
 .ft-tbl thead th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ft-tbl tbody td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
 .ft-tbl tbody tr:last-child td { border-bottom: none; }
@@ -163,6 +165,28 @@
 .ft-td--prc strong { font-size: 14px; font-weight: 800; }
 .ft-td--det { line-height: 1.4; word-break: break-word; white-space: normal; }
 .ft-skl-name { display: block; font-size: 12px; color: var(--black); margin-bottom: 3px; word-break: break-word; white-space: normal; }
+
+/* ====== ДОБАВЛЕНИЕ В КОРЗИНУ (пока UI-заглушка: проверка остатка + уведомление, без сохранения) ====== */
+.ft-th--act { text-align: left !important; }
+.ft-td--act { white-space: normal; }
+.actl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.actl-qty {
+    width: 52px; padding: 6px 4px; font-size: 13px; font-family: var(--font);
+    border: 1px solid var(--border); border-radius: var(--radius); text-align: center;
+    transition: border-color .15s;
+}
+.actl-qty:focus { border-color: var(--blue); outline: none; }
+.actl-qty--err { border-color: #dc2626 !important; animation: actl-shake .3s; }
+@keyframes actl-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+.actl-btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+    background: var(--blue); color: #fff; border: none; border-radius: var(--radius);
+    font-size: 12px; font-weight: 700; font-family: var(--font); cursor: pointer;
+    white-space: nowrap; transition: background .15s;
+}
+.actl-btn:hover { background: var(--blue-dark); }
+.actl-btn .icon { width: 14px; height: 14px; }
+.actl-oos { font-size: 12px; font-weight: 700; color: #b91c1c; text-transform: uppercase; letter-spacing: .02em; }
 
 /* Показать ещё */
 .ft-showmore { display: block; width: 100%; padding: 10px; background: var(--bg); border: none; border-top: 1px solid var(--border); color: var(--blue); font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; }

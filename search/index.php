@@ -309,6 +309,32 @@ function mergeAnalogOffers(d1, analogOffers, newAnalogs) {
     return {offers: addedOffers, suppliers: Object.keys(addedSuppliers).length, groups: addedGroups};
 }
 
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest && e.target.closest('.actl-btn');
+    if (!btn) return;
+    var wrap = btn.closest('.actl');
+    var input = wrap ? wrap.querySelector('.actl-qty') : null;
+    var max = parseInt(btn.getAttribute('data-max'), 10) || 0;
+    var qty = input ? (parseInt(input.value, 10) || 1) : 1;
+    if (qty < 1) qty = 1;
+
+    if (qty > max) {
+        if (input) {
+            input.value = max;
+            input.classList.remove('actl-qty--err');
+            void input.offsetWidth; // перезапуск CSS-анимации при повторной ошибке подряд
+            input.classList.add('actl-qty--err');
+            setTimeout(function(){ input.classList.remove('actl-qty--err'); }, 900);
+        }
+        showToast('У поставщика «' + (btn.getAttribute('data-supplier') || '') + '» в наличии только ' + max + ' шт. Количество скорректировано.', 'warn');
+        return;
+    }
+
+    var brand = btn.getAttribute('data-brand') || '';
+    var article = btn.getAttribute('data-article') || '';
+    showToast('Добавлено в корзину: ' + brand + ' / ' + article + ' — ' + qty + ' шт.', 'ok');
+});
+
 function showToast(msg, kind) {
     var t = document.createElement('div');
     t.className = 'toast toast--' + (kind || 'ok');
@@ -472,7 +498,7 @@ function renderResults(d){
 
     if(exactVisible.length){
         h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head"><span class="ft-sec-title"><svg class="icon"><use href="#icon-check-circle"></use></svg> Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+' — '+exactVisible.length+' складов</span></div>';
-        h+=supplierTable(exactVisible,'exact');
+        h+=supplierTable(exactVisible,'exact',B,N);
         h+='</div>';
     }
 
@@ -480,7 +506,7 @@ function renderResults(d){
         h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title"><svg class="icon"><use href="#icon-refresh"></use></svg> Аналоги ('+analogsVisible.length+')</span></div>';
         analogsVisible.forEach(function(a){
             h+='<div class="ft-group"><div class="ft-ghead" data-ft-toggle><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery!==null?a.best_delivery+' дн.':'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty+' шт.</span><button type="button" class="ft-gtoggle" aria-expanded="true" title="Свернуть/развернуть список складов"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button></div></div>';
-            h+='<div class="ft-gbody">'+supplierTable(a.suppliers,'analog')+'</div>';
+            h+='<div class="ft-gbody">'+supplierTable(a.suppliers,'analog',a.brand,a.article)+'</div>';
             h+='</div>';
         });
         h+='</div>';
@@ -519,18 +545,27 @@ function renderResults(d){
     });
 }
 
-function hlCard(o,title,cardCls,badgeCls,type){
-    var det=o._description||o.description||'';
-    return '<div class="hl-card '+cardCls+'"><div class="hl-badge '+badgeCls+'">'+title+'</div><div class="hl-type">'+type+'</div><div class="hl-name">'+esc(o._brand)+' / '+esc(o._article)+'</div>'+(det?'<div class="hl-desc">'+esc(det)+'</div>':'')+'<div class="hl-price">'+fmt(o.price)+' р.</div><div class="hl-meta">'+o.quantity+' шт. &middot; '+dRange(o.delivery_days)+'</div><div class="hl-src"><span class="src-tag src-tag--'+o.supplier+'">'+o.supplier+'</span></div></div>';
+function addToCartControl(brand,article,supplier,warehouse,price,qty,description){
+    var maxQty=Math.max(0,parseInt(qty,10)||0);
+    if(maxQty<=0)return '<span class="actl-oos">Нет в наличии</span>';
+    return '<div class="actl">'
+        +'<input type="number" class="actl-qty" min="1" max="'+maxQty+'" value="1" inputmode="numeric">'
+        +'<button type="button" class="actl-btn" data-brand="'+esc(brand)+'" data-article="'+esc(article)+'" data-supplier="'+esc(supplier)+'" data-warehouse="'+esc(warehouse||'')+'" data-price="'+(parseFloat(price)||0)+'" data-max="'+maxQty+'" data-desc="'+esc(description||'')+'"><svg class="icon"><use href="#icon-cart"></use></svg><span>В корзину</span></button>'
+        +'</div>';
 }
 
-function supplierTable(suppliers,type){
+function hlCard(o,title,cardCls,badgeCls,type){
+    var det=o._description||o.description||'';
+    return '<div class="hl-card '+cardCls+'"><div class="hl-badge '+badgeCls+'">'+title+'</div><div class="hl-type">'+type+'</div><div class="hl-name">'+esc(o._brand)+' / '+esc(o._article)+'</div>'+(det?'<div class="hl-desc">'+esc(det)+'</div>':'')+'<div class="hl-price">'+fmt(o.price)+' р.</div><div class="hl-meta">'+o.quantity+' шт. &middot; '+dRange(o.delivery_days)+'</div><div class="hl-src"><span class="src-tag src-tag--'+o.supplier+'">'+o.supplier+'</span></div><div class="hl-actl">'+addToCartControl(o._brand,o._article,o.supplier,o.warehouse,o.price,o.quantity,det)+'</div></div>';
+}
+
+function supplierTable(suppliers,type,brand,article){
     var limit=type==='exact'?5:2;
-    var h='<table class="ft-tbl"><colgroup><col class="ft-col--det"><col class="ft-col--skl"><col class="ft-col--qty"><col class="ft-col--del"><col class="ft-col--prc"></colgroup><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th><th class="ft-th--num">Цена</th></tr></thead><tbody>';
+    var h='<table class="ft-tbl"><colgroup><col class="ft-col--det"><col class="ft-col--skl"><col class="ft-col--qty"><col class="ft-col--del"><col class="ft-col--prc"><col class="ft-col--act"></colgroup><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th><th class="ft-th--num">Цена</th><th class="ft-th--act">Действие</th></tr></thead><tbody>';
     suppliers.forEach(function(s,i){
         var cls=i>=limit?' class="ft-more" style="display:none"':'';
         var det=s._description||s.description||'—';
-        h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span><span class="src-tag src-tag--'+s.supplier+'">'+s.supplier+'</span></td><td class="ft-td--num" data-label="Кол.">'+s.quantity+' шт.</td><td class="ft-td--num" data-label="Доставка">'+dRange(s.delivery_days)+'</td><td class="ft-td--prc" data-label="Цена"><strong>'+fmt(s.price)+' р.</strong></td></tr>';
+        h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span><span class="src-tag src-tag--'+s.supplier+'">'+s.supplier+'</span></td><td class="ft-td--num" data-label="Кол.">'+s.quantity+' шт.</td><td class="ft-td--num" data-label="Доставка">'+dRange(s.delivery_days)+'</td><td class="ft-td--prc" data-label="Цена"><strong>'+fmt(s.price)+' р.</strong></td><td class="ft-td--act" data-label="Действие">'+addToCartControl(brand,article,s.supplier,s.warehouse,s.price,s.quantity,det)+'</td></tr>';
     });
     h+='</tbody></table>';
     if(suppliers.length>limit)h+='<button class="ft-showmore" data-count="'+(suppliers.length-limit)+'">Показать еще '+(suppliers.length-limit)+' товаров</button>';
