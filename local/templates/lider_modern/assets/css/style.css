@@ -11,8 +11,9 @@
     font-family: 'Nunito';
     src: url('../fonts/nunito-variablefont_wght-webfont.woff2') format('woff2'),
          url('../fonts/nunito-variablefont_wght-webfont.woff') format('woff');
-    font-weight: 400;
+    font-weight: 100 900;
     font-style: normal;
+    font-display: swap;
 }
 
 /* ----- СБРОС ----- */
@@ -399,6 +400,37 @@ ul, ol { list-style: none; }
 .lk-nav a.lk-nav--logout:hover { background: rgba(230,76,70,0.08); }
 .lk-content { background: #fff; border: 1px solid var(--border); box-shadow: var(--shadow); border-radius: var(--radius); padding: 24px; min-width: 0; }
 .lk-content h2 { font-size: 18px; font-weight: 700; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid var(--bg); }
+
+/* Гостевая форма входа Bitrix (компонент main.profile без авторизации) — своей вёрстки/шаблона у неё нет, стилизуем сырые элементы */
+.lk-content form:not(.profile-form) { max-width: 340px; font-family: var(--font); }
+.lk-content form:not(.profile-form) input[type="text"],
+.lk-content form:not(.profile-form) input[type="password"] {
+    display: block;
+    width: 100%;
+    padding: 11px 14px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-family: var(--font);
+    margin: 4px 0 16px;
+}
+.lk-content form:not(.profile-form) input[type="text"]:focus,
+.lk-content form:not(.profile-form) input[type="password"]:focus { border-color: var(--blue); outline: none; }
+.lk-content form:not(.profile-form) input[type="submit"] {
+    display: inline-flex;
+    align-items: center;
+    padding: 11px 22px;
+    background: var(--blue) !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: var(--radius);
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: var(--font);
+}
+.lk-content form:not(.profile-form) input[type="submit"]:hover { background: var(--blue-dark) !important; }
+.lk-content a:not(.btn) { color: var(--blue) !important; text-decoration: underline !important; }
 
 /* =============================================
    ФУТЕР
