@@ -6,7 +6,7 @@
     margin-bottom: 20px;
 }
 .to-brand-card {
-    background: #fff;
+    background: var(--white);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 16px 10px;
@@ -39,7 +39,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
-    background: #fff;
+    background: var(--white);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     overflow: hidden;

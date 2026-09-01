@@ -145,7 +145,7 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
 <?php if (!$isElement): ?>
 <div class="catalog-layout">
     <aside class="catalog-sidebar">
-        <h3>📋 Фильтр</h3>
+        <h3><svg class="icon"><use href="#icon-filter"></use></svg> Фильтр</h3>
         <?php $APPLICATION->IncludeComponent(
             "bitrix:catalog.smart.filter",
             "lider_style",
@@ -234,7 +234,7 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
                 }
                 $subSectionsHtml .= '
                 <a href="' . $subUrl . '" class="category-card">
-                    <span class="category-card__icon">' . ($imgTag ?: '📁') . '</span>
+                    <span class="category-card__icon">' . ($imgTag ?: '<svg class="icon"><use href="#icon-folder"></use></svg>') . '</span>
                     <span class="category-card__name">' . $sub['NAME'] . '</span>
                 </a>';
             }
@@ -242,7 +242,7 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
 
             <?php if ($hasSubSections): ?>
                 <div class="section-header">
-                    <h2 class="section-title">📂 Подразделы</h2>
+                    <h2 class="section-title"><svg class="icon"><use href="#icon-folder"></use></svg> Подразделы</h2>
                 </div>
                 <div class="categories-grid" style="margin-bottom: 24px;">
                     <?= $subSectionsHtml ?>
@@ -308,20 +308,20 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
                 }
                 $topHtml .= '
                 <a href="' . $topUrl . '" class="category-card">
-                    <span class="category-card__icon">' . ($imgTag ?: '📁') . '</span>
+                    <span class="category-card__icon">' . ($imgTag ?: '<svg class="icon"><use href="#icon-folder"></use></svg>') . '</span>
                     <span class="category-card__name">' . $top['NAME'] . '</span>
                 </a>';
             }
             ?>
             <div class="section-header">
-                <h2 class="section-title">📦 Каталог товаров</h2>
+                <h2 class="section-title"><svg class="icon"><use href="#icon-box"></use></svg> Каталог товаров</h2>
             </div>
             <div class="categories-grid">
                 <?= $topHtml ?>
             </div>
 
             <div class="section-header mt-20">
-                <h2 class="section-title">⭐ Все товары</h2>
+                <h2 class="section-title"><svg class="icon"><use href="#icon-star"></use></svg> Все товары</h2>
             </div>
             <div class="catalog-toolbar">
                 <span class="catalog-toolbar__count">Товары</span>

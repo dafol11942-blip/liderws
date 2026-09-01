@@ -2,21 +2,7 @@
 $APPLICATION->SetTitle("Личный кабинет"); ?>
 
 <div class="lk-layout">
-    <aside class="lk-sidebar">
-        <div class="lk-user-block">
-            <div class="lk-user-avatar">
-                <?= mb_substr($USER->GetFullName() ?: $USER->GetLogin(), 0, 1) ?>
-            </div>
-            <div class="lk-user-name"><?= $USER->GetFullName() ?: $USER->GetLogin() ?></div>
-        </div>
-        <nav class="lk-nav">
-            <a href="/personal/" class="active">👤 Профиль</a>
-            <a href="/personal/orders/">📦 История заказов</a>
-            <a href="/personal/favorites/">⭐ Избранное</a>
-            <a href="/personal/bonus/">🎁 Бонусная программа</a>
-            <a href="/?logout=yes" class="lk-nav--logout">🚪 Выйти</a>
-        </nav>
-    </aside>
+    <?php $lkNavActive = 'profile'; require $_SERVER["DOCUMENT_ROOT"] . "/local/templates/lider_modern/include/lk-sidebar.php"; ?>
     <div class="lk-content">
         <h2>Личные данные</h2>
         <?php $APPLICATION->IncludeComponent(
