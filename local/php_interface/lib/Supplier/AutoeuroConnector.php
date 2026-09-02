@@ -282,35 +282,22 @@ class AutoeuroConnector implements SupplierInterface
         $amount  = (int)($item['amount'] ?? 0);
         $isSched = ($amount <= 0);
 
-        // Срок доставки: delivery_time = точное время прибытия
-        // Доставка всегда минимум завтра (день в день не возят)
-        $deliveryDays = null;
-        $deliveryPeriod = null;
-        $now = time();
-
-        if (!empty($item['delivery_time'])) {
-            $delTs = strtotime($item['delivery_time']);
-            if ($delTs > $now) {
-                $deliveryPeriod = max(0, (int)(($delTs - $now) / 3600));
-                // Календарные дни, минимум 1
-                if (date('Y-m-d', $delTs) === date('Y-m-d', $now)) {
-                    $deliveryDays = 1;
-                } else {
-                    $deliveryDays = max(1, (int)ceil(($delTs - strtotime('today', $now)) / 86400));
-                }
-            }
-        }
+        [$deliveryDays, $deliveryPeriod, $deliveryLabel, $deliveryTimeLabel, $deliveryToday, $deliveryDeadline] = $this->resolveDelivery($item);
 
         $r = new SearchResultItem();
-        $r->source         = $this->getCode();
-        $r->article        = (string)($item['code'] ?? $defaultArticle);
-        $r->brand          = (string)($item['brand'] ?? $defaultBrand);
-        $r->name           = (string)($item['name'] ?? '');
-        $r->price          = (float)($item['price'] ?? 0);
-        $r->quantity       = $amount;
-        $r->deliveryDays   = $deliveryDays;
-        $r->deliveryPeriod = $deliveryPeriod;
-        $r->warehouse      = $stock ? ((string)($item['warehouse_name'] ?? 'Склад')) : 'Под заказ';
+        $r->source            = $this->getCode();
+        $r->article           = (string)($item['code'] ?? $defaultArticle);
+        $r->brand             = (string)($item['brand'] ?? $defaultBrand);
+        $r->name              = (string)($item['name'] ?? '');
+        $r->price             = (float)($item['price'] ?? 0);
+        $r->quantity          = $amount;
+        $r->deliveryDays      = $deliveryDays;
+        $r->deliveryPeriod    = $deliveryPeriod;
+        $r->deliveryLabel     = $deliveryLabel;
+        $r->deliveryTimeLabel = $deliveryTimeLabel;
+        $r->deliveryToday     = $deliveryToday;
+        $r->deliveryDeadline  = $deliveryDeadline;
+        $r->warehouse         = $stock ? ((string)($item['warehouse_name'] ?? 'Склад')) : 'Под заказ';
         $r->stockId        = (string)($item['offer_key'] ?? '');
         $r->supplierName   = $this->getName();
         $r->isSched        = $isSched;
@@ -325,6 +312,50 @@ class AutoeuroConnector implements SupplierInterface
         if (!empty($item['order_before']))      $r->raw['deliveryCheckout'] = $item['order_before'];
 
         return $r;
+    }
+
+    /**
+     * Срок доставки Авто-Евро. API отдаёт точные datetime-границы напрямую —
+     * delivery_time ("от"), delivery_time_max ("до", может отсутствовать),
+     * order_before (крайний срок заказа под это окно). Особый случай: если
+     * товар уже лежит на том же складе, что и выбранный ПВЗ самовывоза,
+     * delivery_time приходит NULL — значит доступен сразу, "Сегодня".
+     *
+     * АвтоЕвро физически не возит день в день — если delivery_time всё же
+     * попал на сегодня (нестыковка на стороне API), считаем такое время
+     * доверия не заслуживающим и не гадаем точный час "завтра": просто
+     * "Завтра" без времени, вместо того чтобы показать заведомо неверный час.
+     *
+     * @return array{0:?int,1:?int,2:?string,3:?string,4:bool,5:?string} [deliveryDays, deliveryPeriod(часы), dayLabel, timeLabel, isToday, deadlineHHMM]
+     */
+    private function resolveDelivery(array $item): array
+    {
+        if (empty($item['delivery_time'])) {
+            return [0, 0, 'Сегодня', null, true, null];
+        }
+
+        $fromTs = strtotime($item['delivery_time']);
+        if (!$fromTs) {
+            return [null, null, null, null, false, null];
+        }
+
+        $now           = time();
+        $todayStart    = strtotime('today');
+        $tomorrowStart = strtotime('tomorrow');
+        $deadlineTs    = !empty($item['order_before']) ? strtotime($item['order_before']) : null;
+        $deadlineLabel = ($deadlineTs && $deadlineTs > $now) ? date('H:i', $deadlineTs) : null;
+
+        $fromDay = strtotime(date('Y-m-d', $fromTs));
+        if ($fromDay <= $todayStart) {
+            return [1, null, 'Завтра', null, false, $deadlineLabel];
+        }
+
+        $toTs      = !empty($item['delivery_time_max']) ? strtotime($item['delivery_time_max']) : null;
+        $days      = (int)ceil(($fromDay - $todayStart) / 86400);
+        $dayLabel  = ($fromDay === $tomorrowStart) ? 'Завтра' : date('d.m', $fromTs);
+        $timeLabel = $toTs ? (date('H:i', $fromTs) . ' - ' . date('H:i', $toTs)) : date('H:i', $fromTs);
+        $hours     = max(0, (int)ceil(($fromTs - $now) / 3600));
+        return [$days, $hours, $dayLabel, $timeLabel, false, $deadlineLabel];
     }
 
     private function execCurl(array $req): ?string
