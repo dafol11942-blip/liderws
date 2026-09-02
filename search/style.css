@@ -179,6 +179,8 @@
 .ft-td--prc strong { font-size: 14px; font-weight: 800; }
 .ft-td--det { line-height: 1.4; word-break: break-word; white-space: normal; }
 .ft-skl-name { display: block; font-size: 12px; color: var(--black); margin-bottom: 3px; word-break: break-word; white-space: normal; }
+.ft-deliv-label { display: inline-block; font-weight: 700; color: var(--green); white-space: nowrap; }
+.ft-deliv-label--today { background: var(--green); color: #fff; padding: 5px 12px; border-radius: 999px; font-size: 13px; }
 
 /* ====== ДОБАВЛЕНИЕ В КОРЗИНУ (пока UI-заглушка: проверка остатка + уведомление, без сохранения) ====== */
 .ft-th--act { text-align: right !important; }

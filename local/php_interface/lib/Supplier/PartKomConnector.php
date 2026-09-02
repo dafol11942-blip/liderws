@@ -183,26 +183,19 @@ class PartKomConnector implements SupplierInterface
             }
             $r->stockId = (string)($item['placementId'] ?? $item['providerId'] ?? '');
 
-            $now = time();
-            $ts  = null;
-            if (!empty($item['deliveryDateFrom'])) {
-                $ts = strtotime($item['deliveryDateFrom']);
-            } elseif (!empty($item['expectedDate'])) {
-                $ts = strtotime($item['expectedDate']);
-            }
-            if ($ts && $ts > $now) {
-                $r->deliveryPeriod = max(0, (int)(($ts - $now) / 3600));
-                $r->deliveryDays   = (date('Y-m-d', $ts) === date('Y-m-d', $now))
-                    ? 0 : max(1, (int)ceil(($ts - $now) / 86400));
-            } elseif (!empty($item['expectedHours'])) {
-                $r->deliveryPeriod = (int)$item['expectedHours'];
-                $r->deliveryDays   = (int)ceil($item['expectedHours'] / 24);
-            }
+            [$r->deliveryDays, $r->deliveryPeriod, $r->deliveryLabel, $r->deliveryToday, $r->deliveryDeadline] = $this->resolveDelivery($item);
 
             $r->raw = [
+                'deliveryWavesActive'   => $item['deliveryWavesActive'] ?? null,
+                'deliveryCheckout'      => $item['deliveryCheckout'] ?? null,
                 'deliveryDateFrom'      => $item['deliveryDateFrom'] ?? null,
-                'deliveryDateTo'        => $item['expectedDate'] ?? ($item['deliveryDateTo'] ?? null),
+                'deliveryDateTo'        => $item['deliveryDateTo'] ?? null,
+                'expectedDate'          => $item['expectedDate'] ?? null,
+                'guaranteedDate'        => $item['guaranteedDate'] ?? null,
                 'expectedHours'         => $item['expectedHours'] ?? null,
+                'guaranteedHours'       => $item['guaranteedHours'] ?? null,
+                'expectedDays'          => $item['expectedDays'] ?? null,
+                'guaranteedDays'        => $item['guaranteedDays'] ?? null,
                 'isStock'               => $item['isStock'] ?? null,
                 'storehouse'            => $item['storehouse'] ?? null,
                 'flagReturnImpossible'  => $item['flagReturnImpossible'] ?? null,
@@ -228,6 +221,105 @@ class PartKomConnector implements SupplierInterface
         });
 
         return $unique;
+    }
+
+    /**
+     * Срок доставки по ответу ПартКом — окно "от–до" в духе "Сегодня 13:15 - 16:00" /
+     * "Завтра 07:45 - 15:00" / "03.09 07:45 - 15:00". Приоритет источников (от точного
+     * к грубому):
+     *  1. Волна доставки (deliveryWavesActive+deliveryDateTo, начало окна — deliveryDateFrom)
+     *     — реальное "закажи до deliveryCheckout, получишь в это окно", самый точный источник.
+     *  2. guaranteedDate ("до") + expectedDate ("от", если раньше guaranteedDate) — пара
+     *     границ срока поставки.
+     *  3. guaranteedHours / expectedHours — то же самое, но точность в часах, а не в дате.
+     *  4. guaranteedDays / expectedDays — только точность в днях, без времени.
+     * Намеренно НЕ используем deliveryDateFrom как самостоятельный срок поставки —
+     * это лишь начало окна волны, а не время готовности детали.
+     *
+     * @return array{0:?int,1:?int,2:?string,3:bool,4:?string} [deliveryDays, deliveryPeriod(часы), label, isToday, deadlineHHMM]
+     */
+    private function resolveDelivery(array $item): array
+    {
+        $now           = time();
+        $todayStart    = strtotime('today');
+        $tomorrowStart = strtotime('tomorrow');
+
+        $fromTs     = null;
+        $toTs       = null;
+        $deadlineTs = null;
+
+        // 1. Волна доставки — готовая пара границ окна.
+        if (!empty($item['deliveryWavesActive']) && !empty($item['deliveryDateTo'])) {
+            $wTo = strtotime($item['deliveryDateTo']);
+            if ($wTo && $wTo > $now) {
+                $toTs = $wTo;
+                $wFrom = !empty($item['deliveryDateFrom']) ? strtotime($item['deliveryDateFrom']) : null;
+                if ($wFrom && $wFrom < $toTs) $fromTs = $wFrom;
+                if (!empty($item['deliveryCheckout'])) $deadlineTs = strtotime($item['deliveryCheckout']);
+            }
+        }
+
+        // 2. guaranteedDate ("до") + expectedDate ("от") — пара границ срока поставки.
+        if ($toTs === null) {
+            $g = !empty($item['guaranteedDate']) ? strtotime($item['guaranteedDate']) : null;
+            $e = !empty($item['expectedDate']) ? strtotime($item['expectedDate']) : null;
+            if ($g && $g > $now) {
+                $toTs   = $g;
+                $fromTs = ($e && $e > $now && $e < $g) ? $e : null;
+            } elseif ($e && $e > $now) {
+                $toTs = $e;
+            }
+        }
+
+        if ($toTs !== null) {
+            $hours = max(0, (int)ceil(($toTs - $now) / 3600));
+            $tsDay = strtotime(date('Y-m-d', $toTs));
+            $days  = ($tsDay <= $todayStart) ? 0 : (int)ceil(($tsDay - $todayStart) / 86400);
+            $label = $this->formatDeliveryLabel($tsDay, $todayStart, $tomorrowStart, $fromTs, $toTs);
+            return [$days, $hours, $label, $tsDay <= $todayStart, $deadlineTs ? date('H:i', $deadlineTs) : null];
+        }
+
+        // 3. Только часы — тот же принцип "от"/"до", если обе границы заданы.
+        $hTo = null;
+        if (isset($item['guaranteedHours']) && $item['guaranteedHours'] !== '') {
+            $hTo = (int)$item['guaranteedHours'];
+        } elseif (isset($item['expectedHours']) && $item['expectedHours'] !== '') {
+            $hTo = (int)$item['expectedHours'];
+        }
+        if ($hTo !== null && $hTo >= 0) {
+            $hFrom = null;
+            if (isset($item['expectedHours']) && $item['expectedHours'] !== '' && (int)$item['expectedHours'] < $hTo) {
+                $hFrom = (int)$item['expectedHours'];
+            }
+            $toTs2   = $now + $hTo * 3600;
+            $fromTs2 = $hFrom !== null ? $now + $hFrom * 3600 : null;
+            $tsDay   = strtotime(date('Y-m-d', $toTs2));
+            $days    = ($tsDay <= $todayStart) ? 0 : (int)ceil(($tsDay - $todayStart) / 86400);
+            $label   = $this->formatDeliveryLabel($tsDay, $todayStart, $tomorrowStart, $fromTs2, $toTs2);
+            return [$days, $hTo, $label, $tsDay <= $todayStart, null];
+        }
+
+        // 4. Только дни — без точности во времени.
+        $d = null;
+        if (isset($item['guaranteedDays']) && $item['guaranteedDays'] !== '') {
+            $d = (int)$item['guaranteedDays'];
+        } elseif (isset($item['expectedDays']) && $item['expectedDays'] !== '') {
+            $d = (int)$item['expectedDays'];
+        }
+        if ($d !== null) {
+            $d     = max(0, $d);
+            $label = $d === 0 ? 'Сегодня' : ($d === 1 ? 'Завтра' : date('d.m', strtotime("+{$d} days")));
+            return [$d, null, $label, $d === 0, null];
+        }
+
+        return [null, null, null, false, null];
+    }
+
+    private function formatDeliveryLabel(int $tsDay, int $todayStart, int $tomorrowStart, ?int $fromTs, int $toTs): string
+    {
+        $dayLabel = ($tsDay <= $todayStart) ? 'Сегодня' : (($tsDay === $tomorrowStart) ? 'Завтра' : date('d.m', $toTs));
+        $timeLabel = $fromTs ? (date('H:i', $fromTs) . ' - ' . date('H:i', $toTs)) : date('H:i', $toTs);
+        return $dayLabel . ' ' . $timeLabel;
     }
 
     // ── MAKER ID (v5: без substring, только точные совпадения) ──

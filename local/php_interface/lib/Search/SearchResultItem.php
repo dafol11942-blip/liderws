@@ -14,6 +14,9 @@ class SearchResultItem
     public string $unit = 'шт.';        // единица измерения
     public ?int $deliveryDays = null;
     public ?int $deliveryPeriod = null;
+    public ?string $deliveryLabel = null;    // человекочитаемая метка: "Сегодня 13:15 - 16:00"/"Завтра 07:45 - 15:00"/"05.09 07:45 - 15:00"
+    public bool $deliveryToday = false;      // деталь можно получить сегодня — для акцентного бейджа на фронте
+    public ?string $deliveryDeadline = null; // "ЧЧ:ММ" — до какого времени нужно заказать, чтобы успеть к deliveryLabel
     public ?string $warehouse = null;
     public ?string $stockId = null;
     public ?string $supplierName = null;
@@ -36,8 +39,11 @@ class SearchResultItem
             'quantity'        => $this->quantity,
             'multiplicity'    => $this->multiplicity,
             'unit'            => $this->unit,
-            'delivery_days'   => $this->deliveryDays,
-            'delivery_period' => $this->deliveryPeriod,
+            'delivery_days'     => $this->deliveryDays,
+            'delivery_period'   => $this->deliveryPeriod,
+            'delivery_label'    => $this->deliveryLabel,
+            'delivery_today'    => $this->deliveryToday,
+            'delivery_deadline' => $this->deliveryDeadline,
             'warehouse'       => $this->warehouse,
             'stock_id'        => $this->stockId,
             'supplier_name'   => $this->supplierName,
