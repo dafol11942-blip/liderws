@@ -244,6 +244,10 @@ class TatpartsConnector implements SupplierInterface
      * настоящий диапазон "от-до" в днях, поэтому показываем обе границы
      * как есть, а не выбираем одну.
      *
+     * Поверх реальных цифр API — осознанный запас под логистику ТатПартс
+     * (как у АвтоЕвро/Авторуси/Автопитера): +2 дня к обеим границам
+     * диапазона.
+     *
      * Для сортировки (deliveryDays) берём КОНСЕРВАТИВНУЮ верхнюю границу
      * (deliverydays_max) — по тому же принципу, что и у остальных
      * поставщиков (гарантированный/верхний срок надёжнее оптимистичного).
@@ -255,11 +259,13 @@ class TatpartsConnector implements SupplierInterface
      */
     private function resolveDelivery(array $item): array
     {
+        $bufferDays = 2;
+
         $minRaw = $item['deliverydays_min'] ?? null;
         $maxRaw = $item['deliverydays_max'] ?? null;
 
-        $dMin = ($minRaw !== null && $minRaw !== '') ? max(0, (int)$minRaw) : 1;
-        $dMax = ($maxRaw !== null && $maxRaw !== '') ? max(0, (int)$maxRaw) : $dMin;
+        $dMin = (($minRaw !== null && $minRaw !== '') ? max(0, (int)$minRaw) : 1) + $bufferDays;
+        $dMax = (($maxRaw !== null && $maxRaw !== '') ? max(0, (int)$maxRaw) + $bufferDays : $dMin);
         if ($dMax < $dMin) $dMax = $dMin;
 
         $fromLabel = $this->dayLabel($dMin);
