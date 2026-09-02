@@ -228,6 +228,42 @@ function progWrite($taskId, $pct, $msg): void {
     ));
 }
 
+/**
+ * Защита от дублирующихся запросов с ОДНИМ И ТЕМ ЖЕ task (наблюдалось в логах:
+ * браузер/прокси повторяет ещё не завершившийся search/crossload — каждый такой
+ * запрос это 500+ параллельных curl к 9 поставщикам и ~20-24с работы, дубль
+ * поверх дубля способен исчерпать пул воркеров PHP-FPM и "уронить" сайт для
+ * остальных посетителей). Второй запрос с тем же (action,taskId) ждёт первый
+ * через flock() и отдаёт его уже посчитанный результат вместо повторной работы.
+ */
+function taskLockPath(string $action, string $taskId): string {
+    return sys_get_temp_dir() . '/srch_lock_' . $action . '_' . preg_replace('/[^a-f0-9]/', '', $taskId) . '.lock';
+}
+function taskResultPath(string $action, string $taskId): string {
+    return sys_get_temp_dir() . '/srch_result_' . $action . '_' . preg_replace('/[^a-f0-9]/', '', $taskId) . '.json';
+}
+/** @return resource дескриптор блокировки — держать открытым до releaseTaskLock() */
+function acquireTaskLock(string $action, string $taskId) {
+    $fp = @fopen(taskLockPath($action, $taskId), 'c');
+    if ($fp) flock($fp, LOCK_EX);
+    return $fp;
+}
+function releaseTaskLock($fp): void {
+    if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
+}
+/** Кэшированный результат ещё свеж (тот же поиск, только что посчитан первым запросом)? */
+function cachedTaskResult(string $action, string $taskId): ?string {
+    $f = taskResultPath($action, $taskId);
+    if (is_file($f) && (time() - filemtime($f)) < 90) {
+        $body = @file_get_contents($f);
+        if ($body !== false && $body !== '') return $body;
+    }
+    return null;
+}
+function saveTaskResult(string $action, string $taskId, string $json): void {
+    @file_put_contents(taskResultPath($action, $taskId), $json);
+}
+
 $logFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/search_ajax.log';
 function ajaxLog($msg): void {
     global $logFile;
@@ -311,6 +347,17 @@ function cacheSave(string $supplierCode, string $brandNorm, string $articleNorm,
 // ═══════════════════════════ ACTION: crossload (Phase 2) ═══════════════════════════
 
 if ($action === 'crossload') {
+    // Дубль того же task (браузер/прокси повторил ещё не завершившийся запрос) —
+    // не повторяем 500+ параллельных запросов к поставщикам, ждём первый и отдаём его результат.
+    $crosslockFp = acquireTaskLock('crossload', $taskId);
+    $cached = cachedTaskResult('crossload', $taskId);
+    if ($cached !== null) {
+        releaseTaskLock($crosslockFp);
+        ajaxLog("CROSSLOAD DEDUP task=$taskId — отдан кэш вместо повторного запроса");
+        echo $cached;
+        exit;
+    }
+
     progWrite($taskId, 1, 'Начинаем докрутку аналогов...');
 
     $crossJson = trim($_REQUEST['crossPairs'] ?? '');
@@ -372,7 +419,10 @@ if ($action === 'crossload') {
 
     if (empty($crossPairs)) {
         progWrite($taskId, 100, 'Докрутка завершена');
-        echo json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta], JSON_UNESCAPED_UNICODE);
+        $out = json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta], JSON_UNESCAPED_UNICODE);
+        saveTaskResult('crossload', $taskId, $out);
+        releaseTaskLock($crosslockFp);
+        echo $out;
         exit;
     }
 
@@ -464,7 +514,10 @@ if ($action === 'crossload') {
     unset($offers);
 
     progWrite($taskId, 100, 'Докрутка завершена');
-    echo json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta], JSON_UNESCAPED_UNICODE);
+    $out = json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta], JSON_UNESCAPED_UNICODE);
+    saveTaskResult('crossload', $taskId, $out);
+    releaseTaskLock($crosslockFp);
+    echo $out;
     exit;
 }
 
@@ -555,6 +608,17 @@ if ($action === 'brands') {
     $numberOrig = trim($_GET['number'] ?? $_GET['article'] ?? '');
     if (!$brandOrig) { echo json_encode(['error' => 'Укажите бренд']); exit; }
     if (!$taskId) { $taskId = md5($article . $brandOrig . time() . rand()); }
+
+    // Дубль того же task (браузер/прокси повторил ещё не завершившийся запрос) —
+    // не запускаем весь Phase1-опрос поставщиков заново, ждём первый и отдаём его результат.
+    $searchLockFp = acquireTaskLock('search', $taskId);
+    $cachedSearch = cachedTaskResult('search', $taskId);
+    if ($cachedSearch !== null) {
+        releaseTaskLock($searchLockFp);
+        ajaxLog("PHASE1 DEDUP task=$taskId — отдан кэш вместо повторного запроса");
+        echo $cachedSearch;
+        exit;
+    }
 
     ajaxLog("PHASE1 START task=$taskId article=$article brand=$brandOrig");
     $tTotal = microtime(true);
@@ -714,7 +778,10 @@ if ($action === 'brands') {
     $resp['crossPairs']  = $crossPairs;
 
     ajaxLog("PHASE1 RESPOND task=$taskId time=" . round(microtime(true) - $tTotal, 2) . "s");
-    echo json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_NUMERIC_CHECK);
+    $out = json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_NUMERIC_CHECK);
+    saveTaskResult('search', $taskId, $out);
+    releaseTaskLock($searchLockFp);
+    echo $out;
 
 } else {
     echo json_encode(['error' => 'Неизвестный action']);
