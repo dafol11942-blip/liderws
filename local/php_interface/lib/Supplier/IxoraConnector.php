@@ -239,40 +239,24 @@ class IxoraConnector implements SupplierInterface
             $r->returnable   = $this->isReturnable($retPeriod, $retCondId, $retCond);
 
             // Срок
-            $deliveryDays = $days > 0 ? $days : ($daysW > 0 ? $daysW : 0);
-            $r->deliveryDays   = $deliveryDays;
-            $r->deliveryPeriod = $deliveryDays > 0 ? $deliveryDays * 24 : 0;
+            [$deliveryDays, $deliveryPeriod, $deliveryLabel, $deliveryTimeLabel, $deliveryToday, $deliveryDeadline] = $this->resolveDelivery($dateArrival, $days, $daysW);
+            $r->deliveryDays      = $deliveryDays;
+            $r->deliveryPeriod    = $deliveryPeriod;
+            $r->deliveryLabel     = $deliveryLabel;
+            $r->deliveryTimeLabel = $deliveryTimeLabel;
+            $r->deliveryToday     = $deliveryToday;
+            $r->deliveryDeadline  = $deliveryDeadline;
 
             // Лёгкий raw: не тащим огромные SOAP-поля в кеш/память
-            $raw = [
+            $r->raw = [
                 'group'              => $group,
                 'returnperiod'       => $retPeriod,
                 'returnconditionsid' => $retCondId ?? 0,
                 'returnconditions'   => $retCond,
                 'days'               => $days,
+                'dayswarranty'       => $daysW,
                 'datearrival'        => $dateArrival,
             ];
-
-            if ($dateArrival !== '') {
-                // 2026-07-21T19:00:00+03:00
-                $ts = strtotime($dateArrival);
-                if ($ts) {
-                    $raw['deliveryDateFrom'] = date('c', $ts);
-                    // окно +2ч для отображения
-                    $raw['deliveryDateTo'] = date('c', $ts + 2 * 3600);
-                    if ($r->deliveryDays === null || $r->deliveryDays === 0) {
-                        $now = time();
-                        if (date('Y-m-d', $ts) === date('Y-m-d', $now)) {
-                            $r->deliveryDays = 0;
-                        } else {
-                            $r->deliveryDays = max(1, (int)ceil(($ts - strtotime('today')) / 86400));
-                        }
-                        $r->deliveryPeriod = max(0, (int)(($ts - $now) / 3600));
-                    }
-                }
-            }
-
-            $r->raw = $raw;
 
             // Свои: Region начинается с "IXORA СКЛАД"
             if (mb_stripos($region, 'IXORA СКЛАД') === 0) {
@@ -300,6 +284,45 @@ class IxoraConnector implements SupplierInterface
         $other = array_slice($other, 0, 10);
 
         return array_merge($own, $other);
+    }
+
+    /**
+     * Срок доставки Иксора. Приоритет источников (от точного к грубому):
+     *  1. datearrival — точная дата и время получения заказа в пункте
+     *     назначения, самый точный источник, показывается со временем.
+     *  2. dayswarranty — ГАРАНТИРОВАННЫЙ срок до склада отгрузки (дни).
+     *  3. days — СРЕДНИЙ (негарантированный) срок до склада отгрузки,
+     *     только если гарантированного нет.
+     * Раньше было наоборот: days (средний, оптимистичный) шёл первым,
+     * а datearrival использовалась только если days/dayswarranty вообще
+     * не пришли — теперь используется наиболее точный из доступных
+     * источников, а не наименее точный.
+     * Как и у БЕРГ, days/dayswarranty — срок до склада отгрузки Иксоры,
+     * а не до клиента; это ограничение источника данных.
+     *
+     * @return array{0:?int,1:?int,2:?string,3:?string,4:bool,5:?string} [deliveryDays, deliveryPeriod(часы), dayLabel, timeLabel, isToday, deadlineHHMM]
+     */
+    private function resolveDelivery(string $dateArrivalRaw, int $days, int $daysWarranty): array
+    {
+        $now = time();
+
+        if ($dateArrivalRaw !== '') {
+            $ts = strtotime($dateArrivalRaw);
+            if ($ts && $ts > $now) {
+                $todayStart    = strtotime('today');
+                $tomorrowStart = strtotime('tomorrow');
+                $tsDay         = strtotime(date('Y-m-d', $ts));
+                $d             = ($tsDay <= $todayStart) ? 0 : (int)ceil(($tsDay - $todayStart) / 86400);
+                $dayLabel      = ($tsDay <= $todayStart) ? 'Сегодня' : (($tsDay === $tomorrowStart) ? 'Завтра' : date('d.m', $ts));
+                $timeLabel     = date('H:i', $ts);
+                $hours         = max(0, (int)ceil(($ts - $now) / 3600));
+                return [$d, $hours, $dayLabel, $timeLabel, $tsDay <= $todayStart, null];
+            }
+        }
+
+        $d = $daysWarranty > 0 ? $daysWarranty : max(0, $days);
+        $dayLabel = $d === 0 ? 'Сегодня' : ($d === 1 ? 'Завтра' : date('d.m', strtotime("+{$d} days")));
+        return [$d, $d * 24, $dayLabel, null, $d === 0, null];
     }
 
     public function getDetail(string $article, string $brand): ?SearchResultItem
