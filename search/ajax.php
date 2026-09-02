@@ -267,6 +267,32 @@ function saveTaskResult(string $action, string $taskId, string $json): void {
     @file_put_contents(taskResultPath($action, $taskId), $json);
 }
 
+/**
+ * Глобальный лимит одновременных докруток (crossload) НА ВЕСЬ САЙТ, а не только
+ * защита от дублей одного task. В логах nginx зафиксировано: несколько докруток
+ * (500+ запросов и ~20-24с работы каждая) наложились друг на друга, воркер
+ * бэкенда упал прямо посреди обработки ("upstream prematurely closed connection"),
+ * оба backend-узла ушли в "no live upstreams", и сайт не восстанавливался сам
+ * ~1.5 часа. Докрутка — это фоновое обогащение уже показанных Phase1-результатов
+ * аналогами, а не обязательная часть ответа, поэтому при превышении лимита
+ * безопаснее пропустить её в этот раз, чем рисковать повторным падением сайта.
+ */
+const CROSSLOAD_MAX_CONCURRENT = 2;
+
+/** @return resource|null слот занят — вернуть дескриптор; все заняты — null */
+function acquireCrossloadSlot() {
+    for ($i = 0; $i < CROSSLOAD_MAX_CONCURRENT; $i++) {
+        $fp = @fopen(sys_get_temp_dir() . "/srch_crossload_slot_$i.lock", 'c');
+        if (!$fp) continue;
+        if (flock($fp, LOCK_EX | LOCK_NB)) return $fp;
+        fclose($fp);
+    }
+    return null;
+}
+function releaseCrossloadSlot($fp): void {
+    if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
+}
+
 $logFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/search_ajax.log';
 function ajaxLog($msg): void {
     global $logFile;
@@ -361,6 +387,18 @@ if ($action === 'crossload') {
         exit;
     }
 
+    // Глобальный лимит одновременных докруток на весь сайт — если уже CROSSLOAD_MAX_CONCURRENT
+    // докруток выполняется прямо сейчас (кем угодно), не запускаем ещё одну героическую волну
+    // из 500+ запросов поверх них, а мягко пропускаем докрутку в этот раз. Искомые товары
+    // (Phase1) уже показаны пользователю — теряется только обогащение аналогами.
+    $crossloadSlotFp = acquireCrossloadSlot();
+    if ($crossloadSlotFp === null) {
+        releaseTaskLock($crosslockFp);
+        ajaxLog("CROSSLOAD THROTTLED task=$taskId — превышен лимит " . CROSSLOAD_MAX_CONCURRENT . " одновременных докруток");
+        echo json_encode(['done' => true, 'analog_offers' => [], 'new_analogs' => [], 'throttled' => true], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     progWrite($taskId, 1, 'Начинаем докрутку аналогов...');
 
     $crossJson = trim($_REQUEST['crossPairs'] ?? '');
@@ -425,6 +463,7 @@ if ($action === 'crossload') {
         $out = json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta], JSON_UNESCAPED_UNICODE);
         saveTaskResult('crossload', $taskId, $out);
         releaseTaskLock($crosslockFp);
+        releaseCrossloadSlot($crossloadSlotFp);
         echo $out;
         exit;
     }
@@ -520,6 +559,7 @@ if ($action === 'crossload') {
     $out = json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta], JSON_UNESCAPED_UNICODE);
     saveTaskResult('crossload', $taskId, $out);
     releaseTaskLock($crosslockFp);
+    releaseCrossloadSlot($crossloadSlotFp);
     echo $out;
     exit;
 }
