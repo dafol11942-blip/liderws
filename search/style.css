@@ -127,14 +127,13 @@
 .ft-sec-title { font-size: 16px; font-weight: 700; }
 .ft-sec-sub { font-size: 13px; color: var(--gray); }
 .ft-sec-toggle { margin-left: auto; }
-.ft-sec--collapsed .ft-gtoggle .icon { transform: rotate(-90deg); }
-.ft-sec--collapsed .ft-secbody { display: none; }
 
 /* Группа аналога */
 .ft-group { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }
 .ft-group:last-child { margin-bottom: 0; }
-.ft-ghead { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--bg); flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; transition: background .12s; }
-.ft-ghead:hover { background: #eef2f8; }
+.ft-ghead { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--bg); flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border); transition: background .12s; }
+.ft-ghead[data-ft-toggle] { cursor: pointer; user-select: none; }
+.ft-ghead[data-ft-toggle]:hover { background: #eef2f8; }
 .ft-ginfo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ft-gbrand { font-size: 15px; font-weight: 700; }
 .ft-gart { font-family: monospace; font-size: 13px; background: rgba(102,139,234,.1); color: var(--blue); padding: 3px 8px; border-radius: var(--radius); }
@@ -145,8 +144,14 @@
 .ft-gtoggle { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; background: none; border: none; border-radius: var(--radius); color: var(--gray); cursor: pointer; }
 .ft-gtoggle:hover { background: rgba(102,139,234,.12); color: var(--blue); }
 .ft-gtoggle .icon { width: 16px; height: 16px; transition: transform .18s ease; }
-.ft-group--collapsed .ft-gtoggle .icon { transform: rotate(-90deg); }
-.ft-group--collapsed .ft-gbody { display: none; }
+
+/* Строки сверх лимита (искомый номер: 5, аналог: 2) — раскрываются либо кнопкой
+   "Показать ещё" внизу таблицы, либо стрелкой в шапке позиции: оба триггера
+   переключают один и тот же класс на .ft-sec/.ft-group, поэтому доступны из шапки
+   даже когда список очень длинный и кнопка внизу уехала далеко. */
+.ft-more { display: none; }
+.ft-all-shown .ft-more { display: table-row; }
+.ft-all-shown .ft-gtoggle .icon { transform: rotate(180deg); }
 
 /* Таблица — table-layout:fixed + colgroup дают ОДИНАКОВЫЕ ширины колонок
    во всех таблицах секции (искомый номер + каждая группа аналогов),

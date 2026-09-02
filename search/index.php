@@ -511,7 +511,8 @@ function renderResults(d){
     h+='<div class="full-tbl">';
 
     if(exactVisible.length){
-        h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head" data-ft-toggle><span class="ft-sec-title"><svg class="icon"><use href="#icon-check-circle"></use></svg> Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+' — '+exactVisible.length+' складов</span><button type="button" class="ft-gtoggle ft-sec-toggle" aria-expanded="true" title="Свернуть/развернуть список складов"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button></div>';
+        var exactHasMore=exactVisible.length>5;
+        h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head"'+(exactHasMore?' data-ft-toggle':'')+'><span class="ft-sec-title"><svg class="icon"><use href="#icon-check-circle"></use></svg> Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+' — '+exactVisible.length+' складов</span>'+(exactHasMore?'<button type="button" class="ft-gtoggle ft-sec-toggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div>';
         h+='<div class="ft-secbody">'+supplierTable(exactVisible,'exact',B,N)+'</div>';
         h+='</div>';
     }
@@ -519,7 +520,8 @@ function renderResults(d){
     if(analogsVisible.length){
         h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title"><svg class="icon"><use href="#icon-refresh"></use></svg> Аналоги ('+analogsVisible.length+')</span></div>';
         analogsVisible.forEach(function(a){
-            h+='<div class="ft-group"><div class="ft-ghead" data-ft-toggle><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery!==null?a.best_delivery+' дн.':'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty+' шт.</span><button type="button" class="ft-gtoggle" aria-expanded="true" title="Свернуть/развернуть список складов"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button></div></div>';
+            var groupHasMore=a.suppliers.length>2;
+            h+='<div class="ft-group"><div class="ft-ghead"'+(groupHasMore?' data-ft-toggle':'')+'><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery!==null?a.best_delivery+' дн.':'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty+' шт.</span>'+(groupHasMore?'<button type="button" class="ft-gtoggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div></div>';
             h+='<div class="ft-gbody">'+supplierTable(a.suppliers,'analog',a.brand,a.article)+'</div>';
             h+='</div>';
         });
@@ -538,32 +540,28 @@ function renderResults(d){
     h+='</div>';
     qs('#resultContent').innerHTML=h;
 
+    // Раскрытие строк сверх лимита: и кнопка "Показать ещё" внизу таблицы, и стрелка
+    // в шапке позиции переключают один и тот же .ft-all-shown у общего контейнера —
+    // поэтому список можно свернуть прямо из шапки, даже если кнопка внизу уехала
+    // далеко вниз из-за большого числа складов.
+    function toggleMoreRows(container){
+        if(!container)return;
+        var expanded=container.classList.toggle('ft-all-shown');
+        var toggleBtn=container.querySelector('.ft-gtoggle');
+        if(toggleBtn)toggleBtn.setAttribute('aria-expanded',expanded?'true':'false');
+        var moreBtn=container.querySelector('.ft-showmore');
+        if(moreBtn)moreBtn.textContent=expanded?'Свернуть':('Показать еще '+moreBtn.dataset.count+' товаров');
+    }
+
     document.querySelectorAll('.ft-showmore').forEach(function(btn){
         btn.addEventListener('click',function(){
-            var group=btn.closest('.ft-sec, .ft-group');
-            var hidden=group.querySelectorAll('.ft-more');
-            var expanded=btn.getAttribute('data-expanded')==='1';
-            hidden.forEach(function(r){r.style.display=expanded?'none':''});
-            btn.setAttribute('data-expanded',expanded?'0':'1');
-            btn.textContent=expanded?('Показать еще '+btn.dataset.count+' товаров'):'Свернуть';
+            toggleMoreRows(btn.closest('.ft-sec, .ft-group'));
         });
     });
 
-    document.querySelectorAll('.ft-ghead[data-ft-toggle]').forEach(function(head){
+    document.querySelectorAll('.ft-ghead[data-ft-toggle], .ft-sec-head[data-ft-toggle]').forEach(function(head){
         head.addEventListener('click',function(){
-            var group=head.closest('.ft-group');
-            var collapsed=group.classList.toggle('ft-group--collapsed');
-            var btn=head.querySelector('.ft-gtoggle');
-            if(btn)btn.setAttribute('aria-expanded',collapsed?'false':'true');
-        });
-    });
-
-    document.querySelectorAll('.ft-sec-head[data-ft-toggle]').forEach(function(head){
-        head.addEventListener('click',function(){
-            var sec=head.closest('.ft-sec');
-            var collapsed=sec.classList.toggle('ft-sec--collapsed');
-            var btn=head.querySelector('.ft-gtoggle');
-            if(btn)btn.setAttribute('aria-expanded',collapsed?'false':'true');
+            toggleMoreRows(head.closest('.ft-sec, .ft-group'));
         });
     });
 }
@@ -590,7 +588,7 @@ function supplierTable(suppliers,type,brand,article){
     var limit=type==='exact'?5:2;
     var h='<table class="ft-tbl"><colgroup><col class="ft-col--det"><col class="ft-col--skl"><col class="ft-col--qty"><col class="ft-col--del"><col class="ft-col--prc"><col class="ft-col--act"></colgroup><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th><th class="ft-th--num">Цена</th><th class="ft-th--act"></th></tr></thead><tbody>';
     suppliers.forEach(function(s,i){
-        var cls=i>=limit?' class="ft-more" style="display:none"':'';
+        var cls=i>=limit?' class="ft-more"':'';
         var det=s._description||s.description||'—';
         h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span><span class="src-tag src-tag--'+s.supplier+'">'+s.supplier+'</span></td><td class="ft-td--num" data-label="Кол.">'+s.quantity+' шт.</td><td class="ft-td--num" data-label="Доставка">'+dRange(s.delivery_days)+'</td><td class="ft-td--prc" data-label="Цена"><strong>'+fmt(s.price)+' р.</strong></td><td class="ft-td--act">'+addToCartControl(brand,article,s.supplier,s.warehouse,s.price,s.quantity,det)+'</td></tr>';
     });
