@@ -247,54 +247,101 @@ class BergConnector implements SupplierInterface
         $qty   = (int)($offer['quantity'] ?? 0);
         $transit = !empty($offer['is_transit']);
 
-        $now = time();
-        $deliveryDays = null;
-        $deliveryPeriod = null;
+        [$deliveryDays, $deliveryPeriod, $deliveryLabel, $deliveryTimeLabel, $deliveryToday, $deliveryDeadline] = $this->resolveDelivery($offer);
+
+        $r = new SearchResultItem();
+        $r->source            = $this->getCode();
+        $r->article           = (string)($resource['article'] ?? '');
+        $r->brand             = (string)($resource['brand']['name'] ?? '');
+        $r->name              = (string)($resource['name'] ?? '');
+        $r->price             = (float)($offer['price'] ?? 0);
+        $r->quantity          = $qty;
+        $r->deliveryDays      = $deliveryDays;
+        $r->deliveryPeriod    = $deliveryPeriod;
+        $r->deliveryLabel     = $deliveryLabel;
+        $r->deliveryTimeLabel = $deliveryTimeLabel;
+        $r->deliveryToday     = $deliveryToday;
+        $r->deliveryDeadline  = $deliveryDeadline;
+        $r->warehouse         = (string)($wh['name'] ?? '');
+        $r->stockId           = (string)($wh['id'] ?? '');
+        $r->supplierName      = $this->getName();
+        $r->isSched           = ($qty <= 0) || $transit;
+        $r->multiplicity      = max(1, (int)($offer['multiplication_factor'] ?? 1));
+        $r->unit              = 'шт.';
+        $r->returnable        = true;
+        $r->raw               = $offer;
 
         $ttAll = $offer['address_timetable'] ?? [];
-        $tt = !empty($ttAll) ? $ttAll[0] : [];
+        $tt    = !empty($ttAll) ? $ttAll[0] : [];
         $dateFrom = $tt['delivery_from'] ?? $tt['pickup_from'] ?? null;
         $dateTo   = $tt['delivery_to']   ?? $tt['pickup_to']   ?? null;
         $buyUntil = $tt['buy_until'] ?? null;
-
-        if (!empty($dateFrom)) {
-            $delTs = strtotime($dateFrom);
-            if ($delTs > $now) {
-                $deliveryPeriod = max(0, (int)(($delTs - $now) / 3600));
-                if (date('Y-m-d', $delTs) === date('Y-m-d', $now)) {
-                    $deliveryDays = 0;
-                } else {
-                    $deliveryDays = max(1, (int)ceil(($delTs - strtotime('today', $now)) / 86400));
-                }
-            }
-        } elseif (isset($offer['average_period'])) {
-            $deliveryDays = (int)$offer['average_period'];
-            $deliveryPeriod = $deliveryDays * 24;
-        }
-
-        $r = new SearchResultItem();
-        $r->source    = $this->getCode();
-        $r->article   = (string)($resource['article'] ?? '');
-        $r->brand     = (string)($resource['brand']['name'] ?? '');
-        $r->name      = (string)($resource['name'] ?? '');
-        $r->price     = (float)($offer['price'] ?? 0);
-        $r->quantity  = $qty;
-        $r->deliveryDays   = $deliveryDays;
-        $r->deliveryPeriod = $deliveryPeriod;
-        $r->warehouse = (string)($wh['name'] ?? '');
-        $r->stockId   = (string)($wh['id'] ?? '');
-        $r->supplierName = $this->getName();
-        $r->isSched   = ($qty <= 0) || $transit;
-        $r->multiplicity   = max(1, (int)($offer['multiplication_factor'] ?? 1));
-        $r->unit           = 'шт.';
-        $r->returnable = true;
-        $r->raw       = $offer;
-
         if (!empty($dateFrom)) $r->raw['deliveryDateFrom'] = $dateFrom;
         if (!empty($dateTo))   $r->raw['deliveryDateTo']   = $dateTo;
         if (!empty($buyUntil)) $r->raw['deliveryCheckout'] = $buyUntil;
 
         return $r;
+    }
+
+    /**
+     * Срок доставки БЕРГ. Приоритет источников:
+     *  1. Ближайший рейс адресной доставки/самовывоза (address_timetable[0]) —
+     *     реальное окно "buy_until → delivery_from–delivery_to" (или pickup_from–to
+     *     для самовывоза), самый точный источник, показывается с временем.
+     *  2. assured_period — гарантированный срок поставки ДО СКЛАДА БЕРГ (не до
+     *     клиента), в днях, без времени.
+     *  3. average_period — средний (не гарантированный) срок до склада БЕРГ,
+     *     только если assured_period не пришёл.
+     * Пункты 2-3 говорят о времени прибытия НА склад Берга, а не клиенту — это
+     * приближение, но точнее источника у API нет, если рейс адресной доставки
+     * не назначен.
+     *
+     * @return array{0:?int,1:?int,2:?string,3:?string,4:bool,5:?string} [deliveryDays, deliveryPeriod(часы), dayLabel, timeLabel, isToday, deadlineHHMM]
+     */
+    private function resolveDelivery(array $offer): array
+    {
+        $now           = time();
+        $todayStart    = strtotime('today');
+        $tomorrowStart = strtotime('tomorrow');
+
+        $ttAll = $offer['address_timetable'] ?? [];
+        $tt    = !empty($ttAll) ? $ttAll[0] : [];
+
+        $fromTs = null; $toTs = null; $deadlineTs = null;
+        if (!empty($tt)) {
+            $fromRaw = $tt['delivery_from'] ?? $tt['pickup_from'] ?? null;
+            $toRaw   = $tt['delivery_to']   ?? $tt['pickup_to']   ?? null;
+            $buyRaw  = $tt['buy_until'] ?? null;
+            $f = $fromRaw ? strtotime($fromRaw) : null;
+            if ($f && $f > $now) {
+                $fromTs = $f;
+                $t = $toRaw ? strtotime($toRaw) : null;
+                if ($t && $t > $fromTs) $toTs = $t;
+                $deadlineTs = $buyRaw ? strtotime($buyRaw) : null;
+            }
+        }
+
+        if ($fromTs !== null) {
+            $tsDay         = strtotime(date('Y-m-d', $fromTs));
+            $days          = ($tsDay <= $todayStart) ? 0 : (int)ceil(($tsDay - $todayStart) / 86400);
+            $dayLabel      = ($tsDay <= $todayStart) ? 'Сегодня' : (($tsDay === $tomorrowStart) ? 'Завтра' : date('d.m', $fromTs));
+            $timeLabel     = $toTs ? (date('H:i', $fromTs) . ' - ' . date('H:i', $toTs)) : date('H:i', $fromTs);
+            $hours         = max(0, (int)ceil(($fromTs - $now) / 3600));
+            $deadlineLabel = ($deadlineTs && $deadlineTs > $now) ? date('H:i', $deadlineTs) : null;
+            return [$days, $hours, $dayLabel, $timeLabel, $tsDay <= $todayStart, $deadlineLabel];
+        }
+
+        $days = null;
+        if (isset($offer['assured_period'])) {
+            $days = (int)$offer['assured_period'];
+        } elseif (isset($offer['average_period'])) {
+            $days = (int)$offer['average_period'];
+        }
+        if ($days === null) return [null, null, null, null, false, null];
+
+        $days     = max(0, $days);
+        $dayLabel = $days === 0 ? 'Сегодня' : ($days === 1 ? 'Завтра' : date('d.m', strtotime("+{$days} days")));
+        return [$days, $days * 24, $dayLabel, null, $days === 0, null];
     }
 
     private function apiPost(string $endpoint, array $items): array
