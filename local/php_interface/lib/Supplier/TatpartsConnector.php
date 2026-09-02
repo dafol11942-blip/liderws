@@ -213,7 +213,17 @@ class TatpartsConnector implements SupplierInterface
     private function buildResultItem(array $item, string $db, string $da): SearchResultItem
     {
         $p=(float)str_replace(',','.',(string)($item['price']??'0'));
-        $q=(int)($item['rest']??0); $d=max(1,(int)($item['deliverydays_min']??1));
+        $restStr=trim((string)($item['rest']??0));
+        if ($restStr==='') {
+            $q=0;
+        } elseif (is_numeric($restStr)) {
+            $q=(int)$restStr;
+        } else {
+            // TatParts иногда вместо точного остатка отдаёт текстовый флаг наличия
+            // ("Есть" и т.п.) без числа — по просьбе заказчика считаем это как 100 шт.
+            $q=100;
+        }
+        $d=max(1,(int)($item['deliverydays_min']??1));
         $r=new SearchResultItem();
         $r->source='tatparts'; $r->article=(string)($item['code']??$da); $r->brand=(string)($item['producer']??$db);
         $r->name=(string)($item['caption']??''); $r->price=$p; $r->quantity=$q;
