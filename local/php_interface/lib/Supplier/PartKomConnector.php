@@ -183,7 +183,7 @@ class PartKomConnector implements SupplierInterface
             }
             $r->stockId = (string)($item['placementId'] ?? $item['providerId'] ?? '');
 
-            [$r->deliveryDays, $r->deliveryPeriod, $r->deliveryLabel, $r->deliveryToday, $r->deliveryDeadline] = $this->resolveDelivery($item);
+            [$r->deliveryDays, $r->deliveryPeriod, $r->deliveryLabel, $r->deliveryTimeLabel, $r->deliveryToday, $r->deliveryDeadline] = $this->resolveDelivery($item);
 
             $r->raw = [
                 'deliveryWavesActive'   => $item['deliveryWavesActive'] ?? null,
@@ -236,7 +236,11 @@ class PartKomConnector implements SupplierInterface
      * Намеренно НЕ используем deliveryDateFrom как самостоятельный срок поставки —
      * это лишь начало окна волны, а не время готовности детали.
      *
-     * @return array{0:?int,1:?int,2:?string,3:bool,4:?string} [deliveryDays, deliveryPeriod(часы), label, isToday, deadlineHHMM]
+     * День и время возвращаются ОТДЕЛЬНО (не одной строкой) — на фронте это две
+     * строки в ячейке ("Сегодня" бейджем + "13:15 - 16:00" под ним мелким текстом),
+     * иначе полный текст не помещается в узкую колонку таблицы и обрезается.
+     *
+     * @return array{0:?int,1:?int,2:?string,3:?string,4:bool,5:?string} [deliveryDays, deliveryPeriod(часы), dayLabel, timeLabel, isToday, deadlineHHMM]
      */
     private function resolveDelivery(array $item): array
     {
@@ -275,8 +279,8 @@ class PartKomConnector implements SupplierInterface
             $hours = max(0, (int)ceil(($toTs - $now) / 3600));
             $tsDay = strtotime(date('Y-m-d', $toTs));
             $days  = ($tsDay <= $todayStart) ? 0 : (int)ceil(($tsDay - $todayStart) / 86400);
-            $label = $this->formatDeliveryLabel($tsDay, $todayStart, $tomorrowStart, $fromTs, $toTs);
-            return [$days, $hours, $label, $tsDay <= $todayStart, $deadlineTs ? date('H:i', $deadlineTs) : null];
+            [$dayLabel, $timeLabel] = $this->formatDeliveryLabel($tsDay, $todayStart, $tomorrowStart, $fromTs, $toTs);
+            return [$days, $hours, $dayLabel, $timeLabel, $tsDay <= $todayStart, $deadlineTs ? date('H:i', $deadlineTs) : null];
         }
 
         // 3. Только часы — тот же принцип "от"/"до", если обе границы заданы.
@@ -295,8 +299,8 @@ class PartKomConnector implements SupplierInterface
             $fromTs2 = $hFrom !== null ? $now + $hFrom * 3600 : null;
             $tsDay   = strtotime(date('Y-m-d', $toTs2));
             $days    = ($tsDay <= $todayStart) ? 0 : (int)ceil(($tsDay - $todayStart) / 86400);
-            $label   = $this->formatDeliveryLabel($tsDay, $todayStart, $tomorrowStart, $fromTs2, $toTs2);
-            return [$days, $hTo, $label, $tsDay <= $todayStart, null];
+            [$dayLabel, $timeLabel] = $this->formatDeliveryLabel($tsDay, $todayStart, $tomorrowStart, $fromTs2, $toTs2);
+            return [$days, $hTo, $dayLabel, $timeLabel, $tsDay <= $todayStart, null];
         }
 
         // 4. Только дни — без точности во времени.
@@ -307,19 +311,20 @@ class PartKomConnector implements SupplierInterface
             $d = (int)$item['expectedDays'];
         }
         if ($d !== null) {
-            $d     = max(0, $d);
-            $label = $d === 0 ? 'Сегодня' : ($d === 1 ? 'Завтра' : date('d.m', strtotime("+{$d} days")));
-            return [$d, null, $label, $d === 0, null];
+            $d        = max(0, $d);
+            $dayLabel = $d === 0 ? 'Сегодня' : ($d === 1 ? 'Завтра' : date('d.m', strtotime("+{$d} days")));
+            return [$d, null, $dayLabel, null, $d === 0, null];
         }
 
-        return [null, null, null, false, null];
+        return [null, null, null, null, false, null];
     }
 
-    private function formatDeliveryLabel(int $tsDay, int $todayStart, int $tomorrowStart, ?int $fromTs, int $toTs): string
+    /** @return array{0:string,1:string} [dayLabel, timeLabel] */
+    private function formatDeliveryLabel(int $tsDay, int $todayStart, int $tomorrowStart, ?int $fromTs, int $toTs): array
     {
-        $dayLabel = ($tsDay <= $todayStart) ? 'Сегодня' : (($tsDay === $tomorrowStart) ? 'Завтра' : date('d.m', $toTs));
+        $dayLabel  = ($tsDay <= $todayStart) ? 'Сегодня' : (($tsDay === $tomorrowStart) ? 'Завтра' : date('d.m', $toTs));
         $timeLabel = $fromTs ? (date('H:i', $fromTs) . ' - ' . date('H:i', $toTs)) : date('H:i', $toTs);
-        return $dayLabel . ' ' . $timeLabel;
+        return [$dayLabel, $timeLabel];
     }
 
     // ── MAKER ID (v5: без substring, только точные совпадения) ──

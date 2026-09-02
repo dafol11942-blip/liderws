@@ -160,9 +160,9 @@
 .ft-col--det { width: 27%; }
 .ft-col--skl { width: 23%; }
 .ft-col--qty { width: 10%; }
-.ft-col--del { width: 10%; }
+.ft-col--del { width: 12%; }
 .ft-col--prc { width: 12%; }
-.ft-col--act { width: 18%; }
+.ft-col--act { width: 16%; }
 .ft-tbl thead th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ft-tbl tbody td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
 .ft-tbl tbody tr:last-child td { border-bottom: none; }
@@ -179,8 +179,9 @@
 .ft-td--prc strong { font-size: 14px; font-weight: 800; }
 .ft-td--det { line-height: 1.4; word-break: break-word; white-space: normal; }
 .ft-skl-name { display: block; font-size: 12px; color: var(--black); margin-bottom: 3px; word-break: break-word; white-space: normal; }
-.ft-deliv-label { display: inline-block; font-weight: 700; color: var(--green); white-space: nowrap; }
+.ft-deliv-label { display: inline-block; font-weight: 700; color: var(--green); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .ft-deliv-label--today { background: var(--green); color: #fff; padding: 5px 12px; border-radius: 999px; font-size: 13px; }
+.ft-deliv-time { display: block; font-size: 11px; color: var(--gray); font-weight: 400; margin-top: 3px; white-space: nowrap; }
 
 /* ====== ДОБАВЛЕНИЕ В КОРЗИНУ (пока UI-заглушка: проверка остатка + уведомление, без сохранения) ====== */
 .ft-th--act { text-align: right !important; }

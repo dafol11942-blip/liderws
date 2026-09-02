@@ -137,6 +137,7 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
         'quantity'          => (int)($it->quantity ?? 0),
         'delivery_days'     => (int)($it->deliveryDays ?? -1),
         'delivery_label'    => $it->deliveryLabel ?? null,
+        'delivery_time'     => $it->deliveryTimeLabel ?? null,
         'delivery_today'    => (bool)($it->deliveryToday ?? false),
         'delivery_deadline' => $it->deliveryDeadline ?? null,
     ];
