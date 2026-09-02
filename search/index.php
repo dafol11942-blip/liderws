@@ -3,7 +3,9 @@
 require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 CModule::IncludeModule('iblock');
 CModule::IncludeModule('catalog');
+require_once($_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/init_pricing.php");
 
+$isManager = isManager();
 $q      = trim($_REQUEST['q'] ?? '');
 $brand  = trim($_REQUEST['brand'] ?? '');
 $number = trim($_REQUEST['number'] ?? '');
@@ -147,6 +149,9 @@ document.addEventListener('DOMContentLoaded',function(){loadBrands(Q)});
 (function(){
 var API='/search/ajax.php';
 var Q=<?=json_encode($q)?>,B=<?=json_encode($brand)?>,N=<?=json_encode($number)?>;
+var IS_MANAGER=<?=json_encode($isManager)?>;
+var TASK_ID=null;
+var hideClientPrice=false;
 function qs(s,el){return(el||document).querySelector(s)}
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function fmt(n){return new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}
@@ -230,6 +235,7 @@ async function loadResults(){
 
     if (d1.error) { showError(d1.error); return; }
 
+    TASK_ID = d1.task_id || null;
     renderResults(d1);
 
     // ═══ PHASE 2: добор в фоне ═══
@@ -307,27 +313,30 @@ function mergeAnalogOffers(d1, analogOffers, newAnalogs) {
         if (idx === undefined) continue;
         var existing = d1.analogs[idx];
         var seen = {};
-        existing.suppliers.forEach(function(s) { seen[s.supplier + '|' + s.price] = true; });
+        // offer_token уникален на каждое предложение — используем его вместо supplier+price
+        // (для не-менеджера supplier в ответе отсутствует).
+        existing.suppliers.forEach(function(s) { seen[s.offer_token] = true; });
         analogOffers[gk].forEach(function(o) {
-            if (!seen[o.supplier + '|' + o.price]) {
+            if (!seen[o.offer_token]) {
                 existing.suppliers.push(o);
-                seen[o.supplier + '|' + o.price] = true;
+                seen[o.offer_token] = true;
                 addedOffers++;
-                addedSuppliers[o.supplier] = true;
+                addedSuppliers[o.supplier || o.offer_token] = true;
             }
         });
         existing.suppliers.sort(function(x, y) {
             var dx = x.delivery_days >= 0 ? x.delivery_days : Infinity;
             var dy = y.delivery_days >= 0 ? y.delivery_days : Infinity;
             if (dx !== dy) return dx - dy;
-            return x.price - y.price;
+            return x.client_price - y.client_price;
         });
-        var prices = existing.suppliers.map(function(s){return s.price;}).filter(function(p){return p>0;});
+        var prices = existing.suppliers.map(function(s){return s.client_price;}).filter(function(p){return p>0;});
         var days   = existing.suppliers.map(function(s){return s.delivery_days;}).filter(function(d){return d>=0;});
         var qtys   = existing.suppliers.map(function(s){return s.quantity;});
         existing.best_price    = prices.length ? Math.min.apply(null, prices) : 0;
         existing.best_delivery = days.length ? Math.min.apply(null, days) : null;
         existing.total_qty     = qtys.reduce(function(sum, q){return sum+q;}, 0);
+        existing.total_qty_label = (IS_MANAGER || existing.total_qty <= 10) ? (existing.total_qty + ' шт.') : 'Много';
         existing.has_instock   = qtys.some(function(q){return q>0;});
     }
     d1.analogs.sort(function(a, b) {
@@ -371,13 +380,38 @@ document.addEventListener('click', function(e) {
             stepperEl.classList.add('actl-stepper--err');
             setTimeout(function(){ stepperEl.classList.remove('actl-stepper--err'); }, 900);
         }
-        showToast('У поставщика «' + (btn.getAttribute('data-supplier') || '') + '» в наличии только ' + max + ' шт. Количество скорректировано.', 'warn');
+        var supplierLabel = btn.getAttribute('data-supplier');
+        showToast((supplierLabel ? 'У поставщика «' + supplierLabel + '» ' : 'В наличии ') + 'только ' + max + ' шт. Количество скорректировано.', 'warn');
         return;
     }
 
+    if (btn.disabled) return;
+
     var brand = btn.getAttribute('data-brand') || '';
     var article = btn.getAttribute('data-article') || '';
-    showToast('Добавлено в корзину: ' + brand + ' / ' + article + ' — ' + qty + ' шт.', 'ok');
+    var supplier = btn.getAttribute('data-supplier') || '';
+    var token = btn.getAttribute('data-token') || '';
+
+    btn.disabled = true;
+    fetch('/local/ajax/order_from_supplier.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            task: TASK_ID, offer_token: token,
+            article: article, brand: brand, supplier: supplier,
+            quantity: qty
+        })
+    }).then(function(r){ return r.json(); }).then(function(data){
+        btn.disabled = false;
+        if (data.success) {
+            showToast('Добавлено в корзину: ' + brand + ' / ' + article + ' — ' + qty + ' шт.', 'ok');
+        } else {
+            showToast(data.message || 'Не удалось добавить в корзину', 'warn');
+        }
+    }).catch(function(){
+        btn.disabled = false;
+        showToast('Ошибка соединения, попробуйте ещё раз', 'warn');
+    });
 });
 
 function showToast(msg, kind) {
@@ -450,6 +484,10 @@ window.resetFilters = function(){
     filterState = { brands: null, maxDelivery: null, minQty: null };
     if (lastData) renderResults(lastData);
 };
+window.toggleHideClientPrice = function(checked){
+    hideClientPrice = checked;
+    qs('#resultContent').classList.toggle('hide-client-price', hideClientPrice);
+};
 
 var DELIVERY_OPTS = [[null,'Любой'],[0,'Сегодня'],[2,'До 2 дней'],[5,'До 5 дней'],[10,'До 10 дней']];
 var QTY_OPTS = [[null,'Любое'],[1,'В наличии'],[10,'От 10 шт.'],[50,'От 50 шт.']];
@@ -457,11 +495,15 @@ var QTY_OPTS = [[null,'Любое'],[1,'В наличии'],[10,'От 10 шт.']
 function renderFilterBar(d){
     var brandsMap = getAllBrands(d);
     var brandKeys = Object.keys(brandsMap).sort();
-    if (!brandKeys.length) return '';
+    if (!brandKeys.length && !IS_MANAGER) return '';
 
     var isActive = !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
 
     var h = '<div class="filter-bar">';
+
+    if (IS_MANAGER) {
+        h += '<label class="filter-opt filter-opt--toggle"><input type="checkbox"' + (hideClientPrice?' checked':'') + ' onchange="toggleHideClientPrice(this.checked)"> Скрыть клиентскую цену</label>';
+    }
 
     if (brandKeys.length > 1) {
         h += '<details class="filter-dd"><summary>Бренд<span class="filter-dd-arrow">▾</span></summary><div class="filter-dd-panel filter-dd-panel--wide">';
@@ -503,15 +545,17 @@ function renderResults(d){
         if (!brandAllowed(a.brand)) return null;
         var visible = a.suppliers.filter(passesRowFilter);
         if (!visible.length) return null;
-        var prices = visible.map(function(s){return s.price;}).filter(function(p){return p>0;});
+        var prices = visible.map(function(s){return s.client_price;}).filter(function(p){return p>0;});
         var days   = visible.map(function(s){return s.delivery_days;}).filter(function(dd){return dd>=0;});
         var qtys   = visible.map(function(s){return s.quantity;});
+        var totalQty = qtys.reduce(function(s,q){return s+q;}, 0);
         return {
             key: a.key, brand: a.brand, article: a.article, description: a.description,
             suppliers: visible,
             best_price:    prices.length ? Math.min.apply(null, prices) : 0,
             best_delivery: days.length ? Math.min.apply(null, days) : null,
-            total_qty:     qtys.reduce(function(s,q){return s+q;}, 0),
+            total_qty:     totalQty,
+            total_qty_label: (IS_MANAGER || totalQty <= 10) ? (totalQty + ' шт.') : 'Много',
             has_instock:   qtys.some(function(q){return q>0;})
         };
     }).filter(function(a){ return a !== null; });
@@ -522,9 +566,9 @@ function renderResults(d){
 
     var bestPriceExact=null,bestPriceAnalog=null,bestDelivery=null;
     allOffers.forEach(function(o){
-        if(o.price>0){
-            if(o._type==='exact'&&(!bestPriceExact||o.price<bestPriceExact.price))bestPriceExact=o;
-            if(o._type==='analog'&&(!bestPriceAnalog||o.price<bestPriceAnalog.price))bestPriceAnalog=o;
+        if(o.client_price>0){
+            if(o._type==='exact'&&(!bestPriceExact||o.client_price<bestPriceExact.client_price))bestPriceExact=o;
+            if(o._type==='analog'&&(!bestPriceAnalog||o.client_price<bestPriceAnalog.client_price))bestPriceAnalog=o;
         }
         if(o.delivery_days>=0&&(!bestDelivery||o.delivery_days<bestDelivery.delivery_days))bestDelivery=o;
     });
@@ -563,7 +607,7 @@ function renderResults(d){
         h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title"><svg class="icon"><use href="#icon-refresh"></use></svg> Аналоги ('+analogsVisible.length+')</span></div>';
         analogsVisible.forEach(function(a){
             var groupHasMore=a.suppliers.length>2;
-            h+='<div class="ft-group"><div class="ft-ghead"'+(groupHasMore?' data-ft-toggle':'')+'><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery!==null?a.best_delivery+' дн.':'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty+' шт.</span>'+(groupHasMore?'<button type="button" class="ft-gtoggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div></div>';
+            h+='<div class="ft-group"><div class="ft-ghead"'+(groupHasMore?' data-ft-toggle':'')+'><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery!==null?a.best_delivery+' дн.':'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty_label+'</span>'+(groupHasMore?'<button type="button" class="ft-gtoggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div></div>';
             h+='<div class="ft-gbody">'+supplierTable(a.suppliers,'analog',a.brand,a.article,a.key)+'</div>';
             h+='</div>';
         });
@@ -608,7 +652,7 @@ function renderResults(d){
     });
 }
 
-function addToCartControl(brand,article,supplier,warehouse,price,qty,description){
+function addToCartControl(brand,article,supplier,warehouse,token,qty,description){
     var maxQty=Math.max(0,parseInt(qty,10)||0);
     if(maxQty<=0)return '<span class="actl-oos">Нет в наличии</span>';
     return '<div class="actl">'
@@ -617,19 +661,29 @@ function addToCartControl(brand,article,supplier,warehouse,price,qty,description
         +'<input type="text" class="actl-qty" inputmode="numeric" min="1" max="'+maxQty+'" value="1">'
         +'<button type="button" class="actl-step actl-step--plus" aria-label="Увеличить количество">+</button>'
         +'</div>'
-        +'<button type="button" class="actl-btn" title="В корзину" data-brand="'+esc(brand)+'" data-article="'+esc(article)+'" data-supplier="'+esc(supplier)+'" data-warehouse="'+esc(warehouse||'')+'" data-price="'+(parseFloat(price)||0)+'" data-max="'+maxQty+'" data-desc="'+esc(description||'')+'"><svg class="icon"><use href="#icon-cart"></use></svg></button>'
+        +'<button type="button" class="actl-btn" title="В корзину" data-brand="'+esc(brand)+'" data-article="'+esc(article)+'" data-supplier="'+esc(supplier||'')+'" data-warehouse="'+esc(warehouse||'')+'" data-token="'+esc(token||'')+'" data-max="'+maxQty+'" data-desc="'+esc(description||'')+'"><svg class="icon"><use href="#icon-cart"></use></svg></button>'
         +'</div>';
+}
+
+function supplierBadge(s){
+    return s.supplier ? '<span class="src-tag src-tag--'+s.supplier+'">'+s.supplier+'</span>' : '';
+}
+
+function priceBlock(s){
+    var h='<span class="price-client">'+fmt(s.client_price)+' р.</span>';
+    if(IS_MANAGER && s.base_price!=null) h+='<span class="price-base">закупка: '+fmt(s.base_price)+' р.</span>';
+    return h;
 }
 
 function hlCard(o,title,cardCls,badgeCls,type){
     var det=o._description||o.description||'';
-    return '<div class="hl-card '+cardCls+'"><div class="hl-badge '+badgeCls+'">'+title+'</div><div class="hl-type">'+type+'</div><div class="hl-name">'+esc(o._brand)+' / '+esc(o._article)+'</div>'+(det?'<div class="hl-desc">'+esc(det)+'</div>':'')+'<div class="hl-price">'+fmt(o.price)+' р.</div><div class="hl-meta">'+o.quantity+' шт. &middot; '+dRange(o)+'</div><div class="hl-src"><span class="src-tag src-tag--'+o.supplier+'">'+o.supplier+'</span></div><div class="hl-actl">'+addToCartControl(o._brand,o._article,o.supplier,o.warehouse,o.price,o.quantity,det)+'</div></div>';
+    return '<div class="hl-card '+cardCls+'"><div class="hl-badge '+badgeCls+'">'+title+'</div><div class="hl-type">'+type+'</div><div class="hl-name">'+esc(o._brand)+' / '+esc(o._article)+'</div>'+(det?'<div class="hl-desc">'+esc(det)+'</div>':'')+'<div class="hl-price">'+priceBlock(o)+'</div><div class="hl-meta">'+o.quantity_label+' &middot; '+dRange(o)+'</div><div class="hl-src">'+supplierBadge(o)+'</div><div class="hl-actl">'+addToCartControl(o._brand,o._article,o.supplier,o.warehouse,o.offer_token,o.quantity,det)+'</div></div>';
 }
 
 function supplierTable(suppliers,type,brand,article,sortKey){
     var limit=type==='exact'?5:2;
     var dir=priceSortState[sortKey];
-    var list=dir?suppliers.slice().sort(function(a,b){return dir*(a.price-b.price);}):suppliers;
+    var list=dir?suppliers.slice().sort(function(a,b){return dir*(a.client_price-b.client_price);}):suppliers;
     var sortIc=dir===1?'▲':(dir===-1?'▼':'⇅');
     var sortCls='ft-th--sort'+(dir?' ft-th--sort-active':'');
     var priceTh=sortKey?('<th class="ft-th--num '+sortCls+'" onclick="cyclePriceSort(\''+sortKey+'\')" title="Сортировать по цене">Цена <span class="ft-sort-ic">'+sortIc+'</span></th>'):'<th class="ft-th--num">Цена</th>';
@@ -637,7 +691,7 @@ function supplierTable(suppliers,type,brand,article,sortKey){
     list.forEach(function(s,i){
         var cls=i>=limit?' class="ft-more"':'';
         var det=s._description||s.description||'—';
-        h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span><span class="src-tag src-tag--'+s.supplier+'">'+s.supplier+'</span></td><td class="ft-td--num" data-label="Кол.">'+s.quantity+' шт.</td><td class="ft-td--num" data-label="Доставка">'+dRange(s)+'</td><td class="ft-td--prc" data-label="Цена"><strong>'+fmt(s.price)+' р.</strong></td><td class="ft-td--act">'+addToCartControl(brand,article,s.supplier,s.warehouse,s.price,s.quantity,det)+'</td></tr>';
+        h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span>'+supplierBadge(s)+'</td><td class="ft-td--num" data-label="Кол.">'+s.quantity_label+'</td><td class="ft-td--num" data-label="Доставка">'+dRange(s)+'</td><td class="ft-td--prc" data-label="Цена">'+priceBlock(s)+'</td><td class="ft-td--act">'+addToCartControl(brand,article,s.supplier,s.warehouse,s.offer_token,s.quantity,det)+'</td></tr>';
     });
     h+='</tbody></table>';
     if(suppliers.length>limit)h+='<button class="ft-showmore" data-count="'+(suppliers.length-limit)+'">Показать еще '+(suppliers.length-limit)+' товаров</button>';

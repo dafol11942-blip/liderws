@@ -7,6 +7,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     die(json_encode(['success' => false, 'message' => 'Только POST']));
 }
 
+require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/OfferTokenStore.php');
+use Lider\Search\OfferTokenStore;
+
 $raw = file_get_contents('php://input');
 $data = json_decode($raw, true);
 
@@ -16,9 +19,27 @@ $supplier     = trim($data['supplier'] ?? 'moskvorechie');
 $quantity     = max(1, (int)($data['quantity'] ?? 1));
 $deliveryDays = (int)($data['delivery_days'] ?? 0);
 $deliveryText = trim($data['delivery_text'] ?? '');
+$taskId       = trim($data['task'] ?? '');
+$offerToken   = trim($data['offer_token'] ?? '');
 
 if (empty($article)) {
     die(json_encode(['success' => false, 'message' => 'Не указан артикул']));
+}
+
+// Токен предложения — единственный надёжный источник настоящего названия склада
+// (клиенту оно не передаётся, если он не из группы «Менеджер», см. search/ajax.php).
+// Также используется, чтобы не дать заказать больше, чем реально было в наличии
+// на момент поиска.
+$resolvedOffer = ($taskId && $offerToken) ? OfferTokenStore::resolve($taskId, $offerToken) : null;
+if ($resolvedOffer) {
+    $supplier = $resolvedOffer['supplier'] ?: $supplier;
+    $quantity = min($quantity, max(1, (int)$resolvedOffer['quantity']));
+} else {
+    @file_put_contents(
+        $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/supplier_orders_error.log',
+        '[' . date('Y-m-d H:i:s') . '] offer_token не найден (task=' . $taskId . '), склад не будет сохранён' . "\n",
+        FILE_APPEND
+    );
 }
 
 try {
@@ -31,6 +52,8 @@ try {
 
     $item = $connector->getDetail($article, $brand);
     if (!$item) die(json_encode(['success' => false, 'message' => 'Товар не найден']));
+
+    $realWarehouse = $resolvedOffer['warehouse'] ?? ($item->warehouse ?? '');
 
     require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php');
     $price = getDisplayPrice($item->price);
@@ -79,6 +102,7 @@ try {
             ['SUPPLIER_ARTICLE',       'Артикул',          $article],
             ['SUPPLIER_BRAND',         'Бренд',            $brand],
             ['SUPPLIER_NAME',          'Поставщик',        $supplier],
+            ['SUPPLIER_WAREHOUSE',     'Склад',            $realWarehouse],
             ['SUPPLIER_TITLE',         'Название',         $item->name],
             ['SUPPLIER_PRICE_BASE',    'Закупочная цена',  $item->price],
             ['SUPPLIER_DELIVERY_DAYS', 'Срок доставки (дн)', $deliveryDays],

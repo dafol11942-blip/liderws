@@ -79,6 +79,13 @@
 .src-tag--shatem{background:#fef3c7;color:#92400e}.src-tag--tatparts{background:#e0f7fa;color:#006064}
 .src-tag--autoruss{background:#fff7ed;color:#c2410c}.src-tag--autopiter{background:#e8eaf6;color:#283593}
 
+/* ====== ЦЕНА (клиентская + закупочная для менеджера) ====== */
+.price-client { display: block; font-weight: 700; }
+.price-base { display: block; font-size: 11px; color: var(--gray); font-weight: 400; }
+.ft-td--prc .price-client { font-size: 14px; font-weight: 800; }
+.hide-client-price .price-client { display: none; }
+.filter-opt--toggle { font-weight: 600; }
+
 /* ====== КНОПКИ ====== */
 .btn-sel { display: inline-block; padding: 7px 18px; background: var(--blue); color: #fff; border: none; border-radius: var(--radius); font-size: 13px; font-weight: 700; cursor: pointer; text-decoration: none !important; white-space: nowrap; font-family: var(--font); box-shadow: 0 1px 3px rgba(102,139,234,.3); transition: background .15s; }
 .btn-sel:hover { background: var(--blue-dark); color: #fff; text-decoration: none; }

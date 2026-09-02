@@ -68,8 +68,16 @@ CModule::IncludeModule('iblock');
 CModule::IncludeModule('catalog');
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/BrandNormalizer.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/OfferTokenStore.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php';
 use Lider\Search\BrandNormalizer;
+use Lider\Search\OfferTokenStore;
 use Bitrix\Main\Application;
+
+// Роль пользователя и накопитель токенов «предложение → реальные склад/поставщик/цена»
+// вычисляются один раз на запрос — см. offerRow() и sanitizeOffer() ниже.
+$IS_MANAGER   = isManager();
+$OFFER_TOKENS = [];
 
 // ═══════════════════════════ КОНФИГ ═══════════════════════════
 
@@ -129,15 +137,40 @@ function itemMatchesPair($it, string $normBrand, string $normArticle): bool {
  * для аналогов — приоритет name (там обычно понятнее написан сам товар).
  */
 function offerRow(string $code, $it, bool $preferDescription = false): array {
+    global $suppliers, $OFFER_TOKENS;
+
     $name = (string)($it->name ?? '');
     $desc = (string)($it->description ?? '');
+    $basePrice = (float)($it->price ?? 0);
+    $quantity  = (int)($it->quantity ?? 0);
+    $realWarehouse = (string)($it->warehouse ?? '');
+
+    $connector = $suppliers[$code] ?? null;
+    $maskedWarehouse = ($realWarehouse !== '' && $connector && method_exists($connector, 'maskWarehouseName'))
+        ? $connector->maskWarehouseName($realWarehouse)
+        : $realWarehouse;
+
+    $token = bin2hex(random_bytes(8));
+    $OFFER_TOKENS[$token] = [
+        'supplier'  => $code,
+        'warehouse' => $realWarehouse,
+        'price'     => $basePrice,
+        'quantity'  => $quantity,
+    ];
+
     return [
+        // Внутренние поля (реальные значения) — используются для сортировки/дедупа/кэша
+        // ниже по файлу; наружу отдаются только через sanitizeOffer().
         'supplier'          => $code,
-        'warehouse'         => (string)($it->warehouse ?? ''),
+        'warehouse'         => $realWarehouse,
+        'warehouse_masked'  => $maskedWarehouse,
         'name'              => $name,
         'description'       => $preferDescription ? ($desc ?: $name) : ($name ?: $desc),
-        'price'             => (float)($it->price ?? 0),
-        'quantity'          => (int)($it->quantity ?? 0),
+        'price'             => $basePrice,
+        'client_price'      => getClientPrice($basePrice),
+        'quantity'          => $quantity,
+        'quantity_label'    => $quantity > 10 ? 'Много' : ($quantity . ' шт.'),
+        'offer_token'       => $token,
         'delivery_days'     => (int)($it->deliveryDays ?? -1),
         'delivery_label'    => $it->deliveryLabel ?? null,
         'delivery_time'     => $it->deliveryTimeLabel ?? null,
@@ -146,13 +179,46 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
     ];
 }
 
+/** Клиентский вид предложения — единственное, что уходит в JSON. Реальный склад и код
+ *  поставщика для не-менеджера сюда никогда не попадают (только замаскированный склад
+ *  и opaque offer_token, по которому настоящий склад восстанавливается на бэкенде при
+ *  добавлении в корзину — см. OfferTokenStore). */
+function sanitizeOffer(array $o): array {
+    global $IS_MANAGER;
+    $out = [
+        'warehouse'         => $IS_MANAGER ? $o['warehouse'] : $o['warehouse_masked'],
+        'name'              => $o['name'],
+        'description'       => $o['description'],
+        'client_price'      => $o['client_price'],
+        'quantity'          => $o['quantity'],
+        'quantity_label'    => $IS_MANAGER ? ($o['quantity'] . ' шт.') : $o['quantity_label'],
+        'offer_token'       => $o['offer_token'],
+        'delivery_days'     => $o['delivery_days'],
+        'delivery_label'    => $o['delivery_label'],
+        'delivery_time'     => $o['delivery_time'],
+        'delivery_today'    => $o['delivery_today'],
+        'delivery_deadline' => $o['delivery_deadline'],
+    ];
+    if ($IS_MANAGER) {
+        $out['supplier']   = $o['supplier'];
+        $out['base_price'] = $o['price'];
+    }
+    return $out;
+}
+
+/** @param array<int,array> $offers */
+function sanitizeOffers(array $offers): array {
+    return array_map('sanitizeOffer', $offers);
+}
+
 function sortOffers(array &$offers): void {
     usort($offers, function ($a, $b) {
-        // Сначала срок доставки (неизвестный срок -1 считаем худшим), затем цена.
+        // Сначала срок доставки (неизвестный срок -1 считаем худшим), затем клиентская цена
+        // (то, что реально определяет «самое дешёвое предложение» для покупателя).
         $da = $a['delivery_days'] >= 0 ? $a['delivery_days'] : PHP_INT_MAX;
         $db = $b['delivery_days'] >= 0 ? $b['delivery_days'] : PHP_INT_MAX;
         if ($da !== $db) return $da <=> $db;
-        return $a['price'] <=> $b['price'];
+        return $a['client_price'] <=> $b['client_price'];
     });
 }
 
@@ -552,8 +618,11 @@ if ($action === 'crossload') {
 
     foreach ($analogOffers as &$offers) {
         sortOffers($offers);
+        $offers = sanitizeOffers($offers);
     }
     unset($offers);
+
+    OfferTokenStore::save($taskId, $OFFER_TOKENS);
 
     progWrite($taskId, 100, 'Докрутка завершена');
     $out = json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta], JSON_UNESCAPED_UNICODE);
@@ -783,28 +852,30 @@ if ($action === 'brands') {
     $resp = [];
     if (!empty($exactOffers)) {
         sortOffers($exactOffers);
-        $resp['exact'] = ['brand' => $brandOrig, 'article' => $numberOrig, 'suppliers' => $exactOffers];
+        $resp['exact'] = ['brand' => $brandOrig, 'article' => $numberOrig, 'suppliers' => sanitizeOffers($exactOffers)];
     }
 
     $analogs = [];
     foreach ($analogGroups as $gk => $grp) {
         $offers = $grp['offers'];
         sortOffers($offers);
-        $prices = array_column($offers, 'price');
+        $prices = array_column($offers, 'client_price');
         $days   = array_column($offers, 'delivery_days');
         $qtys   = array_column($offers, 'quantity');
         $activePrices = array_filter($prices, fn($p) => $p > 0);
         $activeDays   = array_filter($days, fn($d) => $d >= 0);
+        $totalQty = array_sum($qtys);
         $analogs[] = [
-            'key'           => $gk,
-            'brand'         => $grp['brand_orig'],
-            'article'       => $grp['article_orig'],
-            'description'   => $grp['description'],
-            'best_price'    => $activePrices ? min($activePrices) : 0,
-            'best_delivery' => $activeDays ? min($activeDays) : null,
-            'total_qty'     => array_sum($qtys),
-            'has_instock'   => count(array_filter($qtys, fn($q) => $q > 0)) > 0,
-            'suppliers'     => $offers,
+            'key'            => $gk,
+            'brand'          => $grp['brand_orig'],
+            'article'        => $grp['article_orig'],
+            'description'    => $grp['description'],
+            'best_price'     => $activePrices ? min($activePrices) : 0,
+            'best_delivery'  => $activeDays ? min($activeDays) : null,
+            'total_qty'      => $totalQty,
+            'total_qty_label' => ($IS_MANAGER || $totalQty <= 10) ? ($totalQty . ' шт.') : 'Много',
+            'has_instock'    => count(array_filter($qtys, fn($q) => $q > 0)) > 0,
+            'suppliers'      => sanitizeOffers($offers),
         ];
     }
     usort($analogs, function ($a, $b) {
@@ -819,6 +890,8 @@ if ($action === 'brands') {
     $resp['phase']       = 1;
     $resp['cross_count'] = $crossCount;
     $resp['crossPairs']  = $crossPairs;
+
+    OfferTokenStore::save($taskId, $OFFER_TOKENS);
 
     ajaxLog("PHASE1 RESPOND task=$taskId time=" . round(microtime(true) - $tTotal, 2) . "s");
     $out = json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_NUMERIC_CHECK);
