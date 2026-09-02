@@ -223,15 +223,61 @@ class TatpartsConnector implements SupplierInterface
             // ("Есть" и т.п.) без числа — по просьбе заказчика считаем это как 100 шт.
             $q=100;
         }
-        $d=max(1,(int)($item['deliverydays_min']??1));
+        [$deliveryDays, $deliveryPeriod, $deliveryLabel, $deliveryTimeLabel, $deliveryToday, $deliveryDeadline] = $this->resolveDelivery($item);
         $r=new SearchResultItem();
         $r->source='tatparts'; $r->article=(string)($item['code']??$da); $r->brand=(string)($item['producer']??$db);
         $r->name=(string)($item['caption']??''); $r->price=$p; $r->quantity=$q;
-        $r->deliveryDays=$d; $r->deliveryPeriod=$d*24; $r->warehouse=(string)($item['direction']??'');
+        $r->deliveryDays=$deliveryDays; $r->deliveryPeriod=$deliveryPeriod;
+        $r->deliveryLabel=$deliveryLabel; $r->deliveryTimeLabel=$deliveryTimeLabel;
+        $r->deliveryToday=$deliveryToday; $r->deliveryDeadline=$deliveryDeadline;
+        $r->warehouse=(string)($item['direction']??'');
         $r->stockId=(string)($item['itemHash']??''); $r->supplierName='ТатПартс';
         $r->isSched=($q<=0); $r->multiplicity=max(1,(int)($item['packing']??1)); $r->unit='шт.';
         $r->returnable=($item['return']??'')==='possible'; $r->raw=$item;
         return $r;
+    }
+
+    /**
+     * Срок доставки ТатПартс. API отдаёт готовый ДИАПАЗОН в днях —
+     * deliverydays_min/deliverydays_max (без времени суток, без дат) —
+     * в отличие от остальных поставщиков тут нет единой точки, а есть
+     * настоящий диапазон "от-до" в днях, поэтому показываем обе границы
+     * как есть, а не выбираем одну.
+     *
+     * Для сортировки (deliveryDays) берём КОНСЕРВАТИВНУЮ верхнюю границу
+     * (deliverydays_max) — по тому же принципу, что и у остальных
+     * поставщиков (гарантированный/верхний срок надёжнее оптимистичного).
+     * Зелёным бейджем "Сегодня" помечаем только когда обе границы = 0 —
+     * диапазон, начинающийся сегодня но растянутый на несколько дней,
+     * бейджем не выделяем, чтобы не обещать доставку прямо сегодня.
+     *
+     * @return array{0:?int,1:?int,2:?string,3:?string,4:bool,5:?string} [deliveryDays, deliveryPeriod(часы), dayLabel, timeLabel, isToday, deadlineHHMM]
+     */
+    private function resolveDelivery(array $item): array
+    {
+        $minRaw = $item['deliverydays_min'] ?? null;
+        $maxRaw = $item['deliverydays_max'] ?? null;
+
+        $dMin = ($minRaw !== null && $minRaw !== '') ? max(0, (int)$minRaw) : 1;
+        $dMax = ($maxRaw !== null && $maxRaw !== '') ? max(0, (int)$maxRaw) : $dMin;
+        if ($dMax < $dMin) $dMax = $dMin;
+
+        $fromLabel = $this->dayLabel($dMin);
+        $isToday   = ($dMin === 0 && $dMax === 0);
+
+        if ($dMax === $dMin) {
+            return [$dMax, $dMax * 24, $fromLabel, null, $isToday, null];
+        }
+
+        $toLabel = $this->dayLabel($dMax);
+        return [$dMax, $dMax * 24, $fromLabel, '- ' . $toLabel, $isToday, null];
+    }
+
+    private function dayLabel(int $days): string
+    {
+        if ($days === 0) return 'Сегодня';
+        if ($days === 1) return 'Завтра';
+        return date('d.m', strtotime("+{$days} days"));
     }
 
     private function generateWarehouseCode(string $n): string
