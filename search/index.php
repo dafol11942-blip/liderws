@@ -150,6 +150,17 @@ var Q=<?=json_encode($q)?>,B=<?=json_encode($brand)?>,N=<?=json_encode($number)?
 function qs(s,el){return(el||document).querySelector(s)}
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function fmt(n){return new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}
+
+// fetch() без таймаута может висеть бесконечно, если сервер не отвечает — а пока
+// он висит, pollProgress() продолжает опрашивать action=progress каждые 1.5с без
+// остановки (именно это переполнило лимит запросов/мин на стороне хостинга и
+// привело к блокировке IP). Жёсткий предел заставляет запрос сдаться, если ответа
+// нет слишком долго, вместо бесконечного ожидания.
+function fetchWithTimeout(url, ms){
+    var ctrl = new AbortController();
+    var t = setTimeout(function(){ ctrl.abort(); }, ms);
+    return fetch(url, {signal: ctrl.signal}).finally(function(){ clearTimeout(t); });
+}
 function dRange(s){
     if(s&&s.delivery_label){
         var cls='ft-deliv-label'+(s.delivery_today?' ft-deliv-label--today':'');
@@ -170,10 +181,19 @@ function showProgress(pct, msg) {
         '</div>';
 }
 
-function pollProgress(taskId, onTick) {
+// Хостинг заблокировал IP посетителя за превышение частоты запросов именно к
+// action=progress — при 700мс интервале это ~86 запросов/мин с ОДНОЙ вкладки,
+// а если основной fetch (search/crossload) зависает (нет клиентского таймаута
+// у fetch()), polling продолжается неограниченно долго, пока ответ не придёт.
+// Увеличенный интервал + жёсткий потолок по времени страхуют от накрутки сотен
+// запросов за одно зависшее ожидание.
+function pollProgress(taskId, onTick, maxMs) {
+    maxMs = maxMs || 90000;
     var stopped = false;
+    var startedAt = Date.now();
     var timer = setInterval(async function(){
         if (stopped) return;
+        if (Date.now() - startedAt > maxMs) { stopped = true; clearInterval(timer); return; }
         try {
             var r = await fetch(API + '?action=progress&task=' + encodeURIComponent(taskId));
             var d = await r.json();
@@ -183,7 +203,7 @@ function pollProgress(taskId, onTick) {
             // между Phase 1 и crossload, и в момент старта докрутки там ещё лежит старое "100% Готово"
             // от Phase 1 — остановка по этому значению обрывала бы поллинг докрутки до её начала.
         } catch(e) { /* следующий тик попробует снова */ }
-    }, 700);
+    }, 1500);
     return function stop(){ stopped = true; clearInterval(timer); };
 }
 
@@ -196,14 +216,14 @@ async function loadResults(){
     // ═══ PHASE 1 ═══
     var d1;
     try {
-        var r1 = await fetch(API + '?action=search&article=' + encodeURIComponent(Q)
+        var r1 = await fetchWithTimeout(API + '?action=search&article=' + encodeURIComponent(Q)
             + '&brand=' + encodeURIComponent(B)
             + '&number=' + encodeURIComponent(N)
-            + '&task=' + encodeURIComponent(taskId));
+            + '&task=' + encodeURIComponent(taskId), 45000);
         d1 = await r1.json();
     } catch(e) {
         stopP1();
-        showError('Ошибка соединения: ' + e.message);
+        showError(e.name === 'AbortError' ? 'Поиск занял слишком много времени, попробуйте ещё раз' : 'Ошибка соединения: ' + e.message);
         return;
     }
     stopP1();
@@ -226,9 +246,9 @@ async function loadResults(){
         });
 
         try {
-            var r2 = await fetch(API + '?action=crossload&task=' + encodeURIComponent(taskId)
+            var r2 = await fetchWithTimeout(API + '?action=crossload&task=' + encodeURIComponent(taskId)
                 + '&brand=' + encodeURIComponent(B) + '&number=' + encodeURIComponent(N)
-                + '&crossPairs=' + encodeURIComponent(JSON.stringify(d1.crossPairs)));
+                + '&crossPairs=' + encodeURIComponent(JSON.stringify(d1.crossPairs)), 60000);
             if (!r2.ok) {
                 console.error('crossload HTTP error', r2.status, await r2.text());
                 showToast('Не удалось доподбрать часть предложений у поставщиков', 'warn');
