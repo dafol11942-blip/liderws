@@ -179,60 +179,41 @@ class AutorussConnector implements SupplierInterface
                 $isSched = true;
             }
 
-            $deliveryPeriod = (int)($item['deliveryPeriod'] ?? 0);
-            $deliveryPeriodMax = (int)($item['deliveryPeriodMax'] ?? 0);
+            [$deliveryDays, $deliveryPeriod, $deliveryLabel, $deliveryTimeLabel, $deliveryToday, $deliveryDeadline] = $this->resolveDelivery($item, $isSched);
 
             $r = new SearchResultItem();
-            $r->source       = $this->getCode();
-            $r->article      = $itemNumberFix !== '' ? $itemNumberFix : $article;
-            $r->brand        = $itemBrand !== '' ? $itemBrand : $brand;
-            $r->name         = (string)($item['description'] ?? '');
-            $r->price        = (float)($item['price'] ?? 0);
-            $r->quantity     = $qty;
-            $r->warehouse    = 'Авторусь: ' . ((string)($item['supplierDescription'] ?? $item['distributorId'] ?? 'Склад'));
-            $r->stockId      = (string)($item['supplierCode'] ?? '') . '|' . (string)($item['itemKey'] ?? '');
-            $r->supplierName = $this->getName();
-            $r->isSched      = $isSched;
-            $r->multiplicity = max(1, (int)($item['packing'] ?? 1));
-            $r->unit         = 'шт.';
-            $r->returnable   = empty($item['noReturn']);
+            $r->source            = $this->getCode();
+            $r->article           = $itemNumberFix !== '' ? $itemNumberFix : $article;
+            $r->brand             = $itemBrand !== '' ? $itemBrand : $brand;
+            $r->name              = (string)($item['description'] ?? '');
+            $r->price             = (float)($item['price'] ?? 0);
+            $r->quantity          = $qty;
+            $r->deliveryDays      = $deliveryDays;
+            $r->deliveryPeriod    = $deliveryPeriod;
+            $r->deliveryLabel     = $deliveryLabel;
+            $r->deliveryTimeLabel = $deliveryTimeLabel;
+            $r->deliveryToday     = $deliveryToday;
+            $r->deliveryDeadline  = $deliveryDeadline;
+            $r->warehouse         = 'Авторусь: ' . ((string)($item['supplierDescription'] ?? $item['distributorId'] ?? 'Склад'));
+            $r->stockId           = (string)($item['supplierCode'] ?? '') . '|' . (string)($item['itemKey'] ?? '');
+            $r->supplierName      = $this->getName();
+            $r->isSched           = $isSched;
+            $r->multiplicity      = max(1, (int)($item['packing'] ?? 1));
+            $r->unit              = 'шт.';
+            $r->returnable        = empty($item['noReturn']);
 
-            // Срок доставки: 0 = в наличии (ставим 48-72ч), >0 = +48ч запаса
-            if ($deliveryPeriod <= 0) {
-                $deliveryPeriod    = 48;
-                $deliveryPeriodMax = 72;
-            } else {
-                $deliveryPeriod    += 48;
-                $deliveryPeriodMax += 48;
-            }
-            if ($deliveryPeriodMax <= $deliveryPeriod) {
-                $deliveryPeriodMax = $deliveryPeriod + 24;
-            }
-
-            $now = time();
-            if ($isSched) {
-                $r->deliveryPeriod = $deliveryPeriod;
-                $r->deliveryDays   = max(1, (int)ceil($deliveryPeriod / 24));
-            } else {
-                $r->deliveryPeriod = $deliveryPeriod;
-                $r->deliveryDays   = (int)ceil($deliveryPeriod / 24);
-                $r->raw['deliveryDateFrom'] = date('Y-m-d H:i:s', $now + $deliveryPeriod * 3600);
-                if ($deliveryPeriodMax > $deliveryPeriod) {
-                    $r->raw['deliveryDateTo'] = date('Y-m-d H:i:s', $now + $deliveryPeriodMax * 3600);
-                }
-            }    
-
-            $r->raw = array_merge($r->raw ?? [], [
-                'deliveryPeriod'     => $deliveryPeriod,
-                'deliveryPeriodMax'  => $deliveryPeriodMax,
-                'supplierCode'       => $item['supplierCode'] ?? null,
-                'itemKey'            => $item['itemKey'] ?? null,
-                'distributorId'      => $item['distributorId'] ?? null,
-                'lastUpdateTime'     => $item['lastUpdateTime'] ?? null,
-                'deliveryProbability'=> $item['deliveryProbability'] ?? null,
-                'noReturn'           => $item['noReturn'] ?? null,
-                'isAnalog'           => $item['isAnalog'] ?? null,
-            ]);
+            $r->raw = [
+                'deliveryPeriod'      => $item['deliveryPeriod'] ?? null,
+                'deliveryPeriodMax'   => $item['deliveryPeriodMax'] ?? null,
+                'deadlineReplace'     => $item['deadlineReplace'] ?? null,
+                'supplierCode'        => $item['supplierCode'] ?? null,
+                'itemKey'             => $item['itemKey'] ?? null,
+                'distributorId'       => $item['distributorId'] ?? null,
+                'lastUpdateTime'      => $item['lastUpdateTime'] ?? null,
+                'deliveryProbability' => $item['deliveryProbability'] ?? null,
+                'noReturn'            => $item['noReturn'] ?? null,
+                'isAnalog'            => $item['isAnalog'] ?? null,
+            ];
 
             if ($r->price <= 0 && $r->quantity <= 0) continue;
             $results[] = $r;
@@ -261,6 +242,63 @@ class AutorussConnector implements SupplierInterface
         });
 
         return array_slice($unique, 0, 30);
+    }
+
+    /**
+     * Срок доставки Авторусь. API отдаёт deliveryPeriod ("от", часы) и
+     * deliveryPeriodMax ("до", часы); если deliveryPeriodMax не заполнен,
+     * по документации вместо deliveryPeriod используется deadlineReplace.
+     *
+     * Поверх реальных цифр API — осознанный запас под логистику Авторуси
+     * (маркетплейс без своих складов, реальная доставка клиенту дольше, чем
+     * заявляет поставщик): 0 часов ("в наличии") превращается в фикс. 48-72ч,
+     * иначе к обеим границам добавляется +48ч. Это подтверждённое бизнес-
+     * правило, а не приближение, которое можно убрать.
+     *
+     * Для позиций "под заказ" (isSched, наличие неточное/нулевое) точное
+     * окно не показываем — только приблизительный день, как и раньше.
+     *
+     * @return array{0:?int,1:?int,2:?string,3:?string,4:bool,5:?string} [deliveryDays, deliveryPeriod(часы), dayLabel, timeLabel, isToday, deadlineHHMM]
+     */
+    private function resolveDelivery(array $item, bool $isSched): array
+    {
+        $deliveryPeriod    = (int)($item['deliveryPeriod'] ?? 0);
+        $deliveryPeriodMax = isset($item['deliveryPeriodMax']) ? (int)$item['deliveryPeriodMax'] : 0;
+        $deadlineReplace   = $item['deadlineReplace'] ?? null;
+
+        if ($deliveryPeriodMax <= 0 && $deadlineReplace !== null && $deadlineReplace !== '' && is_numeric($deadlineReplace)) {
+            $deliveryPeriod = (int)$deadlineReplace;
+        }
+
+        if ($deliveryPeriod <= 0) {
+            $deliveryPeriod    = 48;
+            $deliveryPeriodMax = 72;
+        } else {
+            $deliveryPeriodMax = ($deliveryPeriodMax > 0 ? $deliveryPeriodMax : $deliveryPeriod) + 48;
+            $deliveryPeriod   += 48;
+        }
+        if ($deliveryPeriodMax <= $deliveryPeriod) {
+            $deliveryPeriodMax = $deliveryPeriod + 24;
+        }
+
+        if ($isSched) {
+            $days     = max(1, (int)ceil($deliveryPeriod / 24));
+            $dayLabel = $days === 1 ? 'Завтра' : date('d.m', strtotime("+{$days} days"));
+            return [$days, $deliveryPeriod, $dayLabel, null, false, null];
+        }
+
+        $now           = time();
+        $todayStart    = strtotime('today');
+        $tomorrowStart = strtotime('tomorrow');
+        $fromTs = $now + $deliveryPeriod * 3600;
+        $toTs   = $now + $deliveryPeriodMax * 3600;
+
+        $tsDay     = strtotime(date('Y-m-d', $fromTs));
+        $days      = ($tsDay <= $todayStart) ? 0 : (int)ceil(($tsDay - $todayStart) / 86400);
+        $dayLabel  = ($tsDay <= $todayStart) ? 'Сегодня' : (($tsDay === $tomorrowStart) ? 'Завтра' : date('d.m', $fromTs));
+        $timeLabel = ($toTs > $fromTs) ? (date('H:i', $fromTs) . ' - ' . date('H:i', $toTs)) : date('H:i', $fromTs);
+
+        return [$days, $deliveryPeriod, $dayLabel, $timeLabel, $tsDay <= $todayStart, null];
     }
 
     // ==================== ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ====================
