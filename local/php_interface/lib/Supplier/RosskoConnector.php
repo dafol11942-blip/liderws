@@ -278,25 +278,68 @@ class RosskoConnector implements SupplierInterface
         $del = (int)($stock->xpath('*[local-name()="delivery"]')[0] ?? 0);
         $sid = trim((string)($stock->xpath('*[local-name()="id"]')[0] ?? ''));
 
-        $r = new SearchResultItem();
-        $r->source         = $this->getCode();
-        $r->article        = trim((string)($part->xpath('*[local-name()="partnumber"]')[0] ?? ''));
-        $r->brand          = trim((string)($part->xpath('*[local-name()="brand"]')[0] ?? ''));
-        $r->name           = trim((string)($part->xpath('*[local-name()="name"]')[0] ?? ''));
-        $r->price          = (float)($stock->xpath('*[local-name()="price"]')[0] ?? 0);
-        $r->quantity       = $qty;
-        $r->deliveryDays   = $del;
-        $r->deliveryPeriod = $del > 0 ? $del * 24 : null;
-        $r->warehouse      = trim((string)($stock->xpath('*[local-name()="description"]')[0] ?? ''));
-        $r->stockId        = $sid;
-        $r->supplierName   = $this->getName();
-        $r->isSched        = $qty <= 0;
-        $r->multiplicity   = max(1, (int)($stock->xpath('*[local-name()="multiplicity"]')[0] ?? 1));
-        $r->unit           = 'шт.';
-        $r->returnable     = true;
+        [$deliveryDays, $deliveryPeriod, $deliveryLabel, $deliveryTimeLabel, $deliveryToday, $deliveryDeadline] = $this->resolveDelivery($stock, $del);
 
-        $this->addDeliveryDetails($r, $del);
+        $r = new SearchResultItem();
+        $r->source            = $this->getCode();
+        $r->article           = trim((string)($part->xpath('*[local-name()="partnumber"]')[0] ?? ''));
+        $r->brand             = trim((string)($part->xpath('*[local-name()="brand"]')[0] ?? ''));
+        $r->name              = trim((string)($part->xpath('*[local-name()="name"]')[0] ?? ''));
+        $r->price             = (float)($stock->xpath('*[local-name()="price"]')[0] ?? 0);
+        $r->quantity          = $qty;
+        $r->deliveryDays      = $deliveryDays;
+        $r->deliveryPeriod    = $deliveryPeriod;
+        $r->deliveryLabel     = $deliveryLabel;
+        $r->deliveryTimeLabel = $deliveryTimeLabel;
+        $r->deliveryToday     = $deliveryToday;
+        $r->deliveryDeadline  = $deliveryDeadline;
+        $r->warehouse         = trim((string)($stock->xpath('*[local-name()="description"]')[0] ?? ''));
+        $r->stockId           = $sid;
+        $r->supplierName      = $this->getName();
+        $r->isSched           = $qty <= 0;
+        $r->multiplicity      = max(1, (int)($stock->xpath('*[local-name()="multiplicity"]')[0] ?? 1));
+        $r->unit              = 'шт.';
+        $r->returnable        = true;
+
         return $r;
+    }
+
+    /**
+     * Срок доставки Rossko. GetSearch отдаёт deliveryStart/deliveryEnd УЖЕ
+     * ПО КАЖДОМУ СКЛАДУ прямо в ответе поиска — это точное окно "от-до" для
+     * конкретного предложения, не нужен ни отдельный запрос, ни угадывание.
+     * (Раньше здесь был отдельный SOAP-запрос GetDeliveryDetails с почасовым
+     * кэшем, который подбирал "волну" по ОБЩЕЙ дате — приблизительно и с
+     * лишним сетевым вызовом на каждый поиск; deliveryStart/deliveryEnd этого
+     * не требуют и точнее, т.к. привязаны именно к этому складу.)
+     * Если дат нет (обычно у дополнительных складов, куда этот способ
+     * доставки не распространяется) — используем только <delivery> (дни).
+     *
+     * @return array{0:?int,1:?int,2:?string,3:?string,4:bool,5:?string} [deliveryDays, deliveryPeriod(часы), dayLabel, timeLabel, isToday, deadlineHHMM]
+     */
+    private function resolveDelivery(\SimpleXMLElement $stock, int $deliveryDays): array
+    {
+        $startRaw = trim((string)($stock->xpath('*[local-name()="deliveryStart"]')[0] ?? ''));
+        $endRaw   = trim((string)($stock->xpath('*[local-name()="deliveryEnd"]')[0] ?? ''));
+
+        $now    = time();
+        $fromTs = $startRaw !== '' ? strtotime($startRaw) : null;
+        $toTs   = $endRaw   !== '' ? strtotime($endRaw)   : null;
+
+        if ($fromTs && $fromTs > $now) {
+            $todayStart    = strtotime('today');
+            $tomorrowStart = strtotime('tomorrow');
+            $tsDay         = strtotime(date('Y-m-d', $fromTs));
+            $days          = ($tsDay <= $todayStart) ? 0 : (int)ceil(($tsDay - $todayStart) / 86400);
+            $dayLabel      = ($tsDay <= $todayStart) ? 'Сегодня' : (($tsDay === $tomorrowStart) ? 'Завтра' : date('d.m', $fromTs));
+            $timeLabel     = ($toTs && $toTs > $fromTs) ? (date('H:i', $fromTs) . ' - ' . date('H:i', $toTs)) : date('H:i', $fromTs);
+            $hours         = max(0, (int)ceil(($fromTs - $now) / 3600));
+            return [$days, $hours, $dayLabel, $timeLabel, $tsDay <= $todayStart, null];
+        }
+
+        $days     = max(0, $deliveryDays);
+        $dayLabel = $days === 0 ? 'Сегодня' : ($days === 1 ? 'Завтра' : date('d.m', strtotime("+{$days} days")));
+        return [$days, $days * 24, $dayLabel, null, $days === 0, null];
     }
 
     private function execCurl(array $req): ?string
@@ -374,77 +417,4 @@ class RosskoConnector implements SupplierInterface
             '[' . date('Y-m-d H:i:s') . '] ' . $message . "\n", FILE_APPEND);
     }
 
-    private ?array $wavesCache = null;
-
-    private function getWaves(): array
-    {
-        if ($this->wavesCache !== null) return $this->wavesCache;
-
-        $cacheFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/rossko_waves.json';
-        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 3600) {
-            $this->wavesCache = json_decode(file_get_contents($cacheFile), true) ?: [];
-            if (!empty($this->wavesCache)) {
-                foreach ($this->wavesCache as $date => $ws) {
-                    if (!empty($ws)) return $this->wavesCache;
-                }
-            }
-        }
-
-        $waves = [];
-        for ($d = 0; $d <= 3; $d++) {
-            $date = date('Y-m-d', strtotime("+{$d} days"));
-            if (!isset($waves[$date])) $waves[$date] = [];
-
-            $xml = $this->soapCall('GetDeliveryDetails', [
-                'KEY1' => $this->key1, 'KEY2' => $this->key2,
-                'date' => $date, 'address_id' => $this->addressId,
-            ]);
-            if (!$xml) continue;
-
-            $dels = $xml->xpath('//*[local-name()="Delivery"]');
-            foreach ($dels as $delivery) {
-                $ws = $delivery->xpath('*[local-name()="Wave"]');
-                foreach ($ws as $w) {
-                    $waves[$date][] = [
-                        'from'     => (string)($w->xpath('*[local-name()="deliveryStart"]')[0] ?? ''),
-                        'to'       => (string)($w->xpath('*[local-name()="deliveryEnd"]')[0] ?? ''),
-                        'deadline' => (string)($w->xpath('*[local-name()="timeLimit"]')[0] ?? ''),
-                    ];
-                }
-            }
-        }
-
-        $this->wavesCache = $waves;
-        @mkdir(dirname($cacheFile), 0755, true);
-        if (!empty($waves)) { @file_put_contents($cacheFile, json_encode($waves)); }
-        return $waves;
-    }
-
-    private function addDeliveryDetails(SearchResultItem $r, int $deliveryDays): void
-    {
-        $waves = $this->getWaves();
-        $now = time();
-        $targetDate = date('Y-m-d', strtotime("+{$deliveryDays} days"));
-
-        $dayWaves = $waves[$targetDate] ?? [];
-
-        foreach ($dayWaves as $w) {
-            $deadlineTs = strtotime($w['deadline']);
-            if ($deadlineTs > $now) {
-                $r->raw['deliveryDateFrom'] = $w['from'];
-                $r->raw['deliveryDateTo']   = $w['to'];
-                $r->raw['deliveryCheckout'] = $w['deadline'];
-                return;
-            }
-        }
-
-        $nextDate = date('Y-m-d', strtotime("+1 day", strtotime($targetDate)));
-        $nextWaves = $waves[$nextDate] ?? [];
-        if (!empty($nextWaves)) {
-            $r->raw['deliveryDateFrom'] = $nextWaves[0]['from'];
-            $r->raw['deliveryDateTo']   = $nextWaves[0]['to'];
-            $r->raw['deliveryCheckout'] = $nextWaves[0]['deadline'];
-            $r->deliveryDays = $deliveryDays + 1;
-        }
-    }
 }
