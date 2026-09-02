@@ -366,6 +366,17 @@ function showToast(msg, kind) {
 var lastData = null;
 var filterState = { brands: null, maxDelivery: null, minQty: null }; // null = не ограничено
 
+// Пользовательская сортировка по цене внутри отдельной позиции (искомый номер
+// или конкретный аналог). Ключ — 'exact' либо ключ группы аналога (a.key),
+// значение — 1 (дешевле→дороже), -1 (дороже→дешевле) или undefined (сортировка
+// по умолчанию: срок, потом цена — см. sortOffers() на бэкенде).
+var priceSortState = {};
+window.cyclePriceSort = function(key){
+    var cur = priceSortState[key];
+    priceSortState[key] = cur === undefined ? 1 : (cur === 1 ? -1 : undefined);
+    if (lastData) renderResults(lastData);
+};
+
 function normBrandKey(s){ return (s||'').toLowerCase().trim(); }
 
 function getAllBrands(d){
@@ -467,7 +478,7 @@ function renderResults(d){
         var days   = visible.map(function(s){return s.delivery_days;}).filter(function(dd){return dd>=0;});
         var qtys   = visible.map(function(s){return s.quantity;});
         return {
-            brand: a.brand, article: a.article, description: a.description,
+            key: a.key, brand: a.brand, article: a.article, description: a.description,
             suppliers: visible,
             best_price:    prices.length ? Math.min.apply(null, prices) : 0,
             best_delivery: days.length ? Math.min.apply(null, days) : null,
@@ -515,7 +526,7 @@ function renderResults(d){
     if(exactVisible.length){
         var exactHasMore=exactVisible.length>5;
         h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head"'+(exactHasMore?' data-ft-toggle':'')+'><span class="ft-sec-title"><svg class="icon"><use href="#icon-check-circle"></use></svg> Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+' — '+exactVisible.length+' складов</span>'+(exactHasMore?'<button type="button" class="ft-gtoggle ft-sec-toggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div>';
-        h+='<div class="ft-secbody">'+supplierTable(exactVisible,'exact',B,N)+'</div>';
+        h+='<div class="ft-secbody">'+supplierTable(exactVisible,'exact',B,N,'exact')+'</div>';
         h+='</div>';
     }
 
@@ -524,7 +535,7 @@ function renderResults(d){
         analogsVisible.forEach(function(a){
             var groupHasMore=a.suppliers.length>2;
             h+='<div class="ft-group"><div class="ft-ghead"'+(groupHasMore?' data-ft-toggle':'')+'><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery!==null?a.best_delivery+' дн.':'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty+' шт.</span>'+(groupHasMore?'<button type="button" class="ft-gtoggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div></div>';
-            h+='<div class="ft-gbody">'+supplierTable(a.suppliers,'analog',a.brand,a.article)+'</div>';
+            h+='<div class="ft-gbody">'+supplierTable(a.suppliers,'analog',a.brand,a.article,a.key)+'</div>';
             h+='</div>';
         });
         h+='</div>';
@@ -586,10 +597,15 @@ function hlCard(o,title,cardCls,badgeCls,type){
     return '<div class="hl-card '+cardCls+'"><div class="hl-badge '+badgeCls+'">'+title+'</div><div class="hl-type">'+type+'</div><div class="hl-name">'+esc(o._brand)+' / '+esc(o._article)+'</div>'+(det?'<div class="hl-desc">'+esc(det)+'</div>':'')+'<div class="hl-price">'+fmt(o.price)+' р.</div><div class="hl-meta">'+o.quantity+' шт. &middot; '+dRange(o.delivery_days)+'</div><div class="hl-src"><span class="src-tag src-tag--'+o.supplier+'">'+o.supplier+'</span></div><div class="hl-actl">'+addToCartControl(o._brand,o._article,o.supplier,o.warehouse,o.price,o.quantity,det)+'</div></div>';
 }
 
-function supplierTable(suppliers,type,brand,article){
+function supplierTable(suppliers,type,brand,article,sortKey){
     var limit=type==='exact'?5:2;
-    var h='<table class="ft-tbl"><colgroup><col class="ft-col--det"><col class="ft-col--skl"><col class="ft-col--qty"><col class="ft-col--del"><col class="ft-col--prc"><col class="ft-col--act"></colgroup><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th><th class="ft-th--num">Цена</th><th class="ft-th--act"></th></tr></thead><tbody>';
-    suppliers.forEach(function(s,i){
+    var dir=priceSortState[sortKey];
+    var list=dir?suppliers.slice().sort(function(a,b){return dir*(a.price-b.price);}):suppliers;
+    var sortIc=dir===1?'▲':(dir===-1?'▼':'⇅');
+    var sortCls='ft-th--sort'+(dir?' ft-th--sort-active':'');
+    var priceTh=sortKey?('<th class="ft-th--num '+sortCls+'" onclick="cyclePriceSort(\''+sortKey+'\')" title="Сортировать по цене">Цена <span class="ft-sort-ic">'+sortIc+'</span></th>'):'<th class="ft-th--num">Цена</th>';
+    var h='<table class="ft-tbl"><colgroup><col class="ft-col--det"><col class="ft-col--skl"><col class="ft-col--qty"><col class="ft-col--del"><col class="ft-col--prc"><col class="ft-col--act"></colgroup><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th>'+priceTh+'<th class="ft-th--act"></th></tr></thead><tbody>';
+    list.forEach(function(s,i){
         var cls=i>=limit?' class="ft-more"':'';
         var det=s._description||s.description||'—';
         h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span><span class="src-tag src-tag--'+s.supplier+'">'+s.supplier+'</span></td><td class="ft-td--num" data-label="Кол.">'+s.quantity+' шт.</td><td class="ft-td--num" data-label="Доставка">'+dRange(s.delivery_days)+'</td><td class="ft-td--prc" data-label="Цена"><strong>'+fmt(s.price)+' р.</strong></td><td class="ft-td--act">'+addToCartControl(brand,article,s.supplier,s.warehouse,s.price,s.quantity,det)+'</td></tr>';

@@ -169,6 +169,11 @@
 .ft-tbl tbody tr:nth-child(even) { background: #fafbfc; }
 .ft-tbl tbody tr:hover { background: #f0f4ff; }
 .ft-th--num { text-align: right !important; white-space: nowrap; }
+.ft-th--sort { cursor: pointer; user-select: none; transition: color .15s; }
+.ft-th--sort:hover { color: var(--blue); }
+.ft-th--sort-active { color: var(--blue); }
+.ft-sort-ic { font-size: 9px; opacity: .55; }
+.ft-th--sort-active .ft-sort-ic { opacity: 1; }
 .ft-td--num { text-align: right; white-space: nowrap; }
 .ft-td--prc { text-align: right; white-space: nowrap; }
 .ft-td--prc strong { font-size: 14px; font-weight: 800; }
