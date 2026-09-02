@@ -154,9 +154,8 @@ function dRange(s){
     if(s&&s.delivery_label){
         var cls='ft-deliv-label'+(s.delivery_today?' ft-deliv-label--today':'');
         var title=s.delivery_deadline?' title="Успеете, если закажете до '+esc(s.delivery_deadline)+'"':'';
-        var h='<span class="'+cls+'"'+title+'>'+esc(s.delivery_label)+'</span>';
-        if(s.delivery_time)h+='<span class="ft-deliv-time">'+esc(s.delivery_time)+'</span>';
-        return h;
+        var text=s.delivery_label+(s.delivery_time?' '+s.delivery_time:'');
+        return '<span class="'+cls+'"'+title+'>'+esc(text)+'</span>';
     }
     var d=s&&s.delivery_days;
     return d>=0?d+' дн.':'—';
