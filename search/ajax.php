@@ -141,8 +141,11 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
 
 function sortOffers(array &$offers): void {
     usort($offers, function ($a, $b) {
-        if ($a['price'] != $b['price']) return $a['price'] - $b['price'];
-        return $a['delivery_days'] - $b['delivery_days'];
+        // Сначала срок доставки (неизвестный срок -1 считаем худшим), затем цена.
+        $da = $a['delivery_days'] >= 0 ? $a['delivery_days'] : PHP_INT_MAX;
+        $db = $b['delivery_days'] >= 0 ? $b['delivery_days'] : PHP_INT_MAX;
+        if ($da !== $db) return $da <=> $db;
+        return $a['price'] <=> $b['price'];
     });
 }
 

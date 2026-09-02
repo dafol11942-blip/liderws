@@ -288,8 +288,10 @@ function mergeAnalogOffers(d1, analogOffers, newAnalogs) {
             }
         });
         existing.suppliers.sort(function(x, y) {
-            if (x.price != y.price) return x.price - y.price;
-            return (x.delivery_days || 0) - (y.delivery_days || 0);
+            var dx = x.delivery_days >= 0 ? x.delivery_days : Infinity;
+            var dy = y.delivery_days >= 0 ? y.delivery_days : Infinity;
+            if (dx !== dy) return dx - dy;
+            return x.price - y.price;
         });
         var prices = existing.suppliers.map(function(s){return s.price;}).filter(function(p){return p>0;});
         var days   = existing.suppliers.map(function(s){return s.delivery_days;}).filter(function(d){return d>=0;});
