@@ -208,46 +208,50 @@ class AutopiterConnector implements SupplierInterface
             $avail = ($numAvail !== null && $numAvail !== '') ? (int)$numAvail : -1;
             $minSalesVal = max(1, (int)($minSales ?: 1));
             $daysVal = (int)(($daysSupply !== null && $daysSupply !== '') ? $daysSupply : 0);
+            $isToday   = $this->xmlTag($block, 'IsToday');
+            $isExpress = $this->xmlTag($block, 'IsExpress');
+            $expressText = $this->xmlTag($block, 'ExpressDeliveryHoursText');
 
             if ($avail <= 0 && $avail > -10) {
                 // -1,-2,-3 — неточное наличие, пропускаем
             }
             if ($avail === 0 || $avail === -10) continue;
 
-            $deliveryDays = ($daysVal <= 0) ? 2 : $daysVal + 2;
+            [$deliveryDays, $deliveryPeriod, $deliveryLabel, $deliveryTimeLabel, $deliveryToday, $deliveryDeadline] = $this->resolveDelivery($deliveryDate, $daysVal);
 
             $r = new SearchResultItem();
-            $r->source       = $this->getCode();
+            $r->source            = $this->getCode();
             // Используем реальные бренд/артикул из XML вместо переданных в запросе
-            $r->article      = $xmlArticle ?: $article;
-            $r->brand        = $xmlBrand ?: $brand;
-            $r->name         = $xmlName ?: trim($r->brand . ' ' . $r->article);
-            $r->price        = $price;
-            $r->quantity     = max(0, $avail);
-            $r->warehouse    = ($region ?: 'Склад') . ($sellerId ? ' (' . $sellerId . ')' : '');
-            $r->stockId      = $detailUid ?: '';
-            $r->supplierName = $this->getName();
-            $r->isSched      = false;
-            $r->multiplicity = $minSalesVal;
-            $r->unit         = 'шт.';
+            $r->article           = $xmlArticle ?: $article;
+            $r->brand             = $xmlBrand ?: $brand;
+            $r->name              = $xmlName ?: trim($r->brand . ' ' . $r->article);
+            $r->price              = $price;
+            $r->quantity            = max(0, $avail);
+            $r->warehouse          = ($region ?: 'Склад') . ($sellerId ? ' (' . $sellerId . ')' : '');
+            $r->stockId            = $detailUid ?: '';
+            $r->supplierName       = $this->getName();
+            $r->isSched            = false;
+            $r->multiplicity       = $minSalesVal;
+            $r->unit               = 'шт.';
             // TypeRefusal 3 и 4 — возврат невозможен, иначе (в т.ч. если поле отсутствует) возможен.
-            $r->returnable   = !in_array((int)$typeRefusal, [3, 4], true);
-            $r->deliveryDays = $deliveryDays;
+            $r->returnable         = !in_array((int)$typeRefusal, [3, 4], true);
+            $r->deliveryDays       = $deliveryDays;
+            $r->deliveryPeriod     = $deliveryPeriod;
+            $r->deliveryLabel      = $deliveryLabel;
+            $r->deliveryTimeLabel  = $deliveryTimeLabel;
+            $r->deliveryToday      = $deliveryToday;
+            $r->deliveryDeadline   = $deliveryDeadline;
 
-            if (!empty($deliveryDate)) {
-                $ts = strtotime($deliveryDate);
-                if ($ts) {
-                    $r->raw['deliveryDateFrom'] = date('Y-m-d H:i:s', $ts);
-                    $r->raw['deliveryDateTo']   = date('Y-m-d H:i:s', $ts + 86400);
-                }
-            }
-
-            $r->raw = array_merge($r->raw ?? [], [
+            $r->raw = [
                 'storeType'    => $storeType,
                 'sellerId'     => $sellerId,
                 'nameStatus'   => $nameStatus,
                 'deliveryDays' => $daysVal,
-            ]);
+                'deliveryDate' => $deliveryDate,
+                'isToday'      => $isToday,
+                'isExpress'    => $isExpress,
+                'expressText'  => $expressText,
+            ];
 
             if ($storeType === 0 || $storeType === 2) {
                 $own[] = $r;
@@ -272,6 +276,47 @@ class AutopiterConnector implements SupplierInterface
         $other = array_slice($other, 0, 10);
 
         return array_merge($own, $other);
+    }
+
+    /**
+     * Срок доставки Автопитер. Поверх реальных данных API — осознанный запас
+     * под логистику Автопитера (подтверждено): +2 дня к NumberOfDaysSupply
+     * (0 или отсутствует -> ровно 2 дня). IsToday/IsExpress/DeliveryDate
+     * появились только в новой версии API и намеренно НЕ используются для
+     * обхода этого запаса — даже IsToday=true всё равно получает +2 дня,
+     * т.к. по договорённости с сайтом реальная доставка клиенту всегда
+     * дольше, чем заявляет поставщик.
+     *
+     * DeliveryDate, если пришла, всё же даёт точное время суток — берём её,
+     * сдвигаем на те же 2 дня буфера и получаем "Сегодня/Завтра/дата HH:MM"
+     * вместо голого дня; без неё — только день, без времени.
+     *
+     * @return array{0:?int,1:?int,2:?string,3:?string,4:bool,5:?string} [deliveryDays, deliveryPeriod(часы), dayLabel, timeLabel, isToday, deadlineHHMM]
+     */
+    private function resolveDelivery(?string $deliveryDateRaw, int $daysVal): array
+    {
+        $bufferDays = 2;
+
+        if (!empty($deliveryDateRaw)) {
+            $rawTs = strtotime($deliveryDateRaw);
+            if ($rawTs) {
+                $now           = time();
+                $todayStart    = strtotime('today');
+                $tomorrowStart = strtotime('tomorrow');
+                $ts            = $rawTs + $bufferDays * 86400;
+
+                $tsDay     = strtotime(date('Y-m-d', $ts));
+                $days      = ($tsDay <= $todayStart) ? 0 : (int)ceil(($tsDay - $todayStart) / 86400);
+                $dayLabel  = ($tsDay <= $todayStart) ? 'Сегодня' : (($tsDay === $tomorrowStart) ? 'Завтра' : date('d.m', $ts));
+                $timeLabel = date('H:i', $ts);
+                $hours     = max(0, (int)ceil(($ts - $now) / 3600));
+                return [$days, $hours, $dayLabel, $timeLabel, $tsDay <= $todayStart, null];
+            }
+        }
+
+        $days     = max(0, $daysVal) + $bufferDays;
+        $dayLabel = $days === 0 ? 'Сегодня' : ($days === 1 ? 'Завтра' : date('d.m', strtotime("+{$days} days")));
+        return [$days, $days * 24, $dayLabel, null, $days === 0, null];
     }
 
     // ==================== ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ====================
