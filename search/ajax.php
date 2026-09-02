@@ -77,8 +77,11 @@ use Bitrix\Main\Application;
 const SEARCH_CACHE_SKIP_TTL_HOURS = 1;
 
 // Верхняя граница числа кросс-пар (аналогов) за один поиск — защита от аномально
-// длинных списков, не влияет на скорость (см. кэш + fast/slow пулы ниже).
-const MAX_ANALOG_PAIRS = 80;
+// длинных списков. Снижено с 80: при 80 парах Phase2 регулярно рассылал 500-600+
+// запросов к 9 поставщикам и стабильно упиралось в дедлайн ~24с на каждый поиск
+// (см. upload/logs/search_ajax.log) — на виртуальном хостинге с ограниченными
+// ресурсами это стало приводить к перегрузке и убийству PHP-FPM пула хостом.
+const MAX_ANALOG_PAIRS = 30;
 
 // Не умеют/нестабильно умеют отдавать кроссы ОДНИМ массовым запросом внутри
 // Phase 1 (with_crosses=true) — там их спрашивают только на точное совпадение.
@@ -204,7 +207,7 @@ function curlExec(array $requests, float $deadline = 15.0, int $maxPerHost = 0):
  * limit=1 соединение на хост — общий залп им нельзя (см. константу выше).
  * $codeOf($key) должна вернуть код поставщика по ключу запроса.
  */
-function curlExecSplit(array $requests, callable $codeOf, float $fastDeadline = 25.0, float $slowDeadline = 20.0, int $fastPerHost = 6): array {
+function curlExecSplit(array $requests, callable $codeOf, float $fastDeadline = 25.0, float $slowDeadline = 20.0, int $fastPerHost = 3): array {
     $fast = [];
     $slow = [];
     foreach ($requests as $key => $req) {
