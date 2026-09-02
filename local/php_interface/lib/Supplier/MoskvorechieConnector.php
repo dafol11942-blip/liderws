@@ -217,8 +217,7 @@ class MoskvorechieConnector implements SupplierInterface
         $r->name           = (string)($item['description'] ?? '');
         $r->price          = (float)($item['price'] ?? 0);
         $r->quantity       = (int)($item['availability'] ?? 0);
-        $r->deliveryPeriod = isset($item['delivery_period']) ? (int)$item['delivery_period'] : null;
-        $r->deliveryDays   = $r->deliveryPeriod !== null ? (int)ceil($r->deliveryPeriod / 24) : null;
+        [$r->deliveryDays, $r->deliveryPeriod, $r->deliveryLabel, $r->deliveryTimeLabel, $r->deliveryToday, $r->deliveryDeadline] = $this->resolveDelivery($item);
         $r->warehouse      = (string)($item['stock_name'] ?? '');
         $r->stockId        = (string)($item['stock_id'] ?? '');
         $r->supplierName   = $this->getName();
@@ -228,6 +227,77 @@ class MoskvorechieConnector implements SupplierInterface
         $r->returnable     = $returnable;
         $r->raw            = $item;
         return $r;
+    }
+
+    /**
+     * Срок доставки Москворечье. У API нет явных дат/окон (только delivery_period
+     * в часах, 0 = в наличии, + флаги) — окно "от–до" реконструируем по реальному
+     * расписанию их курьерки/самовывоза (перенесено с ранее работавшей страницы
+     * parts-search/index.php::calcDelivery, там это было проверено на практике):
+     *  1. hours=0 + флаг pickup — самовывоз в тот же день волнами 12:00-14:00 /
+     *     15:00-17:00 (порог заказа 11:02 / 14:02), после 14:02 — только завтра
+     *     09:00-11:00.
+     *  2. stock_id='10' — этот склад всегда только на завтра, 09:00-11:00.
+     *  3. hours>0 — реальный срок округляется вверх до ближайшей волны развоза
+     *     (7:00 / 11:00 / 14:00).
+     *  4. is_sched (позиция "по графику", а не гарантированная) — точное окно не
+     *     показываем, только приблизительный день (минимум "Завтра").
+     *
+     * @return array{0:?int,1:?int,2:?string,3:?string,4:bool,5:?string} [deliveryDays, deliveryPeriod(часы), dayLabel, timeLabel, isToday, deadlineHHMM]
+     */
+    private function resolveDelivery(array $item): array
+    {
+        $hours   = isset($item['delivery_period']) ? (int)$item['delivery_period'] : 0;
+        $isSched = !empty($item['is_sched']);
+
+        if ($isSched) {
+            $days     = max(1, (int)ceil($hours / 24));
+            $dayLabel = $days === 1 ? 'Завтра' : date('d.m', strtotime("+{$days} days"));
+            return [$days, $hours, $dayLabel, null, false, null];
+        }
+
+        $now           = time();
+        $todayStart    = strtotime('today');
+        $tomorrowStart = strtotime('tomorrow');
+        $flags         = (array)($item['flags'] ?? []);
+        $stockId       = (string)($item['stock_id'] ?? '');
+
+        $fromTs = null; $toTs = null; $deadlineTs = null;
+
+        if ($hours === 0 && in_array('pickup', $flags, true)) {
+            $hms = (int)date('Hi');
+            if ($hms < 1102) {
+                $fromTs = strtotime('today 12:00'); $toTs = strtotime('today 14:00'); $deadlineTs = strtotime('today 11:02');
+            } elseif ($hms < 1402) {
+                $fromTs = strtotime('today 15:00'); $toTs = strtotime('today 17:00'); $deadlineTs = strtotime('today 14:02');
+            } else {
+                $fromTs = strtotime('tomorrow 09:00'); $toTs = strtotime('tomorrow 11:00'); $deadlineTs = strtotime('tomorrow 14:02');
+            }
+        } elseif ($stockId === '10') {
+            $fromTs = strtotime('tomorrow 09:00'); $toTs = strtotime('tomorrow 11:00'); $deadlineTs = strtotime('tomorrow 07:02');
+        } elseif ($hours > 0) {
+            $deliveryTs  = $now + $hours * 3600;
+            $deliveryDay = strtotime(date('Y-m-d', $deliveryTs));
+            $h           = (int)date('H', $deliveryTs);
+            $waveHour    = $h < 9 ? 7 : ($h < 12 ? 11 : 14);
+            $waveTs      = $deliveryDay + $waveHour * 3600;
+            $fromTs = $waveTs; $toTs = $waveTs + 3 * 3600; $deadlineTs = $waveTs + 120;
+        }
+
+        if ($fromTs !== null) {
+            $tsDay         = strtotime(date('Y-m-d', $fromTs));
+            $days          = ($tsDay <= $todayStart) ? 0 : (int)ceil(($tsDay - $todayStart) / 86400);
+            $dayLabel      = ($tsDay <= $todayStart) ? 'Сегодня' : (($tsDay === $tomorrowStart) ? 'Завтра' : date('d.m', $fromTs));
+            $timeLabel     = $toTs ? (date('H:i', $fromTs) . ' - ' . date('H:i', $toTs)) : date('H:i', $fromTs);
+            $deliveryHours = max(0, (int)ceil(($fromTs - $now) / 3600));
+            $deadlineLabel = ($deadlineTs && $deadlineTs > $now) ? date('H:i', $deadlineTs) : null;
+            return [$days, $deliveryHours, $dayLabel, $timeLabel, $tsDay <= $todayStart, $deadlineLabel];
+        }
+
+        // Нет специфичного окна (например: в наличии локально, но не самовывоз) — просто по hours.
+        $days     = (int)ceil($hours / 24);
+        $dayLabel = $days === 0 ? 'Сегодня' : ($days === 1 ? 'Завтра' : date('d.m', strtotime("+{$days} days")));
+        return [$days, $hours, $dayLabel, null, $days === 0, null];
     }
 
     private function generateWarehouseCode(string $name): string
