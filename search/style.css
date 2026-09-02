@@ -122,9 +122,13 @@
 .ft-sec { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px; box-shadow: var(--shadow); }
 .ft-sec--exact { border-left: 3px solid var(--blue); }
 .ft-sec--analog { border-left: 3px solid var(--green); }
-.ft-sec-head { padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.ft-sec-head { padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ft-sec-head[data-ft-toggle] { cursor: pointer; user-select: none; }
 .ft-sec-title { font-size: 16px; font-weight: 700; }
 .ft-sec-sub { font-size: 13px; color: var(--gray); }
+.ft-sec-toggle { margin-left: auto; }
+.ft-sec--collapsed .ft-gtoggle .icon { transform: rotate(-90deg); }
+.ft-sec--collapsed .ft-secbody { display: none; }
 
 /* Группа аналога */
 .ft-group { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }
@@ -167,9 +171,9 @@
 .ft-skl-name { display: block; font-size: 12px; color: var(--black); margin-bottom: 3px; word-break: break-word; white-space: normal; }
 
 /* ====== ДОБАВЛЕНИЕ В КОРЗИНУ (пока UI-заглушка: проверка остатка + уведомление, без сохранения) ====== */
-.ft-th--act { text-align: left !important; }
+.ft-th--act { text-align: right !important; }
 .ft-td--act { white-space: normal; }
-.actl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.actl { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .actl-stepper {
     display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: var(--radius);
     overflow: hidden; background: var(--white); transition: border-color .15s;
@@ -261,6 +265,7 @@
     .bt-c--brand { flex: 0 0 100%; }
     .bt-c--act { flex: 1; text-align: left; }
     .ft-tbl { table-layout: auto; }
+    .ft-td--act .actl { justify-content: flex-start; }
     .ft-tbl thead { display: none; }
     .ft-tbl tbody td { display: block; text-align: left !important; padding: 8px 12px; white-space: normal; }
     .ft-tbl tbody td[data-label]::before { content: attr(data-label); font-weight: 700; font-size: 10px; color: var(--gray); text-transform: uppercase; display: block; margin-bottom: 3px; }

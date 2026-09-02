@@ -511,8 +511,8 @@ function renderResults(d){
     h+='<div class="full-tbl">';
 
     if(exactVisible.length){
-        h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head"><span class="ft-sec-title"><svg class="icon"><use href="#icon-check-circle"></use></svg> Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+' — '+exactVisible.length+' складов</span></div>';
-        h+=supplierTable(exactVisible,'exact',B,N);
+        h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head" data-ft-toggle><span class="ft-sec-title"><svg class="icon"><use href="#icon-check-circle"></use></svg> Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+' — '+exactVisible.length+' складов</span><button type="button" class="ft-gtoggle ft-sec-toggle" aria-expanded="true" title="Свернуть/развернуть список складов"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button></div>';
+        h+='<div class="ft-secbody">'+supplierTable(exactVisible,'exact',B,N)+'</div>';
         h+='</div>';
     }
 
@@ -557,6 +557,15 @@ function renderResults(d){
             if(btn)btn.setAttribute('aria-expanded',collapsed?'false':'true');
         });
     });
+
+    document.querySelectorAll('.ft-sec-head[data-ft-toggle]').forEach(function(head){
+        head.addEventListener('click',function(){
+            var sec=head.closest('.ft-sec');
+            var collapsed=sec.classList.toggle('ft-sec--collapsed');
+            var btn=head.querySelector('.ft-gtoggle');
+            if(btn)btn.setAttribute('aria-expanded',collapsed?'false':'true');
+        });
+    });
 }
 
 function addToCartControl(brand,article,supplier,warehouse,price,qty,description){
@@ -579,11 +588,11 @@ function hlCard(o,title,cardCls,badgeCls,type){
 
 function supplierTable(suppliers,type,brand,article){
     var limit=type==='exact'?5:2;
-    var h='<table class="ft-tbl"><colgroup><col class="ft-col--det"><col class="ft-col--skl"><col class="ft-col--qty"><col class="ft-col--del"><col class="ft-col--prc"><col class="ft-col--act"></colgroup><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th><th class="ft-th--num">Цена</th><th class="ft-th--act">Действие</th></tr></thead><tbody>';
+    var h='<table class="ft-tbl"><colgroup><col class="ft-col--det"><col class="ft-col--skl"><col class="ft-col--qty"><col class="ft-col--del"><col class="ft-col--prc"><col class="ft-col--act"></colgroup><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th><th class="ft-th--num">Цена</th><th class="ft-th--act"></th></tr></thead><tbody>';
     suppliers.forEach(function(s,i){
         var cls=i>=limit?' class="ft-more" style="display:none"':'';
         var det=s._description||s.description||'—';
-        h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span><span class="src-tag src-tag--'+s.supplier+'">'+s.supplier+'</span></td><td class="ft-td--num" data-label="Кол.">'+s.quantity+' шт.</td><td class="ft-td--num" data-label="Доставка">'+dRange(s.delivery_days)+'</td><td class="ft-td--prc" data-label="Цена"><strong>'+fmt(s.price)+' р.</strong></td><td class="ft-td--act" data-label="Действие">'+addToCartControl(brand,article,s.supplier,s.warehouse,s.price,s.quantity,det)+'</td></tr>';
+        h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span><span class="src-tag src-tag--'+s.supplier+'">'+s.supplier+'</span></td><td class="ft-td--num" data-label="Кол.">'+s.quantity+' шт.</td><td class="ft-td--num" data-label="Доставка">'+dRange(s.delivery_days)+'</td><td class="ft-td--prc" data-label="Цена"><strong>'+fmt(s.price)+' р.</strong></td><td class="ft-td--act">'+addToCartControl(brand,article,s.supplier,s.warehouse,s.price,s.quantity,det)+'</td></tr>';
     });
     h+='</tbody></table>';
     if(suppliers.length>limit)h+='<button class="ft-showmore" data-count="'+(suppliers.length-limit)+'">Показать еще '+(suppliers.length-limit)+' товаров</button>';
