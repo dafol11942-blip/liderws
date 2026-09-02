@@ -111,7 +111,7 @@
 .hl-price { font-size: 24px; font-weight: 800; }
 .hl-meta { font-size: 13px; color: var(--gray); margin-top: 6px; }
 .hl-src { margin-top: 10px; }
-.hl-actl { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.hl-actl { display: flex; justify-content: flex-end; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 
 /* Бейджи */
 .badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius); font-size: 12px; font-weight: 700; }
@@ -169,23 +169,33 @@
 /* ====== ДОБАВЛЕНИЕ В КОРЗИНУ (пока UI-заглушка: проверка остатка + уведомление, без сохранения) ====== */
 .ft-th--act { text-align: left !important; }
 .ft-td--act { white-space: normal; }
-.actl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.actl-qty {
-    width: 52px; padding: 6px 4px; font-size: 13px; font-family: var(--font);
-    border: 1px solid var(--border); border-radius: var(--radius); text-align: center;
-    transition: border-color .15s;
+.actl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.actl-stepper {
+    display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; background: var(--white); transition: border-color .15s;
 }
-.actl-qty:focus { border-color: var(--blue); outline: none; }
-.actl-qty--err { border-color: #dc2626 !important; animation: actl-shake .3s; }
+.actl-stepper:focus-within { border-color: var(--blue); }
+.actl-step {
+    width: 26px; display: flex; align-items: center; justify-content: center;
+    background: var(--bg); border: none; color: var(--gray); font-size: 15px; font-weight: 700;
+    line-height: 1; cursor: pointer; transition: background .15s, color .15s;
+}
+.actl-step:hover { background: rgba(102,139,234,.12); color: var(--blue); }
+.actl-qty {
+    width: 34px; padding: 6px 2px; font-size: 13px; font-family: var(--font); text-align: center;
+    border: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+    background: var(--white); color: var(--black);
+}
+.actl-qty:focus { outline: none; }
+.actl-stepper--err { border-color: #dc2626 !important; animation: actl-shake .3s; }
 @keyframes actl-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
 .actl-btn {
-    display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+    display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0;
     background: var(--blue); color: #fff; border: none; border-radius: var(--radius);
-    font-size: 12px; font-weight: 700; font-family: var(--font); cursor: pointer;
-    white-space: nowrap; transition: background .15s;
+    cursor: pointer; transition: background .15s; flex: none;
 }
 .actl-btn:hover { background: var(--blue-dark); }
-.actl-btn .icon { width: 14px; height: 14px; }
+.actl-btn .icon { width: 16px; height: 16px; }
 .actl-oos { font-size: 12px; font-weight: 700; color: #b91c1c; text-transform: uppercase; letter-spacing: .02em; }
 
 /* Показать ещё */

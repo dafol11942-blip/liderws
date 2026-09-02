@@ -310,6 +310,19 @@ function mergeAnalogOffers(d1, analogOffers, newAnalogs) {
 }
 
 document.addEventListener('click', function(e) {
+    var stepBtn = e.target.closest && e.target.closest('.actl-step');
+    if (stepBtn) {
+        var stepper = stepBtn.closest('.actl-stepper');
+        var qtyInput = stepper ? stepper.querySelector('.actl-qty') : null;
+        if (qtyInput) {
+            var maxStep = parseInt(qtyInput.getAttribute('max'), 10) || 999999;
+            var val = parseInt(qtyInput.value, 10) || 1;
+            val = stepBtn.classList.contains('actl-step--plus') ? Math.min(maxStep, val + 1) : Math.max(1, val - 1);
+            qtyInput.value = val;
+        }
+        return;
+    }
+
     var btn = e.target.closest && e.target.closest('.actl-btn');
     if (!btn) return;
     var wrap = btn.closest('.actl');
@@ -319,12 +332,13 @@ document.addEventListener('click', function(e) {
     if (qty < 1) qty = 1;
 
     if (qty > max) {
-        if (input) {
-            input.value = max;
-            input.classList.remove('actl-qty--err');
-            void input.offsetWidth; // перезапуск CSS-анимации при повторной ошибке подряд
-            input.classList.add('actl-qty--err');
-            setTimeout(function(){ input.classList.remove('actl-qty--err'); }, 900);
+        var stepperEl = wrap ? wrap.querySelector('.actl-stepper') : null;
+        if (input) input.value = max;
+        if (stepperEl) {
+            stepperEl.classList.remove('actl-stepper--err');
+            void stepperEl.offsetWidth; // перезапуск CSS-анимации при повторной ошибке подряд
+            stepperEl.classList.add('actl-stepper--err');
+            setTimeout(function(){ stepperEl.classList.remove('actl-stepper--err'); }, 900);
         }
         showToast('У поставщика «' + (btn.getAttribute('data-supplier') || '') + '» в наличии только ' + max + ' шт. Количество скорректировано.', 'warn');
         return;
@@ -549,8 +563,12 @@ function addToCartControl(brand,article,supplier,warehouse,price,qty,description
     var maxQty=Math.max(0,parseInt(qty,10)||0);
     if(maxQty<=0)return '<span class="actl-oos">Нет в наличии</span>';
     return '<div class="actl">'
-        +'<input type="number" class="actl-qty" min="1" max="'+maxQty+'" value="1" inputmode="numeric">'
-        +'<button type="button" class="actl-btn" data-brand="'+esc(brand)+'" data-article="'+esc(article)+'" data-supplier="'+esc(supplier)+'" data-warehouse="'+esc(warehouse||'')+'" data-price="'+(parseFloat(price)||0)+'" data-max="'+maxQty+'" data-desc="'+esc(description||'')+'"><svg class="icon"><use href="#icon-cart"></use></svg><span>В корзину</span></button>'
+        +'<div class="actl-stepper">'
+        +'<button type="button" class="actl-step actl-step--minus" aria-label="Уменьшить количество">−</button>'
+        +'<input type="text" class="actl-qty" inputmode="numeric" min="1" max="'+maxQty+'" value="1">'
+        +'<button type="button" class="actl-step actl-step--plus" aria-label="Увеличить количество">+</button>'
+        +'</div>'
+        +'<button type="button" class="actl-btn" title="В корзину" data-brand="'+esc(brand)+'" data-article="'+esc(article)+'" data-supplier="'+esc(supplier)+'" data-warehouse="'+esc(warehouse||'')+'" data-price="'+(parseFloat(price)||0)+'" data-max="'+maxQty+'" data-desc="'+esc(description||'')+'"><svg class="icon"><use href="#icon-cart"></use></svg></button>'
         +'</div>';
 }
 
