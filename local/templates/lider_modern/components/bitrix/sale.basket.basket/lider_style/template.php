@@ -57,6 +57,15 @@ while ($b = $bRes->Fetch()) {
     $b['BRAND']   = $props['SUPPLIER_BRAND'] ?? '';
     if ($supplierCode !== '') $hasSupplierItem = true;
 
+    // Товар со своего склада (не заказная позиция от поставщика) — своего артикула
+    // в свойствах корзины нет, берём его прямо с элемента каталога.
+    if ($b['ARTICLE'] === '' && $b['PRODUCT_ID'] > 0) {
+        $artRes = CIBlockElement::GetProperty(42, $b['PRODUCT_ID'], [], ['CODE' => 'CML2_ARTICLE']);
+        if ($artRow = $artRes->Fetch()) {
+            $b['ARTICLE'] = (string)($artRow['VALUE'] ?? '');
+        }
+    }
+
     $supplierLabel = $supplierCode;
     if ($supplierCode !== '' && function_exists('getSupplierFactory')) {
         $conn = getSupplierFactory()->get($supplierCode);
@@ -140,6 +149,9 @@ if (!empty($items) && !$hasSupplierItem) {
                 </div>
                 <div class="cart-item__info">
                     <a href="<?= $item['URL'] ?>" class="cart-item__name"><?= htmlspecialchars($item['NAME']) ?></a>
+                    <?php if ($item['ARTICLE'] !== ''): ?>
+                    <div class="cart-item__article">Артикул: <b><?= htmlspecialchars($item['ARTICLE']) ?></b></div>
+                    <?php endif; ?>
                     <div class="cart-item__price-unit"><?= $item['PRICE_FMT'] ?> / шт.</div>
                     <?php if ($item['SUPPLIER_CODE'] !== ''): ?>
                     <div class="cart-item__meta">
@@ -235,6 +247,7 @@ if (!empty($items) && !$hasSupplierItem) {
 .cart-item__info { flex: 1; min-width: 0; }
 .cart-item__name { font-size: 14px; font-weight: 700; color: var(--black); text-decoration: none; display: block; line-height: 1.4; }
 .cart-item__name:hover { color: var(--blue); }
+.cart-item__article { font-size: 12px; color: var(--gray); margin-top: 4px; }
 .cart-item__price-unit { font-size: 12px; color: var(--gray-light); margin-top: 4px; }
 .cart-item__meta { font-size: 12px; color: var(--gray); margin-top: 4px; }
 
@@ -242,6 +255,7 @@ if (!empty($items) && !$hasSupplierItem) {
 .cart-item--stale .cart-item__stale-banner { display: flex; }
 .cart-item--stale .cart-item__img,
 .cart-item--stale .cart-item__name,
+.cart-item--stale .cart-item__article,
 .cart-item--stale .cart-item__price-unit,
 .cart-item--stale .cart-item__meta,
 .cart-item--stale .cart-item__price { opacity: 0.45; }
