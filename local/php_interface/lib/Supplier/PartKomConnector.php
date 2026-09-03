@@ -618,7 +618,7 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
 
         if ($idx === 0) {
             $this->log('placeOrder: нет ни одной валидной позиции (нет maker_id/provider_id в order_meta), пропущено ' . $skipped);
-            return ['http_code' => null, 'raw' => null, 'error' => 'no_valid_items'];
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_valid_items'];
         }
 
         $this->log('placeOrder: request test=' . ($test ? 1 : 0) . ' items=' . $idx . ' skipped=' . $skipped . ' fields=' . json_encode($fields, JSON_UNESCAPED_UNICODE));
@@ -647,8 +647,15 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
             if (!is_array($decoded)) $decoded = ['_raw_text' => $resp];
         }
 
+        // Подтверждено первым живым ответом (тестовый режим): успех — это
+        // {"success":true,"data":[...]}, а не просто HTTP 200 (тот бывает и при
+        // бизнес-ошибке — например, часть позиций отклонена по одному из кодов
+        // ошибок из документации).
+        $success = $httpCode === 200 && $err === '' && is_array($decoded) && !empty($decoded['success']);
+
         return [
             'http_code' => $httpCode ?: null,
+            'success'   => $success,
             'raw'       => $decoded,
             'error'     => $err ?: null,
         ];

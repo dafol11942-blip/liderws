@@ -19,7 +19,7 @@ interface SupplierOrderable
      *     reference: string,
      *     comment: string,
      * }> $items Позиции одного поставщика из одного нашего заказа.
-     * @return array{http_code: ?int, raw: ?array, error: ?string}
+     * @return array{http_code: ?int, success: bool, raw: ?array, error: ?string}
      */
     public function placeOrder(array $items, bool $test = false): array;
 }

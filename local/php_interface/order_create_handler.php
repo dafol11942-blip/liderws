@@ -119,10 +119,12 @@ if (!function_exists('dispatchSupplierOrders')) {
             try {
                 $result = $connector->placeOrder($items, SUPPLIER_ORDER_TEST_MODE);
             } catch (\Throwable $e) {
-                $result = ['http_code' => null, 'raw' => null, 'error' => $e->getMessage()];
+                $result = ['http_code' => null, 'success' => false, 'raw' => null, 'error' => $e->getMessage()];
             }
 
-            $submitStatus = ($result['error'] === null && (int)($result['http_code'] ?? 0) === 200) ? 'sent' : 'error';
+            // Подтверждено первым живым ответом ПартКома: успех — это
+            // {"success":true,...} в теле ответа, не просто HTTP 200.
+            $submitStatus = !empty($result['success']) ? 'sent' : 'error';
 
             saveSupplierOrderRecord($orderId, $supplierCode, SUPPLIER_ORDER_TEST_MODE, $submitStatus, $items, $result);
 
