@@ -3,7 +3,7 @@ CModule::IncludeModule('sale');
 CModule::IncludeModule('iblock');
 require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php');
 
-if (!defined('CART_TTL_SECONDS')) define('CART_TTL_SECONDS', 12 * 3600);
+if (!defined('CART_TTL_SECONDS')) define('CART_TTL_SECONDS', 2 * 3600);
 
 $isMgr = isManager();
 
@@ -415,7 +415,7 @@ if (clearBtn) {
     });
 }
 
-// ===== TTL корзины (12ч) и ревалидация через API поставщика =====
+// ===== TTL корзины (2ч) и ревалидация через API поставщика =====
 var CART_TTL_MS = <?= CART_TTL_SECONDS ?> * 1000;
 
 function esc(s) {

@@ -138,7 +138,7 @@ try {
         $existItem->setField('QUANTITY', $existItem->getQuantity() + $quantity);
         // Мы только что получили свежие данные от поставщика — обновляем TTL и срок
         // доставки/остаток позиции, чтобы повторное добавление считалось подтверждением
-        // актуальности (см. TTL корзины 12ч в /cart/).
+        // актуальности (см. TTL корзины 2ч в /cart/).
         $props = $existItem->getPropertyCollection();
         $upsertProp($props, 'SUPPLIER_DELIVERY_DAYS',  'Срок доставки (дн)', $deliveryDays);
         $upsertProp($props, 'SUPPLIER_DELIVERY_LABEL', 'Срок доставки',      (string)$deliveryLabel);
