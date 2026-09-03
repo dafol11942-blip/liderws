@@ -69,7 +69,8 @@ if (!function_exists('saveSupplierOrderRecord')) {
 // Ошибка любого поставщика не должна ломать уже сохранённый наш заказ — только
 // логируется.
 if (!function_exists('dispatchSupplierOrders')) {
-    function dispatchSupplierOrders(int $orderId, \Bitrix\Sale\Basket $basket): void
+    /** @return bool true, если хотя бы один поставщик подтвердил приём заказа (success=true) */
+    function dispatchSupplierOrders(int $orderId, \Bitrix\Sale\Basket $basket): bool
     {
         // BasketPropertiesCollection не имеет метода getItemValues() — читаем
         // свойство по CODE вручную через перебор коллекции (см. order_from_supplier.php).
@@ -104,9 +105,10 @@ if (!function_exists('dispatchSupplierOrders')) {
             ];
         }
 
-        if (empty($bySupplier)) return;
+        if (empty($bySupplier)) return false;
 
         $factory = function_exists('getSupplierFactory') ? getSupplierFactory() : null;
+        $anySent = false;
 
         foreach ($bySupplier as $supplierCode => $items) {
             $connector = $factory ? $factory->get($supplierCode) : null;
@@ -125,6 +127,7 @@ if (!function_exists('dispatchSupplierOrders')) {
             // Подтверждено первым живым ответом ПартКома: успех — это
             // {"success":true,...} в теле ответа, не просто HTTP 200.
             $submitStatus = !empty($result['success']) ? 'sent' : 'error';
+            if ($submitStatus === 'sent') $anySent = true;
 
             saveSupplierOrderRecord($orderId, $supplierCode, SUPPLIER_ORDER_TEST_MODE, $submitStatus, $items, $result);
 
@@ -151,6 +154,32 @@ if (!function_exists('dispatchSupplierOrders')) {
             }
 
             logSupplierOrderDispatch("Заказ №{$orderId} → {$supplierCode}: {$submitStatus}, http=" . ($result['http_code'] ?? 'null') . ', err=' . ($result['error'] ?? '-'));
+        }
+
+        return $anySent;
+    }
+}
+
+// Статус SO "Заказан у поставщика" — создать один раз в админке (Настройки →
+// Магазин → Заказы → Статусы заказов), код "SO", сортировка между "N/S" (100) и
+// "F" (200), напр. 150. Выставляется автоматически, как только хотя бы один
+// поставщик подтвердил приём заказа — без ручного вмешательства менеджера, это
+// просто отражение уже свершившегося факта. Смена статуса "Получен от
+// поставщика" (SR) — намеренно НЕ автоматическая, менеджер переводит её сам,
+// глядя на живой статус позиции у поставщика (см. result_modifier.php).
+if (!function_exists('advanceOrderStatusAfterSupplierDispatch')) {
+    function advanceOrderStatusAfterSupplierDispatch(int $orderId): void
+    {
+        try {
+            $orderObj = \Bitrix\Sale\Order::load($orderId);
+            if (!$orderObj) return;
+            $orderObj->setField('STATUS_ID', 'SO');
+            $saveResult = $orderObj->save();
+            if (!$saveResult->isSuccess()) {
+                logSupplierOrderDispatch("Заказ №{$orderId}: не удалось выставить статус SO — " . implode('; ', $saveResult->getErrorMessages()));
+            }
+        } catch (\Throwable $e) {
+            logSupplierOrderDispatch("Заказ №{$orderId}: смена статуса на SO упала — " . $e->getMessage());
         }
     }
 }
@@ -233,9 +262,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
         // Наш заказ уже сохранён — сбой здесь НЕ должен помешать покупателю
         // увидеть страницу "Спасибо за заказ", только залогироваться.
         try {
-            dispatchSupplierOrders($orderId, $basket);
+            $anySupplierOrderSent = dispatchSupplierOrders($orderId, $basket);
         } catch (\Throwable $e) {
+            $anySupplierOrderSent = false;
             logSupplierOrderDispatch("dispatchSupplierOrders упал целиком: " . $e->getMessage());
+        }
+        if ($anySupplierOrderSent) {
+            advanceOrderStatusAfterSupplierDispatch($orderId);
         }
 
         LocalRedirect('/order/?ORDER_ID=' . $orderId . '&ORDER_CONFIRMED=Y');
