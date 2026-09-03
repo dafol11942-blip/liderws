@@ -577,7 +577,7 @@ function renderFilterBar(d){
     });
     h += '</div></details>';
 
-    if (isActive) h += '<button type="button" class="filter-reset" onclick="resetFilters()">Сбросить</button>';
+    h += '<button type="button" class="filter-reset' + (isActive ? '' : ' filter-reset--idle') + '"' + (isActive ? '' : ' disabled') + ' onclick="resetFilters()">Сбросить фильтры</button>';
     h += '</div>';
     return h;
 }

@@ -277,6 +277,8 @@
     cursor: pointer; font-family: var(--font);
 }
 .filter-reset:hover { background: var(--blue-dark); }
+.filter-reset--idle { background: var(--bg); color: var(--gray); cursor: default; }
+.filter-reset--idle:hover { background: var(--bg); }
 
 /* ====== АДАПТИВ ====== */
 @media (max-width: 768px) {
