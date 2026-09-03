@@ -57,14 +57,24 @@ while ($b = $bRes->Fetch()) {
     $b['BRAND']   = $props['SUPPLIER_BRAND'] ?? '';
     if ($supplierCode !== '') $hasSupplierItem = true;
 
-    // Товар со своего склада (не заказная позиция от поставщика) — своего артикула
-    // в свойствах корзины нет, берём его прямо с элемента каталога.
-    if ($b['ARTICLE'] === '' && $b['PRODUCT_ID'] > 0) {
-        $artRes = CIBlockElement::GetProperty(42, $b['PRODUCT_ID'], [], ['CODE' => 'CML2_ARTICLE']);
-        if ($artRow = $artRes->Fetch()) {
-            $b['ARTICLE'] = (string)($artRow['VALUE'] ?? '');
+    // Товар со своего склада (не заказная позиция от поставщика) — своих
+    // артикула/бренда в свойствах корзины нет, берём их прямо с элемента каталога.
+    if (($b['ARTICLE'] === '' || $b['BRAND'] === '') && $b['PRODUCT_ID'] > 0) {
+        $propRes = CIBlockElement::GetProperty(42, $b['PRODUCT_ID'], [], ['CODE' => ['CML2_ARTICLE', 'CML2_MANUFACTURER']]);
+        while ($propRow = $propRes->Fetch()) {
+            if ($propRow['CODE'] === 'CML2_ARTICLE' && $b['ARTICLE'] === '') {
+                $b['ARTICLE'] = (string)($propRow['VALUE'] ?? '');
+            } elseif ($propRow['CODE'] === 'CML2_MANUFACTURER' && $b['BRAND'] === '') {
+                // Список (тип L) — читаемое значение в VALUE_ENUM, VALUE у него ID enum'а.
+                $b['BRAND'] = (string)($propRow['VALUE_ENUM'] ?? $propRow['VALUE'] ?? '');
+            }
         }
     }
+
+    $articleBrandParts = [];
+    if ($b['BRAND'] !== '')   $articleBrandParts[] = 'Бренд: <b>' . htmlspecialchars($b['BRAND']) . '</b>';
+    if ($b['ARTICLE'] !== '') $articleBrandParts[] = 'Артикул: <b>' . htmlspecialchars($b['ARTICLE']) . '</b>';
+    $b['ARTICLE_BRAND_HTML'] = implode(' &middot; ', $articleBrandParts);
 
     $supplierLabel = $supplierCode;
     if ($supplierCode !== '' && function_exists('getSupplierFactory')) {
@@ -149,8 +159,8 @@ if (!empty($items) && !$hasSupplierItem) {
                 </div>
                 <div class="cart-item__info">
                     <a href="<?= $item['URL'] ?>" class="cart-item__name"><?= htmlspecialchars($item['NAME']) ?></a>
-                    <?php if ($item['ARTICLE'] !== ''): ?>
-                    <div class="cart-item__article">Артикул: <b><?= htmlspecialchars($item['ARTICLE']) ?></b></div>
+                    <?php if ($item['ARTICLE_BRAND_HTML'] !== ''): ?>
+                    <div class="cart-item__article"><?= $item['ARTICLE_BRAND_HTML'] ?></div>
                     <?php endif; ?>
                     <div class="cart-item__price-unit"><?= $item['PRICE_FMT'] ?> / шт.</div>
                     <?php if ($item['SUPPLIER_CODE'] !== ''): ?>
