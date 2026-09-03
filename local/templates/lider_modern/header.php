@@ -19,7 +19,8 @@ if (CModule::IncludeModule('sale')) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title><?php $APPLICATION->ShowTitle(); ?></title>
     <?php $APPLICATION->ShowHead(); ?>
-    <link rel="stylesheet" href="<?= SITE_TEMPLATE_PATH ?>/assets/css/style.css">
+    <?php $styleCssPath = $_SERVER['DOCUMENT_ROOT'] . SITE_TEMPLATE_PATH . '/assets/css/style.css'; ?>
+    <link rel="stylesheet" href="<?= SITE_TEMPLATE_PATH ?>/assets/css/style.css?v=<?= @filemtime($styleCssPath) ?: '1' ?>">
 </head>
 <body>
     <?php $APPLICATION->ShowPanel(); ?>
