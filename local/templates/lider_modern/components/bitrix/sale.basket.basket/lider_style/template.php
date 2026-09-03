@@ -320,6 +320,7 @@ function basketUpdate(id, qty) {
                 if (subtotalEl && d.totalSum) subtotalEl.textContent = d.totalSum;
                 var countEl = document.getElementById('cart-count');
                 if (countEl && d.totalQty !== undefined) countEl.textContent = d.totalQty;
+                if (window.updateCartBadge && d.totalQty !== undefined) window.updateCartBadge(d.totalQty);
             }
         })
         .catch(function() {

@@ -429,6 +429,7 @@ document.addEventListener('click', function(e) {
         btn.disabled = false;
         if (data.success) {
             showToast('Добавлено в корзину: ' + brand + ' / ' + article + ' — ' + qty + ' шт.', 'ok');
+            if (window.updateCartBadge && data.cart_qty !== undefined) window.updateCartBadge(data.cart_qty);
         } else {
             showToast(data.message || 'Не удалось добавить в корзину', 'warn');
         }

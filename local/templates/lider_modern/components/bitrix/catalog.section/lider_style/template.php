@@ -132,6 +132,7 @@ function addToCart(link, event) {
                 link.style.background = '#4DCD71';
                 link.style.opacity = '1';
                 link.style.pointerEvents = 'none';
+                if (window.updateCartBadge && resp.cart_qty !== undefined) window.updateCartBadge(resp.cart_qty);
             } else {
                 link.textContent = 'В корзину';
                 link.style.opacity = '1';

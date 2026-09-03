@@ -47,10 +47,16 @@ try {
 
     $basket->save();
 
+    $cartQty = 0;
+    foreach ($basket as $bi) {
+        $cartQty += (int)$bi->getQuantity();
+    }
+
     echo json_encode([
         'status'   => 'ok',
         'message'  => 'Товар добавлен в корзину!',
         'count'    => count($basket->getBasketItems()),
+        'cart_qty' => $cartQty,
         'cart_url' => '/cart/',
     ]);
 } catch (\Exception $e) {

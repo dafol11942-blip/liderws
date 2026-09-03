@@ -1,4 +1,17 @@
-<?php if (!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED !== true) die(); ?>
+<?php if (!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED !== true) die();
+
+$cartQty = 0;
+if (CModule::IncludeModule('sale')) {
+    $cartRes = CSaleBasket::GetList(
+        [],
+        ['FUSER_ID' => CSaleBasket::GetBasketUserID(), 'ORDER_ID' => 'NULL', 'LID' => SITE_ID],
+        false, false, ['QUANTITY']
+    );
+    while ($cartRow = $cartRes->Fetch()) {
+        $cartQty += (int)$cartRow['QUANTITY'];
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -98,14 +111,32 @@
             <div class="header__actions">
                 <a href="/personal/favorites/" class="header__icon" title="Избранное"><svg class="icon"><use href="#icon-heart"></use></svg></a>
                 <a href="/personal/compare/" class="header__icon" title="Сравнение"><svg class="icon"><use href="#icon-compare"></use></svg></a>
-                <a href="/cart/" class="header__icon" title="Корзина">
+                <a href="/cart/" class="header__icon" id="cartIcon" title="Корзина">
                     <svg class="icon"><use href="#icon-cart"></use></svg>
-                    <span class="badge" id="cartBadge" style="display:none;">0</span>
+                    <span class="badge" id="cartBadge"<?= $cartQty > 0 ? '' : ' style="display:none;"' ?>><?= $cartQty ?></span>
                 </a>
                 <a href="/personal/" class="header__icon" title="Личный кабинет"><svg class="icon"><use href="#icon-user"></use></svg></a>
             </div>
         </div>
     </header>
+
+    <script>
+    // Единая точка обновления счётчика корзины в шапке — вызывается со страниц
+    // поиска/корзины после добавления/изменения/удаления товара, без перезагрузки.
+    window.updateCartBadge = function (qty) {
+        var badge = document.getElementById('cartBadge');
+        var icon = document.getElementById('cartIcon');
+        if (!badge) return;
+        qty = Math.max(0, parseInt(qty, 10) || 0);
+        badge.textContent = qty;
+        badge.style.display = qty > 0 ? '' : 'none';
+        if (icon) {
+            icon.classList.remove('header__icon--bump');
+            void icon.offsetWidth; // перезапуск CSS-анимации при повторном добавлении подряд
+            icon.classList.add('header__icon--bump');
+        }
+    };
+    </script>
 
     <!-- Навигация -->
     <div class="header-nav">

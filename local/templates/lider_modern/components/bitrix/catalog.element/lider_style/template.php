@@ -137,6 +137,7 @@ function addToCartDetail(id) {
             var resp = JSON.parse(xhr.responseText);
             if (resp.status === 'ok') {
                 if (btn) { btn.textContent = '✓ В корзине'; btn.style.background = '#4DCD71'; btn.style.opacity = '1'; btn.style.pointerEvents = 'none'; }
+                if (window.updateCartBadge && resp.cart_qty !== undefined) window.updateCartBadge(resp.cart_qty);
             } else {
                 if (btn) { btn.innerHTML = '<svg class="icon"><use href="#icon-cart"></use></svg> В корзину'; btn.style.opacity = '1'; }
             }

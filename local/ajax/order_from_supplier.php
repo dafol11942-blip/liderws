@@ -141,7 +141,13 @@ try {
     }
 
     $basket->save();
-    echo json_encode(['success' => true, 'message' => 'Добавлено в корзину', 'cart_url' => '/personal/cart/']);
+
+    $cartQty = 0;
+    foreach ($basket as $bi) {
+        $cartQty += (int)$bi->getQuantity();
+    }
+
+    echo json_encode(['success' => true, 'message' => 'Добавлено в корзину', 'cart_url' => '/personal/cart/', 'cart_qty' => $cartQty]);
 
 } catch (\Throwable $e) {
     @file_put_contents(

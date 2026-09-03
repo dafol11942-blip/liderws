@@ -217,6 +217,13 @@ ul, ol { list-style: none; }
 .header__icon:hover { background: #e0e0e0; box-shadow: var(--shadow); }
 .header__icon .badge { position: absolute; top: -5px; right: -5px; background: var(--red); color: #fff; font-size: 10px; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 
+.header__icon--bump { animation: header-icon-bump 0.4s ease; }
+@keyframes header-icon-bump {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(1.25); background: #dde6ff; }
+    100% { transform: scale(1); }
+}
+
 /* =============================================
    НАВИГАЦИЯ ПОД ШАПКОЙ
    ============================================= */
