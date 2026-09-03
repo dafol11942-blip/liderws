@@ -718,7 +718,7 @@ function supplierBadge(s){
 function priceBlock(s){
     if(!IS_MANAGER || s.base_price==null) return '<span class="price-main">'+fmt(s.client_price)+' р.</span>';
     return '<span class="price-main price-base">'+fmt(s.base_price)+' р.</span>'
-        + '<span class="price-sub">клиент: '+fmt(s.client_price)+' р.</span>';
+        + '<span class="price-sub"><span class="price-sub-label">клиент: </span>'+fmt(s.client_price)+' р.</span>';
 }
 
 function hlCard(o,title,cardCls,badgeCls,type){

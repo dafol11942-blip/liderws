@@ -81,9 +81,15 @@
 
 /* ====== ЦЕНА (закупочная основная + клиентская для менеджера) ====== */
 .price-main { display: block; font-weight: 700; }
-.price-sub { display: block; font-size: 11px; color: var(--gray); font-weight: 400; }
+.price-sub { display: block; font-size: 13px; color: var(--black); font-weight: 600; }
 .ft-td--prc .price-main { font-size: 14px; font-weight: 800; }
+
+/* Тумблер «скрыть закупочную» — клиентская цена занимает место основной, без подписи */
 .hide-base-price .price-base { display: none; }
+.hide-base-price .price-sub { font-size: inherit; font-weight: 700; color: inherit; }
+.hide-base-price .ft-td--prc .price-sub { font-size: 14px; font-weight: 800; }
+.hide-base-price .price-sub-label { display: none; }
+
 .filter-opt--toggle { font-weight: 600; }
 
 /* ====== КНОПКИ ====== */
