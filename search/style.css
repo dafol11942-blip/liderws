@@ -79,11 +79,11 @@
 .src-tag--shatem{background:#fef3c7;color:#92400e}.src-tag--tatparts{background:#e0f7fa;color:#006064}
 .src-tag--autoruss{background:#fff7ed;color:#c2410c}.src-tag--autopiter{background:#e8eaf6;color:#283593}
 
-/* ====== ЦЕНА (клиентская + закупочная для менеджера) ====== */
-.price-client { display: block; font-weight: 700; }
-.price-base { display: block; font-size: 11px; color: var(--gray); font-weight: 400; }
-.ft-td--prc .price-client { font-size: 14px; font-weight: 800; }
-.hide-client-price .price-client { display: none; }
+/* ====== ЦЕНА (закупочная основная + клиентская для менеджера) ====== */
+.price-main { display: block; font-weight: 700; }
+.price-sub { display: block; font-size: 11px; color: var(--gray); font-weight: 400; }
+.ft-td--prc .price-main { font-size: 14px; font-weight: 800; }
+.hide-base-price .price-base { display: none; }
 .filter-opt--toggle { font-weight: 600; }
 
 /* ====== КНОПКИ ====== */
@@ -241,7 +241,8 @@
 .filter-bar {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 10px 14px; margin-bottom: 16px; box-shadow: var(--shadow-sm); position: relative;
+    padding: 10px 14px; margin-bottom: 16px; box-shadow: var(--shadow-sm);
+    position: sticky; top: var(--search-header-h, 73px); z-index: 60;
 }
 .filter-dd { position: relative; }
 .filter-dd summary {

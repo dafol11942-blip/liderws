@@ -151,7 +151,19 @@ var API='/search/ajax.php';
 var Q=<?=json_encode($q)?>,B=<?=json_encode($brand)?>,N=<?=json_encode($number)?>;
 var IS_MANAGER=<?=json_encode($isManager)?>;
 var TASK_ID=null;
-var hideClientPrice=false;
+var hideBasePrice=false;
+
+// Липкая панель фильтров должна встать сразу под липкой шапкой сайта (.header,
+// position:sticky из lider_modern), а не поверх неё. У шапки нет фиксированной
+// высоты/CSS-переменной (зависит от брейкпоинта), поэтому меряем её в рантайме.
+function syncHeaderHeight(){
+    var hdr = document.querySelector('.header');
+    if (hdr) document.documentElement.style.setProperty('--search-header-h', hdr.getBoundingClientRect().height + 'px');
+}
+syncHeaderHeight();
+window.addEventListener('resize', syncHeaderHeight);
+window.addEventListener('load', syncHeaderHeight);
+
 function qs(s,el){return(el||document).querySelector(s)}
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function fmt(n){return new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}
@@ -484,9 +496,9 @@ window.resetFilters = function(){
     filterState = { brands: null, maxDelivery: null, minQty: null };
     if (lastData) renderResults(lastData);
 };
-window.toggleHideClientPrice = function(checked){
-    hideClientPrice = checked;
-    qs('#resultContent').classList.toggle('hide-client-price', hideClientPrice);
+window.toggleHideBasePrice = function(checked){
+    hideBasePrice = checked;
+    qs('#resultContent').classList.toggle('hide-base-price', hideBasePrice);
 };
 
 var DELIVERY_OPTS = [[null,'Любой'],[0,'Сегодня'],[2,'До 2 дней'],[5,'До 5 дней'],[10,'До 10 дней']];
@@ -502,7 +514,7 @@ function renderFilterBar(d){
     var h = '<div class="filter-bar">';
 
     if (IS_MANAGER) {
-        h += '<label class="filter-opt filter-opt--toggle"><input type="checkbox"' + (hideClientPrice?' checked':'') + ' onchange="toggleHideClientPrice(this.checked)"> Скрыть клиентскую цену</label>';
+        h += '<label class="filter-opt filter-opt--toggle"><input type="checkbox"' + (hideBasePrice?' checked':'') + ' onchange="toggleHideBasePrice(this.checked)"> Скрыть закупочную цену</label>';
     }
 
     if (brandKeys.length > 1) {
@@ -670,9 +682,9 @@ function supplierBadge(s){
 }
 
 function priceBlock(s){
-    var h='<span class="price-client">'+fmt(s.client_price)+' р.</span>';
-    if(IS_MANAGER && s.base_price!=null) h+='<span class="price-base">закупка: '+fmt(s.base_price)+' р.</span>';
-    return h;
+    if(!IS_MANAGER || s.base_price==null) return '<span class="price-main">'+fmt(s.client_price)+' р.</span>';
+    return '<span class="price-main price-base">'+fmt(s.base_price)+' р.</span>'
+        + '<span class="price-sub">клиент: '+fmt(s.client_price)+' р.</span>';
 }
 
 function hlCard(o,title,cardCls,badgeCls,type){
