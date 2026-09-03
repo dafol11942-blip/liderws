@@ -40,9 +40,13 @@ try {
     }
 
     $props = $basketItem->getPropertyCollection();
+    // BasketPropertiesCollection не имеет метода getItemValues() — единственный
+    // документированный способ прочитать значение по CODE — перебор через getField().
     $getProp = function (string $code) use ($props) {
-        $values = (array)$props->getItemValues($code);
-        return $values ? reset($values) : null;
+        foreach ($props as $p) {
+            if ($p->getField('CODE') === $code) return $p->getField('VALUE');
+        }
+        return null;
     };
 
     $article  = (string)$getProp('SUPPLIER_ARTICLE');

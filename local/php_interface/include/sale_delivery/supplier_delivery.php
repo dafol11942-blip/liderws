@@ -25,14 +25,25 @@ class SupplierDeliveryHandler extends \Bitrix\Sale\Delivery\Services\Base
     {
         $result = new CalculationResult();
 
+        // BasketPropertiesCollection не имеет метода getItemValues() — читаем свойство
+        // по CODE вручную через перебор коллекции.
+        $readProp = function ($props, string $code) {
+            foreach ($props as $p) {
+                if ($p->getField('CODE') === $code) return $p->getField('VALUE');
+            }
+            return null;
+        };
+
         $maxDays = 0;
         $deliveryTexts = [];
 
         $basket = $shipment->getCollection()->getOrder()->getBasket();
         foreach ($basket as $basketItem) {
             $props = $basketItem->getPropertyCollection();
-            $days = (int)($props->getItemValues('SUPPLIER_DELIVERY_DAYS') ?: 0);
-            $text = (string)($props->getItemValues('SUPPLIER_DELIVERY_TEXT') ?: '');
+            $days  = (int)($readProp($props, 'SUPPLIER_DELIVERY_DAYS') ?? 0);
+            $label = (string)($readProp($props, 'SUPPLIER_DELIVERY_LABEL') ?? '');
+            $time  = (string)($readProp($props, 'SUPPLIER_DELIVERY_TIME') ?? '');
+            $text  = trim($label . ($time !== '' ? ' ' . $time : ''));
 
             if ($days > $maxDays) $maxDays = $days;
             if ($text) $deliveryTexts[] = $text;

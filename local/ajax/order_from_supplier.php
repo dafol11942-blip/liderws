@@ -80,13 +80,25 @@ try {
         \Bitrix\Main\Context::getCurrent()->getSite()
     );
 
+    // Читает значение свойства позиции по CODE. BasketPropertiesCollection не имеет
+    // метода getItemValues() (это не существующий в D7 API метод — вопреки тому, что
+    // им уже пользовался старый код ниже; единственный документированный способ —
+    // ручной перебор коллекции через getField()).
+    $readProp = function ($props, string $code) {
+        foreach ($props as $p) {
+            if ($p->getField('CODE') === $code) return $p->getField('VALUE');
+        }
+        return null;
+    };
+
     $existItem = null;
     foreach ($basket as $basketItem) {
-        $props = $basketItem->getPropertyCollection();
-        if ($basketItem->getProductId() == $productId
-            && in_array($article, (array)$props->getItemValues('SUPPLIER_ARTICLE'))
-            && in_array($brand, (array)$props->getItemValues('SUPPLIER_BRAND'))
-        ) { $existItem = $basketItem; break; }
+        if ($basketItem->getProductId() != $productId) continue;
+        $bProps = $basketItem->getPropertyCollection();
+        if ($readProp($bProps, 'SUPPLIER_ARTICLE') === $article && $readProp($bProps, 'SUPPLIER_BRAND') === $brand) {
+            $existItem = $basketItem;
+            break;
+        }
     }
 
     // Создаёт свойство, если его ещё нет, иначе обновляет значение существующего.
