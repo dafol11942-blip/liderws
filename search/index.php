@@ -439,7 +439,10 @@ function showToast(msg, kind) {
 }
 
 var lastData = null;
-var filterState = { brands: null, maxDelivery: null, minQty: null }; // null = не ограничено
+var filterState = { brands: null, suppliers: null, maxDelivery: null, minQty: null }; // null = не ограничено
+function isFilterActive(){
+    return !!filterState.brands || !!filterState.suppliers || filterState.maxDelivery != null || filterState.minQty != null;
+}
 
 // Пользовательская сортировка по цене внутри отдельной позиции (искомый номер
 // или конкретный аналог). Ключ — 'exact' либо ключ группы аналога (a.key),
@@ -464,7 +467,22 @@ function brandAllowed(brandDisplay){
     if (!filterState.brands) return true;
     return filterState.brands.has(normBrandKey(brandDisplay));
 }
+// Список поставщиков доступен только менеджеру (у остальных s.supplier в ответе
+// отсутствует — см. sanitizeOffer() на бэкенде), поэтому и фильтр по нему смысл
+// имеет только для менеджера.
+function getAllSuppliers(d){
+    var map = {};
+    if (!IS_MANAGER) return map;
+    (d.exact && d.exact.suppliers || []).forEach(function(s){ if (s.supplier) map[s.supplier] = true; });
+    (d.analogs||[]).forEach(function(a){ (a.suppliers||[]).forEach(function(s){ if (s.supplier) map[s.supplier] = true; }); });
+    return map; // code -> true
+}
+function supplierAllowed(s){
+    if (!filterState.suppliers) return true;
+    return filterState.suppliers.has(s.supplier);
+}
 function passesRowFilter(s){
+    if (!supplierAllowed(s)) return false;
     if (filterState.maxDelivery != null && !(s.delivery_days >= 0 && s.delivery_days <= filterState.maxDelivery)) return false;
     if (filterState.minQty != null && !(s.quantity >= filterState.minQty)) return false;
     return true;
@@ -474,6 +492,12 @@ window.toggleFilterBrand = function(key){
     if (!filterState.brands) filterState.brands = new Set();
     if (filterState.brands.has(key)) filterState.brands.delete(key); else filterState.brands.add(key);
     if (filterState.brands.size === 0) filterState.brands = null; // ничего не выбрано — показываем всё
+    if (lastData) renderResults(lastData);
+};
+window.toggleFilterSupplier = function(code){
+    if (!filterState.suppliers) filterState.suppliers = new Set();
+    if (filterState.suppliers.has(code)) filterState.suppliers.delete(code); else filterState.suppliers.add(code);
+    if (filterState.suppliers.size === 0) filterState.suppliers = null;
     if (lastData) renderResults(lastData);
 };
 window.filterBrandOptions = function(inputEl){
@@ -493,7 +517,7 @@ window.setFilterQty = function(val){
     if (lastData) renderResults(lastData);
 };
 window.resetFilters = function(){
-    filterState = { brands: null, maxDelivery: null, minQty: null };
+    filterState = { brands: null, suppliers: null, maxDelivery: null, minQty: null };
     if (lastData) renderResults(lastData);
 };
 window.toggleHideBasePrice = function(checked){
@@ -507,9 +531,10 @@ var QTY_OPTS = [[null,'Любое'],[1,'В наличии'],[10,'От 10 шт.']
 function renderFilterBar(d){
     var brandsMap = getAllBrands(d);
     var brandKeys = Object.keys(brandsMap).sort();
+    var supplierKeys = Object.keys(getAllSuppliers(d)).sort();
     if (!brandKeys.length && !IS_MANAGER) return '';
 
-    var isActive = !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
+    var isActive = isFilterActive();
 
     var h = '<div class="filter-bar">';
 
@@ -523,6 +548,15 @@ function renderFilterBar(d){
         brandKeys.forEach(function(key){
             var checked = !!filterState.brands && filterState.brands.has(key);
             h += '<label class="filter-opt" data-label="' + esc(key) + '"><input type="checkbox" onchange="toggleFilterBrand(\'' + key + '\')"' + (checked?' checked':'') + '>' + esc(brandsMap[key]) + '</label>';
+        });
+        h += '</div></details>';
+    }
+
+    if (IS_MANAGER && supplierKeys.length > 1) {
+        h += '<details class="filter-dd"><summary>Поставщик<span class="filter-dd-arrow">▾</span></summary><div class="filter-dd-panel">';
+        supplierKeys.forEach(function(code){
+            var checked = !!filterState.suppliers && filterState.suppliers.has(code);
+            h += '<label class="filter-opt"><input type="checkbox" onchange="toggleFilterSupplier(\'' + code + '\')"' + (checked?' checked':'') + '><span class="src-tag src-tag--' + code + '">' + esc(code) + '</span></label>';
         });
         h += '</div></details>';
     }
@@ -588,7 +622,7 @@ function renderResults(d){
     var h='';
     h+='<div class="phead"><h1 class="phead-title">'+esc(N)+' '+esc(B)+'</h1>';
     if(exact&&exact.suppliers){
-        var filterOn = !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
+        var filterOn = isFilterActive();
         var subtxt = filterOn
             ? 'Показано '+exactVisible.length+' из '+exact.suppliers.length+' предл. искомого + '+analogsVisible.length+' из '+analogsAll.length+' аналогов (фильтр применён)'
             : 'Найдено '+exact.suppliers.length+' предл. искомого + '+analogsAll.length+' аналогов';
@@ -627,7 +661,7 @@ function renderResults(d){
     }
 
     if(!exactVisible.length&&!analogsVisible.length){
-        var filterOn2 = !!filterState.brands || filterState.maxDelivery != null || filterState.minQty != null;
+        var filterOn2 = isFilterActive();
         if (filterOn2 && (exact||analogsAll.length)) {
             h+='<div class="hero" style="margin-top:16px"><div class="hero-icon"><svg class="icon"><use href="#icon-search"></use></svg></div><p>Под текущий фильтр ничего не подходит</p><button type="button" class="btn-sel" onclick="resetFilters()">Сбросить фильтр</button></div>';
         } else {
