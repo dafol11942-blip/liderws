@@ -28,6 +28,15 @@ class SearchResultItem
     public ?string $detailUrl = null;
     public array $raw = [];
 
+    /**
+     * Непрозрачный пакет служебных ID, нужных конкретному поставщику для
+     * оформления заказа (напр. у ПартКома — maker_id/provider_id). Ни корзина,
+     * ни оформление заказа не заглядывают внутрь — только переносят его от
+     * поиска до вызова SupplierOrderable::placeOrder() на том же коннекторе,
+     * который его сюда положил. См. SupplierOrderable.
+     */
+    public array $orderMeta = [];
+
     public function toArray(): array
     {
         return [

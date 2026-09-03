@@ -137,6 +137,9 @@ try {
     $upsertProp($props, 'SUPPLIER_DELIVERY_TIME',  'Время доставки',      (string)$newDeliveryTime);
     $upsertProp($props, 'SUPPLIER_QTY_AVAIL',      'Остаток у поставщика', $newQtyAvail);
     $upsertProp($props, 'SUPPLIER_ADDED_AT',       'Подтверждено',        (string)time());
+    // Данные для оформления заказа у поставщика (см. SupplierOrderable) — тоже
+    // освежаем, они могли смениться (напр. другой склад/предложение при пересчёте).
+    $upsertProp($props, 'SUPPLIER_ORDER_META', 'Данные для заказа', json_encode($freshItem->orderMeta ?? [], JSON_UNESCAPED_UNICODE));
 
     $basket->save();
 

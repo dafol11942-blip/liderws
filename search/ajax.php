@@ -160,6 +160,7 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
         'delivery_days'  => (int)($it->deliveryDays ?? -1),
         'delivery_label' => $it->deliveryLabel ?? null,
         'delivery_time'  => $it->deliveryTimeLabel ?? null,
+        'order_meta'     => $it->orderMeta ?? [],
     ];
 
     return [

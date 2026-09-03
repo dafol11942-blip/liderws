@@ -63,6 +63,9 @@ try {
     $deliveryLabel = $resolvedOffer['delivery_label'] ?? null;
     $deliveryTime  = $resolvedOffer['delivery_time'] ?? null;
     $qtyAvail      = (int)($resolvedOffer['quantity'] ?? 0) ?: $quantity;
+    // Непрозрачный пакет служебных ID для оформления заказа у поставщика
+    // (см. SupplierOrderable) — корзина его только хранит и переносит дальше.
+    $orderMeta     = $resolvedOffer['order_meta'] ?? [];
 
     if ($itemName === '' || $basePrice <= 0) {
         $item = $connector->getDetail($article, $brand);
@@ -77,6 +80,7 @@ try {
         $qtyAvail      = $qtyAvail ?: ($item->quantity ?? $quantity);
     }
     $deliveryDays = $deliveryDays ?? -1;
+    $orderMetaJson = json_encode($orderMeta, JSON_UNESCAPED_UNICODE);
 
     require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php');
     $price = getDisplayPrice($basePrice);
@@ -145,6 +149,7 @@ try {
         $upsertProp($props, 'SUPPLIER_DELIVERY_TIME',  'Время доставки',     (string)$deliveryTime);
         $upsertProp($props, 'SUPPLIER_QTY_AVAIL',      'Остаток у поставщика', $qtyAvail);
         $upsertProp($props, 'SUPPLIER_ADDED_AT',       'Подтверждено',       (string)time());
+        $upsertProp($props, 'SUPPLIER_ORDER_META',     'Данные для заказа',  $orderMetaJson);
     } else {
         $basketItem = $basket->createItem('catalog', $productId);
         $basketItem->setFields([
@@ -166,6 +171,7 @@ try {
             ['SUPPLIER_DELIVERY_TIME', 'Время доставки',     (string)$deliveryTime],
             ['SUPPLIER_QTY_AVAIL',     'Остаток у поставщика', $qtyAvail],
             ['SUPPLIER_ADDED_AT',      'Подтверждено',       (string)time()],
+            ['SUPPLIER_ORDER_META',    'Данные для заказа',  $orderMetaJson],
         ];
         foreach ($list as [$code, $name, $value]) {
             $p = $props->createItem();

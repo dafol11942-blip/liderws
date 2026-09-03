@@ -12,7 +12,7 @@ function _parseQty($val): int
     return max(0, (int)$val);
 }
 
-class PartKomConnector implements SupplierInterface
+class PartKomConnector implements SupplierInterface, SupplierOrderable, SupplierOrderStatusProvider
 {
     private string $login;
     private string $password;
@@ -182,6 +182,15 @@ class PartKomConnector implements SupplierInterface
                 $r->warehouse = ($item['providerDescription'] ?? '—') . ': ' . ($item['placement'] ?? '');
             }
             $r->stockId = (string)($item['placementId'] ?? $item['providerId'] ?? '');
+
+            // Для оформления заказа (см. SupplierOrderable::placeOrder()) нужны
+            // makerId/providerId именно этого предложения — то же поле providerId,
+            // что выше идёт в stockId вперемешку с placementId для отображения
+            // склада, но здесь берётся отдельно и однозначно.
+            $r->orderMeta = [
+                'maker_id'    => isset($item['makerId']) ? (int)$item['makerId'] : null,
+                'provider_id' => isset($item['providerId']) ? (int)$item['providerId'] : null,
+            ];
 
             [$r->deliveryDays, $r->deliveryPeriod, $r->deliveryLabel, $r->deliveryTimeLabel, $r->deliveryToday, $r->deliveryDeadline] = $this->resolveDelivery($item);
 
@@ -573,5 +582,120 @@ class PartKomConnector implements SupplierInterface
         if ($httpCode !== 200 || empty($resp)) return $results;
 
         return $this->parseSearchResponse($resp, '', $query);
+    }
+
+    // ── ЗАКАЗ (SupplierOrderable) ─────────────────────────
+    public function placeOrder(array $items, bool $test = false): array
+    {
+        $fields = [
+            'flagTest'        => $test ? 1 : 0,
+            'returnOnSuccess' => 1,
+        ];
+
+        $idx     = 0;
+        $skipped = 0;
+        foreach ($items as $item) {
+            $makerId    = $item['order_meta']['maker_id'] ?? null;
+            $providerId = $item['order_meta']['provider_id'] ?? null;
+            if (!$makerId || !$providerId || empty($item['article'])) {
+                $skipped++;
+                continue;
+            }
+            // Плоские ключи с квадратными скобками — то же самое, что в примерах
+            // документации (orderItems[0][detailNum] и т.д.): PHP-curl отправит
+            // массив как multipart/form-data, а бэкенд ПартКома сам разберёт
+            // такую нотацию имён полей в вложенную структуру.
+            $fields["orderItems[{$idx}][detailNum]"]  = (string)$item['article'];
+            $fields["orderItems[{$idx}][makerId]"]    = (string)$makerId;
+            $fields["orderItems[{$idx}][price]"]      = (string)$item['price_base'];
+            $fields["orderItems[{$idx}][providerId]"] = (string)$providerId;
+            $fields["orderItems[{$idx}][quantity]"]   = (string)$item['quantity'];
+            $fields["orderItems[{$idx}][delivery]"]   = 'regular';
+            if (!empty($item['reference'])) $fields["orderItems[{$idx}][reference]"] = (string)$item['reference'];
+            if (!empty($item['comment']))   $fields["orderItems[{$idx}][comment]"]   = (string)$item['comment'];
+            $idx++;
+        }
+
+        if ($idx === 0) {
+            $this->log('placeOrder: нет ни одной валидной позиции (нет maker_id/provider_id в order_meta), пропущено ' . $skipped);
+            return ['http_code' => null, 'raw' => null, 'error' => 'no_valid_items'];
+        }
+
+        $this->log('placeOrder: request test=' . ($test ? 1 : 0) . ' items=' . $idx . ' skipped=' . $skipped . ' fields=' . json_encode($fields, JSON_UNESCAPED_UNICODE));
+
+        $ch = curl_init($this->baseUrl . '/basket/order');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => [$this->authHeader(), 'Accept: application/json'],
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $fields,
+        ]);
+        $resp     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err      = curl_error($ch);
+        curl_close($ch);
+
+        $this->log('placeOrder: response http=' . $httpCode . ' err=' . $err . ' body=' . substr((string)$resp, 0, 4000));
+
+        $decoded = null;
+        if ($resp !== false && $resp !== '') {
+            $decoded = json_decode($resp, true);
+            if (!is_array($decoded)) $decoded = ['_raw_text' => $resp];
+        }
+
+        return [
+            'http_code' => $httpCode ?: null,
+            'raw'       => $decoded,
+            'error'     => $err ?: null,
+        ];
+    }
+
+    // ── СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ───────
+    public function fetchOrderStatusByReference(string $reference): array
+    {
+        $url = $this->baseUrl . '/basket/motion/' . rawurlencode($reference);
+        $ch  = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => [$this->authHeader(), 'Accept: application/json'],
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+        ]);
+        $resp     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err      = curl_error($ch);
+        curl_close($ch);
+
+        if ($err || $httpCode !== 200 || empty($resp)) {
+            $this->log("fetchOrderStatusByReference({$reference}): HTTP {$httpCode} err={$err}");
+            return [];
+        }
+
+        $data = json_decode($resp, true);
+        if (!is_array($data)) return [];
+
+        $out = [];
+        foreach ($data as $row) {
+            if (!is_array($row)) continue;
+            $out[] = [
+                'order_number'    => isset($row['orderNumber']) ? (string)$row['orderNumber'] : null,
+                'state_id'        => isset($row['state']) ? (string)$row['state'] : null,
+                'state_text'      => isset($row['stateTxt']) ? (string)$row['stateTxt'] : null,
+                'expected_date'   => $row['expectedDate'] ?? null,
+                'guaranteed_date' => $row['guaranteedDate'] ?? null,
+                'store_count'     => isset($row['storeCount']) ? (int)$row['storeCount'] : null,
+                'release_count'   => isset($row['releaseCount']) ? (int)$row['releaseCount'] : null,
+                'refusal_count'   => isset($row['refusalCount']) ? (int)$row['refusalCount'] : null,
+                'comment'         => $row['comment'] ?? null,
+                'raw'             => $row,
+            ];
+        }
+        return $out;
     }
 }
