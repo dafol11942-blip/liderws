@@ -16,6 +16,8 @@ $bRes = CSaleBasket::GetList(
 
 $totalSum = 0;
 $totalQty = 0;
+$cartMaxDeliveryDays = -1;
+$cartMaxDeliveryText = '';
 
 while ($b = $bRes->Fetch()) {
     $b['PRICE_NUM'] = (float)$b['PRICE'];
@@ -70,6 +72,12 @@ while ($b = $bRes->Fetch()) {
     } else {
         $b['DELIVERY_TEXT'] = '';
     }
+    // Срок доставки заказа = максимальный (самый долгий) срок среди позиций —
+    // раньше всех остальных курьер приехать не может.
+    if ($deliveryDays !== null && $deliveryDays >= 0 && $deliveryDays > $cartMaxDeliveryDays) {
+        $cartMaxDeliveryDays = $deliveryDays;
+        $cartMaxDeliveryText = $b['DELIVERY_TEXT'];
+    }
 
     $addedAt = isset($props['SUPPLIER_ADDED_AT']) ? (int)$props['SUPPLIER_ADDED_AT'] : 0;
     $b['ADDED_AT'] = $addedAt;
@@ -83,6 +91,7 @@ while ($b = $bRes->Fetch()) {
 }
 
 $totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
+$cartDeliveryFmt = $cartMaxDeliveryText !== '' ? $cartMaxDeliveryText : 'Рассчитывается при оформлении';
 ?>
 
 <?php if (empty($items)): ?>
@@ -97,7 +106,10 @@ $totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
 </div>
 <?php else: ?>
 <div class="cart-page">
-    <h1 class="cart-page__title">Корзина</h1>
+    <div class="cart-page__head">
+        <h1 class="cart-page__title">Корзина</h1>
+        <button type="button" id="cart-clear-btn" class="cart-clear-btn">Очистить корзину</button>
+    </div>
     <div class="cart-layout">
         <div class="cart-items">
             <?php foreach ($items as $item):
@@ -155,7 +167,7 @@ $totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
                     </div>
                     <div class="cart-summary__row">
                         <span>Доставка</span>
-                        <span>Рассчитывается при оформлении</span>
+                        <span><?= htmlspecialchars($cartDeliveryFmt) ?></span>
                     </div>
                 </div>
                 <div class="cart-summary__total">
@@ -172,7 +184,15 @@ $totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
 
 <style>
 .cart-page { max-width: 1240px; margin: 0 auto; padding: 30px 20px; font-family: var(--font); }
-.cart-page__title { font-size: 28px; font-weight: 800; margin-bottom: 30px; color: var(--black); }
+.cart-page__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+.cart-page__title { font-size: 28px; font-weight: 800; color: var(--black); }
+.cart-clear-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--gray);
+    border-radius: var(--radius); padding: 10px 16px; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all var(--transition);
+}
+.cart-clear-btn:hover { border-color: var(--red); color: var(--red); background: #fdecec; }
+.cart-clear-btn:disabled { opacity: 0.6; cursor: default; }
 .cart-empty { text-align: center; padding: 80px 20px; }
 .cart-empty__icon { font-size: 60px; margin-bottom: 14px; opacity: 0.6; }
 .cart-empty h2 { font-size: 18px; font-weight: 700; margin-bottom: 6px; color: var(--black); }
@@ -339,6 +359,18 @@ function basketDelete(id) {
             if (d.status === 'ok') location.reload();
         })
         .catch(function() { location.reload(); });
+}
+
+var clearBtn = document.getElementById('cart-clear-btn');
+if (clearBtn) {
+    clearBtn.addEventListener('click', function() {
+        if (!confirm('Очистить корзину полностью?')) return;
+        clearBtn.disabled = true;
+        fetch('/ajax/basket.php?action=clear')
+            .then(function(r) { return r.json(); })
+            .then(function() { location.reload(); })
+            .catch(function() { location.reload(); });
+    });
 }
 
 // ===== TTL корзины (12ч) и ревалидация через API поставщика =====

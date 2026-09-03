@@ -9,7 +9,7 @@ $action = $_GET['action'] ?? '';
 $id = (int)($_GET['id'] ?? 0);
 $qty = (int)($_GET['quantity'] ?? 0);
 
-if (!$id || !in_array($action, ['update', 'delete'])) {
+if (!in_array($action, ['update', 'delete', 'clear']) || (!$id && $action !== 'clear')) {
     echo json_encode(['status' => 'error', 'message' => 'bad request']);
     exit;
 }
@@ -20,6 +20,17 @@ if ($action === 'update' && $qty > 0 && $qty <= 999) {
 
 if ($action === 'delete') {
     CSaleBasket::Delete($id);
+}
+
+if ($action === 'clear') {
+    $clearRes = CSaleBasket::GetList(
+        [],
+        ['FUSER_ID' => CSaleBasket::GetBasketUserID(), 'ORDER_ID' => 'NULL', 'LID' => SITE_ID],
+        false, false, ['ID']
+    );
+    while ($row = $clearRes->Fetch()) {
+        CSaleBasket::Delete($row['ID']);
+    }
 }
 
 // Пересчёт
