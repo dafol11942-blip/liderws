@@ -188,6 +188,17 @@ function dRange(s){
     var d=s&&s.delivery_days;
     return d>=0?d+' дн.':'—';
 }
+// Предложение с минимальной ценой среди списка — чтобы в шапке группы аналога
+// (ft-gbest, "Лучшая: ЦЕНА / СРОК") срок доставки был настоящим сроком именно
+// ЭТОГО предложения ("Сегодня 13:15 - 16:00"), а не голым числом дней отдельно
+// взятого (обычно другого) самого быстрого предложения.
+function pickCheapestOffer(offers){
+    var best=null;
+    (offers||[]).forEach(function(s){
+        if (s.client_price>0 && (!best || s.client_price<best.client_price)) best=s;
+    });
+    return best;
+}
 
 function showProgress(pct, msg) {
     qs('#resultContent').innerHTML =
@@ -347,6 +358,7 @@ function mergeAnalogOffers(d1, analogOffers, newAnalogs) {
         var qtys   = existing.suppliers.map(function(s){return s.quantity;});
         existing.best_price    = prices.length ? Math.min.apply(null, prices) : 0;
         existing.best_delivery = days.length ? Math.min.apply(null, days) : null;
+        existing.best_delivery_offer = pickCheapestOffer(existing.suppliers);
         existing.total_qty     = qtys.reduce(function(sum, q){return sum+q;}, 0);
         existing.total_qty_label = (IS_MANAGER || existing.total_qty <= 10) ? (existing.total_qty + ' шт.') : 'Много';
         existing.has_instock   = qtys.some(function(q){return q>0;});
@@ -595,11 +607,13 @@ function renderResults(d){
         var days   = visible.map(function(s){return s.delivery_days;}).filter(function(dd){return dd>=0;});
         var qtys   = visible.map(function(s){return s.quantity;});
         var totalQty = qtys.reduce(function(s,q){return s+q;}, 0);
+        var cheapest = pickCheapestOffer(visible);
         return {
             key: a.key, brand: a.brand, article: a.article, description: a.description,
             suppliers: visible,
             best_price:    prices.length ? Math.min.apply(null, prices) : 0,
             best_delivery: days.length ? Math.min.apply(null, days) : null,
+            best_delivery_offer: cheapest,
             total_qty:     totalQty,
             total_qty_label: (IS_MANAGER || totalQty <= 10) ? (totalQty + ' шт.') : 'Много',
             has_instock:   qtys.some(function(q){return q>0;})
@@ -653,7 +667,7 @@ function renderResults(d){
         h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title"><svg class="icon"><use href="#icon-refresh"></use></svg> Аналоги ('+analogsVisible.length+')</span></div>';
         analogsVisible.forEach(function(a){
             var groupHasMore=a.suppliers.length>2;
-            h+='<div class="ft-group"><div class="ft-ghead"'+(groupHasMore?' data-ft-toggle':'')+'><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery!==null?a.best_delivery+' дн.':'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty_label+'</span>'+(groupHasMore?'<button type="button" class="ft-gtoggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div></div>';
+            h+='<div class="ft-group"><div class="ft-ghead"'+(groupHasMore?' data-ft-toggle':'')+'><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery_offer?dRange(a.best_delivery_offer):'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty_label+'</span>'+(groupHasMore?'<button type="button" class="ft-gtoggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div></div>';
             h+='<div class="ft-gbody">'+supplierTable(a.suppliers,'analog',a.brand,a.article,a.key)+'</div>';
             h+='</div>';
         });
