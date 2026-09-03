@@ -1,6 +1,11 @@
 <?php if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true) die();
 CModule::IncludeModule('sale');
 CModule::IncludeModule('iblock');
+require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php');
+
+if (!defined('CART_TTL_SECONDS')) define('CART_TTL_SECONDS', 12 * 3600);
+
+$isMgr = isManager();
 
 // Получаем корзину
 $items = [];
@@ -34,6 +39,44 @@ while ($b = $bRes->Fetch()) {
         }
     }
 
+    // Свойства позиции, положенные order_from_supplier.php / basket_recheck.php —
+    // артикул/бренд/поставщик/склад/срок доставки/остаток/время подтверждения (TTL).
+    $props = [];
+    $propsRes = CSaleBasket::GetPropsList([], ['BASKET_ID' => $b['ID']]);
+    while ($pr = $propsRes->Fetch()) {
+        $props[$pr['CODE']] = $pr['VALUE'];
+    }
+    $b['PROPS'] = $props;
+
+    $supplierCode = $props['SUPPLIER_NAME'] ?? '';
+    $b['SUPPLIER_CODE'] = $supplierCode;
+    $b['ARTICLE'] = $props['SUPPLIER_ARTICLE'] ?? '';
+    $b['BRAND']   = $props['SUPPLIER_BRAND'] ?? '';
+
+    $supplierLabel = $supplierCode;
+    if ($supplierCode !== '' && function_exists('getSupplierFactory')) {
+        $conn = getSupplierFactory()->get($supplierCode);
+        if ($conn) $supplierLabel = $conn->getName();
+    }
+    $b['SUPPLIER_LABEL'] = $supplierLabel;
+
+    $deliveryLabel = $props['SUPPLIER_DELIVERY_LABEL'] ?? '';
+    $deliveryTime  = $props['SUPPLIER_DELIVERY_TIME'] ?? '';
+    $deliveryDays  = isset($props['SUPPLIER_DELIVERY_DAYS']) ? (int)$props['SUPPLIER_DELIVERY_DAYS'] : null;
+    if ($deliveryLabel !== '') {
+        $b['DELIVERY_TEXT'] = $deliveryLabel . ($deliveryTime !== '' ? ' ' . $deliveryTime : '');
+    } elseif ($deliveryDays !== null && $deliveryDays >= 0) {
+        $b['DELIVERY_TEXT'] = $deliveryDays . ' дн.';
+    } else {
+        $b['DELIVERY_TEXT'] = '';
+    }
+
+    $addedAt = isset($props['SUPPLIER_ADDED_AT']) ? (int)$props['SUPPLIER_ADDED_AT'] : 0;
+    $b['ADDED_AT'] = $addedAt;
+    // Позиции без ADDED_AT (положены до введения TTL) не считаем устаревшими,
+    // чтобы не ломать уже лежащее в корзинах.
+    $b['IS_STALE'] = $addedAt > 0 && (time() - $addedAt) > CART_TTL_SECONDS;
+
     $totalSum += $b['SUM_NUM'];
     $totalQty += $b['QTY'];
     $items[] = $b;
@@ -57,8 +100,13 @@ $totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
     <h1 class="cart-page__title">Корзина</h1>
     <div class="cart-layout">
         <div class="cart-items">
-            <?php foreach ($items as $item): ?>
-            <div class="cart-item" id="basket-row-<?= $item['ID'] ?>">
+            <?php foreach ($items as $item):
+                $searchUrl = ($item['ARTICLE'] !== '')
+                    ? '/search/?q=' . urlencode($item['ARTICLE']) . '&brand=' . urlencode($item['BRAND']) . '&number=' . urlencode($item['ARTICLE'])
+                    : '/search/';
+            ?>
+            <div class="cart-item<?= $item['IS_STALE'] ? ' cart-item--stale' : '' ?>" id="basket-row-<?= $item['ID'] ?>"
+                 data-added-at="<?= (int)$item['ADDED_AT'] ?>" data-search-url="<?= htmlspecialchars($searchUrl) ?>">
                 <div class="cart-item__img">
                     <a href="<?= $item['URL'] ?>">
                         <img src="<?= $item['IMG'] ?>" alt="<?= htmlspecialchars($item['NAME']) ?>" loading="lazy">
@@ -67,6 +115,20 @@ $totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
                 <div class="cart-item__info">
                     <a href="<?= $item['URL'] ?>" class="cart-item__name"><?= htmlspecialchars($item['NAME']) ?></a>
                     <div class="cart-item__price-unit"><?= $item['PRICE_FMT'] ?> / шт.</div>
+                    <?php if ($item['SUPPLIER_CODE'] !== ''): ?>
+                    <div class="cart-item__meta">
+                        <?php if ($isMgr): ?>
+                            Поставщик: <?= htmlspecialchars($item['SUPPLIER_LABEL']) ?><?php if (!empty($item['PROPS']['SUPPLIER_WAREHOUSE'])): ?> · Склад: <?= htmlspecialchars($item['PROPS']['SUPPLIER_WAREHOUSE']) ?><?php endif; ?><?php if ($item['DELIVERY_TEXT'] !== ''): ?> · Доставка: <?= htmlspecialchars($item['DELIVERY_TEXT']) ?><?php endif; ?>
+                        <?php elseif ($item['DELIVERY_TEXT'] !== ''): ?>
+                            Доставка: <?= htmlspecialchars($item['DELIVERY_TEXT']) ?>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
+                    <div class="cart-item__stale-banner">
+                        Информация могла устареть
+                        <button type="button" class="cart-item__recheck-btn" data-recheck-id="<?= $item['ID'] ?>">Обновить</button>
+                    </div>
+                    <div class="cart-item__recheck-result" id="recheck-<?= $item['ID'] ?>"></div>
                 </div>
                 <div class="cart-item__qty">
                     <button type="button" class="cart-qty-btn" onclick="basketChange(<?= $item['ID'] ?>, -1)">−</button>
@@ -100,7 +162,7 @@ $totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
                     <span>Итого</span>
                     <span id="cart-total"><?= $totalFmt ?></span>
                 </div>
-                <a href="/order/" class="btn btn--primary btn--lg btn--block">Перейти к оформлению</a>
+                <a href="/order/" id="checkout-link" class="btn btn--primary btn--lg btn--block">Перейти к оформлению</a>
                 <a href="/catalog/" class="btn btn--outline btn--block" style="margin-top:10px;">Продолжить покупки</a>
             </div>
         </div>
@@ -140,6 +202,38 @@ $totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
 .cart-item__name { font-size: 14px; font-weight: 700; color: var(--black); text-decoration: none; display: block; line-height: 1.4; }
 .cart-item__name:hover { color: var(--blue); }
 .cart-item__price-unit { font-size: 12px; color: var(--gray-light); margin-top: 4px; }
+.cart-item__meta { font-size: 12px; color: var(--gray); margin-top: 4px; }
+
+.cart-item__stale-banner { display: none; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; color: #a15c00; }
+.cart-item--stale .cart-item__stale-banner { display: flex; }
+.cart-item--stale .cart-item__img,
+.cart-item--stale .cart-item__name,
+.cart-item--stale .cart-item__price-unit,
+.cart-item--stale .cart-item__meta,
+.cart-item--stale .cart-item__price { opacity: 0.45; }
+.cart-item--stale .cart-qty-btn,
+.cart-item--stale .cart-qty-input { pointer-events: none; opacity: 0.45; }
+.cart-item__recheck-btn {
+    border: 1px solid #a15c00; background: #fff8ec; color: #a15c00; border-radius: 6px;
+    padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.cart-item__recheck-btn:hover { background: #ffefd1; }
+.cart-item__recheck-btn:disabled { opacity: 0.6; cursor: default; }
+
+.cart-item__recheck-result { font-size: 13px; margin-top: 10px; }
+.cart-item__recheck-result:empty { display: none; }
+.cart-item__recheck-result .rr-box { border-radius: var(--radius); padding: 12px 14px; }
+.cart-item__recheck-result .rr-box--ok { background: #eafaf0; color: #1a7a3e; }
+.cart-item__recheck-result .rr-box--warn { background: #fff5e6; color: #8a5300; }
+.cart-item__recheck-result .rr-box--err { background: #fdecec; color: #a12626; }
+.cart-item__recheck-result .rr-diff { margin: 6px 0; }
+.cart-item__recheck-result .rr-actions { display: flex; gap: 8px; margin-top: 10px; }
+.cart-item__recheck-result .rr-btn {
+    border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid transparent;
+}
+.cart-item__recheck-result .rr-btn--accept { background: var(--blue); color: #fff; }
+.cart-item__recheck-result .rr-btn--remove { background: transparent; border-color: currentColor; }
+.cart-item__recheck-result .rr-btn--search { background: var(--blue); color: #fff; text-decoration: none; display: inline-block; }
 
 .cart-item__qty { display: flex; align-items: center; flex-shrink: 0; }
 .cart-qty-btn {
@@ -244,5 +338,135 @@ function basketDelete(id) {
             if (d.status === 'ok') location.reload();
         })
         .catch(function() { location.reload(); });
+}
+
+// ===== TTL корзины (12ч) и ревалидация через API поставщика =====
+var CART_TTL_MS = <?= CART_TTL_SECONDS ?> * 1000;
+
+function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+}
+
+function refreshStaleClasses() {
+    var now = Date.now();
+    document.querySelectorAll('.cart-item[data-added-at]').forEach(function(row) {
+        var addedAt = parseInt(row.getAttribute('data-added-at'), 10);
+        if (!addedAt) return; // позиции без TTL (добавлены до введения фичи) не помечаем
+        var stale = (now - addedAt * 1000) > CART_TTL_MS;
+        row.classList.toggle('cart-item--stale', stale);
+    });
+}
+refreshStaleClasses();
+setInterval(refreshStaleClasses, 60000);
+
+function fmtDelivery(label, time) {
+    if (!label) return '—';
+    return label + (time ? ' ' + time : '');
+}
+
+document.addEventListener('click', function(e) {
+    var btn = e.target.closest && e.target.closest('.cart-item__recheck-btn');
+    if (btn) {
+        recheckItem(btn.getAttribute('data-recheck-id'), 'check', btn);
+        return;
+    }
+
+    var acceptBtn = e.target.closest && e.target.closest('.rr-btn--accept');
+    if (acceptBtn) {
+        recheckItem(acceptBtn.getAttribute('data-id'), 'apply', acceptBtn);
+        return;
+    }
+
+    var removeBtn = e.target.closest && e.target.closest('.rr-btn--remove');
+    if (removeBtn) {
+        basketDelete(removeBtn.getAttribute('data-id'));
+        return;
+    }
+});
+
+function recheckItem(id, mode, triggerBtn) {
+    if (triggerBtn) triggerBtn.disabled = true;
+    var resultEl = document.getElementById('recheck-' + id);
+
+    fetch('/local/ajax/basket_recheck.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'id=' + encodeURIComponent(id) + '&mode=' + encodeURIComponent(mode)
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        if (triggerBtn) triggerBtn.disabled = false;
+        var row = document.getElementById('basket-row-' + id);
+
+        if (d.status === 'unchanged') {
+            if (row) {
+                row.setAttribute('data-added-at', d.added_at);
+                row.classList.remove('cart-item--stale');
+            }
+            if (resultEl) resultEl.innerHTML = '<div class="rr-box rr-box--ok">Актуально, изменений нет.</div>';
+            setTimeout(function() { if (resultEl) resultEl.innerHTML = ''; }, 4000);
+            return;
+        }
+
+        if (d.status === 'changed') {
+            var prev = d.previous, cur = d.current;
+            var lines = '';
+            if (Math.abs((cur.price||0) - (prev.price||0)) > 0.01) {
+                lines += '<div class="rr-diff">Цена: было ' + Math.round(prev.price) + ' ₽ → стало ' + Math.round(cur.price) + ' ₽</div>';
+            }
+            if (cur.delivery_days !== prev.delivery_days) {
+                lines += '<div class="rr-diff">Доставка: было ' + esc(fmtDelivery(prev.delivery_label, prev.delivery_time)) + ' → стало ' + esc(fmtDelivery(cur.delivery_label, cur.delivery_time)) + '</div>';
+            }
+            if (cur.qty_avail < d.qty_requested) {
+                lines += '<div class="rr-diff">В наличии у поставщика: ' + cur.qty_avail + ' шт. (в корзине ' + d.qty_requested + ' шт.)</div>';
+            }
+            if (resultEl) resultEl.innerHTML = '<div class="rr-box rr-box--warn">Условия изменились.' + lines
+                + '<div class="rr-actions">'
+                + '<button type="button" class="rr-btn rr-btn--accept" data-id="' + id + '">Принять новые условия</button>'
+                + '<button type="button" class="rr-btn rr-btn--remove" data-id="' + id + '">Удалить из корзины</button>'
+                + '</div></div>';
+            return;
+        }
+
+        if (d.status === 'not_found') {
+            if (resultEl) resultEl.innerHTML = '<div class="rr-box rr-box--err">Товара нет в наличии у поставщика.'
+                + '<div class="rr-actions">'
+                + '<a href="' + esc(d.search_url) + '" class="rr-btn rr-btn--search">Повторить поиск</a>'
+                + '<button type="button" class="rr-btn rr-btn--remove" data-id="' + id + '">Удалить из корзины</button>'
+                + '</div></div>';
+            return;
+        }
+
+        if (d.status === 'ok') return; // apply прошёл успешно — страница перезагрузится ниже
+
+        if (resultEl) resultEl.innerHTML = '<div class="rr-box rr-box--err">' + esc(d.message || 'Не удалось обновить данные') + '</div>';
+    }).then(function() {
+        if (mode === 'apply') {
+            // Успешное принятие новых условий — проще перерисовать всю корзину,
+            // т.к. меняются цена/сумма/итоги/срок и, возможно, количество.
+            location.reload();
+        }
+    }).catch(function() {
+        if (triggerBtn) triggerBtn.disabled = false;
+        if (resultEl) resultEl.innerHTML = '<div class="rr-box rr-box--err">Ошибка соединения, попробуйте ещё раз</div>';
+    });
+}
+
+var checkoutLink = document.getElementById('checkout-link');
+if (checkoutLink) {
+    checkoutLink.addEventListener('click', function(e) {
+        if (document.querySelector('.cart-item--stale')) {
+            e.preventDefault();
+            showToast('Обновите устаревшие позиции перед оформлением заказа');
+        }
+    });
+}
+
+function showToast(msg) {
+    var t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#2b2b2b;color:#fff;padding:12px 20px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.2)';
+    document.body.appendChild(t);
+    setTimeout(function() { t.remove(); }, 4000);
 }
 </script>

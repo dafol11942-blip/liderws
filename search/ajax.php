@@ -152,10 +152,13 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
 
     $token = bin2hex(random_bytes(8));
     $OFFER_TOKENS[$token] = [
-        'supplier'  => $code,
-        'warehouse' => $realWarehouse,
-        'price'     => $basePrice,
-        'quantity'  => $quantity,
+        'supplier'       => $code,
+        'warehouse'      => $realWarehouse,
+        'price'          => $basePrice,
+        'quantity'       => $quantity,
+        'delivery_days'  => (int)($it->deliveryDays ?? -1),
+        'delivery_label' => $it->deliveryLabel ?? null,
+        'delivery_time'  => $it->deliveryTimeLabel ?? null,
     ];
 
     return [

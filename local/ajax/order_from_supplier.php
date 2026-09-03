@@ -17,8 +17,6 @@ $article      = trim($data['article'] ?? '');
 $brand        = trim($data['brand'] ?? '');
 $supplier     = trim($data['supplier'] ?? 'moskvorechie');
 $quantity     = max(1, (int)($data['quantity'] ?? 1));
-$deliveryDays = (int)($data['delivery_days'] ?? 0);
-$deliveryText = trim($data['delivery_text'] ?? '');
 $taskId       = trim($data['task'] ?? '');
 $offerToken   = trim($data['offer_token'] ?? '');
 
@@ -54,6 +52,10 @@ try {
     if (!$item) die(json_encode(['success' => false, 'message' => 'Товар не найден']));
 
     $realWarehouse = $resolvedOffer['warehouse'] ?? ($item->warehouse ?? '');
+    $deliveryDays  = $resolvedOffer['delivery_days']  ?? ($item->deliveryDays ?? -1);
+    $deliveryLabel = $resolvedOffer['delivery_label'] ?? ($item->deliveryLabel ?? null);
+    $deliveryTime  = $resolvedOffer['delivery_time']  ?? ($item->deliveryTimeLabel ?? null);
+    $qtyAvail      = $resolvedOffer['quantity'] ?? ($item->quantity ?? $quantity);
 
     require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php');
     $price = getDisplayPrice($item->price);
@@ -87,8 +89,29 @@ try {
         ) { $existItem = $basketItem; break; }
     }
 
+    // Создаёт свойство, если его ещё нет, иначе обновляет значение существующего.
+    $upsertProp = function ($props, string $code, string $name, $value) {
+        foreach ($props as $p) {
+            if ($p->getField('CODE') === $code) {
+                $p->setField('VALUE', $value);
+                return;
+            }
+        }
+        $p = $props->createItem();
+        $p->setFields(['NAME' => $name, 'CODE' => $code, 'VALUE' => $value]);
+    };
+
     if ($existItem) {
         $existItem->setField('QUANTITY', $existItem->getQuantity() + $quantity);
+        // Мы только что получили свежие данные от поставщика — обновляем TTL и срок
+        // доставки/остаток позиции, чтобы повторное добавление считалось подтверждением
+        // актуальности (см. TTL корзины 12ч в /cart/).
+        $props = $existItem->getPropertyCollection();
+        $upsertProp($props, 'SUPPLIER_DELIVERY_DAYS',  'Срок доставки (дн)', $deliveryDays);
+        $upsertProp($props, 'SUPPLIER_DELIVERY_LABEL', 'Срок доставки',      (string)$deliveryLabel);
+        $upsertProp($props, 'SUPPLIER_DELIVERY_TIME',  'Время доставки',     (string)$deliveryTime);
+        $upsertProp($props, 'SUPPLIER_QTY_AVAIL',      'Остаток у поставщика', $qtyAvail);
+        $upsertProp($props, 'SUPPLIER_ADDED_AT',       'Подтверждено',       (string)time());
     } else {
         $basketItem = $basket->createItem('catalog', $productId);
         $basketItem->setFields([
@@ -99,14 +122,17 @@ try {
 
         $props = $basketItem->getPropertyCollection();
         $list = [
-            ['SUPPLIER_ARTICLE',       'Артикул',          $article],
-            ['SUPPLIER_BRAND',         'Бренд',            $brand],
-            ['SUPPLIER_NAME',          'Поставщик',        $supplier],
-            ['SUPPLIER_WAREHOUSE',     'Склад',            $realWarehouse],
-            ['SUPPLIER_TITLE',         'Название',         $item->name],
-            ['SUPPLIER_PRICE_BASE',    'Закупочная цена',  $item->price],
+            ['SUPPLIER_ARTICLE',       'Артикул',            $article],
+            ['SUPPLIER_BRAND',         'Бренд',              $brand],
+            ['SUPPLIER_NAME',          'Поставщик',          $supplier],
+            ['SUPPLIER_WAREHOUSE',     'Склад',              $realWarehouse],
+            ['SUPPLIER_TITLE',         'Название',           $item->name],
+            ['SUPPLIER_PRICE_BASE',    'Закупочная цена',    $item->price],
             ['SUPPLIER_DELIVERY_DAYS', 'Срок доставки (дн)', $deliveryDays],
-            ['SUPPLIER_DELIVERY_TEXT', 'Доставка',         $deliveryText],
+            ['SUPPLIER_DELIVERY_LABEL','Срок доставки',      (string)$deliveryLabel],
+            ['SUPPLIER_DELIVERY_TIME', 'Время доставки',     (string)$deliveryTime],
+            ['SUPPLIER_QTY_AVAIL',     'Остаток у поставщика', $qtyAvail],
+            ['SUPPLIER_ADDED_AT',      'Подтверждено',       (string)time()],
         ];
         foreach ($list as [$code, $name, $value]) {
             $p = $props->createItem();
