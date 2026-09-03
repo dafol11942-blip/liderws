@@ -679,13 +679,22 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
         $err      = curl_error($ch);
         curl_close($ch);
 
+        $this->log("fetchOrderStatusByReference({$reference}): response http={$httpCode} err={$err} body=" . substr((string)$resp, 0, 4000));
+
         if ($err || $httpCode !== 200 || empty($resp)) {
-            $this->log("fetchOrderStatusByReference({$reference}): HTTP {$httpCode} err={$err}");
             return [];
         }
 
         $data = json_decode($resp, true);
         if (!is_array($data)) return [];
+
+        // Как и /v4/basket/order, этот эндпоинт может отдавать коллекцию не
+        // "голым" списком, а обёрнутой (см. лог выше — сверить на первом живом
+        // ответе). Разворачиваем 'data', только если это явно такая обёртка —
+        // у самих объектов motion такого поля по документации нет.
+        if (isset($data['data']) && is_array($data['data'])) {
+            $data = $data['data'];
+        }
 
         $out = [];
         foreach ($data as $row) {
