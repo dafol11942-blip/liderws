@@ -18,6 +18,7 @@ $totalSum = 0;
 $totalQty = 0;
 $cartMaxDeliveryDays = -1;
 $cartMaxDeliveryText = '';
+$hasSupplierItem = false;
 
 while ($b = $bRes->Fetch()) {
     $b['PRICE_NUM'] = (float)$b['PRICE'];
@@ -54,6 +55,7 @@ while ($b = $bRes->Fetch()) {
     $b['SUPPLIER_CODE'] = $supplierCode;
     $b['ARTICLE'] = $props['SUPPLIER_ARTICLE'] ?? '';
     $b['BRAND']   = $props['SUPPLIER_BRAND'] ?? '';
+    if ($supplierCode !== '') $hasSupplierItem = true;
 
     $supplierLabel = $supplierCode;
     if ($supplierCode !== '' && function_exists('getSupplierFactory')) {
@@ -91,7 +93,15 @@ while ($b = $bRes->Fetch()) {
 }
 
 $totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
-$cartDeliveryFmt = $cartMaxDeliveryText !== '' ? $cartMaxDeliveryText : 'Рассчитывается при оформлении';
+// Корзина целиком из товаров нашего склада (нет ни одной заказной позиции
+// от поставщика) — забрать можно сегодня же, без ожидания поставки.
+if (!empty($items) && !$hasSupplierItem) {
+    $cartDeliveryFmt = 'Доступен к самовывозу сегодня';
+} elseif ($cartMaxDeliveryText !== '') {
+    $cartDeliveryFmt = $cartMaxDeliveryText;
+} else {
+    $cartDeliveryFmt = 'Рассчитывается при оформлении';
+}
 ?>
 
 <?php if (empty($items)): ?>
