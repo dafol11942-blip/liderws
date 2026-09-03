@@ -67,17 +67,31 @@ try {
     // (см. SupplierOrderable) — корзина его только хранит и переносит дальше.
     $orderMeta     = $resolvedOffer['order_meta'] ?? [];
 
-    if ($itemName === '' || $basePrice <= 0) {
+    // Отдельно от имени/цены — order_meta мог не долететь и тогда, когда токен
+    // в целом был найден (напр. позиция лежит в корзине ещё с прошлой версии кода,
+    // до того как order_from_supplier.php начал сохранять SUPPLIER_ORDER_META).
+    // Без него заказ у поставщика впоследствии не соберётся (см. placeOrder()),
+    // поэтому довосстанавливаем его тем же getDetail(), даже если имя/цена и так
+    // были известны.
+    if ($itemName === '' || $basePrice <= 0 || empty($orderMeta)) {
         $item = $connector->getDetail($article, $brand);
-        if (!$item) die(json_encode(['success' => false, 'message' => 'Товар не найден']));
 
-        $itemName      = $item->name;
-        $basePrice     = $item->price;
-        $realWarehouse = $realWarehouse !== '' ? $realWarehouse : (string)($item->warehouse ?? '');
-        $deliveryDays  = $deliveryDays  ?? ($item->deliveryDays ?? -1);
-        $deliveryLabel = $deliveryLabel ?? $item->deliveryLabel;
-        $deliveryTime  = $deliveryTime  ?? $item->deliveryTimeLabel;
-        $qtyAvail      = $qtyAvail ?: ($item->quantity ?? $quantity);
+        if ($item) {
+            if ($itemName === '')  $itemName  = $item->name;
+            if ($basePrice <= 0)   $basePrice = $item->price;
+            $realWarehouse = $realWarehouse !== '' ? $realWarehouse : (string)($item->warehouse ?? '');
+            $deliveryDays  = $deliveryDays  ?? ($item->deliveryDays ?? -1);
+            $deliveryLabel = $deliveryLabel ?? $item->deliveryLabel;
+            $deliveryTime  = $deliveryTime  ?? $item->deliveryTimeLabel;
+            $qtyAvail      = $qtyAvail ?: ($item->quantity ?? $quantity);
+            if (empty($orderMeta)) $orderMeta = $item->orderMeta ?? [];
+        } elseif ($itemName === '' || $basePrice <= 0) {
+            // Без имени/цены товар в корзину не добавить — это по-прежнему фатально.
+            die(json_encode(['success' => false, 'message' => 'Товар не найден']));
+        }
+        // Если $item не найден, но имя/цена уже были — просто остаёмся без
+        // order_meta (позиция добавится в корзину, но пока не сможет уйти
+        // автоматическим заказом у поставщика).
     }
     $deliveryDays = $deliveryDays ?? -1;
     $orderMetaJson = json_encode($orderMeta, JSON_UNESCAPED_UNICODE);
