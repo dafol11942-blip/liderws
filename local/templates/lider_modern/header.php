@@ -1,14 +1,22 @@
 <?php if (!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED !== true) die();
 
 $cartQty = 0;
+// GetBasketUserID(true) (по умолчанию) насильно заводит нового FUSER (и куку) для
+// КАЖДОГО анонимного визита — на каждой странице сайта, для каждого бота/краулера,
+// это на пустом месте плодит записи в b_sale_fuser/b_sale_basket и грузит сайт на
+// каждый хит. GetBasketUserID(false) не создаёт fuser — если его ещё нет, у гостя
+// точно пустая корзина, запрос можно не делать вовсе.
 if (CModule::IncludeModule('sale')) {
-    $cartRes = CSaleBasket::GetList(
-        [],
-        ['FUSER_ID' => CSaleBasket::GetBasketUserID(), 'ORDER_ID' => 'NULL', 'LID' => SITE_ID],
-        false, false, ['QUANTITY']
-    );
-    while ($cartRow = $cartRes->Fetch()) {
-        $cartQty += (int)$cartRow['QUANTITY'];
+    $fuserId = CSaleBasket::GetBasketUserID(false);
+    if ($fuserId) {
+        $cartRes = CSaleBasket::GetList(
+            [],
+            ['FUSER_ID' => $fuserId, 'ORDER_ID' => 'NULL', 'LID' => SITE_ID],
+            false, false, ['QUANTITY']
+        );
+        while ($cartRow = $cartRes->Fetch()) {
+            $cartQty += (int)$cartRow['QUANTITY'];
+        }
     }
 }
 ?>
