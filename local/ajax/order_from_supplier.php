@@ -48,17 +48,38 @@ try {
     $connector = $factory->get($supplier);
     if (!$connector) die(json_encode(['success' => false, 'message' => 'Поставщик не найден']));
 
-    $item = $connector->getDetail($article, $brand);
-    if (!$item) die(json_encode(['success' => false, 'message' => 'Товар не найден']));
+    // Быстрый путь: все данные (цена/остаток/склад/срок/название) уже были получены
+    // и сохранены в OfferTokenStore во время поиска — их достаточно, повторно дёргать
+    // API поставщика не нужно. getDetail() — синхронный сетевой запрос с таймаутом
+    // до 8-10с; вызывать его на КАЖДОЕ добавление в корзину держит PHP-воркер и
+    // соединение с БД занятыми всё это время — при медленном/недоступном поставщике
+    // это била по всему сайту разом (см. зависания каталога/картинок при нагрузке).
+    // Поэтому обращаемся к поставщику напрямую, только если токен не найден/истёк
+    // или в нём почему-то нет цены — то есть в редком деградированном случае.
+    $itemName      = (string)($resolvedOffer['name'] ?? '');
+    $basePrice     = (float)($resolvedOffer['price'] ?? 0);
+    $realWarehouse = (string)($resolvedOffer['warehouse'] ?? '');
+    $deliveryDays  = $resolvedOffer['delivery_days'] ?? null;
+    $deliveryLabel = $resolvedOffer['delivery_label'] ?? null;
+    $deliveryTime  = $resolvedOffer['delivery_time'] ?? null;
+    $qtyAvail      = (int)($resolvedOffer['quantity'] ?? 0) ?: $quantity;
 
-    $realWarehouse = $resolvedOffer['warehouse'] ?? ($item->warehouse ?? '');
-    $deliveryDays  = $resolvedOffer['delivery_days']  ?? ($item->deliveryDays ?? -1);
-    $deliveryLabel = $resolvedOffer['delivery_label'] ?? ($item->deliveryLabel ?? null);
-    $deliveryTime  = $resolvedOffer['delivery_time']  ?? ($item->deliveryTimeLabel ?? null);
-    $qtyAvail      = $resolvedOffer['quantity'] ?? ($item->quantity ?? $quantity);
+    if ($itemName === '' || $basePrice <= 0) {
+        $item = $connector->getDetail($article, $brand);
+        if (!$item) die(json_encode(['success' => false, 'message' => 'Товар не найден']));
+
+        $itemName      = $item->name;
+        $basePrice     = $item->price;
+        $realWarehouse = $realWarehouse !== '' ? $realWarehouse : (string)($item->warehouse ?? '');
+        $deliveryDays  = $deliveryDays  ?? ($item->deliveryDays ?? -1);
+        $deliveryLabel = $deliveryLabel ?? $item->deliveryLabel;
+        $deliveryTime  = $deliveryTime  ?? $item->deliveryTimeLabel;
+        $qtyAvail      = $qtyAvail ?: ($item->quantity ?? $quantity);
+    }
+    $deliveryDays = $deliveryDays ?? -1;
 
     require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php');
-    $price = getDisplayPrice($item->price);
+    $price = getDisplayPrice($basePrice);
 
     // Служебный товар
     $xmlId = 'SUPPLIER_ORDER_' . $supplier;
@@ -129,7 +150,7 @@ try {
         $basketItem->setFields([
             'QUANTITY' => $quantity, 'CURRENCY' => 'RUB',
             'LID' => \Bitrix\Main\Context::getCurrent()->getSite(),
-            'PRICE' => $price, 'CUSTOM_PRICE' => 'Y', 'NAME' => $item->name,
+            'PRICE' => $price, 'CUSTOM_PRICE' => 'Y', 'NAME' => $itemName,
         ]);
 
         $props = $basketItem->getPropertyCollection();
@@ -138,8 +159,8 @@ try {
             ['SUPPLIER_BRAND',         'Бренд',              $brand],
             ['SUPPLIER_NAME',          'Поставщик',          $supplier],
             ['SUPPLIER_WAREHOUSE',     'Склад',              $realWarehouse],
-            ['SUPPLIER_TITLE',         'Название',           $item->name],
-            ['SUPPLIER_PRICE_BASE',    'Закупочная цена',    $item->price],
+            ['SUPPLIER_TITLE',         'Название',           $itemName],
+            ['SUPPLIER_PRICE_BASE',    'Закупочная цена',    $basePrice],
             ['SUPPLIER_DELIVERY_DAYS', 'Срок доставки (дн)', $deliveryDays],
             ['SUPPLIER_DELIVERY_LABEL','Срок доставки',      (string)$deliveryLabel],
             ['SUPPLIER_DELIVERY_TIME', 'Время доставки',     (string)$deliveryTime],

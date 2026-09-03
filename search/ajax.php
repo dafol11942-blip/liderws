@@ -154,6 +154,7 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
     $OFFER_TOKENS[$token] = [
         'supplier'       => $code,
         'warehouse'      => $realWarehouse,
+        'name'           => $preferDescription ? ($desc ?: $name) : ($name ?: $desc),
         'price'          => $basePrice,
         'quantity'       => $quantity,
         'delivery_days'  => (int)($it->deliveryDays ?? -1),
