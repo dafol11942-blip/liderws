@@ -1,24 +1,29 @@
 <?php if (!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED !== true) die();
 
-$cartQty = 0;
-// GetBasketUserID(true) (по умолчанию) насильно заводит нового FUSER (и куку) для
-// КАЖДОГО анонимного визита — на каждой странице сайта, для каждого бота/краулера,
-// это на пустом месте плодит записи в b_sale_fuser/b_sale_basket и грузит сайт на
-// каждый хит. GetBasketUserID(false) не создаёт fuser — если его ещё нет, у гостя
-// точно пустая корзина, запрос можно не делать вовсе.
-if (CModule::IncludeModule('sale')) {
-    $fuserId = CSaleBasket::GetBasketUserID(false);
-    if ($fuserId) {
-        $cartRes = CSaleBasket::GetList(
-            [],
-            ['FUSER_ID' => $fuserId, 'ORDER_ID' => 'NULL', 'LID' => SITE_ID],
-            false, false, ['QUANTITY']
-        );
-        while ($cartRow = $cartRes->Fetch()) {
-            $cartQty += (int)$cartRow['QUANTITY'];
+// Счётчик корзины для шапки берём из сессии, а не запросом к b_sale_basket на
+// каждой странице сайта — с непустой корзиной этот запрос выполнялся бы на
+// КАЖДОМ хите для этого посетителя (см. предыдущий фикс с GetBasketUserID(false):
+// он спасал только гостей с пустой корзиной). Все точки изменения корзины
+// (order_from_supplier.php, ajax/add_to_basket.php, ajax/basket.php,
+// basket_recheck.php) пишут актуальное значение в $_SESSION['CART_QTY'] сами.
+// Здесь — только один ленивый пересчёт, если сессия ещё не проинициализирована.
+if (!isset($_SESSION['CART_QTY'])) {
+    $_SESSION['CART_QTY'] = 0;
+    if (CModule::IncludeModule('sale')) {
+        $fuserId = CSaleBasket::GetBasketUserID(false);
+        if ($fuserId) {
+            $cartRes = CSaleBasket::GetList(
+                [],
+                ['FUSER_ID' => $fuserId, 'ORDER_ID' => 'NULL', 'LID' => SITE_ID],
+                false, false, ['QUANTITY']
+            );
+            while ($cartRow = $cartRes->Fetch()) {
+                $_SESSION['CART_QTY'] += (int)$cartRow['QUANTITY'];
+            }
         }
     }
 }
+$cartQty = (int)$_SESSION['CART_QTY'];
 ?>
 <!DOCTYPE html>
 <html lang="ru">

@@ -51,6 +51,7 @@ try {
     foreach ($basket as $bi) {
         $cartQty += (int)$bi->getQuantity();
     }
+    $_SESSION['CART_QTY'] = $cartQty; // держим счётчик в шапке (header.php) без запроса к БД
 
     echo json_encode([
         'status'   => 'ok',

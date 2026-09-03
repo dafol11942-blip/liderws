@@ -52,6 +52,8 @@ while ($b = $bRes->Fetch()) {
     }
 }
 
+$_SESSION['CART_QTY'] = $totalQty; // держим счётчик в шапке (header.php) без запроса к БД
+
 echo json_encode([
     'status' => 'ok',
     'itemSum' => number_format($itemSum, 0, ',', ' ') . ' ₽',
