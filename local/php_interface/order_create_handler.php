@@ -74,7 +74,7 @@ if (!function_exists('saveSupplierOrderRecord')) {
 // логируется.
 if (!function_exists('dispatchSupplierOrders')) {
     /** @return bool true, если хотя бы один поставщик подтвердил приём заказа (success=true) */
-    function dispatchSupplierOrders(int $orderId, \Bitrix\Sale\Basket $basket): bool
+    function dispatchSupplierOrders(int $orderId, \Bitrix\Sale\Basket $basket, string $buyerName = ''): bool
     {
         // BasketPropertiesCollection не имеет метода getItemValues() — читаем
         // свойство по CODE вручную через перебор коллекции (см. order_from_supplier.php).
@@ -105,7 +105,7 @@ if (!function_exists('dispatchSupplierOrders')) {
                 'quantity'       => $basketItem->getQuantity(),
                 'order_meta'     => $orderMeta,
                 'reference'      => $orderId . '_' . $basketItem->getId(),
-                'comment'        => 'Заказ №' . $orderId . ' с сайта liderws.ru',
+                'comment'        => 'Заказ №' . $orderId . ($buyerName !== '' ? ', ' . $buyerName : '') . ' с сайта liderws.ru',
             ];
         }
 
@@ -262,11 +262,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
             FILE_APPEND
         );
 
+        // ФИО покупателя — в комментарий поставщику (менеджеру на площадке
+        // поставщика нужно видеть, для кого заказ, не только номер заказа).
+        // getPayerName() читает свойство, помеченное "плательщик" в настройках
+        // типа плательщика; ORDER_PROP_2 — тот же резерв, что и в чекауте
+        // (см. lider_style/template.php), на случай нестандартной конфигурации.
+        $buyerName = '';
+        try {
+            $buyerName = trim((string)$order->getPropertyCollection()->getPayerName());
+        } catch (\Throwable $e) {}
+        if ($buyerName === '') {
+            $buyerName = trim((string)($_POST['ORDER_PROP_2'] ?? ''));
+        }
+
         // Реальные заказы у поставщиков (см. план "Реальный заказ у поставщика").
         // Наш заказ уже сохранён — сбой здесь НЕ должен помешать покупателю
         // увидеть страницу "Спасибо за заказ", только залогироваться.
         try {
-            $anySupplierOrderSent = dispatchSupplierOrders($orderId, $basket);
+            $anySupplierOrderSent = dispatchSupplierOrders($orderId, $basket, $buyerName);
         } catch (\Throwable $e) {
             $anySupplierOrderSent = false;
             logSupplierOrderDispatch("dispatchSupplierOrders упал целиком: " . $e->getMessage());
