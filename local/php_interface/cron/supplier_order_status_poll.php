@@ -24,6 +24,10 @@ const RECHECK_AFTER_MINUTES = 30;
 const MAX_AGE_DAYS          = 30;
 const BATCH_LIMIT           = 200;
 
+// Ручной запуск с --force (или -f) игнорирует 30-минутное окно — удобно при
+// тестировании, чтобы не ждать. Обычный крон-запуск по расписанию его не передаёт.
+$forceRecheck = in_array('--force', $argv ?? [], true) || in_array('-f', $argv ?? [], true);
+
 $db = new mysqli('localhost', 'u3564357_liderws', "S)'uAp]3.\$@wWd-", 'u3564357_liderws_db');
 if ($db->connect_error) {
     clog('DB connect failed: ' . $db->connect_error);
@@ -46,13 +50,19 @@ $connectorsByCode = [
     // SupplierOrderStatusProvider — остальной скрипт их не касается.
 ];
 
+$recheckCond = $forceRecheck
+    ? '1=1'
+    : "(i.LAST_CHECKED_AT IS NULL OR i.LAST_CHECKED_AT < NOW() - INTERVAL " . RECHECK_AFTER_MINUTES . " MINUTE)";
+
 $sql = "SELECT i.ID, i.REFERENCE, o.SUPPLIER_CODE
         FROM b_supplier_order_item i
         JOIN b_supplier_order o ON o.ID = i.SUPPLIER_ORDER_ID
         WHERE i.CREATED_AT > NOW() - INTERVAL " . MAX_AGE_DAYS . " DAY
-          AND (i.LAST_CHECKED_AT IS NULL OR i.LAST_CHECKED_AT < NOW() - INTERVAL " . RECHECK_AFTER_MINUTES . " MINUTE)
+          AND {$recheckCond}
         ORDER BY i.LAST_CHECKED_AT IS NULL DESC, i.LAST_CHECKED_AT ASC
         LIMIT " . BATCH_LIMIT;
+
+if ($forceRecheck) clog('--force: игнорирую 30-минутное окно между проверками');
 
 $rows = $db->query($sql);
 if (!$rows) {
