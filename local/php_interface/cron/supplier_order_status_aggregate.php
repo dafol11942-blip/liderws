@@ -14,12 +14,19 @@
  *
  * Этапы: ordered < in_transit < ready, плюс отдельно refused.
  * Правило агрегации:
- *   - если ВСЕ позиции заказа refused → агрегат = refused;
+ *   - если ВСЕ позиции заказа refused → агрегат = refused, статус SX, И заказ
+ *     помечается отменённым (нативное поле CANCELED='Y' + REASON_CANCELED —
+ *     тот же признак, что использует автоотмена по неоплате, см. план "Оплата
+ *     в течение 15 минут"): полный отказ поставщика по всем позициям — это
+ *     фактическая отмена заказа, а не просто статус для сведения;
  *   - иначе — самый ранний этап среди позиций, которые НЕ refused (частичный
  *     отказ одной позиции не топит весь заказ — виден только на её уровне).
  * Заказ трогаем только если его текущий STATUS_ID — один из "наших
- * управляемых" (N, S, SO, ST, SR) — ручной перевод менеджера в любой другой
- * статус (F, DN, DF и т.п.) автоматика не переопределяет.
+ * управляемых" (N, S, SO, ST, SR, SX) — ручной перевод менеджера в любой
+ * другой статус (F, DN, DF и т.п.) автоматика не переопределяет. SX включён в
+ * управляемые, чтобы самовосстанавливаться: заказ, у которого статус уже SX,
+ * но CANCELED почему-то не выставлен (например, создан до этого изменения),
+ * дозаполняется при следующем проходе, а не только при первом переходе в SX.
  */
 
 $docRoot = '/var/www/u3564357/data/www/liderws.ru';
@@ -57,7 +64,7 @@ const STAGE_TO_STATUS = [
     'ready'      => 'SR',
     'refused'    => 'SX',
 ];
-const MANAGED_STATUSES = ['N', 'S', 'SO', 'ST', 'SR'];
+const MANAGED_STATUSES = ['N', 'S', 'SO', 'ST', 'SR', 'SX'];
 
 clog('=== supplier_order_status_aggregate START ===');
 
@@ -67,7 +74,7 @@ try {
     // Заказы, у которых есть отслеживаемые позиции у поставщиков и текущий
     // статус — один из управляемых автоматикой.
     $orderRows = $db->query(
-        "SELECT DISTINCT so.ORDER_ID, o.STATUS_ID
+        "SELECT DISTINCT so.ORDER_ID, o.STATUS_ID, o.CANCELED
          FROM b_supplier_order so
          JOIN b_sale_order o ON o.ID = so.ORDER_ID
          WHERE o.STATUS_ID IN ('" . implode("','", MANAGED_STATUSES) . "')"
@@ -83,6 +90,7 @@ $changed = 0;
 foreach ($orderRows as $orderRow) {
     $orderId = (int)$orderRow['ORDER_ID'];
     $currentStatus = (string)$orderRow['STATUS_ID'];
+    $alreadyCanceled = ((string)($orderRow['CANCELED'] ?? 'N')) === 'Y';
     $checked++;
 
     try {
@@ -114,7 +122,10 @@ foreach ($orderRows as $orderRow) {
     }
 
     $newStatus = STAGE_TO_STATUS[$aggregateStage] ?? null;
-    if (!$newStatus || $newStatus === $currentStatus) continue;
+    $needsStatusChange = $newStatus && $newStatus !== $currentStatus;
+    $needsCancel = $aggregateStage === 'refused' && !$alreadyCanceled;
+
+    if (!$needsStatusChange && !$needsCancel) continue;
 
     try {
         $order = \Bitrix\Sale\Order::load($orderId);
@@ -122,13 +133,22 @@ foreach ($orderRows as $orderRow) {
             clog("Заказ №{$orderId}: не найден при загрузке");
             continue;
         }
-        $order->setField('STATUS_ID', $newStatus);
+        if ($needsStatusChange) {
+            $order->setField('STATUS_ID', $newStatus);
+        }
+        if ($needsCancel) {
+            $order->setField('CANCELED', 'Y');
+            $order->setField('REASON_CANCELED', 'Поставщик отказал по всем позициям заказа');
+        }
         $saveResult = $order->save();
         if ($saveResult->isSuccess()) {
             $changed++;
-            clog("Заказ №{$orderId}: {$currentStatus} → {$newStatus} (агрегат позиций: {$aggregateStage})");
+            $what = [];
+            if ($needsStatusChange) $what[] = "{$currentStatus} → {$newStatus}";
+            if ($needsCancel) $what[] = 'CANCELED=Y';
+            clog("Заказ №{$orderId}: " . implode(', ', $what) . " (агрегат позиций: {$aggregateStage})");
         } else {
-            clog("Заказ №{$orderId}: не удалось сохранить статус {$newStatus} — " . implode('; ', $saveResult->getErrorMessages()));
+            clog("Заказ №{$orderId}: не удалось сохранить — " . implode('; ', $saveResult->getErrorMessages()));
         }
     } catch (\Throwable $e) {
         clog("Заказ №{$orderId}: смена статуса упала — " . $e->getMessage());
