@@ -22,7 +22,35 @@ if (!function_exists('pluralForm')) {
 // свежесозданные статусы (устаревший список внутри компонента, независимо от
 // CACHE_TYPE=N самого компонента). Резолвим названия сами.
 require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init.php');
+require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php');
 $statusList = getOrderStatusNameMap();
+$isMgr = isManager();
+
+// Менеджеру — краткая сводка по позициям у поставщиков (поставщик + статус)
+// прямо в списке заказов, без перехода в детали. Один запрос на все заказы
+// страницы, а не по одному на заказ.
+$supplierItemsByOrder = [];
+if ($isMgr && !empty($arResult['ORDERS'])) {
+    $orderIds = [];
+    foreach ($arResult['ORDERS'] as $o2) {
+        $oid = (int)($o2['ORDER']['ID'] ?? 0);
+        if ($oid) $orderIds[] = $oid;
+    }
+    if ($orderIds) {
+        try {
+            $db = \Bitrix\Main\Application::getConnection();
+            $rows = $db->query(
+                "SELECT so.ORDER_ID, so.SUPPLIER_CODE, i.ARTICLE, i.BRAND, i.STATE_TEXT, i.STAGE
+                 FROM b_supplier_order so
+                 JOIN b_supplier_order_item i ON i.SUPPLIER_ORDER_ID = so.ID
+                 WHERE so.ORDER_ID IN (" . implode(',', $orderIds) . ")"
+            )->fetchAll();
+            foreach ($rows as $row) {
+                $supplierItemsByOrder[(int)$row['ORDER_ID']][] = $row;
+            }
+        } catch (\Throwable $e) {}
+    }
+}
 
 if (empty($arResult['ORDERS'])): ?>
     <div class="empty-state">
@@ -39,13 +67,17 @@ if (empty($arResult['ORDERS'])): ?>
             $shipment = $order['SHIPMENT'][0] ?? [];
             $payment = $order['PAYMENT'][0] ?? [];
             $statusName = $statusList[$o['STATUS_ID']] ?? $o['STATUS_ID'];
+            $statusColor = getOrderStatusColor($o['STATUS_ID']);
+            $orderId = (int)($o['ID'] ?? 0);
+            $supplierItems = $supplierItemsByOrder[$orderId] ?? [];
+            $isRefused = $o['STATUS_ID'] === 'SX';
         ?>
-        <div class="order-card">
+        <div class="order-card<?= $isMgr ? ' order-card--open' : '' ?>">
             <div class="order-card__header" onclick="this.closest('.order-card').classList.toggle('order-card--open')">
                 <div class="order-card__header-left">
                     <span class="order-card__num">Заказ №<?= $o['ACCOUNT_NUMBER'] ?></span>
                     <span class="order-card__date"><?= $o['DATE_INSERT_FORMATED'] ?: $o['DATE_INSERT'] ?></span>
-                    <span class="order-card__status"><?= htmlspecialchars($statusName) ?></span>
+                    <span class="status-pill status-pill--<?= $statusColor ?>"><?= htmlspecialchars($statusName) ?></span>
                     <span class="order-card__count"><?= count($basketItems) ?> <?= pluralForm(count($basketItems), 'товар', 'товара', 'товаров') ?></span>
                 </div>
                 <div class="order-card__header-right">
@@ -57,6 +89,32 @@ if (empty($arResult['ORDERS'])): ?>
                 </div>
             </div>
             <div class="order-card__body">
+                <?php if ($isRefused): ?>
+                <div class="status-banner status-banner--refused">
+                    <span class="status-banner__icon">⚠</span>
+                    <span>Заказ отменён — товар недоступен у поставщика (снят пользователем/поставщиком). Мы свяжемся с вами для уточнения деталей.</span>
+                </div>
+                <?php endif; ?>
+                <?php if ($isMgr && !empty($supplierItems)): ?>
+                <div class="order-card__suppliers">
+                    <?php foreach ($supplierItems as $si):
+                        $supplierLabel = $si['SUPPLIER_CODE'];
+                        if (function_exists('getSupplierFactory')) {
+                            $conn = getSupplierFactory()->get($si['SUPPLIER_CODE']);
+                            if ($conn) $supplierLabel = $conn->getName();
+                        }
+                        $itemLabel = trim(($si['BRAND'] ?? '') . ' ' . ($si['ARTICLE'] ?? ''));
+                        $stageColor = getSupplierStageColor($si['STAGE'] ?? null);
+                    ?>
+                    <div class="order-card__supplier-row">
+                        <span class="order-card__supplier-name">
+                            <?= htmlspecialchars($supplierLabel) ?><?php if ($itemLabel !== ''): ?> — <?= htmlspecialchars($itemLabel) ?><?php endif; ?>
+                        </span>
+                        <span class="status-pill status-pill--<?= $stageColor ?>"><?= htmlspecialchars((string)($si['STATE_TEXT'] ?? '') !== '' ? $si['STATE_TEXT'] : getSupplierStageLabel($si['STAGE'] ?? null)) ?></span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
                 <div class="order-card__products">
                     <?php foreach ($basketItems as $item): ?>
                     <div class="order-card__product">
@@ -88,7 +146,7 @@ if (empty($arResult['ORDERS'])): ?>
                 <div class="order-card__info">
                     <div class="order-card__info-item">
                         <span class="order-card__info-label">Статус заказа</span>
-                        <span class="order-card__info-value"><?= htmlspecialchars($statusName) ?></span>
+                        <span class="order-card__info-value"><span class="status-pill status-pill--<?= $statusColor ?>"><?= htmlspecialchars($statusName) ?></span></span>
                     </div>
                     <div class="order-card__info-item">
                         <span class="order-card__info-label">Доставка</span>
@@ -137,7 +195,6 @@ if (empty($arResult['ORDERS'])): ?>
 .order-card__header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .order-card__num { font-weight: 700; font-size: 15px; color: var(--black); }
 .order-card__date { font-size: 13px; color: var(--gray); }
-.order-card__status { font-size: 12px; font-weight: 600; background: var(--bg); padding: 3px 10px; border-radius: var(--radius); color: var(--blue-dark); }
 .order-card__count { font-size: 13px; color: var(--gray-light); }
 .order-card__price { font-weight: 800; font-size: 16px; white-space: nowrap; }
 .order-card__badge { padding: 3px 10px; border-radius: var(--radius); font-size: 12px; font-weight: 700; }
@@ -148,6 +205,9 @@ if (empty($arResult['ORDERS'])): ?>
 .order-card--open .order-card__body { display: block; }
 .order-card--open .order-card__arrow { transform: rotate(180deg); }
 .order-card--open { box-shadow: var(--shadow); border-color: var(--blue); }
+.order-card__suppliers { display: flex; flex-direction: column; gap: 6px; padding: 14px 0; border-bottom: 1px solid #eee; }
+.order-card__supplier-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px; flex-wrap: wrap; }
+.order-card__supplier-name { color: var(--gray); font-weight: 600; }
 .order-card__products { display: flex; flex-direction: column; gap: 10px; padding: 16px 0; }
 .order-card__product { display: flex; align-items: center; gap: 14px; padding: 10px 12px; background: var(--bg); border-radius: var(--radius); }
 .order-card__product-img { width: 52px; height: 52px; border-radius: var(--radius); overflow: hidden; background: #fff; border: 1px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }

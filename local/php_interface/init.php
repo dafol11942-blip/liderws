@@ -110,3 +110,48 @@ function getOrderStatusNameMap(): array
     }
     return $map;
 }
+
+/**
+ * Цвет для бейджа статуса ЗАКАЗА (b_sale_status.ID) — единая цветовая
+ * индикация везде, где показывается статус (список заказов, детали заказа).
+ * Неизвестный/ручной статус — нейтральный серый, а не ошибка: список статусов
+ * в магазине может расширяться руками в админке, это ожидаемо.
+ */
+function getOrderStatusColor(string $statusId): string
+{
+    static $colors = [
+        'N'  => 'blue',   // Принят, ожидается оплата
+        'S'  => 'blue',   // Ожидает обработки
+        'SO' => 'indigo', // Заказан у поставщика
+        'ST' => 'purple', // Товар в пути от поставщика
+        'SR' => 'green',  // Товар готов к выдаче
+        'F'  => 'teal',   // Выполнен
+        'SX' => 'red',    // Отказано поставщиком
+        'DN' => 'gray',   // Ожидает обработки (отгрузка)
+        'DF' => 'blue',   // Отгружен
+    ];
+    return $colors[$statusId] ?? 'gray';
+}
+
+/** Цвет и подпись для поставщико-независимого этапа позиции (см. PartKomConnector::normalizeStage()). */
+function getSupplierStageColor(?string $stage): string
+{
+    static $colors = [
+        'ordered'    => 'blue',
+        'in_transit' => 'purple',
+        'ready'      => 'green',
+        'refused'    => 'red',
+    ];
+    return $colors[$stage] ?? 'gray';
+}
+
+function getSupplierStageLabel(?string $stage): string
+{
+    static $labels = [
+        'ordered'    => 'Заказан у поставщика',
+        'in_transit' => 'В пути',
+        'ready'      => 'Готов к выдаче',
+        'refused'    => 'Отказано',
+    ];
+    return $labels[$stage] ?? 'Статус не определён';
+}

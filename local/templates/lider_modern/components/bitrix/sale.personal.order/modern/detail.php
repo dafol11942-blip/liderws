@@ -65,7 +65,7 @@ $fetchLiveStatus = function (int $basketItemId) use ($orderId): ?array {
         $helper = $db->getSqlHelper();
         $reference = $orderId . '_' . $basketItemId;
         $row = $db->query(
-            "SELECT STATE_TEXT, LAST_CHECKED_AT FROM b_supplier_order_item
+            "SELECT STATE_TEXT, STAGE, LAST_CHECKED_AT FROM b_supplier_order_item
              WHERE REFERENCE = '" . $helper->forSql($reference) . "' ORDER BY ID DESC LIMIT 1"
         )->fetch();
         return $row ?: null;
@@ -156,9 +156,10 @@ $shipments = [];
 foreach ($order->getShipmentCollection() as $shipment) {
     if ($shipment->isSystem()) continue;
     $shipments[] = [
-        'name'        => (string)$shipment->getField('DELIVERY_NAME'),
-        'status_name' => $statusMap[$shipment->getField('STATUS_ID')] ?? $shipment->getField('STATUS_ID'),
-        'price'       => (float)$shipment->getPrice(),
+        'name'         => (string)$shipment->getField('DELIVERY_NAME'),
+        'status_name'  => $statusMap[$shipment->getField('STATUS_ID')] ?? $shipment->getField('STATUS_ID'),
+        'status_color' => getOrderStatusColor($shipment->getField('STATUS_ID')),
+        'price'        => (float)$shipment->getPrice(),
     ];
 }
 
@@ -190,6 +191,9 @@ foreach ($order->getPropertyCollection() as $property) {
 
 $totalFmt = number_format((float)$order->getPrice(), 0, ',', ' ') . ' ₽';
 
+$statusColor = getOrderStatusColor($order->getField('STATUS_ID'));
+$isRefused = $order->getField('STATUS_ID') === 'SX';
+
 $dateInsert = $order->getField('DATE_INSERT');
 if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
     $dateFmt = $dateInsert->format('d.m.Y H:i');
@@ -204,9 +208,16 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
             <h1 class="order-detail-title">Заказ №<?= htmlspecialchars($order->getField('ACCOUNT_NUMBER')) ?></h1>
             <div class="order-detail-date"><?= htmlspecialchars($dateFmt) ?></div>
         </div>
-        <div class="order-detail-status"><?= htmlspecialchars($statusName) ?></div>
+        <div class="status-pill status-pill--<?= $statusColor ?> order-detail-status"><?= htmlspecialchars($statusName) ?></div>
     </div>
     <a href="<?= htmlspecialchars($pathToList) ?>" class="order-detail-back">← К списку заказов</a>
+
+    <?php if ($isRefused): ?>
+    <div class="status-banner status-banner--refused" style="margin-bottom: 20px;">
+        <span class="status-banner__icon">⚠</span>
+        <span>Заказ отменён — товар недоступен у поставщика (снят пользователем/поставщиком). Мы свяжемся с вами для уточнения деталей.</span>
+    </div>
+    <?php endif; ?>
 
     <div class="order-detail-layout">
         <div class="order-detail-items">
@@ -237,7 +248,10 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
                     <?php $liveStatusArr = $item['live_status'] ?? []; ?>
                     <?php if ($isMgr): ?>
                     <div class="cart-item__meta cart-item__meta--status">
-                        Статус у поставщика: <b><?= ($liveStatusArr['STATE_TEXT'] ?? '') !== '' ? htmlspecialchars($liveStatusArr['STATE_TEXT']) : 'ещё не проверялся' ?></b>
+                        Статус у поставщика:
+                        <span class="status-pill status-pill--<?= getSupplierStageColor($liveStatusArr['STAGE'] ?? null) ?>">
+                            <?= ($liveStatusArr['STATE_TEXT'] ?? '') !== '' ? htmlspecialchars($liveStatusArr['STATE_TEXT']) : 'ещё не проверялся' ?>
+                        </span>
                         <?php if (!empty($liveStatusArr['LAST_CHECKED_AT'])): ?>
                             <span class="cart-item__meta-time">(<?= htmlspecialchars($liveStatusArr['LAST_CHECKED_AT']) ?>)</span>
                         <?php endif; ?>
@@ -268,7 +282,7 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
                     </div>
                     <div class="order-detail-summary__row">
                         <span>Статус доставки</span>
-                        <span><?= htmlspecialchars($shipment['status_name']) ?></span>
+                        <span><span class="status-pill status-pill--<?= $shipment['status_color'] ?>"><?= htmlspecialchars($shipment['status_name']) ?></span></span>
                     </div>
                     <?php endforeach; ?>
                     <?php foreach ($payments as $payment): ?>
@@ -301,7 +315,7 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
 .order-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
 .order-detail-title { font-size: 26px; font-weight: 800; color: var(--black); margin: 0; }
 .order-detail-date { font-size: 13px; color: var(--gray); margin-top: 4px; }
-.order-detail-status { font-size: 13px; font-weight: 700; background: var(--bg); color: var(--blue-dark); padding: 6px 14px; border-radius: var(--radius); white-space: nowrap; }
+.order-detail-status { font-size: 13px; padding: 6px 14px; white-space: nowrap; }
 .order-detail-back { display: inline-block; font-size: 13px; color: var(--blue); text-decoration: none; margin-bottom: 20px; }
 .order-detail-back:hover { text-decoration: underline; }
 
