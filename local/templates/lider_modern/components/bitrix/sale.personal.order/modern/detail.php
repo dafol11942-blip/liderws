@@ -191,8 +191,10 @@ foreach ($order->getPropertyCollection() as $property) {
 
 $totalFmt = number_format((float)$order->getPrice(), 0, ',', ' ') . ' ₽';
 
-$statusColor = getOrderStatusColor($order->getField('STATUS_ID'));
-$isRefused = $order->getField('STATUS_ID') === 'SX';
+$isCanceled = $order->getField('CANCELED') === 'Y';
+$statusName = $isCanceled ? 'Отменён' : $statusName;
+$statusColor = $isCanceled ? 'red' : getOrderStatusColor($order->getField('STATUS_ID'));
+$isRefused = !$isCanceled && $order->getField('STATUS_ID') === 'SX';
 
 $dateInsert = $order->getField('DATE_INSERT');
 if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
@@ -212,7 +214,12 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
     </div>
     <a href="<?= htmlspecialchars($pathToList) ?>" class="order-detail-back">← К списку заказов</a>
 
-    <?php if ($isRefused): ?>
+    <?php if ($isCanceled): ?>
+    <div class="status-banner status-banner--refused" style="margin-bottom: 20px;">
+        <span class="status-banner__icon">⚠</span>
+        <span><?= htmlspecialchars((string)$order->getField('REASON_CANCELED') !== '' ? $order->getField('REASON_CANCELED') : 'Заказ отменён.') ?></span>
+    </div>
+    <?php elseif ($isRefused): ?>
     <div class="status-banner status-banner--refused" style="margin-bottom: 20px;">
         <span class="status-banner__icon">⚠</span>
         <span>Заказ отменён — товар недоступен у поставщика (снят пользователем/поставщиком). Мы свяжемся с вами для уточнения деталей.</span>

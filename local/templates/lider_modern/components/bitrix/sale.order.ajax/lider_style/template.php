@@ -40,18 +40,54 @@ $payments = $arResult['PAY_SYSTEM'] ?? [];
 // Номер заказа (если уже создан)
 $orderId = !empty($_GET["ORDER_ID"]) ? (int)$_GET["ORDER_ID"] : (int)($arResult["ORDER_ID"] ?? 0);
 $orderConfirmed = (($_GET["ORDER_CONFIRMED"] ?? $arResult["ORDER_CONFIRMED"] ?? "N") === "Y");
+
+// В заказе есть позиция от поставщика и оформил не менеджер — order_create_handler.php
+// (см. require_once выше) отложил отправку поставщику до оплаты и передал сюда
+// флаг через redirect (см. ORDER_PAYMENT_HOLD_MINUTES). Показываем предупреждение
+// с обратным отсчётом вместо обычного "Спасибо за заказ".
+$paymentHold = ($_GET["PAYMENT_HOLD"] ?? "N") === "Y";
+$paymentHoldMinutes = max(1, (int)($_GET["HOLD_MIN"] ?? (defined('ORDER_PAYMENT_HOLD_MINUTES') ? ORDER_PAYMENT_HOLD_MINUTES : 15)));
 ?>
 
 <?php if ($orderConfirmed && $orderId > 0): ?>
     <!-- Заказ создан -->
     <div class="checkout-page">
         <h1 class="checkout-page__title">Заказ №<?= $orderId ?> оформлен</h1>
+        <?php if ($paymentHold): ?>
+        <div class="checkout-block payment-hold-notice" style="text-align:center;padding:48px 20px;">
+            <div style="font-size:48px;margin-bottom:16px;color:#e6a23c;"><svg class="icon"><use href="#icon-hourglass"></use></svg></div>
+            <h2 style="font-size:20px;margin-bottom:8px;">Заказ создан, требуется оплата</h2>
+            <p style="color:var(--gray);margin-bottom:4px;max-width:480px;margin-left:auto;margin-right:auto;">В заказе есть позиции под заказ у поставщика — резерв действует ограниченное время.</p>
+            <p style="color:var(--gray);margin-bottom:24px;">Оплатите заказ в течение <strong id="paymentHoldTimer" style="color:var(--black);">--:--</strong>, иначе он будет автоматически отменён.</p>
+            <a href="/personal/orders/" class="btn btn--primary">Перейти к оплате</a>
+            <script>
+            (function () {
+                var deadline = Date.now() + <?= $paymentHoldMinutes ?> * 60 * 1000;
+                var el = document.getElementById('paymentHoldTimer');
+                var timer = null;
+                function tick() {
+                    var left = Math.max(0, deadline - Date.now());
+                    var m = Math.floor(left / 60000);
+                    var s = Math.floor((left % 60000) / 1000);
+                    el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+                    if (left <= 0 && timer) {
+                        clearInterval(timer);
+                        el.textContent = '0:00';
+                    }
+                }
+                tick();
+                timer = setInterval(tick, 1000);
+            })();
+            </script>
+        </div>
+        <?php else: ?>
         <div class="checkout-block" style="text-align:center;padding:60px 20px;">
             <div style="font-size:48px;margin-bottom:16px;color:var(--green);"><svg class="icon"><use href="#icon-check-circle"></use></svg></div>
             <h2 style="font-size:20px;margin-bottom:8px;">Спасибо за заказ!</h2>
             <p style="color:var(--gray);margin-bottom:20px;">Мы свяжемся с вами в ближайшее время для подтверждения</p>
             <a href="/catalog/" class="btn btn--primary">Продолжить покупки</a>
         </div>
+        <?php endif; ?>
     </div>
 <?php else: ?>
     <!-- Форма оформления -->

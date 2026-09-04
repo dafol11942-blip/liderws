@@ -1,6 +1,8 @@
 <?php
 // === ОБРАБОТЧИК СОЗДАНИЯ ЗАКАЗА ===
 
+require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php'); // isManager()
+
 // Один флаг на все автоматизированные заказы у поставщиков (не только ПартКом).
 // true — тестовый режим (поставщик всё проверяет и отвечает, но заказ не уходит
 // в работу). false — БОЕВОЙ режим: заказ реально уходит в работу поставщику.
@@ -10,6 +12,12 @@
 // заказ на сайте с позициями от ПартКома реально уйдёт поставщику.
 if (!defined('SUPPLIER_ORDER_TEST_MODE')) define('SUPPLIER_ORDER_TEST_MODE', false);
 
+// Не-менеджер оформляет заказ с хотя бы одной позицией от поставщика — заказ
+// поставщику не уходит сразу, а ждёт оплаты это количество минут (см. план
+// "Оплата в течение 15 минут"). Не наступит — заказ отменяется автоматически
+// (local/php_interface/cron/payment_hold_sweep.php).
+if (!defined('ORDER_PAYMENT_HOLD_MINUTES')) define('ORDER_PAYMENT_HOLD_MINUTES', 15);
+
 if (!function_exists('logSupplierOrderDispatch')) {
     function logSupplierOrderDispatch(string $message): void
     {
@@ -18,6 +26,44 @@ if (!function_exists('logSupplierOrderDispatch')) {
             '[' . date('Y-m-d H:i:s') . '] ' . $message . "\n",
             FILE_APPEND
         );
+    }
+}
+
+// Есть ли в корзине хоть одна позиция "под заказ" у поставщика (свойство
+// SUPPLIER_NAME) — та же проверка, что в начале dispatchSupplierOrders(),
+// но без реальной отправки: нужна ДО решения, отправлять заказ сразу или
+// сначала подождать оплату.
+if (!function_exists('basketHasSupplierItems')) {
+    function basketHasSupplierItems(\Bitrix\Sale\Basket $basket): bool
+    {
+        foreach ($basket as $basketItem) {
+            foreach ($basketItem->getPropertyCollection() as $p) {
+                if ($p->getField('CODE') === 'SUPPLIER_NAME' && (string)$p->getField('VALUE') !== '') {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+}
+
+// Заводит "удержание" заказа до оплаты (b_supplier_order_payment_hold, создаётся
+// один раз вручную через Adminer — см.
+// local/php_interface/db/order_payment_hold_table.sql). Дедлайн считает БД
+// (NOW() + N минут), не PHP-время — так cron и обработчик оплаты сверяются
+// с одним и тем же часами независимо от таймзоны воркера.
+if (!function_exists('createOrderPaymentHold')) {
+    function createOrderPaymentHold(int $orderId, int $holdMinutes): void
+    {
+        try {
+            $db = \Bitrix\Main\Application::getConnection();
+            $db->query(
+                'INSERT INTO b_supplier_order_payment_hold (ORDER_ID, DEADLINE, DISPATCHED, CANCELED)
+                 VALUES (' . $orderId . ", DATE_ADD(NOW(), INTERVAL {$holdMinutes} MINUTE), 0, 0)"
+            );
+        } catch (\Throwable $e) {
+            logSupplierOrderDispatch("Заказ №{$orderId}: не удалось создать удержание оплаты — " . $e->getMessage());
+        }
     }
 }
 
@@ -188,6 +234,86 @@ if (!function_exists('advanceOrderStatusAfterSupplierDispatch')) {
     }
 }
 
+// Общая точка для обоих потребителей удержания оплаты — быстрого пути
+// (OnSaleOrderPaid, local/php_interface/init.php) и подстраховки по расписанию
+// (local/php_interface/cron/payment_hold_sweep.php). Идемпотентна: DISPATCHED=1
+// выставляется в том же запросе, что и сама отправка, повторный вызов на уже
+// отправленный заказ просто вернёт false и ничего не пошлёт повторно.
+if (!function_exists('dispatchHeldOrderIfPaid')) {
+    function dispatchHeldOrderIfPaid(int $orderId): bool
+    {
+        $db = \Bitrix\Main\Application::getConnection();
+
+        $hold = $db->query(
+            "SELECT * FROM b_supplier_order_payment_hold WHERE ORDER_ID = {$orderId} AND DISPATCHED = 0 AND CANCELED = 0"
+        )->fetch();
+        if (!$hold) return false; // не под удержанием — либо обычный заказ, либо уже разобран
+
+        $order = \Bitrix\Sale\Order::load($orderId);
+        if (!$order) return false;
+
+        // Payment::isPaid() (не Order::isPaid()) — тот же способ проверки, что
+        // уже используется в detail.php при показе оплаты по заказу.
+        $isPaid = false;
+        foreach ($order->getPaymentCollection() as $payment) {
+            if ($payment->isPaid()) { $isPaid = true; break; }
+        }
+        if (!$isPaid) return false;
+
+        $basket = $order->getBasket();
+        $buyerName = '';
+        try {
+            $buyerName = trim((string)$order->getPropertyCollection()->getPayerName());
+        } catch (\Throwable $e) {}
+
+        $anySent = false;
+        try {
+            $anySent = dispatchSupplierOrders($orderId, $basket, $buyerName);
+        } catch (\Throwable $e) {
+            logSupplierOrderDispatch("Заказ №{$orderId}: dispatchSupplierOrders (после оплаты) упал целиком — " . $e->getMessage());
+        }
+        if ($anySent) {
+            advanceOrderStatusAfterSupplierDispatch($orderId);
+        }
+
+        $db->query("UPDATE b_supplier_order_payment_hold SET DISPATCHED = 1 WHERE ORDER_ID = {$orderId}");
+        logSupplierOrderDispatch("Заказ №{$orderId}: оплата получена, отправлен поставщику (anySent=" . ($anySent ? '1' : '0') . ").");
+
+        return true;
+    }
+}
+
+// Дедлайн (b_supplier_order_payment_hold.DEADLINE) истёк, а оплаты нет —
+// системная отмена заказа. Используем нативное поле CANCELED (не отдельный
+// STATUS_ID) — так отменённый заказ сразу понятен в стандартной админке, без
+// необходимости заводить там новый статус вручную.
+if (!function_exists('cancelUnpaidHeldOrder')) {
+    function cancelUnpaidHeldOrder(int $orderId): bool
+    {
+        $db = \Bitrix\Main\Application::getConnection();
+
+        $order = \Bitrix\Sale\Order::load($orderId);
+        if (!$order) {
+            // заказа больше нет — закрываем удержание, чтобы cron не крутил его вечно
+            $db->query("UPDATE b_supplier_order_payment_hold SET CANCELED = 1 WHERE ORDER_ID = {$orderId}");
+            return false;
+        }
+
+        $order->setField('CANCELED', 'Y');
+        $order->setField('REASON_CANCELED', 'Автоматическая отмена: оплата не поступила в течение ' . ORDER_PAYMENT_HOLD_MINUTES . ' минут');
+        $saveResult = $order->save();
+
+        if (!$saveResult->isSuccess()) {
+            logSupplierOrderDispatch("Заказ №{$orderId}: не удалось отменить по неоплате — " . implode('; ', $saveResult->getErrorMessages()));
+            return false;
+        }
+
+        $db->query("UPDATE b_supplier_order_payment_hold SET CANCELED = 1 WHERE ORDER_ID = {$orderId}");
+        logSupplierOrderDispatch("Заказ №{$orderId}: автоотмена — оплата не поступила в течение " . ORDER_PAYMENT_HOLD_MINUTES . " минут.");
+        return true;
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_POST['confirmorder'] === 'Y' && check_bitrix_sessid()) {
 
     CModule::IncludeModule('sale');
@@ -275,20 +401,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
             $buyerName = trim((string)($_POST['ORDER_PROP_2'] ?? ''));
         }
 
-        // Реальные заказы у поставщиков (см. план "Реальный заказ у поставщика").
-        // Наш заказ уже сохранён — сбой здесь НЕ должен помешать покупателю
-        // увидеть страницу "Спасибо за заказ", только залогироваться.
-        try {
-            $anySupplierOrderSent = dispatchSupplierOrders($orderId, $basket, $buyerName);
-        } catch (\Throwable $e) {
-            $anySupplierOrderSent = false;
-            logSupplierOrderDispatch("dispatchSupplierOrders упал целиком: " . $e->getMessage());
-        }
-        if ($anySupplierOrderSent) {
-            advanceOrderStatusAfterSupplierDispatch($orderId);
+        // Не-менеджер с хотя бы одной позицией "под заказ" у поставщика — заказ
+        // поставщику не уходит сразу: сначала 15 минут на оплату (см. план
+        // "Оплата в течение 15 минут"). Менеджеры (оформляют заказы за клиентов
+        // по телефону/в офисе) и заказы только своим складом — прежнее поведение,
+        // отправка сразу.
+        $requiresPaymentHold = !isManager() && basketHasSupplierItems($basket);
+
+        $redirectUrl = '/order/?ORDER_ID=' . $orderId . '&ORDER_CONFIRMED=Y';
+
+        if ($requiresPaymentHold) {
+            createOrderPaymentHold($orderId, ORDER_PAYMENT_HOLD_MINUTES);
+            logSupplierOrderDispatch("Заказ №{$orderId}: отправка поставщику отложена до оплаты (окно " . ORDER_PAYMENT_HOLD_MINUTES . " мин).");
+            $redirectUrl .= '&PAYMENT_HOLD=Y&HOLD_MIN=' . ORDER_PAYMENT_HOLD_MINUTES;
+        } else {
+            // Реальные заказы у поставщиков (см. план "Реальный заказ у поставщика").
+            // Наш заказ уже сохранён — сбой здесь НЕ должен помешать покупателю
+            // увидеть страницу "Спасибо за заказ", только залогироваться.
+            try {
+                $anySupplierOrderSent = dispatchSupplierOrders($orderId, $basket, $buyerName);
+            } catch (\Throwable $e) {
+                $anySupplierOrderSent = false;
+                logSupplierOrderDispatch("dispatchSupplierOrders упал целиком: " . $e->getMessage());
+            }
+            if ($anySupplierOrderSent) {
+                advanceOrderStatusAfterSupplierDispatch($orderId);
+            }
         }
 
-        LocalRedirect('/order/?ORDER_ID=' . $orderId . '&ORDER_CONFIRMED=Y');
+        LocalRedirect($redirectUrl);
         exit;
     } else {
         file_put_contents(

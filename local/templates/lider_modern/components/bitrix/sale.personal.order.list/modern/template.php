@@ -224,11 +224,12 @@ if ($hasFilters) {
             $basketItems = $order['BASKET_ITEMS'] ?? [];
             $shipment = $order['SHIPMENT'][0] ?? [];
             $payment = $order['PAYMENT'][0] ?? [];
-            $statusName = $statusList[$o['STATUS_ID']] ?? $o['STATUS_ID'];
-            $statusColor = getOrderStatusColor($o['STATUS_ID']);
+            $isCanceled = ($o['CANCELED'] ?? 'N') === 'Y';
+            $statusName = $isCanceled ? 'Отменён' : ($statusList[$o['STATUS_ID']] ?? $o['STATUS_ID']);
+            $statusColor = $isCanceled ? 'red' : getOrderStatusColor($o['STATUS_ID']);
             $orderId = (int)($o['ID'] ?? 0);
             $supplierItems = $supplierItemsByOrder[$orderId] ?? [];
-            $isRefused = $o['STATUS_ID'] === 'SX';
+            $isRefused = !$isCanceled && $o['STATUS_ID'] === 'SX';
         ?>
         <div class="order-card<?= $isMgr ? ' order-card--open' : '' ?>">
             <div class="order-card__header" onclick="this.closest('.order-card').classList.toggle('order-card--open')">
@@ -247,7 +248,12 @@ if ($hasFilters) {
                 </div>
             </div>
             <div class="order-card__body">
-                <?php if ($isRefused): ?>
+                <?php if ($isCanceled): ?>
+                <div class="status-banner status-banner--refused">
+                    <span class="status-banner__icon">⚠</span>
+                    <span><?= htmlspecialchars((string)($o['REASON_CANCELED'] ?? '') !== '' ? $o['REASON_CANCELED'] : 'Заказ отменён.') ?></span>
+                </div>
+                <?php elseif ($isRefused): ?>
                 <div class="status-banner status-banner--refused">
                     <span class="status-banner__icon">⚠</span>
                     <span>Заказ отменён — товар недоступен у поставщика (снят пользователем/поставщиком). Мы свяжемся с вами для уточнения деталей.</span>
@@ -323,7 +329,7 @@ if ($hasFilters) {
                     <?php if (!empty($o['URL_TO_COPY'])): ?>
                         <a href="<?= htmlspecialcharsbx($o['URL_TO_COPY']) ?>" class="btn btn--outline btn--sm"><svg class="icon"><use href="#icon-refresh"></use></svg> Повторить</a>
                     <?php endif; ?>
-                    <?php if ($o['PAYED'] !== 'Y' && !empty($payment['PSA_ACTION_FILE'])): ?>
+                    <?php if (!$isCanceled && $o['PAYED'] !== 'Y' && !empty($payment['PSA_ACTION_FILE'])): ?>
                         <a href="<?= htmlspecialcharsbx($payment['PSA_ACTION_FILE']) ?>" class="btn btn--primary btn--sm"><svg class="icon"><use href="#icon-card"></use></svg> Оплатить</a>
                     <?php endif; ?>
                     <?php if (!empty($o['URL_TO_DETAIL'])): ?>

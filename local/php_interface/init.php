@@ -5,6 +5,34 @@ AddEventHandler("catalog", "OnProductUpdate", "syncInStockProperty");
 AddEventHandler("catalog", "OnProductAdd", "syncInStockProperty");
 AddEventHandler("catalog", "OnProductSetAvailableUpdate", "syncInStockProperty");
 
+// Быстрый путь для заказов "под удержанием оплаты" (см. план "Оплата в
+// течение 15 минут", local/php_interface/order_create_handler.php): как
+// только заказ помечается оплаченным — неважно, боевым платёжным модулем в
+// админке или менеджером вручную — сразу пробуем отправить его поставщику,
+// не дожидаясь ближайшего прохода cron/payment_hold_sweep.php (до 1 минуты).
+// Событие OnSaleOrderPaid — давний, документированный (не D7) хук модуля
+// sale, сработает независимо от того, какой платёжный обработчик реально
+// стоит в админке. Если по какой-то причине событие не сработает — cron всё
+// равно подхватит оплаченный заказ в течение минуты, это лишь ускоритель.
+AddEventHandler("sale", "OnSaleOrderPaid", "dispatchHeldOrderOnPaymentEvent");
+
+function dispatchHeldOrderOnPaymentEvent($orderId)
+{
+    try {
+        $orderId = (int)$orderId;
+        if (!$orderId) return;
+        if (!CModule::IncludeModule('sale')) return;
+        require_once __DIR__ . '/order_create_handler.php';
+        if (function_exists('dispatchHeldOrderIfPaid')) {
+            dispatchHeldOrderIfPaid($orderId);
+        }
+    } catch (\Throwable $e) {
+        if (function_exists('logSupplierOrderDispatch')) {
+            logSupplierOrderDispatch('OnSaleOrderPaid handler упал: ' . $e->getMessage());
+        }
+    }
+}
+
 function syncInStockProperty($productId)
 {
     if (!CModule::IncludeModule('iblock') || !CModule::IncludeModule('catalog')) return;
