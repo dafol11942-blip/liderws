@@ -18,7 +18,11 @@ if (!function_exists('pluralForm')) {
     }
 }
 
-$statusList = $arResult['INFO']['STATUS'] ?? [];
+// Не берём $arResult['INFO']['STATUS'] — ядровой компонент не подхватывает
+// свежесозданные статусы (устаревший список внутри компонента, независимо от
+// CACHE_TYPE=N самого компонента). Резолвим названия сами.
+require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init.php');
+$statusList = getOrderStatusNameMap();
 
 if (empty($arResult['ORDERS'])): ?>
     <div class="empty-state">
@@ -34,10 +38,7 @@ if (empty($arResult['ORDERS'])): ?>
             $basketItems = $order['BASKET_ITEMS'] ?? [];
             $shipment = $order['SHIPMENT'][0] ?? [];
             $payment = $order['PAYMENT'][0] ?? [];
-            $statusName = $o['STATUS_ID'];
-            if (!empty($statusList[$o['STATUS_ID']]['NAME'])) {
-                $statusName = $statusList[$o['STATUS_ID']]['NAME'];
-            }
+            $statusName = $statusList[$o['STATUS_ID']] ?? $o['STATUS_ID'];
         ?>
         <div class="order-card">
             <div class="order-card__header" onclick="this.closest('.order-card').classList.toggle('order-card--open')">

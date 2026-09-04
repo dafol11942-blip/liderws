@@ -39,8 +39,13 @@ CREATE TABLE IF NOT EXISTS b_supplier_order_item (
     REFUSAL_COUNT INT NULL,
     LAST_STATUS_JSON MEDIUMTEXT NULL,                   -- сырой ответ motion по этому reference
     LAST_CHECKED_AT DATETIME NULL,
+    STAGE VARCHAR(16) NOT NULL DEFAULT 'ordered',        -- ordered | in_transit | ready | refused — общий, поставщико-независимый этап (см. PartKomConnector::normalizeStage())
     CREATED_AT DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UPDATED_AT DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     KEY IDX_SUPPLIER_ORDER_ID (SUPPLIER_ORDER_ID),
     KEY IDX_REFERENCE (REFERENCE)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Если таблицы уже созданы (первая итерация плана "Реальный заказ у
+-- поставщика") — выполнить отдельно, чтобы добавить колонку STAGE:
+-- ALTER TABLE b_supplier_order_item ADD COLUMN STAGE VARCHAR(16) NOT NULL DEFAULT 'ordered' AFTER LAST_CHECKED_AT;

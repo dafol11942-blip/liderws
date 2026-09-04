@@ -699,10 +699,12 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
         $out = [];
         foreach ($data as $row) {
             if (!is_array($row)) continue;
+            $stateText = isset($row['stateTxt']) ? (string)$row['stateTxt'] : null;
             $out[] = [
                 'order_number'    => isset($row['orderNumber']) ? (string)$row['orderNumber'] : null,
                 'state_id'        => isset($row['state']) ? (string)$row['state'] : null,
-                'state_text'      => isset($row['stateTxt']) ? (string)$row['stateTxt'] : null,
+                'state_text'      => $stateText,
+                'stage'           => $this->normalizeStage($stateText),
                 'expected_date'   => $row['expectedDate'] ?? null,
                 'guaranteed_date' => $row['guaranteedDate'] ?? null,
                 'store_count'     => isset($row['storeCount']) ? (int)$row['storeCount'] : null,
@@ -713,5 +715,45 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
             ];
         }
         return $out;
+    }
+
+    // Полный официальный словарь статусов ПартКома (получен от заказчика) не
+    // содержит числовых state — только тексты, поэтому классификация по
+    // ключевым фразам в stateTxt, а не по числу. Порядок проверки важен:
+    // сначала refused (важнее не пропустить отказ), потом in_transit, всё
+    // остальное — ordered (безопасный дефолт для незнакомого в будущем текста —
+    // никогда не молча "ready"/"refused").
+    //
+    // Сверено вручную по всем 28 присланным статусам, включая нетривиальные:
+    // "Перезаказан" (внутренний отказ у суб-поставщика, но заказ ПРОДОЛЖАЕТСЯ
+    // у другого источника) и "Заказан у поставщика (не все кол-во)" (мягкое
+    // частичное подтверждение, ещё не финальный отказ) намеренно НЕ входят
+    // в REFUSED_PHRASES — если добавить общее слово "отказ", они бы туда
+    // попали ошибочно.
+    private const REFUSED_PHRASES = [
+        'не может быть поставлен',
+        'не будет поставлен',
+        'возвращен покупателем',
+        'отсутствует',
+    ];
+    private const IN_TRANSIT_PHRASES = [
+        'собран',
+        'доставлен на склад',
+        'отгрузк',
+        'складе',
+        'центрального склада',
+        'передан в службу доставки',
+    ];
+
+    private function normalizeStage(?string $stateText): string
+    {
+        $t = mb_strtolower((string)$stateText);
+        foreach (self::REFUSED_PHRASES as $p) {
+            if ($t !== '' && mb_strpos($t, $p) !== false) return 'refused';
+        }
+        foreach (self::IN_TRANSIT_PHRASES as $p) {
+            if ($t !== '' && mb_strpos($t, $p) !== false) return 'in_transit';
+        }
+        return 'ordered';
     }
 }

@@ -112,11 +112,18 @@ while ($row = $rows->fetch_assoc()) {
     $expectedDateSql   = $toSqlDate($last['expected_date'] ?? null);
     $guaranteedDateSql = $toSqlDate($last['guaranteed_date'] ?? null);
 
+    // Общий, поставщико-независимый этап — коннектор сам его посчитал из своего
+    // словаря (см. PartKomConnector::normalizeStage()); дефолт 'ordered', если
+    // коннектор почему-то его не вернул (более старая реализация и т.п.).
+    $stage = in_array($last['stage'] ?? null, ['ordered', 'in_transit', 'ready', 'refused'], true)
+        ? $last['stage'] : 'ordered';
+
     $updateOk = $db->query(sprintf(
         "UPDATE b_supplier_order_item SET
             SUPPLIER_ORDER_NUMBER = '%s',
             STATE_ID = %s,
             STATE_TEXT = '%s',
+            STAGE = '%s',
             EXPECTED_DATE = %s,
             GUARANTEED_DATE = %s,
             STORE_COUNT = %s,
@@ -128,6 +135,7 @@ while ($row = $rows->fetch_assoc()) {
         $db->real_escape_string((string)($last['order_number'] ?? '')),
         $last['state_id'] !== null ? "'" . $db->real_escape_string((string)$last['state_id']) . "'" : 'NULL',
         $db->real_escape_string((string)($last['state_text'] ?? '')),
+        $db->real_escape_string($stage),
         $expectedDateSql ? "'" . $expectedDateSql . "'" : 'NULL',
         $guaranteedDateSql ? "'" . $guaranteedDateSql . "'" : 'NULL',
         $last['store_count'] !== null ? (int)$last['store_count'] : 'NULL',

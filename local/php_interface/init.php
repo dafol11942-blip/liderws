@@ -82,3 +82,31 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
     }
     return $factory;
 }
+
+/**
+ * ID → название статуса (заказа и отгрузки — обе категории в одной таблице
+ * b_sale_status). Не доверяем $arResult['INFO']['STATUS'] ядровых компонентов
+ * sale.personal.order.* — он не подхватывает свежесозданные статусы (см.
+ * список заказов/детали заказа), поэтому резолвим сами тем же джойном, каким
+ * статусы уже сверялись через Adminer.
+ */
+function getOrderStatusNameMap(): array
+{
+    static $map = null;
+    if ($map === null) {
+        $map = [];
+        try {
+            $db = \Bitrix\Main\Application::getConnection();
+            $rows = $db->query(
+                "SELECT s.ID, sl.NAME FROM b_sale_status s
+                 JOIN b_sale_status_lang sl ON sl.STATUS_ID = s.ID AND sl.LID = 'ru'"
+            )->fetchAll();
+            foreach ($rows as $row) {
+                $map[$row['ID']] = $row['NAME'];
+            }
+        } catch (\Throwable $e) {
+            // если БД недоступна — вызывающий код увидит сырой код статуса, не хуже прежнего
+        }
+    }
+    return $map;
+}
