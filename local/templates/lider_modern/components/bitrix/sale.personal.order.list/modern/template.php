@@ -344,17 +344,19 @@ if ($hasFilters) {
 .orders-filter {
     background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
     box-shadow: var(--shadow-sm); padding: 16px 20px; margin-bottom: 16px;
+    position: sticky; top: 64px; z-index: 50;
 }
-.orders-filter__row { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
-.orders-filter__field { display: flex; flex-direction: column; gap: 4px; min-width: 150px; }
-.orders-filter__field--search { flex: 1 1 220px; }
+.orders-filter__row { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; width: 100%; }
+.orders-filter__field { display: flex; flex-direction: column; gap: 4px; flex: 1 1 0; min-width: 140px; }
+.orders-filter__field--search { flex: 1.6 1 0; }
 .orders-filter__field label { font-size: 11px; color: var(--gray-light); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; }
 .orders-filter__field input, .orders-filter__field select {
-    padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius);
-    font-size: 13px; color: var(--black); background: #fff; height: 36px;
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius);
+    font-size: 13px; color: var(--black); background: #fff; height: 36px; box-sizing: border-box;
 }
-.orders-filter__actions { display: flex; gap: 8px; }
-@media (max-width: 600px) {
+.orders-filter__actions { display: flex; gap: 8px; flex: 0 0 auto; }
+@media (max-width: 900px) {
+    .orders-filter { position: static; }
     .orders-filter__row { flex-direction: column; align-items: stretch; }
     .orders-filter__field { min-width: 0; }
 }
