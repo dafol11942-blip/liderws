@@ -3,8 +3,12 @@
 
 // Один флаг на все автоматизированные заказы у поставщиков (не только ПартКом).
 // true — тестовый режим (поставщик всё проверяет и отвечает, но заказ не уходит
-// в работу). Переключить на false, когда механика проверена на реальных ответах.
-if (!defined('SUPPLIER_ORDER_TEST_MODE')) define('SUPPLIER_ORDER_TEST_MODE', true);
+// в работу). false — БОЕВОЙ режим: заказ реально уходит в работу поставщику.
+//
+// Переключено на боевой режим 2026-09-04 — механика проверена на реальном
+// тестовом заказе (№172, flagTest=1, success:true). С этого момента ЛЮБОЙ
+// заказ на сайте с позициями от ПартКома реально уйдёт поставщику.
+if (!defined('SUPPLIER_ORDER_TEST_MODE')) define('SUPPLIER_ORDER_TEST_MODE', false);
 
 if (!function_exists('logSupplierOrderDispatch')) {
     function logSupplierOrderDispatch(string $message): void
