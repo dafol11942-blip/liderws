@@ -97,12 +97,21 @@ function getOrderStatusNameMap(): array
         $map = [];
         try {
             $db = \Bitrix\Main\Application::getConnection();
+            // Не фильтруем по LID='ru' жёстко — статусы, заведённые вручную в
+            // админке (SO/ST/SR/SX), у некоторых инсталляций сохраняются под
+            // другим LID (не обязательно 'ru'), и тогда жёсткий JOIN ... AND
+            // LID='ru' их молча теряет — сайт показывает сырой код статуса
+            // вместо имени. Берём имя для LID='ru', если оно есть, иначе —
+            // любое доступное (лучше показать что-то осмысленное, чем код).
             $rows = $db->query(
-                "SELECT s.ID, sl.NAME FROM b_sale_status s
-                 JOIN b_sale_status_lang sl ON sl.STATUS_ID = s.ID AND sl.LID = 'ru'"
+                "SELECT s.ID, sl.NAME, sl.LID FROM b_sale_status s
+                 JOIN b_sale_status_lang sl ON sl.STATUS_ID = s.ID
+                 ORDER BY (sl.LID = 'ru') DESC"
             )->fetchAll();
             foreach ($rows as $row) {
-                $map[$row['ID']] = $row['NAME'];
+                if (!isset($map[$row['ID']])) {
+                    $map[$row['ID']] = $row['NAME'];
+                }
             }
         } catch (\Throwable $e) {
             // если БД недоступна — вызывающий код увидит сырой код статуса, не хуже прежнего
