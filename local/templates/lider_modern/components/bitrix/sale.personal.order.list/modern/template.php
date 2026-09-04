@@ -26,11 +26,11 @@ require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php'
 $statusList = getOrderStatusNameMap();
 $isMgr = isManager();
 
-// Менеджеру — краткая сводка по позициям у поставщиков (поставщик + статус)
-// прямо в списке заказов, без перехода в детали. Один запрос на все заказы
-// страницы, а не по одному на заказ.
+// Сводка по позициям у поставщиков (поставщик + статус + артикул) для каждого
+// заказа страницы — менеджеру показываем блок целиком, остальным нужен только
+// артикул для поиска. Один запрос на все заказы страницы, а не по одному.
 $supplierItemsByOrder = [];
-if ($isMgr && !empty($arResult['ORDERS'])) {
+if (!empty($arResult['ORDERS'])) {
     $orderIds = [];
     foreach ($arResult['ORDERS'] as $o2) {
         $oid = (int)($o2['ORDER']['ID'] ?? 0);
@@ -52,16 +52,174 @@ if ($isMgr && !empty($arResult['ORDERS'])) {
     }
 }
 
-if (empty($arResult['ORDERS'])): ?>
+// Артикул своих (не поставщика) позиций хранится не в отдельной таблице, а в
+// свойстве CML2_ARTICLE карточки товара (инфоблок 42) — тянем одним batch-запросом
+// по всем товарам страницы, чтобы поиск по артикулу не плодил запрос на позицию.
+$productArticleById = [];
+if (!empty($arResult['ORDERS']) && CModule::IncludeModule('iblock')) {
+    $productIds = [];
+    foreach ($arResult['ORDERS'] as $o2) {
+        foreach (($o2['BASKET_ITEMS'] ?? []) as $bi) {
+            $pid = (int)($bi['PRODUCT_ID'] ?? 0);
+            if ($pid) $productIds[$pid] = true;
+        }
+    }
+    if ($productIds) {
+        try {
+            $res = CIBlockElement::GetList(
+                [],
+                ['IBLOCK_ID' => 42, 'ID' => array_keys($productIds)],
+                false,
+                false,
+                ['ID', 'PROPERTY_CML2_ARTICLE']
+            );
+            while ($row = $res->Fetch()) {
+                $productArticleById[(int)$row['ID']] = (string)($row['PROPERTY_CML2_ARTICLE_VALUE'] ?? '');
+            }
+        } catch (\Throwable $e) {}
+    }
+}
+
+// Поставщики "у которых оформлены заказы" — список берём из уже загруженной
+// сводки по текущему набору заказов, а не из полного реестра коннекторов:
+// в фильтр должны попадать только реально встречающиеся варианты.
+$supplierOptions = [];
+if ($isMgr) {
+    $supplierCodesSeen = [];
+    foreach ($supplierItemsByOrder as $items) {
+        foreach ($items as $it) {
+            $code = (string)($it['SUPPLIER_CODE'] ?? '');
+            if ($code !== '') $supplierCodesSeen[$code] = true;
+        }
+    }
+    foreach (array_keys($supplierCodesSeen) as $code) {
+        $label = $code;
+        if (function_exists('getSupplierFactory')) {
+            $conn = getSupplierFactory()->get($code);
+            if ($conn) $label = $conn->getName();
+        }
+        $supplierOptions[$code] = $label;
+    }
+    asort($supplierOptions);
+}
+
+// ---- Фильтр шапки: даты, статус, поставщик (только менеджер), поиск по артикулу ----
+$fDateFrom = trim((string)($_GET['date_from'] ?? ''));
+$fDateTo   = trim((string)($_GET['date_to'] ?? ''));
+$fStatus   = trim((string)($_GET['status'] ?? ''));
+$fSupplier = $isMgr ? trim((string)($_GET['supplier'] ?? '')) : '';
+$fQuery    = trim((string)($_GET['q'] ?? ''));
+$hasFilters = $fDateFrom !== '' || $fDateTo !== '' || $fStatus !== '' || $fSupplier !== '' || $fQuery !== '';
+
+$ordersToShow = $arResult['ORDERS'];
+if ($hasFilters) {
+    $dateFromTs = $fDateFrom !== '' ? strtotime($fDateFrom . ' 00:00:00') : null;
+    $dateToTs = $fDateTo !== '' ? strtotime($fDateTo . ' 23:59:59') : null;
+
+    $ordersToShow = array_filter($ordersToShow, function ($order) use (
+        $dateFromTs, $dateToTs, $fStatus, $fSupplier, $fQuery,
+        $supplierItemsByOrder, $productArticleById
+    ) {
+        $o = $order['ORDER'];
+        $orderId = (int)($o['ID'] ?? 0);
+
+        if ($dateFromTs !== null || $dateToTs !== null) {
+            $orderTs = strtotime((string)($o['DATE_INSERT'] ?? ''));
+            if ($orderTs === false) return false;
+            if ($dateFromTs !== null && $orderTs < $dateFromTs) return false;
+            if ($dateToTs !== null && $orderTs > $dateToTs) return false;
+        }
+
+        if ($fStatus !== '' && ($o['STATUS_ID'] ?? '') !== $fStatus) return false;
+
+        $items = $supplierItemsByOrder[$orderId] ?? [];
+
+        if ($fSupplier !== '') {
+            $hasSupplier = false;
+            foreach ($items as $it) {
+                if (($it['SUPPLIER_CODE'] ?? '') === $fSupplier) { $hasSupplier = true; break; }
+            }
+            if (!$hasSupplier) return false;
+        }
+
+        if ($fQuery !== '') {
+            $found = false;
+            foreach ($items as $it) {
+                if (mb_stripos((string)($it['ARTICLE'] ?? ''), $fQuery) !== false) { $found = true; break; }
+            }
+            if (!$found) {
+                foreach (($order['BASKET_ITEMS'] ?? []) as $bi) {
+                    $pid = (int)($bi['PRODUCT_ID'] ?? 0);
+                    $art = $productArticleById[$pid] ?? '';
+                    if ($art !== '' && mb_stripos($art, $fQuery) !== false) { $found = true; break; }
+                }
+            }
+            if (!$found) return false;
+        }
+
+        return true;
+    });
+}
+?>
+
+<form method="get" class="orders-filter">
+    <div class="orders-filter__row">
+        <div class="orders-filter__field orders-filter__field--search">
+            <label for="ordersFilterQ">Поиск по артикулу</label>
+            <input type="text" id="ordersFilterQ" name="q" value="<?= htmlspecialchars($fQuery) ?>" placeholder="Например, 04465-33471">
+        </div>
+        <div class="orders-filter__field">
+            <label for="ordersFilterDateFrom">Дата с</label>
+            <input type="date" id="ordersFilterDateFrom" name="date_from" value="<?= htmlspecialchars($fDateFrom) ?>">
+        </div>
+        <div class="orders-filter__field">
+            <label for="ordersFilterDateTo">Дата по</label>
+            <input type="date" id="ordersFilterDateTo" name="date_to" value="<?= htmlspecialchars($fDateTo) ?>">
+        </div>
+        <div class="orders-filter__field">
+            <label for="ordersFilterStatus">Статус заказа</label>
+            <select id="ordersFilterStatus" name="status">
+                <option value="">Все статусы</option>
+                <?php foreach ($statusList as $sid => $sname): ?>
+                    <option value="<?= htmlspecialchars($sid) ?>"<?= $fStatus === (string)$sid ? ' selected' : '' ?>><?= htmlspecialchars($sname) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <?php if ($isMgr): ?>
+        <div class="orders-filter__field">
+            <label for="ordersFilterSupplier">Поставщик</label>
+            <select id="ordersFilterSupplier" name="supplier">
+                <option value="">Все поставщики</option>
+                <?php foreach ($supplierOptions as $code => $label): ?>
+                    <option value="<?= htmlspecialchars($code) ?>"<?= $fSupplier === $code ? ' selected' : '' ?>><?= htmlspecialchars($label) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <?php endif; ?>
+        <div class="orders-filter__actions">
+            <button type="submit" class="btn btn--primary btn--sm">Применить</button>
+            <?php if ($hasFilters): ?>
+                <a href="<?= htmlspecialchars($APPLICATION->GetCurPage()) ?>" class="btn btn--white btn--sm">Сбросить</a>
+            <?php endif; ?>
+        </div>
+    </div>
+</form>
+
+<?php if (empty($ordersToShow)): ?>
     <div class="empty-state">
         <div class="empty-state__icon"><svg class="icon"><use href="#icon-box"></use></svg></div>
-        <h3>У вас пока нет заказов</h3>
-        <p>Здесь будут отображаться ваши заказы</p>
-        <a href="/catalog/" class="btn btn--primary">Перейти в каталог</a>
+        <?php if ($hasFilters): ?>
+            <h3>Заказы не найдены</h3>
+            <p>Попробуйте изменить параметры фильтра или поиска</p>
+        <?php else: ?>
+            <h3>У вас пока нет заказов</h3>
+            <p>Здесь будут отображаться ваши заказы</p>
+            <a href="/catalog/" class="btn btn--primary">Перейти в каталог</a>
+        <?php endif; ?>
     </div>
 <?php else: ?>
     <div class="orders-list">
-        <?php foreach ($arResult['ORDERS'] as $order):
+        <?php foreach ($ordersToShow as $order):
             $o = $order['ORDER'];
             $basketItems = $order['BASKET_ITEMS'] ?? [];
             $shipment = $order['SHIPMENT'][0] ?? [];
@@ -177,10 +335,29 @@ if (empty($arResult['ORDERS'])): ?>
         <?php endforeach; ?>
     </div>
 
-    <?= $arResult['NAV_STRING'] ?>
+    <?php if (!$hasFilters): ?>
+        <?= $arResult['NAV_STRING'] ?>
+    <?php endif; ?>
 <?php endif; ?>
 
 <style>
+.orders-filter {
+    background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); padding: 16px 20px; margin-bottom: 16px;
+}
+.orders-filter__row { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+.orders-filter__field { display: flex; flex-direction: column; gap: 4px; min-width: 150px; }
+.orders-filter__field--search { flex: 1 1 220px; }
+.orders-filter__field label { font-size: 11px; color: var(--gray-light); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; }
+.orders-filter__field input, .orders-filter__field select {
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius);
+    font-size: 13px; color: var(--black); background: #fff; height: 36px;
+}
+.orders-filter__actions { display: flex; gap: 8px; }
+@media (max-width: 600px) {
+    .orders-filter__row { flex-direction: column; align-items: stretch; }
+    .orders-filter__field { min-width: 0; }
+}
 .orders-list { display: flex; flex-direction: column; gap: 12px; }
 .order-card {
     background: #fff; border: 1px solid var(--border); border-radius: var(--radius);

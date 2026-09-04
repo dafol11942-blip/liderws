@@ -1,5 +1,12 @@
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
-$APPLICATION->SetTitle("История заказов"); ?>
+$APPLICATION->SetTitle("История заказов");
+
+// Если активен любой фильтр из шапки списка (дата/статус/поставщик/артикул) —
+// фильтруем на всём доступном наборе заказов, а не только внутри текущей
+// страницы пагинации. Пагинация ядрового компонента об этих фильтрах не знает.
+$hasOrderFilters = ($_GET['q'] ?? '') !== '' || ($_GET['date_from'] ?? '') !== ''
+    || ($_GET['date_to'] ?? '') !== '' || ($_GET['status'] ?? '') !== '' || ($_GET['supplier'] ?? '') !== '';
+?>
 
 <div class="lk-layout">
     <?php $lkNavActive = 'orders'; require $_SERVER["DOCUMENT_ROOT"] . "/local/templates/lider_modern/include/lk-sidebar.php"; ?>
@@ -10,7 +17,7 @@ $APPLICATION->SetTitle("История заказов"); ?>
             "modern",
             array(
                 "SEF_MODE" => "N",
-                "ORDERS_PER_PAGE" => "10",
+                "ORDERS_PER_PAGE" => $hasOrderFilters ? "1000" : "10",
                 "PATH_TO_PAYMENT" => "/personal/order/payment/",
                 "PATH_TO_BASKET" => "/personal/cart/",
                 "SET_TITLE" => "N",
