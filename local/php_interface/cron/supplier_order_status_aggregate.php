@@ -32,6 +32,24 @@ function clog(string $msg): void {
     echo $line;
 }
 
+// Бутстрап — самое первое, что делает скрипт, ДО любого echo/clog(). prolog_before.php
+// сам стартует сессию — если до него уже была выведена хоть одна вписанная в поток
+// строка (например, наш собственный лог через echo), PHP считает "заголовки уже
+// отправлены" и session_start() падает, даже в CLI. ob_start() — дополнительная
+// подстраховка на случай, если сам прolog что-то выведет раньше session_start().
+ob_start();
+try {
+    $_SERVER['DOCUMENT_ROOT'] = $docRoot;
+    define('NO_KEEP_STATISTIC', true);
+    require_once $docRoot . '/bitrix/modules/main/include/prolog_before.php';
+    CModule::IncludeModule('sale');
+    ob_end_clean();
+} catch (\Throwable $e) {
+    ob_end_clean();
+    file_put_contents($logFile, '[' . date('H:i:s') . '] Bitrix bootstrap failed: ' . $e->getMessage() . PHP_EOL, FILE_APPEND);
+    exit(1);
+}
+
 const STAGE_ORDER = ['ordered' => 1, 'in_transit' => 2, 'ready' => 3];
 const STAGE_TO_STATUS = [
     'ordered'    => 'SO',
@@ -42,16 +60,6 @@ const STAGE_TO_STATUS = [
 const MANAGED_STATUSES = ['N', 'S', 'SO', 'ST', 'SR'];
 
 clog('=== supplier_order_status_aggregate START ===');
-
-try {
-    $_SERVER['DOCUMENT_ROOT'] = $docRoot;
-    define('NO_KEEP_STATISTIC', true);
-    require_once $docRoot . '/bitrix/modules/main/include/prolog_before.php';
-    CModule::IncludeModule('sale');
-} catch (\Throwable $e) {
-    clog('Bitrix bootstrap failed: ' . $e->getMessage());
-    exit(1);
-}
 
 try {
     $db = \Bitrix\Main\Application::getConnection();
