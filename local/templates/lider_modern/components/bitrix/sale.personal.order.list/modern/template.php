@@ -341,6 +341,16 @@ if ($hasFilters) {
 <?php endif; ?>
 
 <style>
+/* .lk-content уже стилизует чужие "сырые" формы (гостевой вход) правилом
+   `form:not(.profile-form)` — max-width:340px и своя раскладка для
+   input[type=text]. Перебиваем явно, иначе фильтр схлопывается в узкую колонку. */
+.lk-content form.orders-filter { max-width: none !important; }
+.lk-content form.orders-filter input[type="text"] {
+    display: block !important; width: 100% !important; margin: 0 !important;
+    padding: 8px 10px !important; border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important; font-size: 13px !important;
+    height: 36px !important; box-sizing: border-box !important;
+}
 .orders-filter {
     background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
     box-shadow: var(--shadow-sm); padding: 16px 20px; margin-bottom: 16px;
