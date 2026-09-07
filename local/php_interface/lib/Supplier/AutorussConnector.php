@@ -11,6 +11,10 @@ class AutorussConnector implements SupplierInterface
     private string $baseUrl;
     private int $timeout;
     private bool $lastWithCrosses = false;
+    // Временная диагностика deliveryProbability (см. parseSearchResponse) —
+    // один раз за запрос, чтобы не раздувать лог. Убрать вместе с логом,
+    // когда разберёмся в реальной структуре поля.
+    private bool $rawSampleLogged = false;
 
     public function __construct(array $config = [])
     {
@@ -201,11 +205,17 @@ class AutorussConnector implements SupplierInterface
             $r->multiplicity      = max(1, (int)($item['packing'] ?? 1));
             $r->unit              = 'шт.';
             $r->returnable        = empty($item['noReturn']);
-            // Масштаб поля документацией не подтверждён — на всякий случай
-            // считаем долей (0-1), если значение не больше 1, иначе процентом.
-            if (is_numeric($item['deliveryProbability'] ?? null)) {
-                $dp = (float)$item['deliveryProbability'];
-                $r->reliabilityPercent = max(0, min(100, (int)round($dp <= 1 ? $dp * 100 : $dp)));
+            // ВРЕМЕННО ОТКЛЮЧЕНО: расчёт reliabilityPercent из deliveryProbability
+            // убран — в этом (списочном) ответе search/articles поле почти всегда
+            // приходило как 0, хотя для ТОГО ЖЕ предложения (itemKey) в личном
+            // кабинете Авторусь (abcp) реальная "Вероятность поставки" была 76.4%.
+            // Показывать всем подряд ложные "0% / 100% отказ" хуже, чем не
+            // показывать бейдж вовсе. Логируем сырой ответ первой позиции (не
+            // всех — иначе раздувает лог на каждый поиск), чтобы разобраться
+            // в реальной структуре поля, не трогая расчёт вслепую.
+            if (!$this->rawSampleLogged) {
+                $this->rawSampleLogged = true;
+                $this->log('sample item raw JSON: ' . json_encode($item, JSON_UNESCAPED_UNICODE));
             }
 
             $r->raw = [
