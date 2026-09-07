@@ -70,6 +70,7 @@ while ($row = $localIdsRes->Fetch()) {
     if ($isExact) { $localExactIds[] = $row['ID']; } else { $localAnalogIds[] = $row['ID']; }
 }
 $localCount = count($localExactIds) + count($localAnalogIds);
+$localBrandPropCode = getBrandPropertyCode(42);
 $localCardParams = [
     "IBLOCK_TYPE"          => "1c_catalog",
     "IBLOCK_ID"            => 42,
@@ -79,7 +80,7 @@ $localCardParams = [
     "ELEMENT_SORT_ORDER"   => "asc",
     "FILTER_NAME"          => "arrFilter",
     "PRICE_CODE"           => ["Ручная розничная цена"],
-    "PROPERTY_CODE"        => ["CML2_ARTICLE", "CML2_MANUFACTURER", "IN_STOCK"],
+    "PROPERTY_CODE"        => array_values(array_filter(["CML2_ARTICLE", "CML2_MANUFACTURER", $localBrandPropCode, "IN_STOCK"])),
     "PAGE_ELEMENT_COUNT"   => "12",
     "HIDE_NOT_AVAILABLE"   => "Y",
     "BASKET_URL"           => "/personal/cart/",

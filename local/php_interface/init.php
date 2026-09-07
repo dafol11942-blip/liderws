@@ -56,6 +56,35 @@ function syncInStockProperty($productId)
     CIBlockElement::SetPropertyValuesEx($productId, $iblockId, [$propCode => $newValue]);
 }
 
+// Свойство "Бренд" в iblock 42 (1c_catalog) заведено вручную, без CML2_-кода
+// (в отличие от CML2_MANUFACTURER, который у части товаров пуст) — ищем его
+// код по имени, а не хардкодим, т.к. в разных инфоблоках он может отличаться.
+function getBrandPropertyCode(int $iblockId): string
+{
+    static $cache = [];
+    if (array_key_exists($iblockId, $cache)) return $cache[$iblockId];
+    $code = '';
+    if (CModule::IncludeModule('iblock')) {
+        $dbProps = CIBlockProperty::GetList([], ['IBLOCK_ID' => $iblockId, 'NAME' => 'Бренд']);
+        if ($arProp = $dbProps->Fetch()) $code = $arProp['CODE'];
+    }
+    return $cache[$iblockId] = $code;
+}
+
+// Запасной путь на случай, если PROPERTY_CODE компонента почему-то не подтянул
+// getBrandPropertyCode() (например, кэш компонента собран до её резолва) —
+// ищем свойство прямо в уже загруженных $item['PROPERTIES'] по имени "Бренд".
+function resolveBrandFromProperties(array $properties): string
+{
+    foreach ($properties as $prop) {
+        if (empty($prop['VALUE'])) continue;
+        if (mb_strtolower(trim((string)($prop['NAME'] ?? ''))) !== 'бренд') continue;
+        $value = is_array($prop['VALUE']) ? reset($prop['VALUE']) : $prop['VALUE'];
+        return trim((string)$value);
+    }
+    return '';
+}
+
 function getSupplierFactory(): \Lider\Supplier\SupplierFactory
 {
     static $factory = null;

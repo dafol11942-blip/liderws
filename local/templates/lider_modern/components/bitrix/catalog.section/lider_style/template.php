@@ -21,6 +21,9 @@ CModule::IncludeModule('catalog');
         $oldPrice = $item['ITEM_PRICES'][0]['BASE_PRICE'] ?? 0;
         $article = $item['PROPERTIES']['CML2_ARTICLE']['VALUE'] ?? ($item['PROPERTIES']['ARTICLE']['VALUE'] ?? '');
         $brand = trim((string)($item['PROPERTIES']['CML2_MANUFACTURER']['VALUE'] ?? ''));
+        if ($brand === '' && !empty($item['PROPERTIES'])) {
+            $brand = resolveBrandFromProperties($item['PROPERTIES']);
+        }
 
         // Суммируем остатки по складам
 		$inStock = true;  // фильтрация уже выполнена в result_modifier

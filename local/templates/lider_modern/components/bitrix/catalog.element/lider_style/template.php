@@ -12,7 +12,17 @@ if (!empty($item['DETAIL_PICTURE']['SRC'])) {
 $price    = $item['ITEM_PRICES'][0]['PRICE'] ?? 0;
 $oldPrice = $item['ITEM_PRICES'][0]['BASE_PRICE'] ?? 0;
 $article  = $item['PROPERTIES']['CML2_ARTICLE']['VALUE'] ?? '';
-$brand    = $item['PROPERTIES']['CML2_MANUFACTURER']['VALUE'] ?? '';
+$brand    = trim((string)($item['PROPERTIES']['CML2_MANUFACTURER']['VALUE'] ?? ''));
+$brandPropCode = $brand !== '' ? 'CML2_MANUFACTURER' : '';
+if ($brand === '' && !empty($item['PROPERTIES'])) {
+    foreach ($item['PROPERTIES'] as $prop) {
+        if (empty($prop['VALUE'])) continue;
+        if (mb_strtolower(trim((string)($prop['NAME'] ?? ''))) !== 'бренд') continue;
+        $brand = trim((string)(is_array($prop['VALUE']) ? reset($prop['VALUE']) : $prop['VALUE']));
+        $brandPropCode = $prop['CODE'];
+        break;
+    }
+}
 
 // Суммируем остатки по складам
 CModule::IncludeModule('catalog');
@@ -32,12 +42,12 @@ $inStock = $totalAmount > 0;
     <div class="product-detail__info">
         <h1><?= $item['NAME'] ?></h1>
 
-        <?php if ($article): ?>
-            <div class="product-detail__article">Артикул: <?= $article ?></div>
-        <?php endif; ?>
-
-        <?php if ($brand): ?>
-            <div class="product-detail__article">Производитель: <?= $brand ?></div>
+        <?php if ($article || $brand): ?>
+            <div class="product-detail__article">
+                <?php if ($article): ?>Артикул: <?= htmlspecialchars($article) ?><?php endif; ?>
+                <?php if ($article && $brand): ?> &middot; <?php endif; ?>
+                <?php if ($brand): ?>Бренд: <?= htmlspecialchars($brand) ?><?php endif; ?>
+            </div>
         <?php endif; ?>
 
         <div class="product-detail__stock">
@@ -100,7 +110,7 @@ $inStock = $totalAmount > 0;
             <div class="product-detail__props">
                 <h3><svg class="icon"><use href="#icon-list"></use></svg> Характеристики</h3>
                 <?php foreach ($item['PROPERTIES'] as $prop): ?>
-                    <?php if (!empty($prop['VALUE']) && !in_array($prop['CODE'], ['CML2_ARTICLE', 'CML2_MANUFACTURER', 'IN_STOCK', 'IN_STOCK_LIST'])): ?>
+                    <?php if (!empty($prop['VALUE']) && !in_array($prop['CODE'], array_filter(['CML2_ARTICLE', 'CML2_MANUFACTURER', 'IN_STOCK', 'IN_STOCK_LIST', $brandPropCode]))): ?>
                         <div class="prop-row">
                             <span class="prop-row__name"><?= $prop['NAME'] ?>:</span>
                             <span class="prop-row__value">

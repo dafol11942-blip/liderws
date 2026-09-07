@@ -130,7 +130,7 @@ if ($isElement && $elementCode) {
     }
 }
 ?>
-<div class="breadcrumbs">
+<div class="breadcrumbs container">
     <ul>
         <?php $lastIdx = count($breadcrumbs) - 1;
         foreach ($breadcrumbs as $i => $item):
@@ -215,7 +215,9 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
 
         <?php if ($isElement): ?>
             <!-- ===== ДЕТАЛЬНАЯ ТОВАРА ===== -->
-            <?php $APPLICATION->IncludeComponent(
+            <?php
+            $detailBrandPropCode = getBrandPropertyCode($iblockId);
+            $APPLICATION->IncludeComponent(
                 "bitrix:catalog.element",
                 "lider_style",
                 array(
@@ -224,7 +226,7 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
                     "ELEMENT_CODE"     => $elementCode,
                     "SECTION_CODE"     => $sectionCode,
                     "SECTION_ID"       => $sectionId,
-                    "PROPERTY_CODE"    => array("CML2_ARTICLE", "CML2_MANUFACTURER", "IN_STOCK"),
+                    "PROPERTY_CODE"    => array_values(array_filter(["CML2_ARTICLE", "CML2_MANUFACTURER", $detailBrandPropCode, "IN_STOCK"])),
                     "PRICE_CODE"       => array("Ручная розничная цена"),
                     "PRICE_VAT_INCLUDE"=> "Y",
                     "HIDE_NOT_AVAILABLE"=> "Y",
