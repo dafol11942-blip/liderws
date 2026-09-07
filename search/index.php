@@ -812,7 +812,7 @@ function supplierBadge(s){
 
 function returnIcon(s){
     if(s.returnable===false){
-        return '<span class="ret-badge ret-badge--no" title="Товар не подлежит возврату"><svg class="icon"><use href="#icon-x-circle"></use></svg> Без возврата</span>';
+        return '<span class="ret-badge ret-badge--no" title="Товар не подлежит возврату"><svg class="icon"><use href="#icon-x-circle"></use></svg></span>';
     }
     return '<span class="ret-badge ret-badge--yes" title="Товар подлежит возврату"><svg class="icon"><use href="#icon-check-circle"></use></svg></span>';
 }

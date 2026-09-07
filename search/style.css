@@ -80,13 +80,13 @@
 .src-tag--autoruss{background:#fff7ed;color:#c2410c}.src-tag--autopiter{background:#e8eaf6;color:#283593}
 
 /* ====== ВОЗВРАТ ТОВАРА (флаг возможности возврата у поставщика) — рядом с выбором количества ====== */
-.ret-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; flex-shrink: 0; }
-.ret-badge .icon { width: 22px; height: 22px; }
+.ret-badge { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ret-badge .icon { width: 18px; height: 18px; }
 .ret-badge--yes { color: var(--green); }
-.ret-badge--no { color: var(--red); background: #fdecec; padding: 4px 10px; border-radius: var(--radius); text-transform: uppercase; letter-spacing: .02em; }
+.ret-badge--no { color: var(--red); background: #fdecec; padding: 3px; border-radius: 50%; }
 
 /* ====== ВЕРОЯТНОСТЬ ПОСТАВКИ (не у всех поставщиков есть статистика) ====== */
-.rel-badge { position: relative; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: var(--radius); flex-shrink: 0; cursor: default; }
+.rel-badge { position: relative; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: var(--radius); flex-shrink: 0; cursor: default; white-space: nowrap; }
 .rel-badge--good { background: rgba(77,205,113,.14); color: #2e7d32; }
 .rel-badge--mid  { background: #fff3cd; color: #8a5300; }
 .rel-badge--low  { background: #fdecec; color: var(--red); }
@@ -195,13 +195,13 @@
    во всех таблицах секции (искомый номер + каждая группа аналогов),
    поэтому колонки больше не "гуляют" между блоками */
 .ft-tbl { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
-.ft-col--det { width: 21%; }
-.ft-col--skl { width: 18%; }
-.ft-col--qty { width: 7%; }
-.ft-col--unit { width: 6%; }
-.ft-col--del { width: 16%; }
+.ft-col--det { width: 19%; }
+.ft-col--skl { width: 15%; }
+.ft-col--qty { width: 6%; }
+.ft-col--unit { width: 5%; }
+.ft-col--del { width: 15%; }
 .ft-col--prc { width: 16%; }
-.ft-col--act { width: 16%; }
+.ft-col--act { width: 24%; }
 .ft-tbl thead th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ft-tbl tbody td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
 .ft-tbl tbody tr:last-child td { border-bottom: none; }
@@ -223,7 +223,7 @@
 
 /* ====== ДОБАВЛЕНИЕ В КОРЗИНУ (пока UI-заглушка: проверка остатка + уведомление, без сохранения) ====== */
 .ft-th--act { text-align: right !important; }
-.ft-td--act { white-space: normal; display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.ft-td--act { white-space: normal; display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: nowrap; }
 .actl { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .actl-stepper {
     display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: var(--radius);
@@ -322,7 +322,7 @@
     .ft-td--act .actl { justify-content: flex-start; }
     .ft-tbl thead { display: none; }
     .ft-tbl tbody td { display: block; text-align: left !important; padding: 8px 12px; white-space: normal; }
-    .ft-tbl tbody td.ft-td--act { display: flex; justify-content: flex-start; }
+    .ft-tbl tbody td.ft-td--act { display: flex; justify-content: flex-start; flex-wrap: wrap; }
     .ft-deliv-label { white-space: normal; }
     .ft-tbl tbody td[data-label]::before { content: attr(data-label); font-weight: 700; font-size: 10px; color: var(--gray); text-transform: uppercase; display: block; margin-bottom: 3px; }
     .ft-ghead { flex-direction: column; align-items: flex-start; }
