@@ -6,6 +6,14 @@ $APPLICATION->SetTitle("История заказов");
 // страницы пагинации. Пагинация ядрового компонента об этих фильтрах не знает.
 $hasOrderFilters = ($_GET['q'] ?? '') !== '' || ($_GET['date_from'] ?? '') !== ''
     || ($_GET['date_to'] ?? '') !== '' || ($_GET['status'] ?? '') !== '' || ($_GET['supplier'] ?? '') !== '';
+
+// Ядро bitrix:sale.personal.order.list само добавляет 'CANCELED' => 'N' в фильтр,
+// если в запросе нет show_all=Y (см. class.php: $showAll === 'N' — ветка истории/
+// отмены), причём независимо от параметра HISTORIC_STATUSES ниже. Без этого
+// отменённые заказы (в т.ч. автоотменённые по неоплате, см.
+// local/php_interface/cron/payment_hold_sweep.php) молча пропадают из списка,
+// хотя шаблон modern/template.php их прекрасно умеет показывать с плашкой "Отменён".
+$_REQUEST['show_all'] = 'Y';
 ?>
 
 <div class="lk-layout">
