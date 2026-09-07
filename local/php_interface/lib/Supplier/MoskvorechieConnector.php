@@ -3,13 +3,14 @@ namespace Lider\Supplier;
 
 use Lider\Search\SearchResultItem;
 
-class MoskvorechieConnector implements SupplierInterface
+class MoskvorechieConnector implements SupplierInterface, SupplierOrderable
 {
     private string $apiUrl;
     private string $apiKey;
     private int $timeout;
     private string $agreementId;
     private string $filialId;
+    private ?array $profileCache = null;
 
     public function __construct(array $config = [])
     {
@@ -168,6 +169,189 @@ class MoskvorechieConnector implements SupplierInterface
         return array_slice($unique, 0, 30);
     }
 
+    // ==================== ЗАКАЗ (SupplierOrderable) ====================
+
+    /**
+     * У API Москворечья нет отдельного эндпоинта "оформить заказ по товару" —
+     * только серверная корзина: сначала товары кладутся в неё по gid
+     * (POST /cart/add), затем из неё собирается заказ по cart_position_id
+     * (POST /orders). agreement_id/filial_id (заголовки X-Agreement-ID/
+     * X-Filial-ID) и delivery_term (обязательное поле /orders) не задаются нами
+     * напрямую — берутся из /profile (см. loadProfile()), если не были явно
+     * прописаны в конфиге коннектора.
+     */
+    public function placeOrder(array $items, bool $test = false): array
+    {
+        if ($test) {
+            // В документации API нет флага "тестовый заказ" (в отличие от ПартКома) —
+            // безопаснее ничего не отправлять в тестовом режиме, чем случайно
+            // оформить реальный заказ у поставщика.
+            $this->log('placeOrder: тестовый режим не поддерживается API Москворечья — запрос не отправлен, items=' . count($items));
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'test_mode_not_supported'];
+        }
+
+        $cartPayload = [];
+        $skipped = 0;
+        foreach ($items as $item) {
+            $gid = trim((string)($item['order_meta']['gid'] ?? ''));
+            $qty = (int)($item['quantity'] ?? 0);
+            if ($gid === '' || $qty <= 0) { $skipped++; continue; }
+            $cartPayload[] = ['gid' => $gid, 'quantity' => $qty, 'comment' => (string)($item['comment'] ?? '')];
+        }
+
+        if (empty($cartPayload)) {
+            $this->log('placeOrder: нет ни одной валидной позиции (нет gid в order_meta), пропущено ' . $skipped);
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_valid_items'];
+        }
+
+        $profile = $this->loadProfile() ?? [];
+        if ($this->agreementId === '' && !empty($profile['agreement_id'])) $this->agreementId = $profile['agreement_id'];
+        if ($this->filialId === ''    && !empty($profile['filial_id']))    $this->filialId    = $profile['filial_id'];
+        $deliveryTerm = (string)($profile['delivery_term'] ?? '');
+
+        if ($deliveryTerm === '') {
+            $this->log('placeOrder: не удалось определить delivery_term через /profile');
+            return ['http_code' => null, 'success' => false, 'raw' => $profile, 'error' => 'no_delivery_term'];
+        }
+
+        $this->log('placeOrder: /cart/add items=' . count($cartPayload) . ' skipped=' . $skipped . ' payload=' . json_encode($cartPayload, JSON_UNESCAPED_UNICODE));
+
+        $addResult = $this->requestJson('POST', '/cart/add', $cartPayload);
+        $addBody   = $addResult['body'];
+        if ($addResult['error'] || $addResult['http_code'] !== 200 || !is_array($addBody)) {
+            return ['http_code' => $addResult['http_code'], 'success' => false, 'raw' => $addBody, 'error' => $addResult['error'] ?: ('cart_add_http_' . $addResult['http_code'])];
+        }
+
+        $positionIds = [];
+        foreach ((array)($addBody['cart'] ?? []) as $row) {
+            if (empty($row['status']) || !isset($row['cart_position_id'])) continue;
+            $positionIds[] = (int)$row['cart_position_id'];
+        }
+
+        if (empty($positionIds)) {
+            $this->log('placeOrder: /cart/add не подтвердил ни одной позиции — ' . ($addBody['message'] ?? ''));
+            return ['http_code' => $addResult['http_code'], 'success' => false, 'raw' => $addBody, 'error' => 'cart_add_all_rejected'];
+        }
+
+        $orderComment = (string)($items[array_key_first($items)]['comment'] ?? '');
+
+        $orderResult = $this->requestJson('POST', '/orders', [
+            'delivery_term' => $deliveryTerm,
+            'comment'       => $orderComment,
+            'positions'     => $positionIds,
+        ]);
+        $orderBody = $orderResult['body'];
+
+        $success = $orderResult['error'] === null
+            && $orderResult['http_code'] === 200
+            && is_array($orderBody)
+            && !empty($orderBody['order']['order_number']);
+
+        return [
+            'http_code' => $orderResult['http_code'],
+            'success'   => $success,
+            'raw'       => ['cart_add' => $addBody, 'order' => $orderBody],
+            'error'     => $orderResult['error'] ?: ($success ? null : (string)($orderBody['message'] ?? 'order_rejected')),
+        ];
+    }
+
+    /**
+     * Профиль API-ключа (агент/договор, филиал/адрес доставки по умолчанию,
+     * условие доставки по умолчанию) — кэшируется на диск на 24ч, как и справочник
+     * брендов ПартКома (см. PartKomConnector::loadBrands()), т.к. эти данные
+     * меняются крайне редко, а /orders требует delivery_term на каждый вызов.
+     */
+    private function loadProfile(): ?array
+    {
+        if ($this->profileCache !== null) return $this->profileCache;
+
+        $cacheFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/moskvorechie_profile.json';
+        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
+            $cached = json_decode((string)@file_get_contents($cacheFile), true);
+            if (is_array($cached) && !empty($cached['delivery_term'])) {
+                $this->profileCache = $cached;
+                return $cached;
+            }
+        }
+
+        $resp = $this->requestJson('GET', '/profile');
+        $data = $resp['body']['data'] ?? null;
+        if (!is_array($data)) {
+            $this->log('loadProfile: /profile недоступен, http=' . $resp['http_code']);
+            return null;
+        }
+
+        $agreementId = '';
+        $filialId    = '';
+        foreach ((array)($data['order_settings']['kontragents'] ?? []) as $k) {
+            foreach ((array)($k['agreements'] ?? []) as $ag) {
+                if ($agreementId === '' && !empty($ag['id'])) $agreementId = (string)$ag['id'];
+            }
+            foreach ((array)($k['delivery_addresses'] ?? []) as $addr) {
+                if (!empty($addr['is_default']) && !empty($addr['id'])) { $filialId = (string)$addr['id']; break; }
+            }
+            if ($filialId === '' && !empty($k['delivery_addresses'][0]['id'])) {
+                $filialId = (string)$k['delivery_addresses'][0]['id'];
+            }
+            if ($agreementId !== '' && $filialId !== '') break;
+        }
+
+        $deliveryTerm = '';
+        foreach ((array)($data['delivery_terms'] ?? []) as $t) {
+            if (!empty($t['is_default']) && !empty($t['id'])) { $deliveryTerm = (string)$t['id']; break; }
+        }
+        if ($deliveryTerm === '' && !empty($data['delivery_terms'][0]['id'])) {
+            $deliveryTerm = (string)$data['delivery_terms'][0]['id'];
+        }
+
+        $profile = ['agreement_id' => $agreementId, 'filial_id' => $filialId, 'delivery_term' => $deliveryTerm];
+        $this->log('loadProfile: resolved ' . json_encode($profile, JSON_UNESCAPED_UNICODE));
+
+        if ($deliveryTerm !== '') {
+            @mkdir(dirname($cacheFile), 0755, true);
+            @file_put_contents($cacheFile, json_encode($profile, JSON_UNESCAPED_UNICODE));
+        }
+
+        $this->profileCache = $profile;
+        return $profile;
+    }
+
+    /** JSON-запрос с полными деталями ответа (в отличие от execCurl() — нужны
+     * http_code/error отдельно от тела для семантики success в placeOrder()). */
+    private function requestJson(string $method, string $path, $body = null): array
+    {
+        $url = rtrim($this->apiUrl, '/') . $path;
+        $headers = $this->buildHeaders();
+        $headers[] = 'Content-Type: application/json';
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_ENCODING       => 'gzip',
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_CONNECTTIMEOUT => 5,
+        ]);
+        if ($method === 'POST') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body, JSON_UNESCAPED_UNICODE));
+        }
+        $resp     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err      = curl_error($ch);
+        curl_close($ch);
+
+        $this->log("{$method} {$path}: http={$httpCode} err={$err} body=" . substr((string)$resp, 0, 4000));
+
+        $decoded = null;
+        if ($resp !== false && $resp !== '') {
+            $decoded = json_decode($resp, true);
+            if (!is_array($decoded)) $decoded = ['_raw_text' => $resp];
+        }
+
+        return ['http_code' => $httpCode ?: null, 'body' => $decoded, 'error' => $err ?: null];
+    }
+
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ====================
 
     private function buildHeaders(): array
@@ -225,6 +409,9 @@ class MoskvorechieConnector implements SupplierInterface
         $r->unit           = !empty($item['unit']) ? (string)$item['unit'] : 'шт.';
         $r->isSched        = $isSched;
         $r->returnable     = $returnable;
+        // Для оформления заказа (см. SupplierOrderable::placeOrder()) — тот самый
+        // "внутренний идентификатор товара", который /cart/add принимает как gid.
+        $r->orderMeta      = ['gid' => (string)($item['gid'] ?? '')];
         $r->raw            = $item;
         return $r;
     }
