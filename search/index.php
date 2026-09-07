@@ -513,9 +513,9 @@ function showToast(msg, kind) {
 }
 
 var lastData = null;
-var filterState = { brands: null, suppliers: null, maxDelivery: null, minQty: null }; // null = не ограничено
+var filterState = { brands: null, suppliers: null, maxDelivery: null, minQty: null, excludeNonReturnable: false }; // null = не ограничено
 function isFilterActive(){
-    return !!filterState.brands || !!filterState.suppliers || filterState.maxDelivery != null || filterState.minQty != null;
+    return !!filterState.brands || !!filterState.suppliers || filterState.maxDelivery != null || filterState.minQty != null || filterState.excludeNonReturnable;
 }
 
 // Пользовательская сортировка по цене внутри отдельной позиции (искомый номер
@@ -559,7 +559,13 @@ function passesRowFilter(s){
     if (!supplierAllowed(s)) return false;
     if (filterState.maxDelivery != null && !(s.delivery_days >= 0 && s.delivery_days <= filterState.maxDelivery)) return false;
     if (filterState.minQty != null && !(s.quantity >= filterState.minQty)) return false;
+    if (filterState.excludeNonReturnable && s.returnable === false) return false;
     return true;
+}
+function hasAnyNonReturnable(d){
+    var offers = (d.exact && d.exact.suppliers) || [];
+    (d.analogs||[]).forEach(function(a){ offers = offers.concat(a.suppliers||[]); });
+    return offers.some(function(s){ return s.returnable === false; });
 }
 
 window.toggleFilterBrand = function(key){
@@ -591,12 +597,16 @@ window.setFilterQty = function(val){
     if (lastData) renderResults(lastData);
 };
 window.resetFilters = function(){
-    filterState = { brands: null, suppliers: null, maxDelivery: null, minQty: null };
+    filterState = { brands: null, suppliers: null, maxDelivery: null, minQty: null, excludeNonReturnable: false };
     if (lastData) renderResults(lastData);
 };
 window.toggleHideBasePrice = function(checked){
     hideBasePrice = checked;
     qs('#resultContent').classList.toggle('hide-base-price', hideBasePrice);
+};
+window.toggleExcludeNonReturnable = function(checked){
+    filterState.excludeNonReturnable = checked;
+    if (lastData) renderResults(lastData);
 };
 
 var DELIVERY_OPTS = [[null,'Любой'],[0,'Сегодня'],[2,'До 2 дней'],[5,'До 5 дней'],[10,'До 10 дней']];
@@ -606,7 +616,7 @@ function renderFilterBar(d){
     var brandsMap = getAllBrands(d);
     var brandKeys = Object.keys(brandsMap).sort();
     var supplierKeys = Object.keys(getAllSuppliers(d)).sort();
-    if (!brandKeys.length && !IS_MANAGER) return '';
+    if (!brandKeys.length && !IS_MANAGER && !hasAnyNonReturnable(d)) return '';
 
     var isActive = isFilterActive();
 
@@ -614,6 +624,10 @@ function renderFilterBar(d){
 
     if (IS_MANAGER) {
         h += '<label class="filter-opt filter-opt--toggle"><input type="checkbox"' + (hideBasePrice?' checked':'') + ' onchange="toggleHideBasePrice(this.checked)"> Скрыть закупочную цену</label>';
+    }
+
+    if (hasAnyNonReturnable(d)) {
+        h += '<label class="filter-opt filter-opt--toggle"><input type="checkbox"' + (filterState.excludeNonReturnable?' checked':'') + ' onchange="toggleExcludeNonReturnable(this.checked)"> Исключить невозвратный товар</label>';
     }
 
     if (brandKeys.length > 1) {
