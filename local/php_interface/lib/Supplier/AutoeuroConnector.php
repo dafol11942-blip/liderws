@@ -177,7 +177,7 @@ class AutoeuroConnector implements SupplierInterface
         $keep = [
             'delivery_time', 'delivery_time_max', 'order_before',
             'deliveryDateFrom', 'deliveryDateTo', 'deliveryCheckout',
-            'warehouse_name', 'offer_key', 'stock', 'return', 'packing', 'unit',
+            'warehouse_name', 'offer_key', 'stock', 'return', 'packing', 'unit', 'rejects',
         ];
         $out = [];
         foreach ($keep as $k) {
@@ -304,6 +304,12 @@ class AutoeuroConnector implements SupplierInterface
         $r->multiplicity   = max(1, (int)($item['packing'] ?? 1));
         $r->unit           = !empty($item['unit']) ? (string)$item['unit'] : 'шт.';
         $r->returnable     = !empty($item['return']);
+        // rejects — "Вероятность отказа в процентах, 0% = на складе" (т.е. это
+        // ОТКАЗ, а не поставка — reliability считаем от обратного).
+        if (is_numeric($item['rejects'] ?? null)) {
+            $r->refusalPercent     = max(0, min(100, (int)round((float)$item['rejects'])));
+            $r->reliabilityPercent = 100 - $r->refusalPercent;
+        }
         $r->raw            = $this->lightRaw($item);
 
         // Стандартные ключи для calcDelivery

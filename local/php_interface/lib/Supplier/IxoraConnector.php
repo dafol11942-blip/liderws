@@ -237,6 +237,7 @@ class IxoraConnector implements SupplierInterface
             // qty>0 = реальное наличие на складе поставщика (даже если days>0)
             $r->isSched      = ($qty <= 0);
             $r->returnable   = $this->isReturnable($retPeriod, $retCondId, $retCond);
+            $r->reliabilityPercent = $this->estimationToPercent($estimation);
 
             // Срок
             [$deliveryDays, $deliveryPeriod, $deliveryLabel, $deliveryTimeLabel, $deliveryToday, $deliveryDeadline] = $this->resolveDelivery($dateArrival, $days, $daysW);
@@ -451,7 +452,37 @@ class IxoraConnector implements SupplierInterface
         return $resp;
     }
 
-    
+    /**
+     * "estimation" — 3-значная строка-триплет из B2B API Ixora: 1-я цифра —
+     * оценка по сроку поставки, 2-я — наличие по детали, 3-я — наличие по
+     * производителю. Шкала 1-5 подтверждена по личному кабинету Ixora
+     * (колонка "Оценка": "5 5 5" и т.п., где всплывающая статистика для
+     * оценки "5" показывает "доставлено 100%, нет в наличии 0%") — то есть
+     * 5 = 100%, 1 = 0%, линейная шкала. Недостающий/нечисловой символ
+     * (напр. "-" — нет данных по этой позиции, встречается в кабинете как
+     * зачёркнутая иконка) просто исключается из расчёта.
+     *
+     * Для "вероятности поставки" берём именно НАЛИЧИЕ (2-я и 3-я цифры) —
+     * это то, будет ли деталь физически доставлена. Срок (1-я цифра) —
+     * отдельная характеристика скорости, а не вероятности поставки как
+     * таковой, и уже отображается отдельно колонкой "Доставка".
+     */
+    private function estimationToPercent(string $estimation): ?int
+    {
+        $chars = str_split(preg_replace('/\s+/', '', $estimation));
+        $availabilityDigits = [];
+        foreach ([1, 2] as $idx) { // 2-я и 3-я цифры триплета (индексы 1,2)
+            if (isset($chars[$idx]) && ctype_digit($chars[$idx])) {
+                $availabilityDigits[] = max(1, min(5, (int)$chars[$idx]));
+            }
+        }
+        if (empty($availabilityDigits)) {
+            return null;
+        }
+        $avgScore = array_sum($availabilityDigits) / count($availabilityDigits); // 1-5
+        return max(0, min(100, (int)round(($avgScore - 1) / 4 * 100)));
+    }
+
     private function isReturnable(int $returnPeriod, int $returnConditionId, string $returnConditions): bool
     {
         $txt = mb_strtolower(trim($returnConditions));
