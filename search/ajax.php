@@ -150,6 +150,8 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
         ? $connector->maskWarehouseName($realWarehouse)
         : $realWarehouse;
 
+    $returnable = (bool)($it->returnable ?? true);
+
     $token = bin2hex(random_bytes(8));
     $OFFER_TOKENS[$token] = [
         'supplier'       => $code,
@@ -161,6 +163,7 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
         'delivery_label' => $it->deliveryLabel ?? null,
         'delivery_time'  => $it->deliveryTimeLabel ?? null,
         'order_meta'     => $it->orderMeta ?? [],
+        'returnable'     => $returnable,
     ];
 
     return [
@@ -181,6 +184,7 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
         'delivery_time'     => $it->deliveryTimeLabel ?? null,
         'delivery_today'    => (bool)($it->deliveryToday ?? false),
         'delivery_deadline' => $it->deliveryDeadline ?? null,
+        'returnable'        => $returnable,
     ];
 }
 
@@ -203,6 +207,7 @@ function sanitizeOffer(array $o): array {
         'delivery_time'     => $o['delivery_time'],
         'delivery_today'    => $o['delivery_today'],
         'delivery_deadline' => $o['delivery_deadline'],
+        'returnable'        => (bool)($o['returnable'] ?? true),
     ];
     if ($IS_MANAGER) {
         $out['supplier']   = $o['supplier'];

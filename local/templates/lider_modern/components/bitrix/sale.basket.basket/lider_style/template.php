@@ -19,6 +19,7 @@ $totalQty = 0;
 $cartMaxDeliveryDays = -1;
 $cartMaxDeliveryText = '';
 $hasSupplierItem = false;
+$hasNonReturnableItem = false;
 
 while ($b = $bRes->Fetch()) {
     $b['PRICE_NUM'] = (float)$b['PRICE'];
@@ -56,6 +57,12 @@ while ($b = $bRes->Fetch()) {
     $b['ARTICLE'] = $props['SUPPLIER_ARTICLE'] ?? '';
     $b['BRAND']   = $props['SUPPLIER_BRAND'] ?? '';
     if ($supplierCode !== '') $hasSupplierItem = true;
+
+    // Возможность возврата — только у заказных позиций от поставщика (напр.
+    // ПартКом: flagReturnImpossible в ответе API), у товара своего склада
+    // свойства нет — считаем его возвратным по умолчанию.
+    $b['RETURNABLE'] = ($props['SUPPLIER_RETURNABLE'] ?? 'Y') !== 'N';
+    if (!$b['RETURNABLE']) $hasNonReturnableItem = true;
 
     // Товар со своего склада (не заказная позиция от поставщика) — своих
     // артикула/бренда в свойствах корзины нет, берём их прямо с элемента каталога.
@@ -147,6 +154,12 @@ if (!empty($items) && !$hasSupplierItem) {
         <h1 class="cart-page__title">Корзина</h1>
         <button type="button" id="cart-clear-btn" class="cart-clear-btn">Очистить корзину</button>
     </div>
+    <?php if ($hasNonReturnableItem): ?>
+    <div class="cart-notice cart-notice--warn">
+        <svg class="icon"><use href="#icon-alert"></use></svg>
+        В корзине есть товар, который не подлежит возврату. При оформлении заказа потребуется подтвердить, что вы с этим ознакомлены.
+    </div>
+    <?php endif; ?>
     <div class="cart-layout">
         <div class="cart-items">
             <?php foreach ($items as $item):
@@ -165,6 +178,9 @@ if (!empty($items) && !$hasSupplierItem) {
                     <a href="<?= $item['URL'] ?>" class="cart-item__name"><?= htmlspecialchars($item['NAME']) ?></a>
                     <?php if ($item['ARTICLE_BRAND_HTML'] !== ''): ?>
                     <div class="cart-item__article"><?= $item['ARTICLE_BRAND_HTML'] ?></div>
+                    <?php endif; ?>
+                    <?php if (!$item['RETURNABLE']): ?>
+                    <div class="cart-item__no-return"><svg class="icon"><use href="#icon-x-circle"></use></svg> Товар не подлежит возврату</div>
                     <?php endif; ?>
                     <div class="cart-item__price-unit"><?= $item['PRICE_FMT'] ?> / шт.</div>
                     <?php if ($item['SUPPLIER_CODE'] !== ''): ?>
@@ -264,6 +280,12 @@ if (!empty($items) && !$hasSupplierItem) {
 .cart-item__article { font-size: 12px; color: var(--gray); margin-top: 4px; }
 .cart-item__price-unit { font-size: 12px; color: var(--gray-light); margin-top: 4px; }
 .cart-item__meta { font-size: 12px; color: var(--gray); margin-top: 4px; }
+.cart-item__no-return { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--red); margin-top: 6px; }
+.cart-item__no-return .icon { width: 14px; height: 14px; }
+
+.cart-notice { display: flex; align-items: center; gap: 10px; border-radius: var(--radius); padding: 12px 16px; font-size: 13px; margin-bottom: 16px; }
+.cart-notice .icon { width: 18px; height: 18px; flex-shrink: 0; }
+.cart-notice--warn { background: #fff5e6; color: #8a5300; }
 
 .cart-item__stale-banner { display: none; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; color: #a15c00; }
 .cart-item--stale .cart-item__stale-banner { display: flex; }

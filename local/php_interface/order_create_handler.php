@@ -47,6 +47,23 @@ if (!function_exists('basketHasSupplierItems')) {
     }
 }
 
+// Хотя бы одна позиция помечена невозвратной (SUPPLIER_RETURNABLE=N, см.
+// order_from_supplier.php) — по этому флагу оформление требует согласия
+// клиента (чекбокс "agree_no_return" в форме, см. lider_style/template.php).
+if (!function_exists('basketHasNonReturnableItems')) {
+    function basketHasNonReturnableItems(\Bitrix\Sale\Basket $basket): bool
+    {
+        foreach ($basket as $basketItem) {
+            foreach ($basketItem->getPropertyCollection() as $p) {
+                if ($p->getField('CODE') === 'SUPPLIER_RETURNABLE' && (string)$p->getField('VALUE') === 'N') {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+}
+
 // Заводит "удержание" заказа до оплаты (b_supplier_order_payment_hold, создаётся
 // один раз вручную через Adminer — см.
 // local/php_interface/db/order_payment_hold_table.sql). Дедлайн считает БД
@@ -341,6 +358,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
     if ($basket->count() == 0) {
         return;
     }
+
+    // Невозвратный товар (см. SUPPLIER_RETURNABLE) требует явного согласия
+    // клиента — без него заказ НЕ создаётся (никогда не доверяем одной только
+    // JS-проверке в форме, дублируем здесь на сервере).
+    if (basketHasNonReturnableItems($basket) && ($_POST['agree_no_return'] ?? '') !== 'Y') {
+        $orderConsentError = true;
+        return;
+    }
+
     $order->setBasket($basket);
 
     // Доставка
@@ -393,6 +419,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
 
     if ($result->isSuccess()) {
         $orderId = $result->getId();
+
+        // Аудиторский след согласия на невозвратный товар — заказ дошёл сюда
+        // только если чекбокс был отмечен (см. гейт basketHasNonReturnableItems
+        // выше), фиксируем это в истории заказа для менеджера/на случай спора.
+        if (basketHasNonReturnableItems($basket)) {
+            try {
+                CModule::IncludeModule('sale');
+                \Bitrix\Sale\OrderHistory::addAction(
+                    'SALE_ORDER',
+                    $orderId,
+                    'NON_RETURNABLE_CONSENT',
+                    $orderId,
+                    null,
+                    ['MESSAGE' => 'Клиент подтвердил согласие с невозвратным товаром в заказе при оформлении.']
+                );
+            } catch (\Throwable $e) {
+                logSupplierOrderDispatch("Заказ №{$orderId}: не удалось записать согласие на невозврат в историю — " . $e->getMessage());
+            }
+        }
+
         file_put_contents(
             $_SERVER['DOCUMENT_ROOT'] . '/upload/debug_order.log',
             "=== " . date('Y-m-d H:i:s') . " === ORDER CREATED: #" . $orderId . "\n",

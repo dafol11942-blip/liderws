@@ -79,6 +79,12 @@
 .src-tag--shatem{background:#fef3c7;color:#92400e}.src-tag--tatparts{background:#e0f7fa;color:#006064}
 .src-tag--autoruss{background:#fff7ed;color:#c2410c}.src-tag--autopiter{background:#e8eaf6;color:#283593}
 
+/* ====== ВОЗВРАТ ТОВАРА (флаг возможности возврата у поставщика) ====== */
+.ret-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; margin-left: 6px; vertical-align: middle; }
+.ret-badge .icon { width: 13px; height: 13px; }
+.ret-badge--yes { color: var(--green); }
+.ret-badge--no { color: var(--red); background: #fdecec; padding: 2px 6px; border-radius: var(--radius); text-transform: uppercase; letter-spacing: .02em; }
+
 /* ====== ЦЕНА (закупочная основная + клиентская для менеджера) ====== */
 .price-main { display: block; font-weight: 700; }
 .price-sub { display: block; font-size: 13px; color: var(--black); font-weight: 600; }

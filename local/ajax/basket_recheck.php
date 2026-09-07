@@ -140,6 +140,7 @@ try {
     // Данные для оформления заказа у поставщика (см. SupplierOrderable) — тоже
     // освежаем, они могли смениться (напр. другой склад/предложение при пересчёте).
     $upsertProp($props, 'SUPPLIER_ORDER_META', 'Данные для заказа', json_encode($freshItem->orderMeta ?? [], JSON_UNESCAPED_UNICODE));
+    $upsertProp($props, 'SUPPLIER_RETURNABLE', 'Возврат', ($freshItem->returnable ?? true) ? 'Y' : 'N');
 
     $basket->save();
 

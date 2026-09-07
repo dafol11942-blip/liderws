@@ -66,6 +66,10 @@ try {
     // Непрозрачный пакет служебных ID для оформления заказа у поставщика
     // (см. SupplierOrderable) — корзина его только хранит и переносит дальше.
     $orderMeta     = $resolvedOffer['order_meta'] ?? [];
+    // Возможность возврата (напр. ПартКом: flagReturnImpossible в ответе API) —
+    // хранится в корзине, чтобы показать предупреждение и потребовать согласие
+    // клиента на невозвратный товар при оформлении заказа (см. checkout).
+    $returnable    = array_key_exists('returnable', $resolvedOffer ?? []) ? (bool)$resolvedOffer['returnable'] : null;
 
     // Отдельно от имени/цены — order_meta мог не долететь и тогда, когда токен
     // в целом был найден (напр. позиция лежит в корзине ещё с прошлой версии кода,
@@ -85,6 +89,7 @@ try {
             $deliveryTime  = $deliveryTime  ?? $item->deliveryTimeLabel;
             $qtyAvail      = $qtyAvail ?: ($item->quantity ?? $quantity);
             if (empty($orderMeta)) $orderMeta = $item->orderMeta ?? [];
+            if ($returnable === null) $returnable = (bool)($item->returnable ?? true);
         } elseif ($itemName === '' || $basePrice <= 0) {
             // Без имени/цены товар в корзину не добавить — это по-прежнему фатально.
             die(json_encode(['success' => false, 'message' => 'Товар не найден']));
@@ -94,6 +99,7 @@ try {
         // автоматическим заказом у поставщика).
     }
     $deliveryDays = $deliveryDays ?? -1;
+    $returnable = $returnable ?? true;
     $orderMetaJson = json_encode($orderMeta, JSON_UNESCAPED_UNICODE);
 
     require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php');
@@ -164,6 +170,7 @@ try {
         $upsertProp($props, 'SUPPLIER_QTY_AVAIL',      'Остаток у поставщика', $qtyAvail);
         $upsertProp($props, 'SUPPLIER_ADDED_AT',       'Подтверждено',       (string)time());
         $upsertProp($props, 'SUPPLIER_ORDER_META',     'Данные для заказа',  $orderMetaJson);
+        $upsertProp($props, 'SUPPLIER_RETURNABLE',     'Возврат',            $returnable ? 'Y' : 'N');
     } else {
         $basketItem = $basket->createItem('catalog', $productId);
         $basketItem->setFields([
@@ -186,6 +193,7 @@ try {
             ['SUPPLIER_QTY_AVAIL',     'Остаток у поставщика', $qtyAvail],
             ['SUPPLIER_ADDED_AT',      'Подтверждено',       (string)time()],
             ['SUPPLIER_ORDER_META',    'Данные для заказа',  $orderMetaJson],
+            ['SUPPLIER_RETURNABLE',    'Возврат',            $returnable ? 'Y' : 'N'],
         ];
         foreach ($list as [$code, $name, $value]) {
             $p = $props->createItem();

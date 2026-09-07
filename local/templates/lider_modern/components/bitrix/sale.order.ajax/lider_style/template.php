@@ -11,6 +11,7 @@ $bRes = CSaleBasket::GetList(['NAME' => 'ASC'], [
     'LID' => SITE_ID
 ]);
 $totalBasket = 0; $totalBasketQty = 0;
+$hasNonReturnableItem = false;
 while ($b = $bRes->Fetch()) {
     $b['PRICE_NUM'] = (float)$b['PRICE'];
     $b['QTY'] = (int)$b['QUANTITY'];
@@ -26,6 +27,13 @@ while ($b = $bRes->Fetch()) {
             if ($pic) { $p = CFile::GetPath($pic); if ($p) $b['IMG'] = $p; }
         }
     }
+
+    // Возможность возврата — см. SUPPLIER_RETURNABLE в order_from_supplier.php.
+    $propsRes = CSaleBasket::GetPropsList([], ['BASKET_ID' => $b['ID'], 'CODE' => 'SUPPLIER_RETURNABLE']);
+    $returnableProp = ($pr = $propsRes->Fetch()) ? $pr['VALUE'] : 'Y';
+    $b['RETURNABLE'] = $returnableProp !== 'N';
+    if (!$b['RETURNABLE']) $hasNonReturnableItem = true;
+
     $totalBasket += $b['SUM_NUM'];
     $totalBasketQty += $b['QTY'];
     $basketItems[] = $b;
@@ -168,6 +176,13 @@ if ($paymentHoldDeadlineTs <= 0) {
     <!-- Форма оформления -->
     <div class="checkout-page">
         <h1 class="checkout-page__title">Оформление заказа</h1>
+
+        <?php if (!empty($orderConsentError)): ?>
+        <div class="checkout-error">
+            <svg class="icon"><use href="#icon-alert"></use></svg>
+            Подтвердите, что вы ознакомлены с невозвратным товаром в заказе — без этого оформить заказ нельзя.
+        </div>
+        <?php endif; ?>
 
         <form name="ORDER_FORM" id="ORDER_FORM" method="post" action=""
               onsubmit="return validateForm()">
@@ -312,6 +327,9 @@ if ($paymentHoldDeadlineTs <= 0) {
                                     <div class="checkout-basket__meta">
                                         <?= $bi['QTY'] ?> шт. × <?= $bi['PRICE_FMT'] ?>
                                     </div>
+                                    <?php if (!$bi['RETURNABLE']): ?>
+                                    <div class="checkout-basket__no-return"><svg class="icon"><use href="#icon-x-circle"></use></svg> Без возврата</div>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="checkout-basket__price"><?= $bi['SUM_FMT'] ?></div>
                             </div>
@@ -333,6 +351,17 @@ if ($paymentHoldDeadlineTs <= 0) {
                             <span>Итого</span>
                             <span><?= $totalBasketFmt ?></span>
                         </div>
+
+                        <?php if ($hasNonReturnableItem): ?>
+                        <div class="checkout-return-notice">
+                            <svg class="icon"><use href="#icon-alert"></use></svg>
+                            В заказе есть товар, который не подлежит возврату.
+                        </div>
+                        <label class="checkout-consent">
+                            <input type="checkbox" name="agree_no_return" id="agree_no_return" value="Y">
+                            Я уведомлен(а), что указанный товар не подлежит возврату, и согласен(на) с этим условием
+                        </label>
+                        <?php endif; ?>
 
                         <input type="hidden" name="confirmorder" value="Y">
                         <button type="submit" class="btn btn--primary btn--lg btn--block">
@@ -438,6 +467,30 @@ if ($paymentHoldDeadlineTs <= 0) {
 }
 .checkout-agreement { font-size: 11px; color: var(--gray-light); text-align: center; margin-top: 10px; }
 
+.checkout-error {
+    display: flex; align-items: center; gap: 10px; background: #fdecec; color: var(--red);
+    border-radius: var(--radius); padding: 12px 16px; font-size: 13px; margin-bottom: 16px;
+}
+.checkout-error .icon { width: 18px; height: 18px; flex-shrink: 0; }
+
+.checkout-basket__no-return {
+    display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700;
+    color: var(--red); margin-top: 3px;
+}
+.checkout-basket__no-return .icon { width: 12px; height: 12px; }
+
+.checkout-return-notice {
+    display: flex; align-items: center; gap: 8px; background: #fff5e6; color: #8a5300;
+    border-radius: var(--radius); padding: 10px 14px; font-size: 12px; margin-bottom: 10px;
+}
+.checkout-return-notice .icon { width: 16px; height: 16px; flex-shrink: 0; }
+
+.checkout-consent {
+    display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--black);
+    margin-bottom: 14px; cursor: pointer; line-height: 1.4;
+}
+.checkout-consent input { margin-top: 2px; flex-shrink: 0; }
+
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; border-radius: var(--radius); cursor: pointer; text-decoration: none; border: 1px solid transparent; transition: all var(--transition); line-height: 1.2; }
 .btn--primary { background: var(--blue); color: #fff; border-color: var(--blue); box-shadow: 0 1px 3px rgba(102,139,234,0.3); padding: 14px 24px; font-size: 14px; }
 .btn--primary:hover { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
@@ -469,6 +522,12 @@ function validateForm() {
     if (phone && !phone.value.trim()) {
         alert('Пожалуйста, укажите телефон');
         phone.focus();
+        return false;
+    }
+    var agreeNoReturn = document.getElementById('agree_no_return');
+    if (agreeNoReturn && !agreeNoReturn.checked) {
+        alert('Подтвердите, что вы ознакомлены с невозвратным товаром в заказе');
+        agreeNoReturn.focus();
         return false;
     }
     return true;
