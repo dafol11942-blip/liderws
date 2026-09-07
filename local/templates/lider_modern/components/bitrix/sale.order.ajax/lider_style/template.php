@@ -47,6 +47,13 @@ $orderConfirmed = (($_GET["ORDER_CONFIRMED"] ?? $arResult["ORDER_CONFIRMED"] ?? 
 // с обратным отсчётом вместо обычного "Спасибо за заказ".
 $paymentHold = ($_GET["PAYMENT_HOLD"] ?? "N") === "Y";
 $paymentHoldMinutes = max(1, (int)($_GET["HOLD_MIN"] ?? (defined('ORDER_PAYMENT_HOLD_MINUTES') ? ORDER_PAYMENT_HOLD_MINUTES : 15)));
+// Реальный дедлайн (b_supplier_order_payment_hold.DEADLINE), посчитанный БД при
+// создании заказа — если он есть, отсчёт идёт от него, а не заново от момента
+// показа страницы (иначе обновление страницы каждый раз давало бы полные 15 минут).
+$paymentHoldDeadlineTs = (int)($_GET["DEADLINE"] ?? 0);
+if ($paymentHoldDeadlineTs <= 0) {
+    $paymentHoldDeadlineTs = time() + $paymentHoldMinutes * 60;
+}
 ?>
 
 <?php if ($orderConfirmed && $orderId > 0): ?>
@@ -54,32 +61,100 @@ $paymentHoldMinutes = max(1, (int)($_GET["HOLD_MIN"] ?? (defined('ORDER_PAYMENT_
     <div class="checkout-page">
         <h1 class="checkout-page__title">Заказ №<?= $orderId ?> оформлен</h1>
         <?php if ($paymentHold): ?>
-        <div class="checkout-block payment-hold-notice" style="text-align:center;padding:48px 20px;">
-            <div style="font-size:48px;margin-bottom:16px;color:#e6a23c;"><svg class="icon"><use href="#icon-hourglass"></use></svg></div>
-            <h2 style="font-size:20px;margin-bottom:8px;">Заказ создан, требуется оплата</h2>
-            <p style="color:var(--gray);margin-bottom:4px;max-width:480px;margin-left:auto;margin-right:auto;">В заказе есть позиции под заказ у поставщика — резерв действует ограниченное время.</p>
-            <p style="color:var(--gray);margin-bottom:24px;">Оплатите заказ в течение <strong id="paymentHoldTimer" style="color:var(--black);">--:--</strong>, иначе он будет автоматически отменён.</p>
-            <a href="/personal/orders/" class="btn btn--primary">Перейти к оплате</a>
-            <script>
-            (function () {
-                var deadline = Date.now() + <?= $paymentHoldMinutes ?> * 60 * 1000;
-                var el = document.getElementById('paymentHoldTimer');
-                var timer = null;
-                function tick() {
-                    var left = Math.max(0, deadline - Date.now());
-                    var m = Math.floor(left / 60000);
-                    var s = Math.floor((left % 60000) / 1000);
-                    el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
-                    if (left <= 0 && timer) {
-                        clearInterval(timer);
-                        el.textContent = '0:00';
-                    }
-                }
-                tick();
-                timer = setInterval(tick, 1000);
-            })();
-            </script>
+        <div class="checkout-block payment-hold-notice" id="paymentHoldNotice" style="text-align:center;padding:48px 20px;">
+            <div id="paymentHoldIconPending" style="font-size:48px;margin-bottom:16px;color:#e6a23c;"><svg class="icon"><use href="#icon-hourglass"></use></svg></div>
+            <div id="paymentHoldIconCanceled" style="display:none;font-size:48px;margin-bottom:16px;color:var(--red);"><svg class="icon"><use href="#icon-x-circle"></use></svg></div>
+            <div id="paymentHoldIconDispatched" style="display:none;font-size:48px;margin-bottom:16px;color:var(--green);"><svg class="icon"><use href="#icon-check-circle"></use></svg></div>
+
+            <div id="paymentHoldStatePending">
+                <h2 style="font-size:20px;margin-bottom:8px;">Заказ создан, требуется оплата</h2>
+                <p style="color:var(--gray);margin-bottom:4px;max-width:480px;margin-left:auto;margin-right:auto;">В заказе есть позиции под заказ у поставщика — резерв действует ограниченное время.</p>
+                <p style="color:var(--gray);margin-bottom:24px;">Оплатите заказ в течение <strong id="paymentHoldTimer" style="color:var(--black);">--:--</strong>, иначе он будет автоматически отменён.</p>
+                <a href="/personal/orders/" class="btn btn--primary">Перейти к оплате</a>
+            </div>
+
+            <div id="paymentHoldStateChecking" style="display:none;">
+                <h2 style="font-size:20px;margin-bottom:8px;">Проверяем статус оплаты…</h2>
+                <p style="color:var(--gray);margin-bottom:24px;">Время на оплату истекло — уточняем, поступил ли платёж. Это займёт не больше минуты, страницу обновлять не нужно.</p>
+            </div>
+
+            <div id="paymentHoldStateCanceled" style="display:none;">
+                <h2 style="font-size:20px;margin-bottom:8px;">Заказ отменён</h2>
+                <p style="color:var(--gray);margin-bottom:24px;max-width:480px;margin-left:auto;margin-right:auto;">Оплата не поступила в отведённое время, резерв товара снят, и заказ был автоматически отменён. Оформите заказ заново, если он всё ещё нужен.</p>
+                <a href="/cart/" class="btn btn--primary">Оформить заново</a>
+            </div>
+
+            <div id="paymentHoldStateDispatched" style="display:none;">
+                <h2 style="font-size:20px;margin-bottom:8px;">Оплата получена</h2>
+                <p style="color:var(--gray);margin-bottom:24px;">Заказ передан поставщику и уже в работе. Следить за статусом можно в истории заказов.</p>
+                <a href="/personal/orders/" class="btn btn--primary">История заказов</a>
+            </div>
         </div>
+        <script>
+        (function () {
+            var orderId = <?= $orderId ?>;
+            var deadline = <?= $paymentHoldDeadlineTs ?> * 1000;
+            var timerEl = document.getElementById('paymentHoldTimer');
+            var countdownTimer = null;
+            var pollTimer = null;
+            var pollAttempts = 0;
+            var MAX_POLL_ATTEMPTS = 60; // до ~10 минут опроса после дедлайна на 1 попытку/10с — с запасом на задержку крона
+
+            function showState(state) {
+                ['Pending', 'Checking', 'Canceled', 'Dispatched'].forEach(function (s) {
+                    var el = document.getElementById('paymentHoldState' + s);
+                    if (el) el.style.display = (s === state) ? '' : 'none';
+                });
+                ['Pending', 'Canceled', 'Dispatched'].forEach(function (s) {
+                    var el = document.getElementById('paymentHoldIcon' + s);
+                    if (el) el.style.display = (s === state) ? '' : 'none';
+                });
+            }
+
+            function tickCountdown() {
+                var left = Math.max(0, deadline - Date.now());
+                var m = Math.floor(left / 60000);
+                var s = Math.floor((left % 60000) / 1000);
+                if (timerEl) timerEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+                if (left <= 0) {
+                    clearInterval(countdownTimer);
+                    showState('Checking');
+                    startPolling();
+                }
+            }
+
+            function pollStatus() {
+                pollAttempts++;
+                fetch('/local/ajax/order_payment_hold_status.php?ORDER_ID=' + orderId)
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (data.status === 'canceled') {
+                            clearInterval(pollTimer);
+                            showState('Canceled');
+                        } else if (data.status === 'dispatched') {
+                            clearInterval(pollTimer);
+                            showState('Dispatched');
+                        } else if (pollAttempts >= MAX_POLL_ATTEMPTS) {
+                            clearInterval(pollTimer);
+                        }
+                    })
+                    .catch(function () {});
+            }
+
+            function startPolling() {
+                pollStatus();
+                pollTimer = setInterval(pollStatus, 10000);
+            }
+
+            if (deadline - Date.now() <= 0) {
+                showState('Checking');
+                startPolling();
+            } else {
+                tickCountdown();
+                countdownTimer = setInterval(tickCountdown, 1000);
+            }
+        })();
+        </script>
         <?php else: ?>
         <div class="checkout-block" style="text-align:center;padding:60px 20px;">
             <div style="font-size:48px;margin-bottom:16px;color:var(--green);"><svg class="icon"><use href="#icon-check-circle"></use></svg></div>

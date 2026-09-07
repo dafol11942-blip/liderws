@@ -53,7 +53,13 @@ if (!function_exists('basketHasSupplierItems')) {
 // (NOW() + N минут), не PHP-время — так cron и обработчик оплаты сверяются
 // с одним и тем же часами независимо от таймзоны воркера.
 if (!function_exists('createOrderPaymentHold')) {
-    function createOrderPaymentHold(int $orderId, int $holdMinutes): void
+    /**
+     * Возвращает unix-timestamp дедлайна (посчитанного самой БД), чтобы страница
+     * "Спасибо за заказ" отсчитывала реальное оставшееся время, а не заново 15
+     * минут при каждом обновлении страницы. 0 — если запись создать не удалось
+     * (тогда фронт откатывается на HOLD_MIN от момента показа страницы).
+     */
+    function createOrderPaymentHold(int $orderId, int $holdMinutes): int
     {
         try {
             $db = \Bitrix\Main\Application::getConnection();
@@ -61,8 +67,13 @@ if (!function_exists('createOrderPaymentHold')) {
                 'INSERT INTO b_supplier_order_payment_hold (ORDER_ID, DEADLINE, DISPATCHED, CANCELED)
                  VALUES (' . $orderId . ", DATE_ADD(NOW(), INTERVAL {$holdMinutes} MINUTE), 0, 0)"
             );
+            $row = $db->query(
+                "SELECT UNIX_TIMESTAMP(DEADLINE) AS TS FROM b_supplier_order_payment_hold WHERE ORDER_ID = {$orderId}"
+            )->fetch();
+            return (int)($row['TS'] ?? 0);
         } catch (\Throwable $e) {
             logSupplierOrderDispatch("Заказ №{$orderId}: не удалось создать удержание оплаты — " . $e->getMessage());
+            return 0;
         }
     }
 }
@@ -411,9 +422,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
         $redirectUrl = '/order/?ORDER_ID=' . $orderId . '&ORDER_CONFIRMED=Y';
 
         if ($requiresPaymentHold) {
-            createOrderPaymentHold($orderId, ORDER_PAYMENT_HOLD_MINUTES);
+            $deadlineTs = createOrderPaymentHold($orderId, ORDER_PAYMENT_HOLD_MINUTES);
             logSupplierOrderDispatch("Заказ №{$orderId}: отправка поставщику отложена до оплаты (окно " . ORDER_PAYMENT_HOLD_MINUTES . " мин).");
             $redirectUrl .= '&PAYMENT_HOLD=Y&HOLD_MIN=' . ORDER_PAYMENT_HOLD_MINUTES;
+            if ($deadlineTs > 0) {
+                $redirectUrl .= '&DEADLINE=' . $deadlineTs;
+            }
         } else {
             // Реальные заказы у поставщиков (см. план "Реальный заказ у поставщика").
             // Наш заказ уже сохранён — сбой здесь НЕ должен помешать покупателю
