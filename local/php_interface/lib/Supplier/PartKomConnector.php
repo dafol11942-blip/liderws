@@ -174,15 +174,23 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
             $r->returnable    = empty($item['flagReturnImpossible']);
             $r->multiplicity  = max(1, (int)($item['minQuantity'] ?? 1));
             $r->isSched       = false;
-            $r->reliabilityPercent = is_numeric($item['statSuccessPercent'] ?? null)
-                ? max(0, min(100, (int)round((float)$item['statSuccessPercent']))) : null;
-            $r->refusalPercent     = is_numeric($item['statRefusalPercent'] ?? null)
-                ? max(0, min(100, (int)round((float)$item['statRefusalPercent']))) : null;
             $r->supplierName  = $this->getName();
 
-            if (!empty($item['storehouse'])) {
+            $isOwnStock = !empty($item['storehouse']);
+            if ($isOwnStock) {
+                // statSuccessPercent/statRefusalPercent — это статистика СТОРОННЕГО
+                // поставщика (providerId/providerDescription), агрегируемого через
+                // ПартКом. Собственный склад ПартКома в этой цепочке ни при чём —
+                // отгрузка гарантирована, поэтому вероятность всегда 100%, а не то,
+                // что случайно окажется в этих полях (у своего склада они бывают 0).
+                $r->reliabilityPercent = 100;
+                $r->refusalPercent     = 0;
                 $r->warehouse = 'ПартКом: ' . ($item['placement'] ?? 'Склад');
             } else {
+                $r->reliabilityPercent = is_numeric($item['statSuccessPercent'] ?? null)
+                    ? max(0, min(100, (int)round((float)$item['statSuccessPercent']))) : null;
+                $r->refusalPercent     = is_numeric($item['statRefusalPercent'] ?? null)
+                    ? max(0, min(100, (int)round((float)$item['statRefusalPercent']))) : null;
                 $r->warehouse = ($item['providerDescription'] ?? '—') . ': ' . ($item['placement'] ?? '');
             }
             $r->stockId = (string)($item['placementId'] ?? $item['providerId'] ?? '');

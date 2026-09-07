@@ -500,6 +500,27 @@ document.addEventListener('change', function(e) {
     input.value = Math.max(step, Math.min(max, val));
 });
 
+// Попап "Статистика поставки" (.rel-pop) — position:fixed, чтобы не обрезаться
+// границами ячейки таблицы/карточки аналога (overflow:hidden). Координаты
+// вычисляются от реального положения бейджа на экране непосредственно перед
+// тем, как CSS (:hover/:focus) его покажет.
+function positionRelPop(badge){
+    var pop = badge.querySelector('.rel-pop');
+    if (!pop) return;
+    var r = badge.getBoundingClientRect();
+    pop.style.left = Math.round(r.left + r.width / 2) + 'px';
+    pop.style.top = Math.round(r.top - 8) + 'px';
+    pop.style.transform = 'translate(-50%, -100%)';
+}
+document.addEventListener('mouseover', function(e) {
+    var badge = e.target.closest && e.target.closest('.rel-badge');
+    if (badge) positionRelPop(badge);
+});
+document.addEventListener('focusin', function(e) {
+    var badge = e.target.closest && e.target.closest('.rel-badge');
+    if (badge) positionRelPop(badge);
+});
+
 function showToast(msg, kind) {
     var t = document.createElement('div');
     t.className = 'toast toast--' + (kind || 'ok');

@@ -91,9 +91,14 @@
 .rel-badge--mid  { background: #fff3cd; color: #8a5300; }
 .rel-badge--low  { background: #fdecec; color: var(--red); }
 .rel-pop {
-    display: none; position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+    /* position:fixed (не absolute) — иначе всплывающее окно обрезается по
+       границам .ft-tbl tbody td / .ft-group (у них overflow:hidden ради
+       скруглённых углов таблицы/карточки аналога). Координаты выставляет JS
+       (positionRelPop() в search/index.php) перед тем, как :hover/:focus
+       его покажет — так popup рисуется поверх всего, а не внутри ячейки. */
+    display: none; position: fixed; top: 0; left: 0;
     background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
-    box-shadow: var(--shadow-lg); padding: 12px 14px; width: 190px; z-index: 30; text-align: left; cursor: default;
+    box-shadow: var(--shadow-lg); padding: 12px 14px; width: 190px; z-index: 999; text-align: left; cursor: default;
 }
 .rel-badge:hover .rel-pop, .rel-badge:focus .rel-pop { display: block; }
 .rel-pop-title { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--gray); margin-bottom: 10px; }
