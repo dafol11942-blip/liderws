@@ -4,6 +4,9 @@ require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 CModule::IncludeModule('iblock');
 CModule::IncludeModule('catalog');
 require_once($_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/init_pricing.php");
+require_once($_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/lib/Search/BrandNormalizer.php");
+
+use Lider\Search\BrandNormalizer;
 
 $isManager = isManager();
 $q      = trim($_REQUEST['q'] ?? '');
@@ -51,20 +54,23 @@ $localOrBlock = ['LOGIC' => 'OR',
     ['%PROPERTY_CML2_ARTICLE' => $q], ['%DETAIL_TEXT' => $q],
     ['PROPERTY_CML2_MANUFACTURER' => $q], ['%PROPERTY_CML2_MANUFACTURER' => $q],
 ];
-$localCountRes = CIBlockElement::GetList([], [
+// Делим найденное на своём складе на "искомый артикул" (точное совпадение по артикулу)
+// и "аналоги" — по аналогии с делением exact/analogs у заказного товара (search/ajax.php).
+$normQ = BrandNormalizer::normalizeArticle($q);
+$localExactIds = [];
+$localAnalogIds = [];
+$localIdsRes = CIBlockElement::GetList([], [
     'IBLOCK_ID' => 42,
     'ACTIVE'    => 'Y',
     'CATALOG_AVAILABLE' => 'Y', // держим в паре с HIDE_NOT_AVAILABLE=>Y у catalog.section ниже, иначе счётчик считает и то, что компонент скроет
     $localOrBlock,
-], false, false, ['ID']);
-$localCount = $localCountRes->SelectedRowsCount();
-?>
-<?php if ($localCount > 0): ?>
-<h2 class="sec-h sec-h--local"><svg class="icon"><use href="#icon-check-circle"></use></svg> На нашем складе <span class="topbar-info">(<?=$localCount?>)</span></h2>
-<?php
-global $arrFilter;
-$arrFilter = [$localOrBlock];
-$APPLICATION->IncludeComponent("bitrix:catalog.section", "lider_style", [
+], false, false, ['ID', 'PROPERTY_CML2_ARTICLE']);
+while ($row = $localIdsRes->Fetch()) {
+    $isExact = $normQ !== '' && BrandNormalizer::normalizeArticle($row['PROPERTY_CML2_ARTICLE_VALUE'] ?? '') === $normQ;
+    if ($isExact) { $localExactIds[] = $row['ID']; } else { $localAnalogIds[] = $row['ID']; }
+}
+$localCount = count($localExactIds) + count($localAnalogIds);
+$localCardParams = [
     "IBLOCK_TYPE"          => "1c_catalog",
     "IBLOCK_ID"            => 42,
     "INCLUDE_SUBSECTIONS"  => "Y",
@@ -80,8 +86,43 @@ $APPLICATION->IncludeComponent("bitrix:catalog.section", "lider_style", [
     "CACHE_TYPE"           => "A",
     "CACHE_TIME"           => "300",
     "SET_TITLE"            => "N",
-], false);
+];
 ?>
+<?php if ($localCount > 0): ?>
+<h2 class="sec-h sec-h--local"><svg class="icon"><use href="#icon-check-circle"></use></svg> На нашем складе <span class="topbar-info">(<?=$localCount?>)</span></h2>
+
+<?php if ($localExactIds): ?>
+<div class="ft-sec ft-sec--exact">
+    <div class="ft-sec-head">
+        <span class="ft-sec-title"><svg class="icon"><use href="#icon-check-circle"></use></svg> Искомый артикул</span>
+        <span class="ft-sec-sub"><?=esc($q)?> — <?=count($localExactIds)?> шт.</span>
+    </div>
+    <div class="ft-secbody">
+    <?php
+    global $arrFilter;
+    $arrFilter = [['ID' => $localExactIds]];
+    $APPLICATION->IncludeComponent("bitrix:catalog.section", "lider_style", $localCardParams, false);
+    ?>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($localAnalogIds): ?>
+<div class="ft-sec ft-sec--analog">
+    <div class="ft-sec-head">
+        <span class="ft-sec-title"><svg class="icon"><use href="#icon-refresh"></use></svg> Аналоги</span>
+        <span class="ft-sec-sub"><?=count($localAnalogIds)?> шт.</span>
+    </div>
+    <div class="ft-secbody">
+    <?php
+    global $arrFilter;
+    $arrFilter = [['ID' => $localAnalogIds]];
+    $APPLICATION->IncludeComponent("bitrix:catalog.section", "lider_style", $localCardParams, false);
+    ?>
+    </div>
+</div>
+<?php endif; ?>
+
 <?php endif; ?>
 <div id="loader" class="loader hidden"><div class="spinner"></div><div id="loaderText">Ищем бренды...</div></div>
 <div id="brandStep"></div>

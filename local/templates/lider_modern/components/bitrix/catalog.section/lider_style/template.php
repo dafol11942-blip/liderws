@@ -20,6 +20,7 @@ CModule::IncludeModule('catalog');
         $price = $item['ITEM_PRICES'][0]['PRICE'] ?? 0;
         $oldPrice = $item['ITEM_PRICES'][0]['BASE_PRICE'] ?? 0;
         $article = $item['PROPERTIES']['CML2_ARTICLE']['VALUE'] ?? ($item['PROPERTIES']['ARTICLE']['VALUE'] ?? '');
+        $brand = trim((string)($item['PROPERTIES']['CML2_MANUFACTURER']['VALUE'] ?? ''));
 
         // Суммируем остатки по складам
 		$inStock = true;  // фильтрация уже выполнена в result_modifier
@@ -31,6 +32,9 @@ CModule::IncludeModule('catalog');
             </a>
         </div>
         <div class="product-card__body">
+            <?php if ($brand !== ''): ?>
+                <div class="product-card__brand"><?= htmlspecialchars($brand) ?></div>
+            <?php endif; ?>
             <div class="product-card__name">
                 <a href="<?= $item['DETAIL_PAGE_URL'] ?>"><?= $item['NAME'] ?></a>
             </div>
