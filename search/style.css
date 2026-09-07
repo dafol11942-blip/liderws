@@ -176,10 +176,11 @@
    во всех таблицах секции (искомый номер + каждая группа аналогов),
    поэтому колонки больше не "гуляют" между блоками */
 .ft-tbl { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
-.ft-col--det { width: 23%; }
-.ft-col--skl { width: 20%; }
-.ft-col--qty { width: 8%; }
-.ft-col--del { width: 17%; }
+.ft-col--det { width: 21%; }
+.ft-col--skl { width: 18%; }
+.ft-col--qty { width: 7%; }
+.ft-col--unit { width: 6%; }
+.ft-col--del { width: 16%; }
 .ft-col--prc { width: 16%; }
 .ft-col--act { width: 16%; }
 .ft-tbl thead th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

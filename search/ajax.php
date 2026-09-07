@@ -150,7 +150,12 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
         ? $connector->maskWarehouseName($realWarehouse)
         : $realWarehouse;
 
-    $returnable = (bool)($it->returnable ?? true);
+    $returnable   = (bool)($it->returnable ?? true);
+    // Минимальная партия заказа (кратность) — ПартКом: minQuantity, Москворечье:
+    // packing. Поле выбора количества на фронте стартует с этого значения и
+    // шагает им же (2 → 4 → 6…), см. addToCartControl() в search/index.php.
+    $multiplicity = max(1, (int)($it->multiplicity ?? 1));
+    $unit         = (string)($it->unit ?: 'шт.');
 
     $token = bin2hex(random_bytes(8));
     $OFFER_TOKENS[$token] = [
@@ -164,6 +169,8 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
         'delivery_time'  => $it->deliveryTimeLabel ?? null,
         'order_meta'     => $it->orderMeta ?? [],
         'returnable'     => $returnable,
+        'multiplicity'   => $multiplicity,
+        'unit'           => $unit,
     ];
 
     return [
@@ -177,7 +184,7 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
         'price'             => $basePrice,
         'client_price'      => getClientPrice($basePrice),
         'quantity'          => $quantity,
-        'quantity_label'    => $quantity > 10 ? 'Много' : ($quantity . ' шт.'),
+        'quantity_label'    => $quantity > 10 ? 'Много' : (string)$quantity,
         'offer_token'       => $token,
         'delivery_days'     => (int)($it->deliveryDays ?? -1),
         'delivery_label'    => $it->deliveryLabel ?? null,
@@ -185,6 +192,8 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
         'delivery_today'    => (bool)($it->deliveryToday ?? false),
         'delivery_deadline' => $it->deliveryDeadline ?? null,
         'returnable'        => $returnable,
+        'multiplicity'      => $multiplicity,
+        'unit'              => $unit,
     ];
 }
 
@@ -200,7 +209,7 @@ function sanitizeOffer(array $o): array {
         'description'       => $o['description'],
         'client_price'      => $o['client_price'],
         'quantity'          => $o['quantity'],
-        'quantity_label'    => $IS_MANAGER ? ($o['quantity'] . ' шт.') : $o['quantity_label'],
+        'quantity_label'    => $IS_MANAGER ? (string)$o['quantity'] : $o['quantity_label'],
         'offer_token'       => $o['offer_token'],
         'delivery_days'     => $o['delivery_days'],
         'delivery_label'    => $o['delivery_label'],
@@ -208,6 +217,8 @@ function sanitizeOffer(array $o): array {
         'delivery_today'    => $o['delivery_today'],
         'delivery_deadline' => $o['delivery_deadline'],
         'returnable'        => (bool)($o['returnable'] ?? true),
+        'multiplicity'      => (int)($o['multiplicity'] ?? 1),
+        'unit'              => (string)($o['unit'] ?? 'шт.'),
     ];
     if ($IS_MANAGER) {
         $out['supplier']   = $o['supplier'];

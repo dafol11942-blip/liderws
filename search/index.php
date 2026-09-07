@@ -421,9 +421,12 @@ document.addEventListener('click', function(e) {
         var stepper = stepBtn.closest('.actl-stepper');
         var qtyInput = stepper ? stepper.querySelector('.actl-qty') : null;
         if (qtyInput) {
+            // Шаг = минимальная партия (data-step, см. addToCartControl) — ниже
+            // него уменьшить нельзя, увеличение идёт кратно ему (2 → 4 → 6…).
+            var step = parseInt(qtyInput.getAttribute('data-step'), 10) || 1;
             var maxStep = parseInt(qtyInput.getAttribute('max'), 10) || 999999;
-            var val = parseInt(qtyInput.value, 10) || 1;
-            val = stepBtn.classList.contains('actl-step--plus') ? Math.min(maxStep, val + 1) : Math.max(1, val - 1);
+            var val = parseInt(qtyInput.value, 10) || step;
+            val = stepBtn.classList.contains('actl-step--plus') ? Math.min(maxStep, val + step) : Math.max(step, val - step);
             qtyInput.value = val;
         }
         return;
@@ -433,9 +436,13 @@ document.addEventListener('click', function(e) {
     if (!btn) return;
     var wrap = btn.closest('.actl');
     var input = wrap ? wrap.querySelector('.actl-qty') : null;
+    var step = parseInt(btn.getAttribute('data-step'), 10) || 1;
     var max = parseInt(btn.getAttribute('data-max'), 10) || 0;
-    var qty = input ? (parseInt(input.value, 10) || 1) : 1;
-    if (qty < 1) qty = 1;
+    var qty = input ? (parseInt(input.value, 10) || step) : step;
+    // На случай ручного ввода значения, не кратного минимальной партии —
+    // округляем вниз до ближайшей допустимой партии перед сверкой с остатком.
+    qty = Math.floor(qty / step) * step;
+    if (qty < step) qty = step;
 
     if (qty > max) {
         var stepperEl = wrap ? wrap.querySelector('.actl-stepper') : null;
@@ -479,6 +486,18 @@ document.addEventListener('click', function(e) {
         btn.disabled = false;
         showToast('Ошибка соединения, попробуйте ещё раз', 'warn');
     });
+});
+
+// Ручной ввод количества (не только степпер +/-) — округляем до ближайшей
+// допустимой партии сразу по выходу из поля, чтобы пользователь видел
+// скорректированное значение, а не только терял его при добавлении в корзину.
+document.addEventListener('change', function(e) {
+    var input = e.target.closest && e.target.closest('.actl-qty');
+    if (!input) return;
+    var step = parseInt(input.getAttribute('data-step'), 10) || 1;
+    var max = parseInt(input.getAttribute('max'), 10) || step;
+    var val = Math.round((parseInt(input.value, 10) || step) / step) * step;
+    input.value = Math.max(step, Math.min(max, val));
 });
 
 function showToast(msg, kind) {
@@ -755,16 +774,21 @@ function renderResults(d){
     });
 }
 
-function addToCartControl(brand,article,supplier,warehouse,token,qty,description){
-    var maxQty=Math.max(0,parseInt(qty,10)||0);
-    if(maxQty<=0)return '<span class="actl-oos">Нет в наличии</span>';
+function addToCartControl(brand,article,supplier,warehouse,token,qty,description,multiplicity){
+    var step=Math.max(1,parseInt(multiplicity,10)||1);
+    var avail=Math.max(0,parseInt(qty,10)||0);
+    // Остаток должен помещать хотя бы одну полную партию, и максимум всегда
+    // кратен шагу — иначе кнопка "+" могла бы довести значение до величины,
+    // не являющейся допустимой партией (см. требование "2 → 4 → 6").
+    var maxQty=Math.floor(avail/step)*step;
+    if(maxQty<step)return '<span class="actl-oos">Нет в наличии</span>';
     return '<div class="actl">'
         +'<div class="actl-stepper">'
         +'<button type="button" class="actl-step actl-step--minus" aria-label="Уменьшить количество">−</button>'
-        +'<input type="text" class="actl-qty" inputmode="numeric" min="1" max="'+maxQty+'" value="1">'
+        +'<input type="text" class="actl-qty" inputmode="numeric" min="'+step+'" max="'+maxQty+'" data-step="'+step+'" value="'+step+'">'
         +'<button type="button" class="actl-step actl-step--plus" aria-label="Увеличить количество">+</button>'
         +'</div>'
-        +'<button type="button" class="actl-btn" title="В корзину" data-brand="'+esc(brand)+'" data-article="'+esc(article)+'" data-supplier="'+esc(supplier||'')+'" data-warehouse="'+esc(warehouse||'')+'" data-token="'+esc(token||'')+'" data-max="'+maxQty+'" data-desc="'+esc(description||'')+'"><svg class="icon"><use href="#icon-cart"></use></svg></button>'
+        +'<button type="button" class="actl-btn" title="В корзину" data-brand="'+esc(brand)+'" data-article="'+esc(article)+'" data-supplier="'+esc(supplier||'')+'" data-warehouse="'+esc(warehouse||'')+'" data-token="'+esc(token||'')+'" data-max="'+maxQty+'" data-step="'+step+'" data-desc="'+esc(description||'')+'"><svg class="icon"><use href="#icon-cart"></use></svg></button>'
         +'</div>';
 }
 
@@ -787,7 +811,7 @@ function priceBlock(s){
 
 function hlCard(o,title,cardCls,badgeCls,type){
     var det=o._description||o.description||'';
-    return '<div class="hl-card '+cardCls+'"><div class="hl-badge '+badgeCls+'">'+title+'</div><div class="hl-type">'+type+'</div><div class="hl-name">'+esc(o._brand)+' / '+esc(o._article)+'</div>'+(det?'<div class="hl-desc">'+esc(det)+'</div>':'')+'<div class="hl-price">'+priceBlock(o)+'</div><div class="hl-meta">'+o.quantity_label+' &middot; '+dRange(o)+'</div><div class="hl-src">'+supplierBadge(o)+'</div><div class="hl-actl">'+returnIcon(o)+addToCartControl(o._brand,o._article,o.supplier,o.warehouse,o.offer_token,o.quantity,det)+'</div></div>';
+    return '<div class="hl-card '+cardCls+'"><div class="hl-badge '+badgeCls+'">'+title+'</div><div class="hl-type">'+type+'</div><div class="hl-name">'+esc(o._brand)+' / '+esc(o._article)+'</div>'+(det?'<div class="hl-desc">'+esc(det)+'</div>':'')+'<div class="hl-price">'+priceBlock(o)+'</div><div class="hl-meta">'+o.quantity_label+' '+esc(o.unit||'шт.')+' &middot; '+dRange(o)+'</div><div class="hl-src">'+supplierBadge(o)+'</div><div class="hl-actl">'+returnIcon(o)+addToCartControl(o._brand,o._article,o.supplier,o.warehouse,o.offer_token,o.quantity,det,o.multiplicity)+'</div></div>';
 }
 
 function supplierTable(suppliers,type,brand,article,sortKey){
@@ -797,11 +821,11 @@ function supplierTable(suppliers,type,brand,article,sortKey){
     var sortIc=dir===1?'▲':(dir===-1?'▼':'⇅');
     var sortCls='ft-th--sort'+(dir?' ft-th--sort-active':'');
     var priceTh=sortKey?('<th class="ft-th--num '+sortCls+'" onclick="cyclePriceSort(\''+sortKey+'\')" title="Сортировать по цене">Цена <span class="ft-sort-ic">'+sortIc+'</span></th>'):'<th class="ft-th--num">Цена</th>';
-    var h='<table class="ft-tbl"><colgroup><col class="ft-col--det"><col class="ft-col--skl"><col class="ft-col--qty"><col class="ft-col--del"><col class="ft-col--prc"><col class="ft-col--act"></colgroup><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Доставка</th>'+priceTh+'<th class="ft-th--act"></th></tr></thead><tbody>';
+    var h='<table class="ft-tbl"><colgroup><col class="ft-col--det"><col class="ft-col--skl"><col class="ft-col--qty"><col class="ft-col--unit"><col class="ft-col--del"><col class="ft-col--prc"><col class="ft-col--act"></colgroup><thead><tr><th class="ft-th--det">Деталь</th><th class="ft-th--skl">Склад</th><th class="ft-th--num">Кол.</th><th class="ft-th--num">Ед.</th><th class="ft-th--num">Доставка</th>'+priceTh+'<th class="ft-th--act"></th></tr></thead><tbody>';
     list.forEach(function(s,i){
         var cls=i>=limit?' class="ft-more"':'';
         var det=s._description||s.description||'—';
-        h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span>'+supplierBadge(s)+'</td><td class="ft-td--num" data-label="Кол.">'+s.quantity_label+'</td><td class="ft-td--num" data-label="Доставка">'+dRange(s)+'</td><td class="ft-td--prc" data-label="Цена">'+priceBlock(s)+'</td><td class="ft-td--act">'+returnIcon(s)+addToCartControl(brand,article,s.supplier,s.warehouse,s.offer_token,s.quantity,det)+'</td></tr>';
+        h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span>'+supplierBadge(s)+'</td><td class="ft-td--num" data-label="Кол.">'+s.quantity_label+'</td><td class="ft-td--num" data-label="Ед.">'+esc(s.unit||'шт.')+'</td><td class="ft-td--num" data-label="Доставка">'+dRange(s)+'</td><td class="ft-td--prc" data-label="Цена">'+priceBlock(s)+'</td><td class="ft-td--act">'+returnIcon(s)+addToCartControl(brand,article,s.supplier,s.warehouse,s.offer_token,s.quantity,det,s.multiplicity)+'</td></tr>';
     });
     h+='</tbody></table>';
     if(suppliers.length>limit)h+='<button class="ft-showmore" data-count="'+(suppliers.length-limit)+'">Показать еще '+(suppliers.length-limit)+' товаров</button>';

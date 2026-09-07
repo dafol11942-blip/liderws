@@ -32,6 +32,15 @@ $resolvedOffer = ($taskId && $offerToken) ? OfferTokenStore::resolve($taskId, $o
 if ($resolvedOffer) {
     $supplier = $resolvedOffer['supplier'] ?: $supplier;
     $quantity = min($quantity, max(1, (int)$resolvedOffer['quantity']));
+
+    // Минимальная партия (см. addToCartControl() на фронте) — не доверяем
+    // одному только клиенту, округляем вниз до ближайшей допустимой партии
+    // и здесь, иначе поставщику может уйти количество, которое он не продаёт.
+    $multiplicity = max(1, (int)($resolvedOffer['multiplicity'] ?? 1));
+    if ($multiplicity > 1) {
+        $quantity = (int)(floor($quantity / $multiplicity) * $multiplicity);
+        if ($quantity < $multiplicity) $quantity = $multiplicity;
+    }
 } else {
     @file_put_contents(
         $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/supplier_orders_error.log',
