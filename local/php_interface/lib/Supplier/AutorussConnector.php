@@ -11,10 +11,6 @@ class AutorussConnector implements SupplierInterface
     private string $baseUrl;
     private int $timeout;
     private bool $lastWithCrosses = false;
-    // Временная диагностика deliveryProbability (см. parseSearchResponse) —
-    // один раз за запрос, чтобы не раздувать лог. Убрать вместе с логом,
-    // когда разберёмся в реальной структуре поля.
-    private bool $rawSampleLogged = false;
 
     public function __construct(array $config = [])
     {
@@ -205,18 +201,14 @@ class AutorussConnector implements SupplierInterface
             $r->multiplicity      = max(1, (int)($item['packing'] ?? 1));
             $r->unit              = 'шт.';
             $r->returnable        = empty($item['noReturn']);
-            // ВРЕМЕННО ОТКЛЮЧЕНО: расчёт reliabilityPercent из deliveryProbability
-            // убран — в этом (списочном) ответе search/articles поле почти всегда
-            // приходило как 0, хотя для ТОГО ЖЕ предложения (itemKey) в личном
-            // кабинете Авторусь (abcp) реальная "Вероятность поставки" была 76.4%.
-            // Показывать всем подряд ложные "0% / 100% отказ" хуже, чем не
-            // показывать бейдж вовсе. Логируем сырой ответ первой позиции (не
-            // всех — иначе раздувает лог на каждый поиск), чтобы разобраться
-            // в реальной структуре поля, не трогая расчёт вслепую.
-            if (!$this->rawSampleLogged) {
-                $this->rawSampleLogged = true;
-                $this->log('sample item raw JSON: ' . json_encode($item, JSON_UNESCAPED_UNICODE));
-            }
+            // reliabilityPercent НЕ заполняется из deliveryProbability: подтверждено
+            // логом реального ответа search/articles — поле там всегда 0, а
+            // descriptionOfDeliveryProbability всегда "". Реальная цифра (у Авторусь
+            // в личном кабинете, напр. 76.4%) считается только отдельным детальным
+            // запросом по одному предложению, которого этот (списочный) эндпоинт не
+            // делает — дёргать его на каждую строку результата поиска было бы слишком
+            // медленно. Показывать всем подряд ложные "0% / 100% отказ" хуже, чем не
+            // показывать бейдж вовсе.
 
             $r->raw = [
                 'deliveryPeriod'      => $item['deliveryPeriod'] ?? null,
