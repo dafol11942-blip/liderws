@@ -817,6 +817,24 @@ function returnIcon(s){
     return '<span class="ret-badge ret-badge--yes" title="Товар подлежит возврату"><svg class="icon"><use href="#icon-check-circle"></use></svg></span>';
 }
 
+// Вероятность поставки — не у всех поставщиков есть эта статистика (см.
+// reliabilityPercent в коннекторах), тогда просто ничего не рисуем.
+function reliabilityBadge(s){
+    var pct=s.reliability_percent;
+    if(pct===null||pct===undefined)return '';
+    pct=Math.max(0,Math.min(100,Math.round(pct)));
+    var refusal=(s.refusal_percent!==null&&s.refusal_percent!==undefined)?Math.max(0,Math.min(100,Math.round(s.refusal_percent))):(100-pct);
+    var cls=pct>=90?'rel-badge--good':(pct>=70?'rel-badge--mid':'rel-badge--low');
+    var deg=Math.round(pct*3.6);
+    return '<span class="rel-badge '+cls+'" tabindex="0" title="Вероятность поставки: '+pct+'% (отказ '+refusal+'%)">'+pct+'%'
+        +'<span class="rel-pop">'
+        +'<span class="rel-pop-title">Статистика поставки</span>'
+        +'<span class="rel-pop-body">'
+        +'<span class="rel-donut" style="background:conic-gradient(var(--green) 0deg '+deg+'deg, var(--red) '+deg+'deg 360deg)"></span>'
+        +'<span class="rel-pop-legend"><span class="rel-leg rel-leg--ok">Выдано: <b>'+pct+'%</b></span><span class="rel-leg rel-leg--no">Отказ: <b>'+refusal+'%</b></span></span>'
+        +'</span></span></span>';
+}
+
 function priceBlock(s){
     if(!IS_MANAGER || s.base_price==null) return '<span class="price-main">'+fmt(s.client_price)+' р.</span>';
     return '<span class="price-main price-base">'+fmt(s.base_price)+' р.</span>'
@@ -825,7 +843,7 @@ function priceBlock(s){
 
 function hlCard(o,title,cardCls,badgeCls,type){
     var det=o._description||o.description||'';
-    return '<div class="hl-card '+cardCls+'"><div class="hl-badge '+badgeCls+'">'+title+'</div><div class="hl-type">'+type+'</div><div class="hl-name">'+esc(o._brand)+' / '+esc(o._article)+'</div>'+(det?'<div class="hl-desc">'+esc(det)+'</div>':'')+'<div class="hl-price">'+priceBlock(o)+'</div><div class="hl-meta">'+o.quantity_label+' '+esc(o.unit||'шт.')+' &middot; '+dRange(o)+'</div><div class="hl-src">'+supplierBadge(o)+'</div><div class="hl-actl">'+returnIcon(o)+addToCartControl(o._brand,o._article,o.supplier,o.warehouse,o.offer_token,o.quantity,det,o.multiplicity)+'</div></div>';
+    return '<div class="hl-card '+cardCls+'"><div class="hl-badge '+badgeCls+'">'+title+'</div><div class="hl-type">'+type+'</div><div class="hl-name">'+esc(o._brand)+' / '+esc(o._article)+'</div>'+(det?'<div class="hl-desc">'+esc(det)+'</div>':'')+'<div class="hl-price">'+priceBlock(o)+'</div><div class="hl-meta">'+o.quantity_label+' '+esc(o.unit||'шт.')+' &middot; '+dRange(o)+'</div><div class="hl-src">'+supplierBadge(o)+'</div><div class="hl-actl">'+reliabilityBadge(o)+returnIcon(o)+addToCartControl(o._brand,o._article,o.supplier,o.warehouse,o.offer_token,o.quantity,det,o.multiplicity)+'</div></div>';
 }
 
 function supplierTable(suppliers,type,brand,article,sortKey){
@@ -839,7 +857,7 @@ function supplierTable(suppliers,type,brand,article,sortKey){
     list.forEach(function(s,i){
         var cls=i>=limit?' class="ft-more"':'';
         var det=s._description||s.description||'—';
-        h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span>'+supplierBadge(s)+'</td><td class="ft-td--num" data-label="Кол.">'+s.quantity_label+'</td><td class="ft-td--num" data-label="Ед.">'+esc(s.unit||'шт.')+'</td><td class="ft-td--num" data-label="Доставка">'+dRange(s)+'</td><td class="ft-td--prc" data-label="Цена">'+priceBlock(s)+'</td><td class="ft-td--act">'+returnIcon(s)+addToCartControl(brand,article,s.supplier,s.warehouse,s.offer_token,s.quantity,det,s.multiplicity)+'</td></tr>';
+        h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span>'+supplierBadge(s)+'</td><td class="ft-td--num" data-label="Кол.">'+s.quantity_label+'</td><td class="ft-td--num" data-label="Ед.">'+esc(s.unit||'шт.')+'</td><td class="ft-td--num" data-label="Доставка">'+dRange(s)+'</td><td class="ft-td--prc" data-label="Цена">'+priceBlock(s)+'</td><td class="ft-td--act">'+reliabilityBadge(s)+returnIcon(s)+addToCartControl(brand,article,s.supplier,s.warehouse,s.offer_token,s.quantity,det,s.multiplicity)+'</td></tr>';
     });
     h+='</tbody></table>';
     if(suppliers.length>limit)h+='<button class="ft-showmore" data-count="'+(suppliers.length-limit)+'">Показать еще '+(suppliers.length-limit)+' товаров</button>';

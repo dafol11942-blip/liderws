@@ -269,6 +269,8 @@ class BergConnector implements SupplierInterface
         $r->multiplicity      = max(1, (int)($offer['multiplication_factor'] ?? 1));
         $r->unit              = 'шт.';
         $r->returnable        = true;
+        $r->reliabilityPercent = is_numeric($offer['reliability'] ?? null)
+            ? max(0, min(100, (int)round((float)$offer['reliability']))) : null;
         $r->raw               = $offer;
 
         $ttAll = $offer['address_timetable'] ?? [];

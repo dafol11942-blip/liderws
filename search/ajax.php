@@ -156,6 +156,11 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
     // шагает им же (2 → 4 → 6…), см. addToCartControl() в search/index.php.
     $multiplicity = max(1, (int)($it->multiplicity ?? 1));
     $unit         = (string)($it->unit ?: 'шт.');
+    // Вероятность поставки — чисто информационная, не нужна для оформления
+    // заказа, поэтому в OFFER_TOKENS (используется только add-to-cart'ом) не
+    // кладём, а сразу в отдаваемый наружу массив.
+    $reliability  = $it->reliabilityPercent ?? null;
+    $refusal      = $it->refusalPercent ?? null;
 
     $token = bin2hex(random_bytes(8));
     $OFFER_TOKENS[$token] = [
@@ -194,6 +199,8 @@ function offerRow(string $code, $it, bool $preferDescription = false): array {
         'returnable'        => $returnable,
         'multiplicity'      => $multiplicity,
         'unit'              => $unit,
+        'reliability_percent' => $reliability,
+        'refusal_percent'     => $refusal,
     ];
 }
 
@@ -219,6 +226,8 @@ function sanitizeOffer(array $o): array {
         'returnable'        => (bool)($o['returnable'] ?? true),
         'multiplicity'      => (int)($o['multiplicity'] ?? 1),
         'unit'              => (string)($o['unit'] ?? 'шт.'),
+        'reliability_percent' => $o['reliability_percent'] ?? null,
+        'refusal_percent'     => $o['refusal_percent'] ?? null,
     ];
     if ($IS_MANAGER) {
         $out['supplier']   = $o['supplier'];

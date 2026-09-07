@@ -23,6 +23,13 @@ class SearchResultItem
     public ?string $supplierName = null;
     public bool $isSched = false;
     public bool $returnable = true;
+    // Вероятность успешной поставки, 0-100 (ПартКом: statSuccessPercent, Berg:
+    // reliability, Авторусь: deliveryProbability, ШатЕ: supplyProbability.rating).
+    // null — поставщик такую статистику не отдаёт.
+    public ?int $reliabilityPercent = null;
+    // Процент отказов — только у ПартКома есть отдельным числом (не всегда
+    // ровно 100-reliabilityPercent из-за округления и незавершённых заказов).
+    public ?int $refusalPercent = null;
     public ?int $localProductId = null;
     public ?string $imageUrl = null;
     public ?string $detailUrl = null;
@@ -60,6 +67,8 @@ class SearchResultItem
             'supplier_name'   => $this->supplierName,
             'is_sched'        => $this->isSched,
             'returnable'      => $this->returnable,
+            'reliability_percent' => $this->reliabilityPercent,
+            'refusal_percent'     => $this->refusalPercent,
             'local_id'        => $this->localProductId,
             'image_url'       => $this->imageUrl,
             'detail_url'      => $this->detailUrl,

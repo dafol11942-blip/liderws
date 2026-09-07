@@ -274,7 +274,8 @@ class ShateMConnector implements SupplierInterface
         $deliveryDT   = $priceData['deliveryDateTimes'][0]['deliveryDateTime'] ?? null;
 
         // --- СТАТИСТИКА ---
-        $supplyRating = (int)($priceData['supplyProbability']['rating'] ?? 0);
+        $supplyRatingRaw = $priceData['supplyProbability']['rating'] ?? null;
+        $supplyRating = is_numeric($supplyRatingRaw) ? max(0, min(100, (int)round((float)$supplyRatingRaw))) : null;
 
         // --- ИДЕНТИФИКАТОРЫ ДЛЯ КОРЗИНЫ/ЗАКАЗА ---
         $priceId = (string)($priceData['id'] ?? '');
@@ -295,6 +296,7 @@ class ShateMConnector implements SupplierInterface
         $r->supplierName = $this->getName();
         $r->isSched      = ($qtyAvailable <= 0);
         $r->returnable   = $isReturnable;
+        $r->reliabilityPercent = $supplyRating;
 
         // --- СРОКИ ---
         if ($deliveryDT) {

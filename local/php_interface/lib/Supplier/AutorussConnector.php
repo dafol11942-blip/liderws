@@ -201,6 +201,12 @@ class AutorussConnector implements SupplierInterface
             $r->multiplicity      = max(1, (int)($item['packing'] ?? 1));
             $r->unit              = 'шт.';
             $r->returnable        = empty($item['noReturn']);
+            // Масштаб поля документацией не подтверждён — на всякий случай
+            // считаем долей (0-1), если значение не больше 1, иначе процентом.
+            if (is_numeric($item['deliveryProbability'] ?? null)) {
+                $dp = (float)$item['deliveryProbability'];
+                $r->reliabilityPercent = max(0, min(100, (int)round($dp <= 1 ? $dp * 100 : $dp)));
+            }
 
             $r->raw = [
                 'deliveryPeriod'      => $item['deliveryPeriod'] ?? null,

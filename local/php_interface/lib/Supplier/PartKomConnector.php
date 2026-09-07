@@ -174,6 +174,10 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
             $r->returnable    = empty($item['flagReturnImpossible']);
             $r->multiplicity  = max(1, (int)($item['minQuantity'] ?? 1));
             $r->isSched       = false;
+            $r->reliabilityPercent = is_numeric($item['statSuccessPercent'] ?? null)
+                ? max(0, min(100, (int)round((float)$item['statSuccessPercent']))) : null;
+            $r->refusalPercent     = is_numeric($item['statRefusalPercent'] ?? null)
+                ? max(0, min(100, (int)round((float)$item['statRefusalPercent']))) : null;
             $r->supplierName  = $this->getName();
 
             if (!empty($item['storehouse'])) {
