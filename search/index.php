@@ -150,7 +150,7 @@ async function loadBrands(article){
         var analogs=d.brands.filter(function(b){return b.type==='analog'});
         var h='';
         if(exact.length){
-            h+='<h2 class="sec-h sec-h--brand"><svg class="icon"><use href="#icon-compare"></use></svg> Выберите бренд для «'+esc(article)+'»</h2>';
+            h+='<h2 class="sec-h sec-h--brand"><svg class="icon"><use href="#icon-compare"></use></svg> Под заказ от поставщиков</h2>';
             h+='<p class="sec-p">Под этим артикулом у разных производителей могут быть разные детали.</p>';
             h+='<div class="bt"><div class="bt-head"><span class="bt-c bt-c--brand">Производитель</span><span class="bt-c bt-c--art">Артикул</span><span class="bt-c bt-c--desc">Описание</span><span class="bt-c bt-c--act"></span></div>';
             exact.forEach(function(b){
