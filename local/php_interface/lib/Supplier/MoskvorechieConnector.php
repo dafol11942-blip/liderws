@@ -3,7 +3,7 @@ namespace Lider\Supplier;
 
 use Lider\Search\SearchResultItem;
 
-class MoskvorechieConnector implements SupplierInterface, SupplierOrderable
+class MoskvorechieConnector implements SupplierInterface, SupplierOrderable, SupplierOrderStatusProvider
 {
     private string $apiUrl;
     private string $apiKey;
@@ -191,12 +191,14 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable
         }
 
         $cartPayload = [];
+        $basketItemIdByGid = [];
         $skipped = 0;
         foreach ($items as $item) {
             $gid = trim((string)($item['order_meta']['gid'] ?? ''));
             $qty = (int)($item['quantity'] ?? 0);
             if ($gid === '' || $qty <= 0) { $skipped++; continue; }
             $cartPayload[] = ['gid' => $gid, 'quantity' => $qty, 'comment' => (string)($item['comment'] ?? '')];
+            $basketItemIdByGid[$gid] = (int)($item['basket_item_id'] ?? 0);
         }
 
         if (empty($cartPayload)) {
@@ -205,8 +207,7 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable
         }
 
         $profile = $this->loadProfile() ?? [];
-        if ($this->agreementId === '' && !empty($profile['agreement_id'])) $this->agreementId = $profile['agreement_id'];
-        if ($this->filialId === ''    && !empty($profile['filial_id']))    $this->filialId    = $profile['filial_id'];
+        $this->applyProfileDefaults($profile);
         $deliveryTerm = (string)($profile['delivery_term'] ?? '');
 
         if ($deliveryTerm === '') {
@@ -247,12 +248,114 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable
             && is_array($orderBody)
             && !empty($orderBody['order']['order_number']);
 
+        // У Москворечья нет способа принять от нас произвольный reference (в
+        // отличие от ПартКома, чьи orderItems[][reference] потом ищутся через
+        // /basket/motion/{reference}) — единственный ключ для последующего
+        // опроса статуса (см. fetchOrderStatusByReference()) — их собственный
+        // order_number. Он один на ВЕСЬ заказ у Москворечья (может включать
+        // несколько наших позиций), поэтому для однозначного сопоставления
+        // конкретной позиции корзины с конкретной позицией в их ответе
+        // используется составной reference "{order_number}:{gid}" — иначе при
+        // заказе 2+ разных товаров опрос статуса не знал бы, чья именно
+        // позиция STAGE относится к какой строке b_supplier_order_item.
+        $itemReferences = [];
+        if ($success) {
+            $orderNumber = (string)$orderBody['order']['order_number'];
+            foreach ((array)($orderBody['order']['positions'] ?? []) as $pos) {
+                $gid = (string)($pos['gid'] ?? '');
+                if ($gid === '' || empty($basketItemIdByGid[$gid])) continue;
+                $itemReferences[$basketItemIdByGid[$gid]] = $orderNumber . ':' . $gid;
+            }
+        }
+
         return [
-            'http_code' => $orderResult['http_code'],
-            'success'   => $success,
-            'raw'       => ['cart_add' => $addBody, 'order' => $orderBody],
-            'error'     => $orderResult['error'] ?: ($success ? null : (string)($orderBody['message'] ?? 'order_rejected')),
+            'http_code'       => $orderResult['http_code'],
+            'success'         => $success,
+            'raw'             => ['cart_add' => $addBody, 'order' => $orderBody],
+            'error'           => $orderResult['error'] ?: ($success ? null : (string)($orderBody['message'] ?? 'order_rejected')),
+            'item_references' => $itemReferences,
         ];
+    }
+
+    /**
+     * У Москворечья нет запроса "статус по нашему reference" — только
+     * GET /orders/list?order_numbers=... по ИХ номеру заказа. $reference здесь —
+     * составной "{order_number}:{gid}" (см. placeOrder()::item_references),
+     * поэтому сначала разбираем его обратно и ищем внутри ответа именно нужную
+     * позицию по gid, а не берём первую попавшуюся (в одном их заказе может
+     * быть несколько наших позиций).
+     */
+    public function fetchOrderStatusByReference(string $reference): array
+    {
+        if (strpos($reference, ':') === false) return [];
+        [$orderNumber, $gid] = explode(':', $reference, 2);
+        $orderNumber = trim($orderNumber);
+        if ($orderNumber === '') return [];
+
+        $profile = $this->loadProfile() ?? [];
+        $this->applyProfileDefaults($profile);
+
+        $resp = $this->requestJson('GET', '/orders/list?order_numbers=' . rawurlencode($orderNumber));
+        if ($resp['error'] || $resp['http_code'] !== 200 || !is_array($resp['body'])) {
+            return [];
+        }
+
+        $orders = (array)($resp['body']['orders'] ?? []);
+        $order  = null;
+        foreach ($orders as $o) {
+            if ((string)($o['order_number'] ?? '') === $orderNumber) { $order = $o; break; }
+        }
+        if ($order === null) return [];
+
+        $position = null;
+        foreach ((array)($order['positions'] ?? []) as $pos) {
+            if ((string)($pos['gid'] ?? '') === $gid) { $position = $pos; break; }
+        }
+        // Если позицию по gid не нашли (например, изменилось представление API),
+        // безопаснее взять статус заказа целиком, чем молчать — это тот же принцип,
+        // что и в PartKomConnector (никогда не пропускать статус молча).
+        $statusText = $position['status'] ?? $position['status_details'] ?? $order['status'] ?? null;
+
+        return [[
+            'order_number'    => $orderNumber,
+            'state_id'        => (string)($position['status_code'] ?? $order['status_code'] ?? '') ?: null,
+            'state_text'      => $statusText,
+            'stage'           => $this->normalizeStage($statusText),
+            'expected_date'   => $position['planned_shipment_date'] ?? null,
+            'guaranteed_date' => null,
+            'store_count'     => null,
+            'release_count'   => null,
+            'refusal_count'   => null,
+            'comment'         => $position['comment'] ?? $order['comment'] ?? null,
+            'raw'             => $position ?? $order,
+        ]];
+    }
+
+    // Словарь неполный — в документации Москворечья нет справочника всех
+    // status_code (в отличие от ПартКома, где он был сверен по 28 присланным
+    // статусам), поэтому классификация по ключевым фразам как временное
+    // приближение. При появлении полного справочника (/orders/statuses) —
+    // уточнить по нему, а не по этим догадкам.
+    private const REFUSED_PHRASES     = ['отказ', 'отменен', 'отменён', 'возврат'];
+    private const READY_PHRASES       = ['получен', 'выдан', 'доставлен клиенту', 'закрыт'];
+    // "Зарезервирован" намеренно НЕ здесь — это ещё подтверждение наличия, а не
+    // движение к клиенту (та же логика, что у PartKomConnector::IN_TRANSIT_PHRASES).
+    private const IN_TRANSIT_PHRASES  = ['отгруж', 'передан', 'в пути', 'собран'];
+
+    private function normalizeStage(?string $stateText): string
+    {
+        $t = mb_strtolower((string)$stateText);
+        if ($t === '') return 'ordered';
+        foreach (self::REFUSED_PHRASES as $p)    { if (mb_strpos($t, $p) !== false) return 'refused'; }
+        foreach (self::READY_PHRASES as $p)      { if (mb_strpos($t, $p) !== false) return 'ready'; }
+        foreach (self::IN_TRANSIT_PHRASES as $p) { if (mb_strpos($t, $p) !== false) return 'in_transit'; }
+        return 'ordered';
+    }
+
+    private function applyProfileDefaults(array $profile): void
+    {
+        if ($this->agreementId === '' && !empty($profile['agreement_id'])) $this->agreementId = $profile['agreement_id'];
+        if ($this->filialId === ''    && !empty($profile['filial_id']))    $this->filialId    = $profile['filial_id'];
     }
 
     /**

@@ -19,7 +19,13 @@ interface SupplierOrderable
      *     reference: string,
      *     comment: string,
      * }> $items Позиции одного поставщика из одного нашего заказа.
-     * @return array{http_code: ?int, success: bool, raw: ?array, error: ?string}
+     * @return array{http_code: ?int, success: bool, raw: ?array, error: ?string, item_references?: array<int,string>}
+     * `item_references` — опционально: [basket_item_id => reference], если
+     * поставщик не поддерживает наш собственный reference (см. ПартКом —
+     * $item['reference']) и для последующего опроса статуса нужен другой ключ
+     * (напр. Москворечье — их order_number, известный только после ответа
+     * /orders). Если отдано — dispatchSupplierOrders() использует его вместо
+     * дефолтного {orderId}_{basketItemId} при сохранении в b_supplier_order_item.
      */
     public function placeOrder(array $items, bool $test = false): array;
 }

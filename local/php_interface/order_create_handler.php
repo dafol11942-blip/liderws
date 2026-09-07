@@ -121,15 +121,22 @@ if (!function_exists('saveSupplierOrderRecord')) {
             $supplierOrderId  = (int)($supplierOrderRow['id'] ?? 0);
             if (!$supplierOrderId || empty($items)) return;
 
+            // item_references — опционально от коннектора (см. SupplierOrderable::
+            // placeOrder()), для поставщиков без поддержки нашего reference
+            // (напр. Москворечье — их собственный order_number, известный только
+            // из ответа /orders, см. MoskvorechieConnector::placeOrder()).
+            $itemReferences = (array)($result['item_references'] ?? []);
+
             $values = [];
             foreach ($items as $item) {
                 $basketItemId = (int)($item['basket_item_id'] ?? 0);
+                $reference    = $itemReferences[$basketItemId] ?? $item['reference'];
                 $values[] = "({$supplierOrderId}, " . ($basketItemId ?: 'NULL') . ",
                     '" . $helper->forSql((string)$item['article']) . "',
                     '" . $helper->forSql((string)$item['brand']) . "',
                     " . (int)$item['quantity'] . ",
                     " . (float)$item['price_base'] . ",
-                    '" . $helper->forSql((string)$item['reference']) . "')";
+                    '" . $helper->forSql((string)$reference) . "')";
             }
             $db->query(
                 'INSERT INTO b_supplier_order_item (SUPPLIER_ORDER_ID, BASKET_ITEM_ID, ARTICLE, BRAND, QUANTITY, PRICE, REFERENCE)

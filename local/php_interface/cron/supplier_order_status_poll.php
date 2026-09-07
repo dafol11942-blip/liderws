@@ -46,6 +46,9 @@ $connectorsByCode = [
         'LOGIN'    => 'lider16',
         'PASSWORD' => 'LidGates16',
     ]),
+    'moskvorechie' => new \Lider\Supplier\MoskvorechieConnector([
+        'API_KEY' => 'hRohAwdf9nEy:qb9WatcqtLCdxunJ6klPootnydulyYMZ',
+    ]),
     // Другие поставщики добавятся сюда по мере реализации у них
     // SupplierOrderStatusProvider — остальной скрипт их не касается.
 ];
