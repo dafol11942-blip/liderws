@@ -474,23 +474,141 @@ class IxoraConnector implements SupplierInterface, SupplierOrderable, SupplierOr
             }
         }
 
-        // Аналогично ПартКому/Росско/Авторуси: реальный успех — размещение
-        // хотя бы одной позиции (с полученным Id), а не общий Warning.Code=0,
-        // который относится ко ВСЕЙ операции, а не к каждой позиции.
-        $success = !empty($itemReferences);
+        if (empty($itemReferences)) {
+            $error = $warnDesc !== '' ? $warnDesc : (self::RESULT_CODE_LABELS[$warnCode] ?? 'order_rejected');
+            return [
+                'http_code'       => 200,
+                'success'         => false,
+                'raw'             => ['warningCode' => $warnCode, 'warningDescription' => $warnDesc, 'items' => $itemsRaw, 'errors' => $errorsRaw],
+                'error'           => $error,
+                'item_references' => [],
+            ];
+        }
+
+        // BasketInsertOrders только КЛАДЁТ позиции в корзину СЕРВИСА Иксоры —
+        // подтверждено вживую (заказ №189: Id получен, Warning.Code=0, но
+        // заказ не появился на сайте Иксоры) — реальная отправка поставщику
+        // требует ВТОРОГО обязательного шага, BasketPositionInWork, с теми же
+        // Id, что вернул этот запрос. Без него заказ так и остаётся висеть в
+        // корзине и не уходит в обработку.
+        $inWork = $this->sendPositionsInWork(array_values($itemReferences));
+
+        $confirmedReferences = [];
+        $inWorkErrors = [];
+        foreach ($itemReferences as $basketItemId => $positionId) {
+            if (in_array($positionId, $inWork['succeeded'], true)) {
+                $confirmedReferences[$basketItemId] = $positionId;
+            } else {
+                $inWorkErrors[] = ['positionId' => $positionId, 'message' => $inWork['errors'][$positionId] ?? 'in_work_failed'];
+            }
+        }
+
+        // Аналогично ПартКому/Росско/Авторуси: реальный успех — позиция,
+        // подтверждённая ОБОИМИ шагами (в корзине И отправлена в работу), а не
+        // общий Warning.Code=0 первого шага, который относится ко ВСЕЙ
+        // операции добавления в корзину, а не к фактической отправке заказа.
+        $success = !empty($confirmedReferences);
 
         $error = null;
         if (!$success) {
-            $error = $warnDesc !== '' ? $warnDesc : (self::RESULT_CODE_LABELS[$warnCode] ?? 'order_rejected');
+            $error = !empty($inWorkErrors) ? $inWorkErrors[0]['message'] : ($warnDesc !== '' ? $warnDesc : 'order_rejected');
         }
 
         return [
             'http_code'       => 200,
             'success'         => $success,
-            'raw'             => ['warningCode' => $warnCode, 'warningDescription' => $warnDesc, 'items' => $itemsRaw, 'errors' => $errorsRaw],
+            'raw'             => [
+                'warningCode'        => $warnCode,
+                'warningDescription' => $warnDesc,
+                'items'              => $itemsRaw,
+                'errors'             => $errorsRaw,
+                'inWork'             => $inWork['raw'],
+                'inWorkErrors'       => $inWorkErrors,
+            ],
             'error'           => $error,
-            'item_references' => $itemReferences,
+            'item_references' => $confirmedReferences,
         ];
+    }
+
+    /**
+     * Второй обязательный шаг оформления заказа (см. placeOrder()) —
+     * отправляет позиции из корзины сервиса в реальную обработку у Иксоры.
+     * $positionIds — Id, полученные от BasketInsertOrders.
+     *
+     * @return array{succeeded: string[], errors: array<string,string>, raw: ?array}
+     */
+    private function sendPositionsInWork(array $positionIds): array
+    {
+        if (empty($positionIds)) {
+            return ['succeeded' => [], 'errors' => [], 'raw' => null];
+        }
+
+        $esc = fn($v) => htmlspecialchars((string)$v, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        $idsXml = '';
+        foreach ($positionIds as $id) {
+            $idsXml .= '<string>' . $esc($id) . '</string>';
+        }
+
+        $inner = '<BasketPositionInWork xmlns="' . $this->namespace . '">'
+            . '<BasketPositions>' . $idsXml . '</BasketPositions>'
+            . '<AuthCode>' . $esc($this->authCode) . '</AuthCode>'
+            . '</BasketPositionInWork>';
+
+        $body = '<?xml version="1.0" encoding="utf-8"?>'
+            . '<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"'
+            . ' xmlns:xsd="http://www.w3.org/2001/XMLSchema"'
+            . ' xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">'
+            . '<soap:Body>' . $inner . '</soap:Body>'
+            . '</soap:Envelope>';
+
+        $this->log('placeOrder: BasketPositionInWork request positions=' . count($positionIds) . ' body=' . $body);
+
+        $resp = $this->execCurl([
+            'url'     => $this->endpoint,
+            'headers' => ['Content-Type: text/xml; charset=utf-8', 'SOAPAction: ' . $this->namespace . 'BasketPositionInWork'],
+            'method'  => 'POST',
+            'body'    => $body,
+        ]);
+
+        $this->log('placeOrder: BasketPositionInWork response body=' . substr((string)$resp, 0, 4000));
+
+        if ($resp === null) {
+            // Сетевая ошибка на втором шаге — не знаем реального результата,
+            // безопаснее считать ВСЕ позиции неотправленными в работу, чем
+            // молча засчитать успех, полагаясь только на первый шаг.
+            return ['succeeded' => [], 'errors' => array_fill_keys($positionIds, 'in_work_http_error'), 'raw' => null];
+        }
+
+        $xml = @simplexml_load_string($resp);
+        if ($xml === false || $xml === null) {
+            return ['succeeded' => [], 'errors' => array_fill_keys($positionIds, 'in_work_invalid_xml'), 'raw' => ['_raw_text' => $resp]];
+        }
+
+        $fault = $xml->xpath('//*[local-name()="Fault"]');
+        if ($fault) {
+            $msg = (string)($xml->xpath('//*[local-name()="faultstring"]')[0] ?? 'SOAP Fault');
+            return ['succeeded' => [], 'errors' => array_fill_keys($positionIds, $msg), 'raw' => ['fault' => $msg]];
+        }
+
+        $succeeded = [];
+        $errors = [];
+        $rawItems = [];
+        $resultNodes = $xml->xpath('//*[local-name()="Data"]/*[local-name()="PositionOperationResult"]') ?: [];
+        foreach ($resultNodes as $r) {
+            $orderId = trim((string)($r->xpath('*[local-name()="OrderId"]')[0] ?? ''));
+            $codeNode = $r->xpath('*[local-name()="Warning"]/*[local-name()="Code"]');
+            $code = $codeNode ? (int)$codeNode[0] : null;
+            $desc = trim((string)($r->xpath('*[local-name()="Warning"]/*[local-name()="Description"]')[0] ?? ''));
+            $rawItems[] = ['orderId' => $orderId, 'code' => $code, 'description' => $desc];
+            if ($orderId === '') continue;
+            if ($code === 0) {
+                $succeeded[] = $orderId;
+            } else {
+                $errors[$orderId] = $desc !== '' ? $desc : (self::RESULT_CODE_LABELS[$code] ?? 'in_work_rejected');
+            }
+        }
+
+        return ['succeeded' => $succeeded, 'errors' => $errors, 'raw' => $rawItems];
     }
 
     private function buildBasketInsertOrdersXml(array $orders): string
