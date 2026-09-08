@@ -346,12 +346,9 @@ class IxoraConnector implements SupplierInterface, SupplierOrderable, SupplierOr
 
     public function search(string $query): array
     {
-        $own = [];    // Region начинается с "IXORA СКЛАД"
-        $other = [];  // всё остальное
-        $xml = @simplexml_load_string($responseBody);
-        if ($xml === false || $xml === null) {
-            $this->log('parseSearchResponse: bad XML');
-            return [];
+        $results = [];
+        if (!$this->isAvailable()) {
+            return $results;
         }
 
         $query = trim($query);
