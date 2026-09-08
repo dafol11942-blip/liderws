@@ -332,11 +332,11 @@ class AutoeuroConnector implements SupplierInterface, SupplierOrderable, Supplie
             if (!is_array($decoded)) $decoded = ['_raw_text' => $resp];
         }
 
-        // Остальные эндпоинты АвтоЕвро оборачивают полезные данные в DATA
-        // (см. get_payers/get_deliveries) — на живом create_order это не
-        // проверялось, поэтому читаем поля из DATA, если она есть, иначе
-        // из корня ответа (на случай, если create_order их не оборачивает).
-        $data = is_array($decoded['DATA'] ?? null) ? $decoded['DATA'] : $decoded;
+        // Подтверждено первым живым заказом: DATA — это СПИСОК из одного элемента
+        // (та же обёртка, что у get_payers/get_deliveries, см. документацию),
+        // напр. "DATA":[{"order_id":"...","result":true,...}] — а не голый объект.
+        $dataNode = $decoded['DATA'] ?? $decoded;
+        $data = (is_array($dataNode) && is_array($dataNode[0] ?? null)) ? $dataNode[0] : $dataNode;
 
         $success = $httpCode === 200 && $err === '' && is_array($data) && !empty($data['result']);
 
