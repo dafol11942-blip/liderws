@@ -3,12 +3,13 @@ namespace Lider\Supplier;
 
 use Lider\Search\SearchResultItem;
 
-class AutoeuroConnector implements SupplierInterface
+class AutoeuroConnector implements SupplierInterface, SupplierOrderable
 {
     private string $apiKey;
     private string $baseUrl;
     private int $timeout;
     private ?string $deliveryKey = null;
+    private string $payerKey;
 
     public function __construct(array $config = [])
     {
@@ -16,6 +17,7 @@ class AutoeuroConnector implements SupplierInterface
         $this->baseUrl    = $config['BASE_URL']     ?? 'https://api.autoeuro.ru/api/v2/json';
         $this->timeout    = $config['TIMEOUT']      ?? 10;
         $this->deliveryKey = $config['DELIVERY_KEY'] ?? null;
+        $this->payerKey    = $config['PAYER_KEY']    ?? '';
     }
 
     public function getCode(): string       { return 'autoeuro'; }
@@ -245,6 +247,100 @@ class AutoeuroConnector implements SupplierInterface
         return array_slice($unique, 0, 30);
     }
 
+    // ==================== ЗАКАЗ (SupplierOrderable) ====================
+
+    public function placeOrder(array $items, bool $test = false): array
+    {
+        if ($test) {
+            // В документации АвтоЕвро, как и у Москворечья, нет флага тестового
+            // заказа — безопаснее ничего не отправлять, чем случайно оформить
+            // реальный заказ у поставщика.
+            $this->log('placeOrder: тестовый режим не поддерживается API АвтоЕвро — запрос не отправлен, items=' . count($items));
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'test_mode_not_supported'];
+        }
+
+        $deliveryKey = $this->getDeliveryKey();
+        if (!$deliveryKey) {
+            $this->log('placeOrder: не удалось получить delivery_key');
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_delivery_key'];
+        }
+        if ($this->payerKey === '') {
+            $this->log('placeOrder: PAYER_KEY не настроен в конфиге коннектора');
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_payer_key'];
+        }
+
+        $stockItems = [];
+        $skipped = 0;
+        // Комментарий одинаков для всех позиций одного нашего заказа (см.
+        // dispatchSupplierOrders()) — API сам склеивает order-level comment
+        // с комментариями строк через ";", поэтому берём его один раз на уровень
+        // заказа и НЕ дублируем в каждой stock_items[].comment (иначе на выходе
+        // получилась бы одна и та же фраза, повторённая N раз через ";").
+        $orderComment = '';
+        foreach ($items as $item) {
+            $offerKey = trim((string)($item['order_meta']['offer_key'] ?? ''));
+            $qty = (int)($item['quantity'] ?? 0);
+            if ($offerKey === '' || $qty <= 0) { $skipped++; continue; }
+            // price сейчас игнорируется API (см. документацию create_order) — 0
+            // явно означает "без сверки", а не забытый параметр.
+            $stockItems[] = ['offer_key' => $offerKey, 'quantity' => $qty, 'price' => 0];
+            if ($orderComment === '') $orderComment = (string)($item['comment'] ?? '');
+        }
+
+        if (empty($stockItems)) {
+            $this->log('placeOrder: нет ни одной валидной позиции (нет offer_key в order_meta), пропущено ' . $skipped);
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_valid_items'];
+        }
+
+        $body = json_encode([
+            'delivery_key' => $deliveryKey,
+            'payer_key'    => $this->payerKey,
+            'stock_items'  => $stockItems,
+            'comment'      => $orderComment,
+        ], JSON_UNESCAPED_UNICODE);
+
+        $this->log('placeOrder: request items=' . count($stockItems) . ' skipped=' . $skipped . ' body=' . $body);
+
+        $ch = curl_init($this->baseUrl . '/create_order');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['key: ' . $this->apiKey, 'Content-Type: application/json', 'Accept: application/json'],
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $body,
+        ]);
+        $resp     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err      = curl_error($ch);
+        curl_close($ch);
+
+        $this->log('placeOrder: response http=' . $httpCode . ' err=' . $err . ' body=' . substr((string)$resp, 0, 4000));
+
+        $decoded = null;
+        if ($resp !== false && $resp !== '') {
+            $decoded = json_decode($resp, true);
+            if (!is_array($decoded)) $decoded = ['_raw_text' => $resp];
+        }
+
+        // Остальные эндпоинты АвтоЕвро оборачивают полезные данные в DATA
+        // (см. get_payers/get_deliveries) — на живом create_order это не
+        // проверялось, поэтому читаем поля из DATA, если она есть, иначе
+        // из корня ответа (на случай, если create_order их не оборачивает).
+        $data = is_array($decoded['DATA'] ?? null) ? $decoded['DATA'] : $decoded;
+
+        $success = $httpCode === 200 && $err === '' && is_array($data) && !empty($data['result']);
+
+        return [
+            'http_code' => $httpCode ?: null,
+            'success'   => $success,
+            'raw'       => $decoded,
+            'error'     => $err ?: ($success ? null : (string)($data['result_description'] ?? 'order_rejected')),
+        ];
+    }
+
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ====================
 
     private function getDeliveryKey(): ?string
@@ -304,6 +400,10 @@ class AutoeuroConnector implements SupplierInterface
         $r->multiplicity   = max(1, (int)($item['packing'] ?? 1));
         $r->unit           = !empty($item['unit']) ? (string)$item['unit'] : 'шт.';
         $r->returnable     = !empty($item['return']);
+        // Для оформления заказа (см. SupplierOrderable::placeOrder()) — тот же
+        // offer_key, что уже идёт в stockId для отображения, но здесь отдельно
+        // и однозначно, как того требует контракт orderMeta.
+        $r->orderMeta      = ['offer_key' => (string)($item['offer_key'] ?? '')];
         // rejects — "Вероятность отказа в процентах, 0% = на складе" (т.е. это
         // ОТКАЗ, а не поставка — reliability считаем от обратного).
         if (is_numeric($item['rejects'] ?? null)) {

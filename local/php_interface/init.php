@@ -110,6 +110,10 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
         $factory->register(new \Lider\Supplier\AutoeuroConnector([
             'API_KEY' => 'wK435HUkjTAbJL4RF4F5z9NBXWYqpFhSorfpVkRLFNYI60T21ksYvVQNawkX',
             'DELIVERY_KEY' => 'q53qrkblKN8GviqxHAUlgA0vlUZgRhN04SG01sixtCpoTjC99FJ165xxzGta89mwhLNonRBxH1vlOg8rjL2xPxAdurElATA',
+            // "Винокуров С.В. ИП (Елабуга)" — без префикса "ННН" у второго
+            // плательщика в /get_payers (тот, судя по имени, дефолтный/неверно
+            // заполненный, см. обсуждение при подключении оформления заказа).
+            'PAYER_KEY' => '0Kc69cV474yHHTE31YsB5LoW6x1sbxW0Bt9mQklg1wakK5Ow21hA',
         ]));
 
         $factory->register(new \Lider\Supplier\PartKomConnector([
