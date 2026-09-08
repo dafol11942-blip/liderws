@@ -452,11 +452,15 @@ class AutopiterConnector implements SupplierInterface, SupplierOrderable, Suppli
             $detailUid = $this->xmlTag($inner, 'DetailUid');
             if (!$detailUid) continue;
 
-            // Code — список кодов результата (ArrayOfInt), встречается как
-            // повторяющиеся <Code>N</Code> либо <Code><int>N</int></Code> —
-            // оба варианта ловим одним regex.
-            preg_match_all('/<Code>\s*(?:<int>)?\s*(-?\d+)/', $block, $codeMatches);
-            $codes = array_map('intval', $codeMatches[1] ?? []);
+            // Code — список кодов результата (ArrayOfInt). Подтверждено вживую
+            // (заказ №191): реальная обёртка — <Code><ResponseCode>0</ResponseCode></Code>,
+            // может содержать несколько <ResponseCode> при нескольких кодах сразу —
+            // берём все числа внутри блока <Code>, а не только сразу после тега.
+            $codes = [];
+            if (preg_match('/<Code>(.*?)<\/Code>/s', $block, $codeBlock)) {
+                preg_match_all('/-?\d+/', $codeBlock[1], $codeMatches);
+                $codes = array_map('intval', $codeMatches[0] ?? []);
+            }
             $itemsRaw[] = ['detailUid' => $detailUid, 'codes' => $codes];
 
             // 0 — позиция удачно добавлена в корзину (см. общий словарь
