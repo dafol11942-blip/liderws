@@ -65,6 +65,10 @@ $connectorsByCode = [
         'KEY1' => 'd6907f0f857524815255b74cda86fe9b',
         'KEY2' => 'a514b4c11299686d7cfe8fd3563d1c58',
     ]),
+    'autoruss' => new \Lider\Supplier\AutorussConnector([
+        'LOGIN' => 'Lider-16@bk.ru',
+        'PASSWORD_MD5' => '00fd3781d2cfdf0d971b57fa7397cfac',
+    ]),
     // Другие поставщики добавятся сюда по мере реализации у них
     // SupplierOrderStatusProvider — остальной скрипт их не касается.
 ];

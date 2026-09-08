@@ -179,6 +179,8 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
         $factory->register(new \Lider\Supplier\AutorussConnector([
             'LOGIN' => 'Lider-16@bk.ru',
             'PASSWORD_MD5' => '00fd3781d2cfdf0d971b57fa7397cfac',
+            'PAYMENT_METHOD' => 1062,
+            'SHIPMENT_ADDRESS' => 1696765,
         ]));
         $factory->register(new \Lider\Supplier\AutopiterConnector([
             'USER_ID' => '165286',

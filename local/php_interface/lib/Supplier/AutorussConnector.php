@@ -4,13 +4,16 @@ namespace Lider\Supplier;
 use Lider\Search\SearchResultItem;
 use Lider\Search\BrandNormalizer;
 
-class AutorussConnector implements SupplierInterface
+class AutorussConnector implements SupplierInterface, SupplierOrderable, SupplierOrderStatusProvider
 {
     private string $login;
     private string $passwordMd5;
     private string $baseUrl;
     private int $timeout;
     private bool $lastWithCrosses = false;
+    private int $paymentMethod;
+    private string $shipmentAddress;
+    private string $shipmentMethod;
 
     public function __construct(array $config = [])
     {
@@ -18,6 +21,9 @@ class AutorussConnector implements SupplierInterface
         $this->passwordMd5 = $config['PASSWORD_MD5'] ?? '';
         $this->baseUrl     = $config['BASE_URL']     ?? 'https://autorus.public.api.abcp.ru';
         $this->timeout     = $config['TIMEOUT']      ?? 10;
+        $this->paymentMethod   = (int)($config['PAYMENT_METHOD'] ?? 0);
+        $this->shipmentAddress = (string)($config['SHIPMENT_ADDRESS'] ?? '');
+        $this->shipmentMethod  = (string)($config['SHIPMENT_METHOD'] ?? '');
     }
 
     public function getCode(): string       { return 'autoruss'; }
@@ -223,6 +229,18 @@ class AutorussConnector implements SupplierInterface
                 'isAnalog'            => $item['isAnalog'] ?? null,
             ];
 
+            // Для оформления заказа (см. SupplierOrderable::placeOrder()) —
+            // supplierCode/itemKey нужны basket/add и orders/instant как есть;
+            // deadline/deadline_max — СЫРЫЕ часы от API (до нашей +48ч бизнес-
+            // надбавки в resolveDelivery()) для basket/shipmentDates, которому
+            // нужен реальный срок поставки, а не наш показанный клиенту запас.
+            $r->orderMeta = [
+                'supplier_code' => (string)($item['supplierCode'] ?? ''),
+                'item_key'      => (string)($item['itemKey'] ?? ''),
+                'deadline'      => isset($item['deliveryPeriod']) ? (int)$item['deliveryPeriod'] : null,
+                'deadline_max'  => isset($item['deliveryPeriodMax']) ? (int)$item['deliveryPeriodMax'] : null,
+            ];
+
             if ($r->price <= 0 && $r->quantity <= 0) continue;
             $results[] = $r;
             if (count($results) >= 160) break;
@@ -356,6 +374,298 @@ class AutorussConnector implements SupplierInterface
         });
 
         return array_slice($unique, 0, 30);
+    }
+
+    // ==================== ЗАКАЗ (SupplierOrderable) ====================
+
+    public function placeOrder(array $items, bool $test = false): array
+    {
+        // У API ABCP (Авторусь) нет флага тестового заказа в orders/instant —
+        // как и у Росско, в тестовом режиме запрос не отправляем вообще,
+        // безопаснее пропустить, чем случайно оформить реальный заказ.
+        if ($test) {
+            $this->log('placeOrder: тестовый режим не поддерживается API Авторуси (флага тестового заказа нет) — запрос не отправлен, items=' . count($items));
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'test_mode_not_supported'];
+        }
+
+        $positions = [];
+        $queueByItemKey = [];
+        $skipped = 0;
+        $minDeadline = null;
+        $maxDeadline = null;
+        foreach ($items as $item) {
+            $supplierCode = trim((string)($item['order_meta']['supplier_code'] ?? ''));
+            $itemKey      = trim((string)($item['order_meta']['item_key'] ?? ''));
+            $article      = trim((string)($item['article'] ?? ''));
+            $brand        = trim((string)($item['brand'] ?? ''));
+            $qty          = (int)($item['quantity'] ?? 0);
+            if ($supplierCode === '' || $itemKey === '' || $article === '' || $brand === '' || $qty <= 0) { $skipped++; continue; }
+
+            $idx = count($positions);
+            $positions[$idx] = [
+                'number'       => $article,
+                'brand'        => $brand,
+                'supplierCode' => $supplierCode,
+                'itemKey'      => $itemKey,
+                'quantity'     => $qty,
+                'comment'      => (string)($item['comment'] ?? ''),
+            ];
+            $queueByItemKey[$itemKey][] = (int)($item['basket_item_id'] ?? 0);
+
+            $d    = isset($item['order_meta']['deadline']) ? (int)$item['order_meta']['deadline'] : null;
+            $dMax = isset($item['order_meta']['deadline_max']) ? (int)$item['order_meta']['deadline_max'] : $d;
+            if ($d !== null) {
+                $minDeadline = $minDeadline === null ? $d : min($minDeadline, $d);
+                $maxDeadline = $maxDeadline === null ? ($dMax ?? $d) : max($maxDeadline, $dMax ?? $d);
+            }
+        }
+
+        if (empty($positions)) {
+            $this->log('placeOrder: нет ни одной валидной позиции (нет supplier_code/item_key в order_meta), пропущено ' . $skipped);
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_valid_items'];
+        }
+
+        // shipmentDate обязателен, если в ЛК включена опция "Дни отгрузки" —
+        // подтверждено вживую: basket/shipmentDates отдаёт непустой список для
+        // этого аккаунта. Берём САМУЮ РАННЮЮ дату из тех, что сам API считает
+        // валидной для диапазона сроков поставки этих позиций.
+        $shipmentDate = $this->resolveShipmentDate($minDeadline, $maxDeadline);
+
+        $orderComment = (string)($items[array_key_first($items)]['comment'] ?? '');
+
+        // Наш orderId — числовой префикс до "_" в reference позиции (см.
+        // dispatchSupplierOrders(): "{orderId}_{basketItemId}") — передаём как
+        // clientOrderNumber для трассировки в личном кабинете Авторуси.
+        $ourOrderRef = null;
+        $firstRef = (string)($items[array_key_first($items)]['reference'] ?? '');
+        if (preg_match('/^(\d+)_/', $firstRef, $m)) $ourOrderRef = (int)$m[1];
+
+        $fields = [
+            'userlogin'       => $this->login,
+            'userpsw'         => $this->passwordMd5,
+            'paymentMethod'   => (string)$this->paymentMethod,
+            'shipmentAddress' => $this->shipmentAddress,
+            'comment'         => $orderComment,
+        ];
+        if ($this->shipmentMethod !== '') $fields['shipmentMethod'] = $this->shipmentMethod;
+        if ($shipmentDate !== null) $fields['shipmentDate'] = $shipmentDate;
+        if ($ourOrderRef !== null) $fields['clientOrderNumber'] = (string)$ourOrderRef;
+
+        foreach ($positions as $idx => $p) {
+            foreach ($p as $k => $v) {
+                $fields["positions[{$idx}][{$k}]"] = (string)$v;
+            }
+        }
+
+        $body = http_build_query($fields);
+
+        $this->log('placeOrder: request items=' . count($positions) . ' skipped=' . $skipped . ' shipmentDate=' . ($shipmentDate ?? 'null') . ' body=' . $body);
+
+        $ch = curl_init($this->baseUrl . '/orders/instant');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+            CURLOPT_TIMEOUT        => 12,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $body,
+        ]);
+        $resp     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err      = curl_error($ch);
+        curl_close($ch);
+
+        $this->log('placeOrder: response http=' . $httpCode . ' err=' . $err . ' body=' . substr((string)$resp, 0, 4000));
+
+        $decoded = null;
+        if ($resp !== false && $resp !== '') {
+            $decoded = json_decode($resp, true);
+            if (!is_array($decoded)) $decoded = ['_raw_text' => $resp];
+        }
+
+        if ($err || $httpCode !== 200 || !is_array($decoded)) {
+            return ['http_code' => $httpCode ?: null, 'success' => false, 'raw' => $decoded, 'error' => $err ?: ('http_' . $httpCode)];
+        }
+
+        // Сопоставляем позиции ответа с basket_item_id через itemKey — это
+        // непрозрачный служебный код, который API возвращает как есть (в
+        // отличие от partnumber у Росско, itemKey не переформатируется), самый
+        // надёжный ключ сопоставления из всех, что даёт этот API.
+        $itemReferences = [];
+        foreach ((array)($decoded['orders'] ?? []) as $order) {
+            $orderNumber = (string)($order['number'] ?? '');
+            if ($orderNumber === '') continue;
+            foreach ((array)($order['positions'] ?? []) as $pos) {
+                $ik = (string)($pos['itemKey'] ?? '');
+                $positionId = (int)($pos['positionId'] ?? 0);
+                if ($ik === '' || $positionId <= 0) continue;
+                if (!empty($queueByItemKey[$ik])) {
+                    $basketItemId = array_shift($queueByItemKey[$ik]);
+                    if ($basketItemId > 0) {
+                        $itemReferences[$basketItemId] = $orderNumber . ':' . $positionId;
+                    }
+                }
+            }
+        }
+
+        // status=1 в ответе не гарантирует полный успех (документация прямо
+        // предупреждает: часть позиций может не попасть в заказ, независимо от
+        // status, всегда проверять узел orders) — нашим успехом считаем
+        // размещение хотя бы одной позиции, тот же принцип, что у ПартКома/Росско.
+        $success = !empty($itemReferences);
+
+        return [
+            'http_code'       => $httpCode,
+            'success'         => $success,
+            'raw'             => $decoded,
+            'error'           => $success ? null : ((string)($decoded['errorMessage'] ?? '') ?: 'order_rejected'),
+            'item_references' => $itemReferences,
+        ];
+    }
+
+    private function resolveShipmentDate(?int $minDeadline, ?int $maxDeadline): ?string
+    {
+        $min = $minDeadline ?? 0;
+        $max = $maxDeadline ?? $min;
+        if ($max < $min) $max = $min;
+
+        $url = $this->baseUrl . '/basket/shipmentDates?' . $this->authQuery()
+            . '&minDeadlineTime=' . $min . '&maxDeadlineTime=' . $max
+            . '&shipmentAddress=' . urlencode($this->shipmentAddress);
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+        ]);
+        $resp     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($httpCode !== 200 || empty($resp)) return null;
+        $data = json_decode($resp, true);
+        if (!is_array($data) || empty($data[0]['date'])) return null;
+        return (string)$data[0]['date'];
+    }
+
+    // ==================== СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ====================
+
+    /**
+     * $reference — составной "{orderNumber}:{positionId}" (см.
+     * placeOrder()::item_references) — orders/list запрашивается по номеру
+     * заказа, positionId однозначно определяет конкретную позицию внутри него.
+     */
+    public function fetchOrderStatusByReference(string $reference): array
+    {
+        if (strpos($reference, ':') === false) return [];
+        [$orderNumber, $positionIdRaw] = explode(':', $reference, 2);
+        $orderNumber = trim($orderNumber);
+        $positionId  = (int)$positionIdRaw;
+        if ($orderNumber === '' || $positionId <= 0) return [];
+
+        $url = $this->baseUrl . '/orders/list?' . $this->authQuery() . '&orders[0]=' . urlencode($orderNumber);
+        $ch  = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+        ]);
+        $resp     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err      = curl_error($ch);
+        curl_close($ch);
+
+        $this->log("fetchOrderStatusByReference({$reference}): response http={$httpCode} err={$err} body=" . substr((string)$resp, 0, 4000));
+
+        if ($err || $httpCode !== 200 || empty($resp)) return [];
+
+        $data = json_decode($resp, true);
+        if (!is_array($data)) return [];
+        // Разные ответы ABCP могут отдавать либо голый список, либо обёртку
+        // (см. похожие сюрпризы у Берга/Росско) — не полагаемся заранее на
+        // один формат.
+        $orders = $data['items'] ?? $data['data'] ?? $data;
+        if (!is_array($orders)) return [];
+
+        $order = null;
+        foreach ($orders as $o) {
+            if (is_array($o) && (string)($o['number'] ?? '') === $orderNumber) { $order = $o; break; }
+        }
+        if ($order === null) return [];
+
+        $position = null;
+        foreach ((array)($order['positions'] ?? []) as $p) {
+            if ((int)($p['positionId'] ?? 0) === $positionId) { $position = $p; break; }
+        }
+        // Позицию по positionId не нашли — как и у остальных коннекторов,
+        // безопаснее вернуть первую позицию заказа, чем молчать.
+        if ($position === null) $position = $order['positions'][0] ?? null;
+        if ($position === null) return [];
+
+        $statusId   = isset($position['statusId']) ? (int)$position['statusId'] : null;
+        $statusText = trim((string)($position['status'] ?? ''));
+
+        return [[
+            'order_number'    => $orderNumber,
+            'state_id'        => $statusId !== null ? (string)$statusId : null,
+            'state_text'      => $statusText !== '' ? $statusText : ($statusId !== null ? (self::STATUS_LABELS[$statusId] ?? null) : null),
+            'stage'           => $this->normalizeStage($statusId),
+            'expected_date'   => $order['shipmentDate'] ?? null,
+            'guaranteed_date' => null,
+            'store_count'     => null,
+            'release_count'   => null,
+            'refusal_count'   => null,
+            'comment'         => $position['comment'] ?? $order['comment'] ?? null,
+            'raw'             => $position,
+        ]];
+    }
+
+    // Полный официальный словарь статусов (см. orders/statuses, снят вживую
+    // 2026-09-08, id => [название, isFinalStatus]):
+    //   1803 Получен(false)  1804 В работе(false)  1805 Пришло на склад(false)
+    //   1806 Выдано(true)  1807 Задержка поставки(false)  1808 Отказ(true)
+    //   64222 Технический(false)  68891 Обрабатывается(false)
+    //   129198 Возврат(false)
+    // isFinalStatus сам по себе не различает успех/отказ (оба 1806 и 1808
+    // финальные) — классифицируем по конкретному id, не по одному лишь флагу.
+    // 129198 "Возврат" не финальный, но это статус ПОСЛЕ отгрузки — заказ был
+    // выполнен, дальнейшая судьба возврата не моделируется нашей шкалой,
+    // поэтому 'ready', а не 'refused' (та же логика, что у Росско 32-36).
+    private const STATUS_STAGE_MAP = [
+        1803   => 'ordered',
+        1804   => 'in_transit',
+        1805   => 'in_transit',
+        1806   => 'ready',
+        1807   => 'in_transit',
+        1808   => 'refused',
+        64222  => 'ordered',
+        68891  => 'ordered',
+        129198 => 'ready',
+    ];
+
+    private const STATUS_LABELS = [
+        1803   => 'Получен',
+        1804   => 'В работе',
+        1805   => 'Пришло на склад',
+        1806   => 'Выдано',
+        1807   => 'Задержка поставки',
+        1808   => 'Отказ',
+        64222  => 'Технический',
+        68891  => 'Обрабатывается',
+        129198 => 'Возврат',
+    ];
+
+    private function normalizeStage(?int $statusId): string
+    {
+        if ($statusId === null) return 'ordered';
+        return self::STATUS_STAGE_MAP[$statusId] ?? 'ordered';
     }
 
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ====================
