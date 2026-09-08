@@ -2,6 +2,7 @@
 namespace Lider\Supplier;
 
 use Lider\Search\SearchResultItem;
+use Lider\Search\BrandNormalizer;
 
 class AutoeuroConnector implements SupplierInterface, SupplierOrderable, SupplierOrderStatusProvider
 {
@@ -386,10 +387,12 @@ class AutoeuroConnector implements SupplierInterface, SupplierOrderable, Supplie
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => 0,
             CURLOPT_POST           => true,
-            // Судя по примеру в документации, для проверки статуса по номерам
-            // тело запроса — "голый" массив номеров заказов, а не объект с
-            // ключом "orders" (тот вариант — для поиска по датам/фильтрам).
-            CURLOPT_POSTFIELDS     => json_encode([(int)$orderId]),
+            // Подтверждено вживую: "голый" массив номеров заказов из примера в
+            // документации НЕ фильтрует вообще — API молча отдаёт общий список
+            // последних заказов клиента (results_count всегда одинаковый,
+            // нужного order_id там просто нет). Реально фильтрует только объект
+            // с ключом "orders".
+            CURLOPT_POSTFIELDS     => json_encode(['orders' => [(int)$orderId]]),
         ]);
         $resp     = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -402,19 +405,37 @@ class AutoeuroConnector implements SupplierInterface, SupplierOrderable, Supplie
 
         $decoded = json_decode($resp, true);
         if (!is_array($decoded)) return [];
-        $rows = is_array($decoded['DATA'] ?? null) ? $decoded['DATA'] : $decoded;
-        if (!is_array($rows)) return [];
+        $rows = is_array($decoded['DATA'] ?? null) ? $decoded['DATA'] : [];
+        if (empty($rows)) return [];
+
+        // brand/code от АвтоЕвро может отличаться написанием от того, что мы
+        // сохранили при заказе (напр. "MASUMA"/"KJ513" у нас → "Masuma"/"KJ-513"
+        // в ответе) — сравниваем нормализованными (тот же BrandNormalizer, что
+        // и у PartKomConnector), а не точным строковым совпадением.
+        [$wantBrand, $wantArticle] = array_pad(explode('|', $articleKey, 2), 2, '');
+        $normBrand = BrandNormalizer::normalize($wantBrand);
+        $normArt   = BrandNormalizer::normalizeArticle($wantArticle);
 
         $match = null;
-        foreach ($rows as $row) {
-            if (!is_array($row)) continue;
-            $rowKey = (string)($row['brand'] ?? '') . '|' . (string)($row['code'] ?? '');
-            if ($rowKey === $articleKey) { $match = $row; break; }
+        if (count($rows) === 1 && is_array($rows[0] ?? null)) {
+            // orders-фильтр выше уже гарантирует, что вся выдача — это ИМЕННО
+            // наш order_id; если в нём одна позиция, дополнительно сверять
+            // brand/code незачем.
+            $match = $rows[0];
+        } else {
+            foreach ($rows as $row) {
+                if (!is_array($row)) continue;
+                if (BrandNormalizer::normalize((string)($row['brand'] ?? '')) === $normBrand
+                    && BrandNormalizer::normalizeArticle((string)($row['code'] ?? '')) === $normArt) {
+                    $match = $row;
+                    break;
+                }
+            }
         }
-        // Не нашли конкретную позицию (напр. поставщик слегка изменил написание
-        // бренда) — безопаснее взять первую строку заказа, чем молчать (тот же
-        // принцип, что и в PartKomConnector/MoskvorechieConnector).
-        if ($match === null) $match = is_array($rows[0] ?? null) ? $rows[0] : null;
+        // В отличие от старой версии — НЕ подставляем первую попавшуюся строку,
+        // если совпадение не найдено: раз orders-фильтр реально работает,
+        // "не нашли" означает баг сопоставления, а не "чуть другое написание",
+        // и показывать чужую позицию как наш статус хуже, чем не показать ничего.
         if ($match === null) return [];
 
         $statusId = isset($match['status_id']) ? (string)$match['status_id'] : null;
