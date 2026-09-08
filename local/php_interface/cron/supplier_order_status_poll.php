@@ -69,6 +69,10 @@ $connectorsByCode = [
         'LOGIN' => 'Lider-16@bk.ru',
         'PASSWORD_MD5' => '00fd3781d2cfdf0d971b57fa7397cfac',
     ]),
+    'ixora' => new \Lider\Supplier\IxoraConnector([
+        'AUTH_CODE' => '460880B0988C8C204B2DD392EC81611D',
+        'TIMEOUT' => 8,
+    ]),
     // Другие поставщики добавятся сюда по мере реализации у них
     // SupplierOrderStatusProvider — остальной скрипт их не касается.
 ];

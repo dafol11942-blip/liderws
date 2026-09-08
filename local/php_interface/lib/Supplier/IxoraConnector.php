@@ -4,7 +4,7 @@ namespace Lider\Supplier;
 use Lider\Search\SearchResultItem;
 use Lider\Search\BrandNormalizer;
 
-class IxoraConnector implements SupplierInterface
+class IxoraConnector implements SupplierInterface, SupplierOrderable, SupplierOrderStatusProvider
 {
     private string $authCode;
     private string $endpoint;
@@ -259,6 +259,13 @@ class IxoraConnector implements SupplierInterface
                 'datearrival'        => $dateArrival,
             ];
 
+            // Для оформления заказа (см. SupplierOrderable::placeOrder()) —
+            // orderreference из DetailInfo, тот же самый "Идентификатор
+            // предложения", который BasketInsertOrders принимает как
+            // Order.OrderReference (см. документацию: "можно получить из
+            // объекта DetailInfo вызвав метод поиска").
+            $r->orderMeta = ['order_reference' => $orderRef];
+
             // Свои: Region начинается с "IXORA СКЛАД"
             if (mb_stripos($region, 'IXORA СКЛАД') === 0) {
                 $own[] = $r;
@@ -379,6 +386,266 @@ class IxoraConnector implements SupplierInterface
         });
         return array_slice($unique, 0, 40);
     }
+
+    // ==================== ЗАКАЗ (SupplierOrderable) ====================
+
+    public function placeOrder(array $items, bool $test = false): array
+    {
+        // Иксора не документирует флаг тестового заказа для BasketInsertOrders —
+        // как и у Росско/Авторуси, в тестовом режиме запрос не отправляем,
+        // безопаснее пропустить, чем случайно оформить реальный заказ.
+        if ($test) {
+            $this->log('placeOrder: тестовый режим не поддерживается API Иксоры (флага тестового заказа нет) — запрос не отправлен, items=' . count($items));
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'test_mode_not_supported'];
+        }
+
+        $orders = [];
+        $queueByRef = [];
+        $skipped = 0;
+        foreach ($items as $item) {
+            $orderReference = trim((string)($item['order_meta']['order_reference'] ?? ''));
+            $qty   = (int)($item['quantity'] ?? 0);
+            $price = (float)($item['price_base'] ?? 0);
+            if ($orderReference === '' || $qty <= 0 || $price <= 0) { $skipped++; continue; }
+
+            $orders[] = [
+                'OrderReference' => $orderReference,
+                'Quantity'       => $qty,
+                'Price'          => number_format($price, 2, '.', ''),
+                'Reference'      => (string)($item['comment'] ?? ''),
+            ];
+            $queueByRef[$orderReference][] = (int)($item['basket_item_id'] ?? 0);
+        }
+
+        if (empty($orders)) {
+            $this->log('placeOrder: нет ни одной валидной позиции (нет order_reference в order_meta), пропущено ' . $skipped);
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_valid_items'];
+        }
+
+        $body = $this->buildBasketInsertOrdersXml($orders);
+
+        $this->log('placeOrder: request items=' . count($orders) . ' skipped=' . $skipped . ' body=' . $body);
+
+        $resp = $this->execCurl([
+            'url'     => $this->endpoint,
+            'headers' => ['Content-Type: text/xml; charset=utf-8', 'SOAPAction: ' . $this->namespace . 'BasketInsertOrders'],
+            'method'  => 'POST',
+            'body'    => $body,
+        ]);
+
+        $this->log('placeOrder: response body=' . substr((string)$resp, 0, 4000));
+
+        if ($resp === null) {
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'http_error'];
+        }
+
+        $xml = @simplexml_load_string($resp);
+        if ($xml === false || $xml === null) {
+            return ['http_code' => 200, 'success' => false, 'raw' => ['_raw_text' => $resp], 'error' => 'invalid_xml'];
+        }
+
+        $fault = $xml->xpath('//*[local-name()="Fault"]');
+        if ($fault) {
+            $msg = (string)($xml->xpath('//*[local-name()="faultstring"]')[0] ?? 'SOAP Fault');
+            return ['http_code' => 200, 'success' => false, 'raw' => ['fault' => $msg], 'error' => $msg];
+        }
+
+        $warnCode = $xml->xpath('//*[local-name()="Warning"]/*[local-name()="Code"]');
+        $warnCode = $warnCode ? (int)$warnCode[0] : null;
+        $warnDesc = trim((string)($xml->xpath('//*[local-name()="Warning"]/*[local-name()="Description"]')[0] ?? ''));
+
+        $orderNodes = $xml->xpath('//*[local-name()="Data"]/*[local-name()="Order"]') ?: [];
+        $itemReferences = [];
+        $errorsRaw = [];
+        $itemsRaw = [];
+        foreach ($orderNodes as $o) {
+            $ref = trim((string)($o->xpath('*[local-name()="OrderReference"]')[0] ?? ''));
+            $id  = trim((string)($o->xpath('*[local-name()="Id"]')[0] ?? ''));
+            $err = trim((string)($o->xpath('*[local-name()="Error"]')[0] ?? ''));
+            $itemsRaw[] = ['orderReference' => $ref, 'id' => $id, 'error' => $err];
+
+            if ($id !== '' && !empty($queueByRef[$ref])) {
+                $basketItemId = array_shift($queueByRef[$ref]);
+                if ($basketItemId > 0) {
+                    // Id уникален на позицию сразу (в отличие от Берга/Росско,
+                    // где один заказ у поставщика мог покрывать несколько наших
+                    // позиций) — составной reference не нужен.
+                    $itemReferences[$basketItemId] = $id;
+                }
+            } elseif ($err !== '') {
+                $errorsRaw[] = ['orderReference' => $ref, 'message' => $err];
+            }
+        }
+
+        // Аналогично ПартКому/Росско/Авторуси: реальный успех — размещение
+        // хотя бы одной позиции (с полученным Id), а не общий Warning.Code=0,
+        // который относится ко ВСЕЙ операции, а не к каждой позиции.
+        $success = !empty($itemReferences);
+
+        $error = null;
+        if (!$success) {
+            $error = $warnDesc !== '' ? $warnDesc : (self::RESULT_CODE_LABELS[$warnCode] ?? 'order_rejected');
+        }
+
+        return [
+            'http_code'       => 200,
+            'success'         => $success,
+            'raw'             => ['warningCode' => $warnCode, 'warningDescription' => $warnDesc, 'items' => $itemsRaw, 'errors' => $errorsRaw],
+            'error'           => $error,
+            'item_references' => $itemReferences,
+        ];
+    }
+
+    private function buildBasketInsertOrdersXml(array $orders): string
+    {
+        $esc = fn($v) => htmlspecialchars((string)$v, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
+        $ordersXml = '';
+        foreach ($orders as $o) {
+            $ordersXml .= '<Order>'
+                . '<OrderReference>' . $esc($o['OrderReference']) . '</OrderReference>'
+                . '<Quantity>' . (int)$o['Quantity'] . '</Quantity>'
+                . '<Price>' . $esc($o['Price']) . '</Price>';
+            if (!empty($o['Reference'])) $ordersXml .= '<Reference>' . $esc($o['Reference']) . '</Reference>';
+            $ordersXml .= '</Order>';
+        }
+
+        $inner = '<BasketInsertOrders xmlns="' . $this->namespace . '">'
+            . '<Orders>' . $ordersXml . '</Orders>'
+            . '<AuthCode>' . $esc($this->authCode) . '</AuthCode>'
+            . '</BasketInsertOrders>';
+
+        return '<?xml version="1.0" encoding="utf-8"?>'
+            . '<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"'
+            . ' xmlns:xsd="http://www.w3.org/2001/XMLSchema"'
+            . ' xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">'
+            . '<soap:Body>' . $inner . '</soap:Body>'
+            . '</soap:Envelope>';
+    }
+
+    // ==================== СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ====================
+
+    /**
+     * $reference здесь — просто Id заказа у Иксоры (см. placeOrder()::
+     * item_references) — у Иксоры каждая наша позиция получает СВОЙ
+     * собственный Id сразу при размещении, составной reference не нужен
+     * (в отличие от Берга/Росско/Авторуси, где один заказ поставщика может
+     * покрывать несколько наших позиций).
+     */
+    public function fetchOrderStatusByReference(string $reference): array
+    {
+        $orderId = trim($reference);
+        if ($orderId === '') return [];
+
+        $body = $this->soapEnvelope('OrderStatusGetByOrderId', [
+            'OrderId'  => $orderId,
+            'AuthCode' => $this->authCode,
+        ]);
+
+        $resp = $this->execCurl([
+            'url'     => $this->endpoint,
+            'headers' => ['Content-Type: text/xml; charset=utf-8', 'SOAPAction: ' . $this->namespace . 'OrderStatusGetByOrderId'],
+            'method'  => 'POST',
+            'body'    => $body,
+        ]);
+
+        $this->log("fetchOrderStatusByReference({$reference}): response body=" . substr((string)$resp, 0, 4000));
+
+        if ($resp === null) return [];
+
+        $xml = @simplexml_load_string($resp);
+        if ($xml === false || $xml === null) return [];
+
+        $fault = $xml->xpath('//*[local-name()="Fault"]');
+        if ($fault) return [];
+
+        $statusNodes = $xml->xpath('//*[local-name()="Data"]/*[local-name()="OrderStatus"]') ?: [];
+        if (empty($statusNodes)) return [];
+
+        $out = [];
+        foreach ($statusNodes as $s) {
+            $status              = trim((string)($s->xpath('*[local-name()="Status"]')[0] ?? ''));
+            $comment             = trim((string)($s->xpath('*[local-name()="Comment"]')[0] ?? ''));
+            $number              = trim((string)($s->xpath('*[local-name()="Number"]')[0] ?? ''));
+            $dateArrivalOrient   = trim((string)($s->xpath('*[local-name()="DateArrivalOrient"]')[0] ?? ''));
+            $dateArrivalWarranty = trim((string)($s->xpath('*[local-name()="DateArrivalWarranty"]')[0] ?? ''));
+
+            $out[] = [
+                'order_number'    => $number !== '' ? $number : $orderId,
+                'state_id'        => $status !== '' ? $status : null,
+                'state_text'      => $status !== '' ? (self::STATUS_LABELS[$status] ?? $status) : null,
+                'stage'           => $this->normalizeStage($status),
+                'expected_date'   => $dateArrivalOrient !== '' ? $dateArrivalOrient : null,
+                'guaranteed_date' => $dateArrivalWarranty !== '' ? $dateArrivalWarranty : null,
+                'store_count'     => null,
+                'release_count'   => null,
+                'refusal_count'   => null,
+                'comment'         => $comment !== '' ? $comment : null,
+                'raw'             => ['status' => $status],
+            ];
+        }
+        return $out;
+    }
+
+    // Полный официальный словарь статусов заказа (OrderStatus.Status) —
+    // строковый enum, задокументирован явно, угадывать не требуется.
+    private const STATUS_STAGE_MAP = [
+        'InOrder'      => 'ordered',
+        'Ordered'      => 'ordered',
+        'Purchased'    => 'in_transit',
+        'OnTheWay'     => 'in_transit',
+        'ToIssue'      => 'ready',
+        'Issued'       => 'ready',
+        'NotAvailable' => 'refused',
+        'Reserve'      => 'in_transit',
+        'Acceptance'   => 'in_transit',
+        'Moving'       => 'in_transit',
+    ];
+
+    private const STATUS_LABELS = [
+        'InOrder'      => 'В заказе',
+        'Ordered'      => 'Заказано',
+        'Purchased'    => 'Выкуплено',
+        'OnTheWay'     => 'В пути',
+        'ToIssue'      => 'К выдаче',
+        'Issued'       => 'Выдано',
+        'NotAvailable' => 'Нет в наличии',
+        'Reserve'      => 'Резерв на складе',
+        'Acceptance'   => 'Приемка',
+        'Moving'       => 'Перемещение',
+    ];
+
+    private function normalizeStage(string $status): string
+    {
+        return self::STATUS_STAGE_MAP[$status] ?? 'ordered';
+    }
+
+    // Общий словарь кодов результата операции (см. документацию Ixora,
+    // OperationWarning.Code) — используется для placeOrder(), когда позиция
+    // не получила Id и своего Error не содержит.
+    private const RESULT_CODE_LABELS = [
+        0  => 'OK',
+        1  => 'Отсутствует в прайс-листе поставщика',
+        2  => 'Превышение цены',
+        3  => 'Нет достаточного количества',
+        4  => 'Не определен номер детали',
+        5  => 'Не верно указаны параметры перезаказа',
+        6  => 'Требуемое количество не соответствует минимальной партии',
+        7  => 'Не указана цена заказа',
+        8  => 'Не указано требуемое количество',
+        9  => 'Номер детали должен состоять из цифр и букв латинского алфавита',
+        10 => 'Не указан параметр',
+        11 => 'Ключ безопасности не соответствует контрагенту',
+        12 => 'IP не зарегистрирован',
+        13 => 'Контрагент отключен',
+        14 => 'Истек срок действия договора',
+        15 => 'Внутренняя ошибка',
+        16 => 'Отсутствует в корзине',
+        17 => 'Недостаточно средств на балансе',
+        18 => 'Позиция отложена',
+        19 => 'Превышена максимальная длина строки',
+        20 => 'Не верная длина строки',
+    ];
 
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ====================
 
