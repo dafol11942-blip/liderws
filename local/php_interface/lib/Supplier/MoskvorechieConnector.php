@@ -613,10 +613,16 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable, Sup
 
     private function log(string $message): void
     {
-        $logFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/moskvorechie_' . date('Y-m-d') . '.log';
+        // @-подавление — та же защита, что и у PartKomConnector::log(): этот
+        // коннектор теперь используется и из голого CLI-крона
+        // (supplier_order_status_poll.php), где DOCUMENT_ROOT не гарантирован —
+        // не хотим падать предупреждениями наружу из-за одной лишь недоступности лога.
+        $docRoot = $_SERVER['DOCUMENT_ROOT'] ?? '';
+        if ($docRoot === '') return;
+        $logFile = $docRoot . '/upload/logs/moskvorechie_' . date('Y-m-d') . '.log';
         $dir = dirname($logFile);
-        if (!is_dir($dir)) mkdir($dir, 0755, true);
-        file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . '] ' . $message . "\n", FILE_APPEND);
+        if (!is_dir($dir)) @mkdir($dir, 0755, true);
+        @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . '] ' . $message . "\n", FILE_APPEND);
     }
 
     public function supportsCrossSearch(): bool

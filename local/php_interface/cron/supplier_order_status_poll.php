@@ -11,6 +11,10 @@
  */
 
 $docRoot = '/var/www/u3564357/data/www/liderws.ru';
+// Голый CLI-запуск не заполняет $_SERVER['DOCUMENT_ROOT'] сам — коннекторам
+// (см. MoskvorechieConnector::log()/PartKomConnector::log()) он нужен для
+// своих собственных логов supplier-specific запросов/ответов.
+$_SERVER['DOCUMENT_ROOT'] = $docRoot;
 $logFile = $docRoot . '/upload/logs/supplier_order_status_poll_' . date('Y-m-d') . '.log';
 
 function clog(string $msg): void {
