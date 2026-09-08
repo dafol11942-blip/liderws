@@ -53,6 +53,10 @@ $connectorsByCode = [
     'moskvorechie' => new \Lider\Supplier\MoskvorechieConnector([
         'API_KEY' => 'hRohAwdf9nEy:qb9WatcqtLCdxunJ6klPootnydulyYMZ',
     ]),
+    'autoeuro' => new \Lider\Supplier\AutoeuroConnector([
+        'API_KEY' => 'wK435HUkjTAbJL4RF4F5z9NBXWYqpFhSorfpVkRLFNYI60T21ksYvVQNawkX',
+        'DELIVERY_KEY' => 'q53qrkblKN8GviqxHAUlgA0vlUZgRhN04SG01sixtCpoTjC99FJ165xxzGta89mwhLNonRBxH1vlOg8rjL2xPxAdurElATA',
+    ]),
     // Другие поставщики добавятся сюда по мере реализации у них
     // SupplierOrderStatusProvider — остальной скрипт их не касается.
 ];

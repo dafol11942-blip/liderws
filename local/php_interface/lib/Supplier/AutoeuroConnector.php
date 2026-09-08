@@ -3,7 +3,7 @@ namespace Lider\Supplier;
 
 use Lider\Search\SearchResultItem;
 
-class AutoeuroConnector implements SupplierInterface, SupplierOrderable
+class AutoeuroConnector implements SupplierInterface, SupplierOrderable, SupplierOrderStatusProvider
 {
     private string $apiKey;
     private string $baseUrl;
@@ -277,6 +277,11 @@ class AutoeuroConnector implements SupplierInterface, SupplierOrderable
         // заказа и НЕ дублируем в каждой stock_items[].comment (иначе на выходе
         // получилась бы одна и та же фраза, повторённая N раз через ";").
         $orderComment = '';
+        // brand|code → basket_item_id — /create_order не возвращает позиции (см.
+        // ниже), а /get_orders потом отдаёт их только по brand+code (offer_key
+        // там не эхуется), поэтому ключ для последующего сопоставления строим
+        // сами из того, что и так уже отправляем (см. item_references ниже).
+        $basketItemIdByArticleKey = [];
         foreach ($items as $item) {
             $offerKey = trim((string)($item['order_meta']['offer_key'] ?? ''));
             $qty = (int)($item['quantity'] ?? 0);
@@ -285,6 +290,8 @@ class AutoeuroConnector implements SupplierInterface, SupplierOrderable
             // явно означает "без сверки", а не забытый параметр.
             $stockItems[] = ['offer_key' => $offerKey, 'quantity' => $qty, 'price' => 0];
             if ($orderComment === '') $orderComment = (string)($item['comment'] ?? '');
+            $articleKey = (string)($item['brand'] ?? '') . '|' . (string)($item['article'] ?? '');
+            $basketItemIdByArticleKey[$articleKey] = (int)($item['basket_item_id'] ?? 0);
         }
 
         if (empty($stockItems)) {
@@ -333,12 +340,119 @@ class AutoeuroConnector implements SupplierInterface, SupplierOrderable
 
         $success = $httpCode === 200 && $err === '' && is_array($data) && !empty($data['result']);
 
+        // Как и у Москворечья (см. MoskvorechieConnector::placeOrder()) — у
+        // АвтоЕвро нет способа принять наш reference, только их order_id.
+        // Он один на весь заказ (может включать несколько наших позиций), а
+        // /get_orders потом отдаёт позиции без offer_key — только brand+code,
+        // поэтому reference строим тем же ключом уже сейчас, из отправленных
+        // данных, а не из ответа (create_order позиции не возвращает вовсе).
+        $itemReferences = [];
+        if ($success && !empty($data['order_id'])) {
+            $orderId = (string)$data['order_id'];
+            foreach ($basketItemIdByArticleKey as $articleKey => $basketItemId) {
+                if ($basketItemId) $itemReferences[$basketItemId] = $orderId . ':' . $articleKey;
+            }
+        }
+
         return [
-            'http_code' => $httpCode ?: null,
-            'success'   => $success,
-            'raw'       => $decoded,
-            'error'     => $err ?: ($success ? null : (string)($data['result_description'] ?? 'order_rejected')),
+            'http_code'       => $httpCode ?: null,
+            'success'         => $success,
+            'raw'             => $decoded,
+            'error'           => $err ?: ($success ? null : (string)($data['result_description'] ?? 'order_rejected')),
+            'item_references' => $itemReferences,
         ];
+    }
+
+    /**
+     * У АвтоЕвро нет запроса "статус по нашему reference" — только
+     * POST /get_orders с их order_id. $reference здесь — составной
+     * "{order_id}:{brand}|{code}" (см. placeOrder()::item_references), т.к.
+     * offer_key обратно не возвращается — только так можно понять, к какой
+     * именно нашей позиции относится конкретная строка ответа.
+     */
+    public function fetchOrderStatusByReference(string $reference): array
+    {
+        if (strpos($reference, ':') === false) return [];
+        [$orderId, $articleKey] = explode(':', $reference, 2);
+        $orderId = trim($orderId);
+        if ($orderId === '' || !ctype_digit($orderId)) return [];
+
+        $ch = curl_init($this->baseUrl . '/get_orders');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['key: ' . $this->apiKey, 'Content-Type: application/json', 'Accept: application/json'],
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_POST           => true,
+            // Судя по примеру в документации, для проверки статуса по номерам
+            // тело запроса — "голый" массив номеров заказов, а не объект с
+            // ключом "orders" (тот вариант — для поиска по датам/фильтрам).
+            CURLOPT_POSTFIELDS     => json_encode([(int)$orderId]),
+        ]);
+        $resp     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err      = curl_error($ch);
+        curl_close($ch);
+
+        $this->log("fetchOrderStatusByReference({$reference}): http={$httpCode} err={$err} body=" . substr((string)$resp, 0, 4000));
+
+        if ($err || $httpCode !== 200 || empty($resp)) return [];
+
+        $decoded = json_decode($resp, true);
+        if (!is_array($decoded)) return [];
+        $rows = is_array($decoded['DATA'] ?? null) ? $decoded['DATA'] : $decoded;
+        if (!is_array($rows)) return [];
+
+        $match = null;
+        foreach ($rows as $row) {
+            if (!is_array($row)) continue;
+            $rowKey = (string)($row['brand'] ?? '') . '|' . (string)($row['code'] ?? '');
+            if ($rowKey === $articleKey) { $match = $row; break; }
+        }
+        // Не нашли конкретную позицию (напр. поставщик слегка изменил написание
+        // бренда) — безопаснее взять первую строку заказа, чем молчать (тот же
+        // принцип, что и в PartKomConnector/MoskvorechieConnector).
+        if ($match === null) $match = is_array($rows[0] ?? null) ? $rows[0] : null;
+        if ($match === null) return [];
+
+        $statusId = isset($match['status_id']) ? (string)$match['status_id'] : null;
+
+        return [[
+            'order_number'    => isset($match['order_number']) ? (string)$match['order_number'] : $orderId,
+            'state_id'        => $statusId,
+            'state_text'      => $match['status'] ?? null,
+            'stage'           => $this->normalizeStage($statusId),
+            'expected_date'   => $match['delivery_date'] ?? null,
+            'guaranteed_date' => null,
+            'store_count'     => null,
+            'release_count'   => null,
+            'refusal_count'   => null,
+            'comment'         => $match['comment'] ?? null,
+            'raw'             => $match,
+        ]];
+    }
+
+    // Полный официальный словарь статусов (см. /get_statuses, 42 статуса на
+    // 2026-09-08) — в отличие от PartKom/Moskvorechie, где официального перечня
+    // не было, здесь классификация по status_id, а не по текстовым фразам.
+    // Группы "Отказано"/"Получено" из /get_statuses переносятся как есть; группа
+    // "В работе" вручную разбита на ordered/in_transit — сама по себе она
+    // слишком широкая (туда попадают и "Новый", и "В пути"). Группа "Прочее" —
+    // внутренние технические статусы склада, к доставке клиенту не относятся,
+    // дефолт ordered.
+    private const REFUSED_STATUS_IDS    = ['300','301','302','303','304','305','306','307','330','340','350','370','380'];
+    private const READY_STATUS_IDS      = ['230','260'];
+    private const IN_TRANSIT_STATUS_IDS = ['140','160','180','181','199'];
+
+    private function normalizeStage(?string $statusId): string
+    {
+        $id = (string)$statusId;
+        if (in_array($id, self::REFUSED_STATUS_IDS, true))    return 'refused';
+        if (in_array($id, self::READY_STATUS_IDS, true))      return 'ready';
+        if (in_array($id, self::IN_TRANSIT_STATUS_IDS, true)) return 'in_transit';
+        return 'ordered';
     }
 
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ====================
