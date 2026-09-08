@@ -295,8 +295,12 @@ class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrd
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-Berg-API-Key: ' . $this->apiKey, 'Accept: application/json'],
-            CURLOPT_TIMEOUT        => 20,
-            CURLOPT_CONNECTTIMEOUT => 5,
+            // Заведомо короче, чем у остальных поставщиков (20с) — синхронный
+            // вызов держит веб-воркер на этом хостинге (ограниченный пул
+            // Apache/mod_fcgid, см. инцидент с 502 при заказе), 20-25с одного
+            // повисшего запроса были заметны на всём сайте.
+            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_CONNECTTIMEOUT => 3,
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => $body,
         ]);
@@ -410,8 +414,8 @@ class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrd
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER     => ['X-Berg-API-Key: ' . $this->apiKey, 'Accept: application/json'],
-            CURLOPT_TIMEOUT        => 15,
-            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_CONNECTTIMEOUT => 3,
         ]);
         $resp     = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
