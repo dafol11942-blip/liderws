@@ -140,6 +140,10 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
             'KEY2' => 'a514b4c11299686d7cfe8fd3563d1c58',
             'DELIVERY_ID' => '000000002',
             'ADDRESS_ID' => '71520',
+            'PAYMENT_ID' => 1,
+            'REQUISITE_ID' => 20534,
+            'CONTACT_NAME' => 'Сергей Викторович',
+            'CONTACT_PHONE' => '+7(917)223-61-24',
         ]));
 
         $factory->register(new \Lider\Supplier\BergConnector([

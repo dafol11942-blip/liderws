@@ -61,6 +61,10 @@ $connectorsByCode = [
         'API_KEY' => '9e1cc5aea546e263e54c8ba687757a6515de9c78f52c5a9b435bd7ad8303ef36',
         'ADDRESS_ID' => 31173,
     ]),
+    'rossko' => new \Lider\Supplier\RosskoConnector([
+        'KEY1' => 'd6907f0f857524815255b74cda86fe9b',
+        'KEY2' => 'a514b4c11299686d7cfe8fd3563d1c58',
+    ]),
     // Другие поставщики добавятся сюда по мере реализации у них
     // SupplierOrderStatusProvider — остальной скрипт их не касается.
 ];
