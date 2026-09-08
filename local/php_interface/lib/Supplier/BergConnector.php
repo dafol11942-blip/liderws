@@ -4,7 +4,7 @@ namespace Lider\Supplier;
 use Lider\Search\SearchResultItem;
 use Lider\Search\BrandNormalizer;
 
-class BergConnector implements SupplierInterface
+class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrderStatusProvider
 {
     private string $apiKey;
     private int $timeout;
@@ -218,6 +218,281 @@ class BergConnector implements SupplierInterface
         return 7;
     }
 
+    // ==================== ЗАКАЗ (SupplierOrderable) ====================
+
+    public function placeOrder(array $items, bool $test = false): array
+    {
+        $orderItems = [];
+        $basketItemIdBySequence = [];
+        $skipped = 0;
+        $seq = 0;
+        foreach ($items as $item) {
+            $resourceId  = $item['order_meta']['resource_id']  ?? null;
+            $warehouseId = $item['order_meta']['warehouse_id'] ?? null;
+            $qty         = (int)($item['quantity'] ?? 0);
+            if (!$resourceId || !$warehouseId || $qty <= 0) { $skipped++; continue; }
+
+            $seq++;
+            $orderItem = [
+                'resource_id'  => (int)$resourceId,
+                'warehouse_id' => (int)$warehouseId,
+                'quantity'     => $qty,
+            ];
+            if (!empty($item['comment'])) $orderItem['comment'] = (string)$item['comment'];
+            $priceBase = (float)($item['price_base'] ?? 0);
+            if ($priceBase > 0) $orderItem['max_price'] = $priceBase;
+            $orderItems[] = $orderItem;
+            $basketItemIdBySequence[$seq] = (int)($item['basket_item_id'] ?? 0);
+        }
+
+        if (empty($orderItems)) {
+            $this->log('placeOrder: нет ни одной валидной позиции (нет resource_id/warehouse_id в order_meta), пропущено ' . $skipped);
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_valid_items'];
+        }
+
+        // Дата/время отгрузки (dispatch_at/dispatch_time) — общие на весь заказ
+        // у Берга (не на позицию), поэтому берём САМОЕ ПОЗДНЕЕ требуемое окно
+        // среди всех позиций: товар, готовый к более ранней волне, гарантированно
+        // готов и к более поздней/будущей — обратное невозможно.
+        $dispatchTs = null; $dispatchDate = null; $dispatchTimeFlag = 1;
+        foreach ($items as $item) {
+            $w = $this->resolveDispatchWindow((array)($item['order_meta'] ?? []));
+            $wTs = strtotime($w['date']) + ($w['time_flag'] === 2 ? 1 : 0);
+            if ($dispatchTs === null || $wTs > $dispatchTs) {
+                $dispatchTs = $wTs; $dispatchDate = $w['date']; $dispatchTimeFlag = $w['time_flag'];
+            }
+        }
+
+        $orderComment = (string)($items[array_key_first($items)]['comment'] ?? '');
+
+        // Наш orderId — числовой префикс до "_" в reference позиции (см.
+        // dispatchSupplierOrders(): "{orderId}_{basketItemId}") — передаём как
+        // order[reference] для защиты от дублей при повторной отправке (см.
+        // документацию: "невозможно сохранить заказ с таким же reference").
+        $ourOrderRef = null;
+        $firstRef = (string)($items[array_key_first($items)]['reference'] ?? '');
+        if (preg_match('/^(\d+)_/', $firstRef, $m)) $ourOrderRef = (int)$m[1];
+
+        $order = [
+            'is_test'       => $test ? 1 : 0,
+            'dispatch_type' => 3,
+            'dispatch_at'   => $dispatchDate,
+            'dispatch_time' => $dispatchTimeFlag,
+            'comment'       => $orderComment,
+            'items'         => $orderItems,
+        ];
+        if ($this->addressId)     $order['shipment_address_id'] = $this->addressId;
+        if ($ourOrderRef !== null) $order['reference'] = $ourOrderRef;
+
+        // force=1 — как у ПартКома по духу: позиция с неверным количеством/ценой
+        // (max_price) пропускается и уходит в warnings, а не блокирует весь заказ.
+        $body = json_encode(['force' => 1, 'order' => $order], JSON_UNESCAPED_UNICODE);
+
+        $this->log('placeOrder: request test=' . ($test ? 1 : 0) . ' items=' . count($orderItems) . ' skipped=' . $skipped
+            . ' dispatch_at=' . $dispatchDate . ' dispatch_time=' . $dispatchTimeFlag . ' body=' . $body);
+
+        $ch = curl_init(rtrim($this->baseUrl, '/') . '/ordering/place_order.json');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-Berg-API-Key: ' . $this->apiKey, 'Accept: application/json'],
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $body,
+        ]);
+        $resp     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err      = curl_error($ch);
+        curl_close($ch);
+
+        $this->log('placeOrder: response http=' . $httpCode . ' err=' . $err . ' body=' . substr((string)$resp, 0, 4000));
+
+        $decoded = null;
+        if ($resp !== false && $resp !== '') {
+            $decoded = json_decode($resp, true);
+            if (!is_array($decoded)) $decoded = ['_raw_text' => $resp];
+        }
+
+        $success = $httpCode === 200 && $err === '' && is_array($decoded) && empty($decoded['errors']) && !empty($decoded['id']);
+
+        $itemReferences = [];
+        if ($success) {
+            $orderId = (int)$decoded['id'];
+            foreach ($basketItemIdBySequence as $sequence => $basketItemId) {
+                if ($basketItemId > 0) $itemReferences[$basketItemId] = $orderId . ':' . $sequence;
+            }
+        }
+
+        $error = null;
+        if (!$success) {
+            $error = $err ?: (is_array($decoded['errors'] ?? null) ? json_encode($decoded['errors'], JSON_UNESCAPED_UNICODE) : 'order_rejected');
+        }
+
+        return [
+            'http_code'       => $httpCode ?: null,
+            'success'         => $success,
+            'raw'             => $decoded,
+            'error'           => $error,
+            'item_references' => $itemReferences,
+        ];
+    }
+
+    /**
+     * Дата/флаг времени отгрузки (dispatch_at/dispatch_time) для одной позиции,
+     * исходя из окна доставки, зафиксированного в orderMeta на момент поиска
+     * (см. buildResultItem()). Пересчитывается от ТЕКУЩЕГО времени (не от
+     * времени поиска): если дедлайн волны (buy_until) уже прошёл к моменту
+     * оформления заказа, откатываемся на assured_period/average_period, а не
+     * молча подставляем просроченное окно.
+     *
+     * @return array{date:string,time_flag:int} dispatch_at (Y-m-d), dispatch_time (1 — до 15:00, 2 — после)
+     */
+    private function resolveDispatchWindow(array $meta): array
+    {
+        $now = time();
+
+        $fromTs = null;
+        if (!empty($meta['delivery_from'])) {
+            $f = strtotime((string)$meta['delivery_from']);
+            if ($f && $f > $now) {
+                $buyUntilTs = !empty($meta['buy_until']) ? strtotime((string)$meta['buy_until']) : null;
+                if ($buyUntilTs === null || $buyUntilTs > $now) {
+                    $fromTs = $f;
+                }
+            }
+        }
+
+        if ($fromTs === null) {
+            $days = null;
+            if (isset($meta['assured_period']) && $meta['assured_period'] !== null) {
+                $days = (int)$meta['assured_period'];
+            } elseif (isset($meta['average_period']) && $meta['average_period'] !== null) {
+                $days = (int)$meta['average_period'];
+            }
+            $days = max(0, $days ?? 1);
+            // Без точного окна берём заведомо безопасный запас — после 15:00 в
+            // расчётный день, чтобы не попасть в волну, для которой товар ещё не
+            // готов.
+            $fromTs = strtotime('today') + $days * 86400 + 16 * 3600;
+        }
+
+        return [
+            'date'      => date('Y-m-d', $fromTs),
+            'time_flag' => ((int)date('H', $fromTs) < 15) ? 1 : 2,
+        ];
+    }
+
+    // ==================== СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ====================
+
+    /**
+     * $reference здесь — составной "{order_id}:{sequence}" (см.
+     * placeOrder()::item_references), т.к. у Берга один заказ (Order.id) может
+     * содержать несколько наших позиций, различаемых по sequence — тот же приём,
+     * что и у MoskvorechieConnector с "{order_number}:{gid}".
+     */
+    public function fetchOrderStatusByReference(string $reference): array
+    {
+        if (strpos($reference, ':') === false) return [];
+        [$orderIdRaw, $seqRaw] = explode(':', $reference, 2);
+        $orderId = (int)$orderIdRaw;
+        $seq     = (int)$seqRaw;
+        if ($orderId <= 0) return [];
+
+        $url = rtrim($this->baseUrl, '/') . '/ordering/states.json?orders[]=' . $orderId;
+        $ch  = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['X-Berg-API-Key: ' . $this->apiKey, 'Accept: application/json'],
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_CONNECTTIMEOUT => 5,
+        ]);
+        $resp     = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err      = curl_error($ch);
+        curl_close($ch);
+
+        $this->log("fetchOrderStatusByReference({$reference}): response http={$httpCode} err={$err} body=" . substr((string)$resp, 0, 4000));
+
+        if ($err || $httpCode !== 200 || empty($resp)) return [];
+
+        $data = json_decode($resp, true);
+        if (!is_array($data)) return [];
+        if (isset($data['data']) && is_array($data['data'])) $data = $data['data'];
+
+        $order = null;
+        foreach ($data as $row) {
+            if (is_array($row) && (int)($row['id'] ?? 0) === $orderId) { $order = $row; break; }
+        }
+        if ($order === null) return [];
+
+        $item = null;
+        foreach ((array)($order['items'] ?? []) as $it) {
+            if ((int)($it['sequence'] ?? 0) === $seq) { $item = $it; break; }
+        }
+        // Позицию по sequence не нашли (например, поменялся формат ответа) —
+        // как и у ПартКома/Москворечья, безопаснее вернуть первую позицию
+        // заказа, чем молчать.
+        if ($item === null) $item = $order['items'][0] ?? null;
+        if ($item === null) return [];
+
+        $state     = (array)($item['state'] ?? []);
+        $stateText = isset($state['name']) ? (string)$state['name'] : null;
+        $stateType = isset($state['type']) ? (int)$state['type'] : null;
+
+        return [[
+            'order_number'    => (string)$orderId,
+            'state_id'        => isset($state['id']) ? (string)$state['id'] : null,
+            'state_text'      => $stateText,
+            'stage'           => $this->normalizeStage($stateText, $stateType),
+            'expected_date'   => $item['average_time'] ?? null,
+            'guaranteed_date' => $item['assured_time'] ?? null,
+            'store_count'     => null,
+            'release_count'   => null,
+            'refusal_count'   => null,
+            'comment'         => $item['comment'] ?? $order['comment'] ?? null,
+            'raw'             => $item,
+        ]];
+    }
+
+    // Официального словаря названий статусов (/references/states) на момент
+    // подключения ещё не сверяли по факту — как и у Москворечья, классификация
+    // по ключевым фразам временная. type (0 обычный, 1 — присвоен при создании
+    // заказа, 2 — присвоен по завершению обработки) — задокументированный
+    // Бергом признак, ему доверяем в первую очередь: type=2 без явных признаков
+    // отказа в тексте статуса — считаем 'ready' (заказ завершён), а не пытаемся
+    // угадать по неполному словарю фраз.
+    private const REFUSED_PHRASES    = ['отказ', 'отменен', 'отменён', 'возврат', 'не может быть поставлен', 'не будет поставлен'];
+    private const READY_PHRASES      = ['получен', 'выдан', 'доставлен клиенту', 'закрыт', 'завершен', 'завершён'];
+    private const IN_TRANSIT_PHRASES = ['отгруж', 'передан', 'в пути', 'собран', 'складе'];
+
+    private function normalizeStage(?string $stateText, ?int $stateType): string
+    {
+        $t = mb_strtolower((string)$stateText);
+        if ($t !== '') {
+            foreach (self::REFUSED_PHRASES as $p) { if (mb_strpos($t, $p) !== false) return 'refused'; }
+        }
+        if ($stateType === 2) return 'ready';
+        if ($t !== '') {
+            foreach (self::READY_PHRASES as $p)      { if (mb_strpos($t, $p) !== false) return 'ready'; }
+            foreach (self::IN_TRANSIT_PHRASES as $p) { if (mb_strpos($t, $p) !== false) return 'in_transit'; }
+        }
+        return 'ordered';
+    }
+
+    private function log(string $message): void
+    {
+        // @-подавление и явная проверка DOCUMENT_ROOT — этот коннектор также
+        // используется из голого CLI-крона (supplier_order_status_poll.php),
+        // где DOCUMENT_ROOT выставляется вручную скриптом, но на всякий случай
+        // не полагаемся на его гарантированное наличие (см. MoskvorechieConnector::log()).
+        $docRoot = $_SERVER['DOCUMENT_ROOT'] ?? '';
+        if ($docRoot === '') return;
+        $logFile = $docRoot . '/upload/logs/berg_' . date('Y-m-d') . '.log';
+        $dir = dirname($logFile);
+        if (!is_dir($dir)) @mkdir($dir, 0755, true);
+        @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . '] ' . $message . "\n", FILE_APPEND);
+    }
+
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ====================
 
     private function execCurl(array $req): ?string
@@ -281,6 +556,22 @@ class BergConnector implements SupplierInterface
         if (!empty($dateFrom)) $r->raw['deliveryDateFrom'] = $dateFrom;
         if (!empty($dateTo))   $r->raw['deliveryDateTo']   = $dateTo;
         if (!empty($buyUntil)) $r->raw['deliveryCheckout'] = $buyUntil;
+
+        // Для оформления заказа (см. SupplierOrderable::placeOrder()) —
+        // resource_id/warehouse_id, которые /ordering/place_order принимает как
+        // OrderItem.resource_id/warehouse_id. Окно доставки берём СТРОГО из
+        // delivery_from/delivery_to (не pickup_from/to выше — заказ у Берга
+        // оформляется доставкой, см. placeOrder()), чтобы не подставить в
+        // dispatch_at время самовывозной волны.
+        $r->orderMeta = [
+            'resource_id'    => isset($resource['id']) ? (int)$resource['id'] : null,
+            'warehouse_id'   => isset($wh['id']) ? (int)$wh['id'] : null,
+            'delivery_from'  => $tt['delivery_from'] ?? null,
+            'delivery_to'    => $tt['delivery_to'] ?? null,
+            'buy_until'      => $buyUntil,
+            'assured_period' => $offer['assured_period'] ?? null,
+            'average_period' => $offer['average_period'] ?? null,
+        ];
 
         return $r;
     }

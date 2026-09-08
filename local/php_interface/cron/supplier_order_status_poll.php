@@ -57,6 +57,10 @@ $connectorsByCode = [
         'API_KEY' => 'wK435HUkjTAbJL4RF4F5z9NBXWYqpFhSorfpVkRLFNYI60T21ksYvVQNawkX',
         'DELIVERY_KEY' => 'q53qrkblKN8GviqxHAUlgA0vlUZgRhN04SG01sixtCpoTjC99FJ165xxzGta89mwhLNonRBxH1vlOg8rjL2xPxAdurElATA',
     ]),
+    'berg' => new \Lider\Supplier\BergConnector([
+        'API_KEY' => '9e1cc5aea546e263e54c8ba687757a6515de9c78f52c5a9b435bd7ad8303ef36',
+        'ADDRESS_ID' => 31173,
+    ]),
     // Другие поставщики добавятся сюда по мере реализации у них
     // SupplierOrderStatusProvider — остальной скрипт их не касается.
 ];
