@@ -428,10 +428,15 @@ class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrd
 
         $data = json_decode($resp, true);
         if (!is_array($data)) return [];
-        if (isset($data['data']) && is_array($data['data'])) $data = $data['data'];
+        // Подтверждено первым живым ответом: коллекция заказов обёрнута в
+        // {"orders": [...]}, а не {"data": [...]} (как у ПартКома/Москворечья) и
+        // не голым списком — 'data' оставлен как запасной вариант на случай
+        // другой обёртки, но настоящий формат именно 'orders'.
+        $orders = $data['orders'] ?? $data['data'] ?? $data;
+        if (!is_array($orders)) return [];
 
         $order = null;
-        foreach ($data as $row) {
+        foreach ($orders as $row) {
             if (is_array($row) && (int)($row['id'] ?? 0) === $orderId) { $order = $row; break; }
         }
         if ($order === null) return [];
@@ -472,7 +477,11 @@ class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrd
     // Бергом признак, ему доверяем в первую очередь: type=2 без явных признаков
     // отказа в тексте статуса — считаем 'ready' (заказ завершён), а не пытаемся
     // угадать по неполному словарю фраз.
-    private const REFUSED_PHRASES    = ['отказ', 'отменен', 'отменён', 'возврат', 'не может быть поставлен', 'не будет поставлен'];
+    // 'снят с резерва' — подтверждено первым живым ответом (заказ №186, state
+    // id=3, type=2): УДАЛЕНИЕ товара из заказа/резерва, реальный отказ, хотя
+    // формально относится к "финальным" (type=2) статусам наравне с успешными
+    // (в UI Берга эта же позиция показана как "Отменён").
+    private const REFUSED_PHRASES    = ['отказ', 'отменен', 'отменён', 'возврат', 'не может быть поставлен', 'не будет поставлен', 'снят с резерва'];
     private const READY_PHRASES      = ['получен', 'выдан', 'доставлен клиенту', 'закрыт', 'завершен', 'завершён'];
     private const IN_TRANSIT_PHRASES = ['отгруж', 'передан', 'в пути', 'собран', 'складе'];
 
