@@ -175,8 +175,17 @@ if (!function_exists('dispatchSupplierOrders')) {
             $article = (string)($readProp($props, 'SUPPLIER_ARTICLE') ?? '');
             if ($article === '') continue;
 
-            $orderMeta = json_decode((string)($readProp($props, 'SUPPLIER_ORDER_META') ?? '[]'), true);
-            if (!is_array($orderMeta)) $orderMeta = [];
+            // order_meta теперь хранится в b_supplier_basket_order_meta, а не в
+            // свойстве корзины (VARCHAR(255) — не помещает длинные offer_key
+            // некоторых поставщиков, см. saveSupplierBasketOrderMeta() в init.php).
+            // Фолбэк на старое свойство — для позиций, добавленных в корзину до
+            // этого изменения (короткие order_meta там ещё валидны).
+            $orderMeta = function_exists('loadSupplierBasketOrderMeta')
+                ? loadSupplierBasketOrderMeta($basketItem->getId()) : [];
+            if (empty($orderMeta)) {
+                $orderMeta = json_decode((string)($readProp($props, 'SUPPLIER_ORDER_META') ?? '[]'), true);
+                if (!is_array($orderMeta)) $orderMeta = [];
+            }
 
             $bySupplier[$supplierCode][] = [
                 'basket_item_id' => $basketItem->getId(),

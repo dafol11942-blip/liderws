@@ -137,12 +137,16 @@ try {
     $upsertProp($props, 'SUPPLIER_DELIVERY_TIME',  'Время доставки',      (string)$newDeliveryTime);
     $upsertProp($props, 'SUPPLIER_QTY_AVAIL',      'Остаток у поставщика', $newQtyAvail);
     $upsertProp($props, 'SUPPLIER_ADDED_AT',       'Подтверждено',        (string)time());
-    // Данные для оформления заказа у поставщика (см. SupplierOrderable) — тоже
-    // освежаем, они могли смениться (напр. другой склад/предложение при пересчёте).
-    $upsertProp($props, 'SUPPLIER_ORDER_META', 'Данные для заказа', json_encode($freshItem->orderMeta ?? [], JSON_UNESCAPED_UNICODE));
     $upsertProp($props, 'SUPPLIER_RETURNABLE', 'Возврат', ($freshItem->returnable ?? true) ? 'Y' : 'N');
 
     $basket->save();
+
+    // Данные для оформления заказа у поставщика (см. SupplierOrderable) — тоже
+    // освежаем, они могли смениться (напр. другой склад/предложение при
+    // пересчёте). Хранятся не в свойстве корзины (VARCHAR(255) — слишком мало
+    // для некоторых поставщиков, см. saveSupplierBasketOrderMeta()), а в
+    // отдельной таблице; basket_item_id здесь уже существующий, save() не нужен.
+    saveSupplierBasketOrderMeta($basketItem->getId(), $freshItem->orderMeta ?? []);
 
     $cartQty = 0;
     foreach ($basket as $bi) {

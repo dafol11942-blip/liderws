@@ -85,6 +85,46 @@ function resolveBrandFromProperties(array $properties): string
     return '';
 }
 
+// order_meta позиции корзины (см. SupplierOrderable::placeOrder()) хранится
+// ЗДЕСЬ, а не в стандартном свойстве корзины SUPPLIER_ORDER_META — то свойство
+// физически VARCHAR(255) (ядро Bitrix, b_sale_basket_props.VALUE, менять
+// нельзя), а у некоторых поставщиков (АвтоЕвро — offer_key ~250 символов сам
+// по себе) JSON туда не помещается и молча обрезается, ломая структуру при
+// обратном чтении — заказ уходит без нужных данных, хотя в корзине всё верно.
+// Таблица создаётся один раз вручную, см.
+// local/php_interface/db/supplier_basket_order_meta_table.sql.
+function saveSupplierBasketOrderMeta(int $basketItemId, array $orderMeta): void
+{
+    if ($basketItemId <= 0 || empty($orderMeta)) return;
+    try {
+        $db     = \Bitrix\Main\Application::getConnection();
+        $helper = $db->getSqlHelper();
+        $json   = $helper->forSql(json_encode($orderMeta, JSON_UNESCAPED_UNICODE));
+        $db->query(
+            "INSERT INTO b_supplier_basket_order_meta (BASKET_ITEM_ID, ORDER_META_JSON) VALUES ({$basketItemId}, '{$json}')
+             ON DUPLICATE KEY UPDATE ORDER_META_JSON = '{$json}'"
+        );
+    } catch (\Throwable $e) {
+        // Не фатально: позиция всё равно добавится в корзину, просто не сможет
+        // уйти автоматическим заказом у поставщика (dispatchSupplierOrders()
+        // залогирует no_valid_items при отправке).
+    }
+}
+
+function loadSupplierBasketOrderMeta(int $basketItemId): array
+{
+    if ($basketItemId <= 0) return [];
+    try {
+        $db  = \Bitrix\Main\Application::getConnection();
+        $row = $db->query("SELECT ORDER_META_JSON FROM b_supplier_basket_order_meta WHERE BASKET_ITEM_ID = {$basketItemId}")->fetch();
+        if (!$row) return [];
+        $decoded = json_decode((string)$row['ORDER_META_JSON'], true);
+        return is_array($decoded) ? $decoded : [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
 function getSupplierFactory(): \Lider\Supplier\SupplierFactory
 {
     static $factory = null;

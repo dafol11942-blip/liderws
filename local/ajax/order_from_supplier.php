@@ -109,7 +109,6 @@ try {
     }
     $deliveryDays = $deliveryDays ?? -1;
     $returnable = $returnable ?? true;
-    $orderMetaJson = json_encode($orderMeta, JSON_UNESCAPED_UNICODE);
 
     require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php');
     $price = getDisplayPrice($basePrice);
@@ -178,7 +177,6 @@ try {
         $upsertProp($props, 'SUPPLIER_DELIVERY_TIME',  'Время доставки',     (string)$deliveryTime);
         $upsertProp($props, 'SUPPLIER_QTY_AVAIL',      'Остаток у поставщика', $qtyAvail);
         $upsertProp($props, 'SUPPLIER_ADDED_AT',       'Подтверждено',       (string)time());
-        $upsertProp($props, 'SUPPLIER_ORDER_META',     'Данные для заказа',  $orderMetaJson);
         $upsertProp($props, 'SUPPLIER_RETURNABLE',     'Возврат',            $returnable ? 'Y' : 'N');
     } else {
         $basketItem = $basket->createItem('catalog', $productId);
@@ -201,7 +199,6 @@ try {
             ['SUPPLIER_DELIVERY_TIME', 'Время доставки',     (string)$deliveryTime],
             ['SUPPLIER_QTY_AVAIL',     'Остаток у поставщика', $qtyAvail],
             ['SUPPLIER_ADDED_AT',      'Подтверждено',       (string)time()],
-            ['SUPPLIER_ORDER_META',    'Данные для заказа',  $orderMetaJson],
             ['SUPPLIER_RETURNABLE',    'Возврат',            $returnable ? 'Y' : 'N'],
         ];
         foreach ($list as [$code, $name, $value]) {
@@ -211,6 +208,13 @@ try {
     }
 
     $basket->save();
+
+    // basket_item_id новой позиции известен только ПОСЛЕ save() (Bitrix
+    // назначает его при вставке в b_sale_basket) — у уже существующей позиции
+    // ($existItem) он был известен и раньше, но пишем в одном месте после
+    // save() для обеих веток одинаково, для простоты.
+    $targetBasketItemId = $existItem ? $existItem->getId() : $basketItem->getId();
+    saveSupplierBasketOrderMeta($targetBasketItemId, $orderMeta);
 
     $cartQty = 0;
     foreach ($basket as $bi) {
