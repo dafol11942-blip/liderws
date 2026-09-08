@@ -358,15 +358,21 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
         $msgNode = $xml->xpath('//*[local-name()="message"]');
         $message = $msgNode ? trim((string)$msgNode[0]) : '';
 
-        // Очередь по ключу "артикул|бренд" (FIFO) — сопоставляем позиции ответа
-        // с нашими basket_item_id. Ответ ItemsList НЕ содержит код склада, только
-        // partnumber/brand, поэтому при заказе одного и того же артикула с двух
-        // РАЗНЫХ складов Росско в одном вызове однозначно различить их нельзя —
-        // берём по порядку появления в ответе (тот же принцип "best-effort", что
-        // у Москворечье/Берга, а не молчаливый отказ).
+        // Очередь по ключу "бренд|артикул" (FIFO) — сопоставляем позиции ответа
+        // с нашими basket_item_id. Подтверждено первым живым ответом (заказ
+        // №187): Росско переформатирует partnumber в ответе (мы отправили
+        // "AMDFL126", вернулось "AMD.FL126") — точное строковое сравнение не
+        // совпадало, ни одна позиция не находилась, и реально созданный заказ
+        // засчитывался как error. Сравниваем через BrandNormalizer::normalizeArticle()
+        // (снимает точки/дефисы/пробелы), как и ПартКом при сверке артикулов.
+        // Ответ ItemsList не содержит код склада, только partnumber/brand,
+        // поэтому при заказе одного и того же артикула с двух РАЗНЫХ складов
+        // Росско в одном вызове однозначно различить их нельзя — берём по
+        // порядку появления в ответе (тот же принцип "best-effort", что у
+        // Москворечье/Берга, а не молчаливый отказ).
         $queue = [];
         foreach ($partKeys as $pk) {
-            $key = mb_strtolower($pk['partnumber']) . '|' . mb_strtolower($pk['brand']);
+            $key = BrandNormalizer::normalize($pk['brand']) . '|' . BrandNormalizer::normalizeArticle($pk['partnumber']);
             $queue[$key][] = $pk['basket_item_id'];
         }
 
@@ -383,7 +389,7 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
                 'price'      => (float)($it->xpath('*[local-name()="price"]')[0] ?? 0),
             ];
             if ($orderId <= 0) continue;
-            $key = mb_strtolower($pn) . '|' . mb_strtolower($br);
+            $key = BrandNormalizer::normalize($br) . '|' . BrandNormalizer::normalizeArticle($pn);
             if (!empty($queue[$key])) {
                 $basketItemId = array_shift($queue[$key]);
                 if ($basketItemId > 0) {
@@ -525,11 +531,13 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
         $partNodes = $order->xpath('*[local-name()="parts"]/*[local-name()="part"]');
         if (!$partNodes) return [];
 
+        $wantKey = BrandNormalizer::normalize($wantBrand) . '|' . BrandNormalizer::normalizeArticle($wantPartnumber);
         $part = null;
         foreach ($partNodes as $p) {
             $pn = trim((string)($p->xpath('*[local-name()="partnumber"]')[0] ?? ''));
             $br = trim((string)($p->xpath('*[local-name()="brand"]')[0] ?? ''));
-            if (mb_strtolower($pn) === mb_strtolower($wantPartnumber) && mb_strtolower($br) === mb_strtolower($wantBrand)) {
+            $key = BrandNormalizer::normalize($br) . '|' . BrandNormalizer::normalizeArticle($pn);
+            if ($key === $wantKey) {
                 $part = $p;
                 break;
             }
