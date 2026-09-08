@@ -4,7 +4,7 @@ namespace Lider\Supplier;
 use Lider\Search\SearchResultItem;
 use Lider\Search\BrandNormalizer;
 
-class AutopiterConnector implements SupplierInterface
+class AutopiterConnector implements SupplierInterface, SupplierOrderable, SupplierOrderStatusProvider
 {
     private string $userId;
     private string $password;
@@ -253,6 +253,11 @@ class AutopiterConnector implements SupplierInterface
                 'expressText'  => $expressText,
             ];
 
+            // Для оформления заказа (см. SupplierOrderable::placeOrder()) —
+            // DetailUid однозначно определяет предложение и передаётся как есть
+            // в ItemAddCartModel.DetailUid у MakeOrderByItems.
+            $r->orderMeta = ['detail_uid' => $detailUid ?: ''];
+
             if ($storeType === 0 || $storeType === 2) {
                 $own[] = $r;
             } else {
@@ -365,6 +370,252 @@ class AutopiterConnector implements SupplierInterface
         });
 
         return array_slice($unique, 0, 30);
+    }
+
+    // ==================== ЗАКАЗ (SupplierOrderable) ====================
+
+    public function placeOrder(array $items, bool $test = false): array
+    {
+        // Автопитер не документирует флаг тестового заказа для MakeOrderByItems —
+        // как и у Иксоры/Авторуси/Росско, в тестовом режиме запрос не
+        // отправляем вообще, безопаснее пропустить, чем случайно оформить
+        // реальный заказ.
+        if ($test) {
+            $this->log('placeOrder: тестовый режим не поддерживается API Автопитера (флага тестового заказа нет) — запрос не отправлен, items=' . count($items));
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'test_mode_not_supported'];
+        }
+
+        if (!$this->ensureAuth()) {
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'auth_failed'];
+        }
+
+        $models = [];
+        $queueByUid = [];
+        $skipped = 0;
+        foreach ($items as $item) {
+            $detailUid = trim((string)($item['order_meta']['detail_uid'] ?? ''));
+            $qty   = (int)($item['quantity'] ?? 0);
+            $price = (float)($item['price_base'] ?? 0);
+            if ($detailUid === '' || $qty <= 0 || $price <= 0) { $skipped++; continue; }
+
+            $models[] = [
+                'DetailUid' => $detailUid,
+                'Comment'   => (string)($item['comment'] ?? ''),
+                'SalePrice' => number_format($price, 2, '.', ''),
+                'Quantity'  => $qty,
+            ];
+            $queueByUid[$detailUid][] = (int)($item['basket_item_id'] ?? 0);
+        }
+
+        if (empty($models)) {
+            $this->log('placeOrder: нет ни одной валидной позиции (нет detail_uid в order_meta), пропущено ' . $skipped);
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_valid_items'];
+        }
+
+        $body = $this->buildMakeOrderByItemsXml($models);
+
+        $this->log('placeOrder: request items=' . count($models) . ' skipped=' . $skipped . ' body=' . $body);
+
+        $resp = $this->execSoap($body);
+
+        $this->log('placeOrder: response body=' . substr((string)$resp, 0, 4000));
+
+        if ($resp === null) {
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'http_error'];
+        }
+
+        $orderNumber = $this->xmlTag($resp, 'OrderNumber');
+
+        if (!preg_match_all('/<ResponseCodeItemCart>(.*?)<\/ResponseCodeItemCart>/s', $resp, $blockMatches)) {
+            // Не нашли ни одной позиции ответа в ожидаемом формате — не считаем
+            // это успехом, даже если OrderNumber пришёл: без сопоставления
+            // позиций с DetailUid мы не можем быть уверены, что именно
+            // отправлено поставщику.
+            return [
+                'http_code' => 200,
+                'success'   => false,
+                'raw'       => ['_raw_text' => $resp, 'orderNumber' => $orderNumber],
+                'error'     => 'unparsable_response',
+            ];
+        }
+
+        $itemReferences = [];
+        $itemsRaw = [];
+        foreach ($blockMatches[1] as $block) {
+            // Item — вложенная модель детали внутри ResponseCodeItemCart, если
+            // её нет отдельным тегом (плоская структура), берём поля прямо из
+            // блока целиком — оба варианта покрываются одним xmlTag() поиском.
+            $inner = $block;
+            if (preg_match('/<Item>(.*?)<\/Item>/s', $block, $im)) {
+                $inner = $im[1];
+            }
+            $detailUid = $this->xmlTag($inner, 'DetailUid');
+            if (!$detailUid) continue;
+
+            // Code — список кодов результата (ArrayOfInt), встречается как
+            // повторяющиеся <Code>N</Code> либо <Code><int>N</int></Code> —
+            // оба варианта ловим одним regex.
+            preg_match_all('/<Code>\s*(?:<int>)?\s*(-?\d+)/', $block, $codeMatches);
+            $codes = array_map('intval', $codeMatches[1] ?? []);
+            $itemsRaw[] = ['detailUid' => $detailUid, 'codes' => $codes];
+
+            // 0 — позиция удачно добавлена в корзину (см. общий словарь
+            // ResponseCode в документации InsertToBasket/MakeOrderByItems).
+            if (!in_array(0, $codes, true)) continue;
+
+            if (!empty($queueByUid[$detailUid])) {
+                $basketItemId = array_shift($queueByUid[$detailUid]);
+                if ($basketItemId > 0) {
+                    // OrderNumber общий на весь вызов, DetailUid однозначно
+                    // определяет позицию внутри него (как orderNumber:positionId
+                    // у Авторуси) — составной reference нужен для последующего
+                    // GetFullInvoiceOrder(OrderNumber), который возвращает
+                    // список позиций именно по DetailUid.
+                    $itemReferences[$basketItemId] = $orderNumber . ':' . $detailUid;
+                }
+            }
+        }
+
+        // Успех — только если пришёл OrderNumber И хотя бы одна позиция
+        // подтверждена кодом 0, а не сам факт HTTP 200 (см. общий принцип у
+        // остальных коннекторов — top-level флаг не гарантирует реальный успех).
+        $success = !empty($orderNumber) && !empty($itemReferences);
+
+        return [
+            'http_code'       => 200,
+            'success'         => $success,
+            'raw'             => ['orderNumber' => $orderNumber, 'items' => $itemsRaw],
+            'error'           => $success ? null : 'order_rejected',
+            'item_references' => $itemReferences,
+        ];
+    }
+
+    private function buildMakeOrderByItemsXml(array $models): string
+    {
+        $esc = fn($v) => htmlspecialchars((string)$v, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
+        $itemsXml = '';
+        foreach ($models as $m) {
+            $itemsXml .= '<ItemAddCartModel>'
+                . '<DetailUid>' . $esc($m['DetailUid']) . '</DetailUid>'
+                . '<Comment>' . $esc($m['Comment']) . '</Comment>'
+                . '<SalePrice>' . $esc($m['SalePrice']) . '</SalePrice>'
+                . '<Quantity>' . (int)$m['Quantity'] . '</Quantity>'
+                . '</ItemAddCartModel>';
+        }
+
+        return '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">'
+            . '<soap:Body>'
+            . '<MakeOrderByItems xmlns="http://www.autopiter.ru/">'
+            . '<Items>' . $itemsXml . '</Items>'
+            . '</MakeOrderByItems>'
+            . '</soap:Body>'
+            . '</soap:Envelope>';
+    }
+
+    // ==================== СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ====================
+
+    /**
+     * $reference — составной "{OrderNumber}:{DetailUid}" (см.
+     * placeOrder()::item_references) — GetFullInvoiceOrder запрашивается по
+     * номеру счёта, DetailUid однозначно определяет конкретную позицию внутри
+     * него (один OrderNumber может покрывать несколько наших позиций).
+     */
+    public function fetchOrderStatusByReference(string $reference): array
+    {
+        if (strpos($reference, ':') === false) return [];
+        [$orderNumber, $detailUid] = explode(':', $reference, 2);
+        $orderNumber = trim($orderNumber);
+        $detailUid   = trim($detailUid);
+        if ($orderNumber === '' || $detailUid === '') return [];
+
+        if (!$this->ensureAuth()) return [];
+
+        $xml = '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">'
+            . '<soap:Body>'
+            . '<GetFullInvoiceOrder xmlns="http://www.autopiter.ru/">'
+            . '<OrderNumber>' . htmlspecialchars($orderNumber, ENT_XML1) . '</OrderNumber>'
+            . '</GetFullInvoiceOrder>'
+            . '</soap:Body>'
+            . '</soap:Envelope>';
+
+        $resp = $this->execSoap($xml);
+
+        $this->log("fetchOrderStatusByReference({$reference}): response body=" . substr((string)$resp, 0, 4000));
+
+        if ($resp === null) return [];
+
+        if (!preg_match_all('/<OrderInformationItemModel>(.*?)<\/OrderInformationItemModel>/s', $resp, $matches)) {
+            return [];
+        }
+
+        $position = null;
+        foreach ($matches[1] as $block) {
+            if ($this->xmlTag($block, 'DetailUid') === $detailUid) { $position = $block; break; }
+        }
+        // Позицию по DetailUid не нашли — как и у Авторуси, безопаснее вернуть
+        // первую позицию заказа, чем молчать.
+        if ($position === null) $position = $matches[1][0] ?? null;
+        if ($position === null) return [];
+
+        $statusBlock = $position;
+        if (preg_match('/<Status>(.*?)<\/Status>/s', $position, $sm)) {
+            $statusBlock = $sm[1];
+        }
+        $statusId   = $this->xmlTag($statusBlock, 'Id');
+        $statusText = $this->xmlTag($statusBlock, 'Name');
+        $deliveryDate = $this->xmlTag($position, 'DeliveryDate');
+        $comment      = $this->xmlTag($position, 'Comment');
+
+        return [[
+            'order_number'    => $orderNumber,
+            'state_id'        => $statusId,
+            'state_text'      => $statusText ?: ($statusId !== null ? (self::STATUS_LABELS[(int)$statusId] ?? null) : null),
+            'stage'           => $this->normalizeStage($statusId !== null ? (int)$statusId : null),
+            'expected_date'   => $deliveryDate,
+            'guaranteed_date' => null,
+            'store_count'     => null,
+            'release_count'   => null,
+            'refusal_count'   => null,
+            'comment'         => $comment,
+            'raw'             => ['statusId' => $statusId, 'statusText' => $statusText],
+        ]];
+    }
+
+    // Основные статусы заказа (Status.Id) — из официальной документации
+    // Автопитера (GetFullInvoiceOrder), список помечен как неполный ("Список
+    // основных статусов"), поэтому для незадокументированных id — дефолт
+    // 'ordered', а не догадка.
+    private const STATUS_STAGE_MAP = [
+        11   => 'ready',    // Выдано
+        9    => 'refused',  // Отказ
+        149  => 'refused',  // Возврат невозможен
+        128  => 'ready',    // Зачтено клиенту (успешный возврат — заказ закрыт)
+        677  => 'in_transit', // Отгружено([город])
+        1309 => 'in_transit', // Отправлено в г.[город]
+        1546 => 'in_transit', // Поступило в г.[город] (ещё не выдано получателю)
+        1858 => 'ready',    // Выдан получателю
+        1859 => 'refused',  // Возврат в Autopiter.ru (клиент не забрал)
+        1919 => 'in_transit', // Транзит в г.[город]
+    ];
+
+    private const STATUS_LABELS = [
+        11   => 'Выдано',
+        9    => 'Отказ',
+        149  => 'Возврат невозможен',
+        128  => 'Зачтено клиенту',
+        677  => 'Отгружено',
+        1309 => 'Отправлено',
+        1546 => 'Поступило',
+        1858 => 'Выдан получателю',
+        1859 => 'Возврат в Autopiter.ru',
+        1919 => 'Транзит',
+    ];
+
+    private function normalizeStage(?int $statusId): string
+    {
+        if ($statusId === null) return 'ordered';
+        return self::STATUS_STAGE_MAP[$statusId] ?? 'ordered';
     }
 
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ====================

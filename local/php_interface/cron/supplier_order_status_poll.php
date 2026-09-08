@@ -73,6 +73,10 @@ $connectorsByCode = [
         'AUTH_CODE' => '460880B0988C8C204B2DD392EC81611D',
         'TIMEOUT' => 8,
     ]),
+    'autopiter' => new \Lider\Supplier\AutopiterConnector([
+        'USER_ID' => '165286',
+        'PASSWORD' => 'LidGates16',
+    ]),
     // Другие поставщики добавятся сюда по мере реализации у них
     // SupplierOrderStatusProvider — остальной скрипт их не касается.
 ];
