@@ -313,11 +313,18 @@ class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrd
             if (!is_array($decoded)) $decoded = ['_raw_text' => $resp];
         }
 
-        $success = $httpCode === 200 && $err === '' && is_array($decoded) && empty($decoded['errors']) && !empty($decoded['id']);
+        // Подтверждено первым живым ответом (заказ №186): успешное создание
+        // отдаёт HTTP 201 (не 200) и объект заказа ОБЁРНУТЫМ в {"order": {...}}
+        // (не плоско на верхнем уровне, как в документации). Ошибка — отдельная
+        // форма {"errors": [...]} на верхнем уровне (см. документацию), поэтому
+        // остаётся top-level, а не внутри order.
+        $orderData = (is_array($decoded) && is_array($decoded['order'] ?? null)) ? $decoded['order'] : null;
+        $success = $err === '' && $httpCode >= 200 && $httpCode < 300
+            && is_array($decoded) && empty($decoded['errors']) && !empty($orderData['id']);
 
         $itemReferences = [];
         if ($success) {
-            $orderId = (int)$decoded['id'];
+            $orderId = (int)$orderData['id'];
             foreach ($basketItemIdBySequence as $sequence => $basketItemId) {
                 if ($basketItemId > 0) $itemReferences[$basketItemId] = $orderId . ':' . $sequence;
             }
