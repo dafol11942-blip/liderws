@@ -200,7 +200,16 @@ if ($paymentHoldDeadlineTs <= 0) {
                         </div>
                         <?php foreach ($userProps as $prop):
                             if ($prop['TYPE'] === 'LOCATION') continue;
-                            $val = htmlspecialchars($prop['VALUE'] ?? '');
+                            $rawVal = (string)($prop['VALUE'] ?? '');
+                            // Bitrix автозаполняет ФИО как "Имя Фамилия" (NAME + LAST_NAME);
+                            // на сайте принят порядок "Фамилия Имя" — переставляем местами.
+                            if (mb_strtoupper(trim($prop['NAME'])) === 'ФИО' && $rawVal !== '') {
+                                $fioParts = preg_split('/\s+/', trim($rawVal));
+                                if (count($fioParts) === 2) {
+                                    $rawVal = $fioParts[1] . ' ' . $fioParts[0];
+                                }
+                            }
+                            $val = htmlspecialchars($rawVal);
                             $type = in_array($prop['TYPE'], ['TEL','PHONE']) ? 'tel' :
                                     (in_array($prop['TYPE'], ['EMAIL']) ? 'email' : 'text');
                             $req = ($prop['REQUIED'] ?? '') === 'Y';
