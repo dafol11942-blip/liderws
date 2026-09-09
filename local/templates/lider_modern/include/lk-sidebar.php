@@ -22,6 +22,6 @@ $lkNavActive = $lkNavActive ?? '';
         <a href="/personal/orders/" class="<?= $lkNavActive === 'orders' ? 'active' : '' ?>"><svg class="icon"><use href="#icon-box"></use></svg> История заказов</a>
         <a href="/personal/favorites/" class="<?= $lkNavActive === 'favorites' ? 'active' : '' ?>"><svg class="icon"><use href="#icon-star"></use></svg> Избранное</a>
         <a href="/personal/bonus/" class="<?= $lkNavActive === 'bonus' ? 'active' : '' ?>"><svg class="icon"><use href="#icon-gift"></use></svg> Бонусная программа</a>
-        <a href="/?logout=yes" class="lk-nav--logout"><svg class="icon"><use href="#icon-logout"></use></svg> Выйти</a>
+        <a href="/?logout=yes&<?= bitrix_sessid_get() ?>" class="lk-nav--logout"><svg class="icon"><use href="#icon-logout"></use></svg> Выйти</a>
     </nav>
 </aside>
