@@ -22,7 +22,7 @@ $APPLICATION->SetTitle("Авторизация");
     <div id="mobileid-login-error" style="display:none;background:#fff0f0;border:1px solid #f5c6cb;color:#721c24;padding:12px 16px;border-radius:8px;margin-top:16px;"></div>
 </div>
 
-<script src="https://cdn.smsaero.ru/mid-widget/1/mobileid-widget.min.js"></script>
+<script src="https://cdn.smsaero.ru/mid-widget/1/mobileid-widget.min.js" onerror="document.getElementById('mobileid-login-error').textContent='Не удалось загрузить скрипт виджета авторизации (cdn.smsaero.ru недоступен)'; document.getElementById('mobileid-login-error').style.display='block';"></script>
 <script>
 (function () {
     var backurl = <?= json_encode($backurl) ?>;
@@ -33,7 +33,14 @@ $APPLICATION->SetTitle("Авторизация");
         errorBox.style.display = 'block';
     }
 
-    var widget = new MobileIDWidget({
+    if (typeof MobileIDWidget === 'undefined') {
+        showError('Виджет авторизации не загрузился. Обновите страницу или попробуйте позже.');
+        return;
+    }
+
+    var widget;
+    try {
+        widget = new MobileIDWidget({
         tokenUrl: '/ajax/mobileid_token.php',
         resultView: 'text',
         allowChangePhone: true,
@@ -85,8 +92,12 @@ $APPLICATION->SetTitle("Авторизация");
         onRateLimit: function () {
             showError('Превышен лимит запросов, попробуйте позже');
         }
-    });
-    widget.mount('#mobileid-login-widget');
+        });
+        widget.mount('#mobileid-login-widget');
+    } catch (e) {
+        console.error('MobileIDWidget init error', e);
+        showError('Ошибка инициализации виджета авторизации: ' + e.message);
+    }
 })();
 </script>
 
