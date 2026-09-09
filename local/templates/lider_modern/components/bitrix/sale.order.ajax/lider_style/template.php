@@ -483,8 +483,12 @@ if ($paymentHoldDeadlineTs <= 0) {
                                                 var placemark = placemarksByAddress[address];
                                                 highlightSelected(address);
                                                 if (placemark && mapEl.offsetParent !== null) {
-                                                    map.setCenter(placemark.geometry.getCoordinates(), Math.max(map.getZoom(), 15), { checkZoomRange: true });
-                                                    placemark.balloon.open();
+                                                    // Фиксированный целевой зум (а не "не меньше текущего") —
+                                                    // после setBounds() по обеим точкам карта уже могла быть
+                                                    // приближена почти до этого уровня, и Math.max(cur, 15)
+                                                    // тогда не давал заметного эффекта при выборе точки.
+                                                    map.setCenter(placemark.geometry.getCoordinates(), 16, { checkZoomRange: true, duration: 300 })
+                                                        .then(function () { placemark.balloon.open(); });
                                                 }
                                             });
                                             if (radio.checked) {
