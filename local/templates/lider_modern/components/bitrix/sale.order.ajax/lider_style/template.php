@@ -3,6 +3,10 @@ CModule::IncludeModule('sale');
 CModule::IncludeModule('iblock');
 require_once($_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/order_create_handler.php");
 
+// isManager() определена в init_pricing.php, который уже требует
+// order_create_handler.php выше — отдельный require не нужен.
+$isMgr = isManager();
+
 // Товары из корзины
 $basketItems = [];
 $bRes = CSaleBasket::GetList(['NAME' => 'ASC'], [
@@ -28,11 +32,58 @@ while ($b = $bRes->Fetch()) {
         }
     }
 
-    // Возможность возврата — см. SUPPLIER_RETURNABLE в order_from_supplier.php.
-    $propsRes = CSaleBasket::GetPropsList([], ['BASKET_ID' => $b['ID'], 'CODE' => 'SUPPLIER_RETURNABLE']);
-    $returnableProp = ($pr = $propsRes->Fetch()) ? $pr['VALUE'] : 'Y';
-    $b['RETURNABLE'] = $returnableProp !== 'N';
+    // Свойства позиции — артикул/бренд/поставщик/склад/срок доставки, тот же
+    // источник, что и в корзине (sale.basket.basket/lider_style/template.php).
+    $props = [];
+    $propsRes = CSaleBasket::GetPropsList([], ['BASKET_ID' => $b['ID']]);
+    while ($pr = $propsRes->Fetch()) {
+        $props[$pr['CODE']] = $pr['VALUE'];
+    }
+
+    $b['RETURNABLE'] = ($props['SUPPLIER_RETURNABLE'] ?? 'Y') !== 'N';
     if (!$b['RETURNABLE']) $hasNonReturnableItem = true;
+
+    $supplierCode = $props['SUPPLIER_NAME'] ?? '';
+    $b['ARTICLE'] = $props['SUPPLIER_ARTICLE'] ?? '';
+    $b['BRAND']   = $props['SUPPLIER_BRAND'] ?? '';
+
+    // Товар со своего склада — своих артикула/бренда в свойствах корзины
+    // нет, берём их прямо с элемента каталога (как в корзине).
+    if ($b['ARTICLE'] === '' && $b['PRODUCT_ID'] > 0) {
+        $artRes = CIBlockElement::GetProperty(42, $b['PRODUCT_ID'], [], ['CODE' => 'CML2_ARTICLE']);
+        if ($artRow = $artRes->Fetch()) {
+            $b['ARTICLE'] = (string)($artRow['VALUE'] ?? '');
+        }
+    }
+    if ($b['BRAND'] === '' && $b['PRODUCT_ID'] > 0) {
+        $brandRes = CIBlockElement::GetProperty(42, $b['PRODUCT_ID'], [], ['CODE' => 'CML2_MANUFACTURER']);
+        if ($brandRow = $brandRes->Fetch()) {
+            $b['BRAND'] = (string)($brandRow['VALUE_ENUM'] ?? $brandRow['VALUE'] ?? '');
+        }
+    }
+
+    $deliveryLabel = $props['SUPPLIER_DELIVERY_LABEL'] ?? '';
+    $deliveryTime  = $props['SUPPLIER_DELIVERY_TIME'] ?? '';
+    $deliveryDays  = isset($props['SUPPLIER_DELIVERY_DAYS']) ? (int)$props['SUPPLIER_DELIVERY_DAYS'] : null;
+    if ($deliveryLabel !== '') {
+        $b['DELIVERY_TEXT'] = $deliveryLabel . ($deliveryTime !== '' ? ' ' . $deliveryTime : '');
+    } elseif ($deliveryDays !== null && $deliveryDays >= 0) {
+        $b['DELIVERY_TEXT'] = $deliveryDays . ' дн.';
+    } else {
+        $b['DELIVERY_TEXT'] = '';
+    }
+
+    // Поставщик/склад — только для менеджеров (клиенту реальный склад не показываем).
+    $b['SUPPLIER_CODE'] = $supplierCode;
+    if ($isMgr && $supplierCode !== '') {
+        $supplierLabel = $supplierCode;
+        if (function_exists('getSupplierFactory')) {
+            $conn = getSupplierFactory()->get($supplierCode);
+            if ($conn) $supplierLabel = $conn->getName();
+        }
+        $b['SUPPLIER_LABEL'] = $supplierLabel;
+        $b['WAREHOUSE'] = $props['SUPPLIER_WAREHOUSE'] ?? '';
+    }
 
     $totalBasket += $b['SUM_NUM'];
     $totalBasketQty += $b['QTY'];
@@ -326,18 +377,33 @@ if ($paymentHoldDeadlineTs <= 0) {
 
                         <?php if (!empty($basketItems)): ?>
                         <div class="checkout-basket">
-                            <?php foreach ($basketItems as $bi): ?>
+                            <?php foreach ($basketItems as $bi):
+                                $articleBrandParts = [];
+                                if ($bi['BRAND'] !== '')   $articleBrandParts[] = 'Бренд: <b>' . htmlspecialchars($bi['BRAND']) . '</b>';
+                                if ($bi['ARTICLE'] !== '') $articleBrandParts[] = 'Артикул: <b>' . htmlspecialchars($bi['ARTICLE']) . '</b>';
+                                $articleBrandHtml = implode(' &middot; ', $articleBrandParts);
+                            ?>
                             <div class="checkout-basket__item">
                                 <div class="checkout-basket__img">
                                     <img src="<?= $bi['IMG'] ?>" alt="">
                                 </div>
                                 <div class="checkout-basket__info">
                                     <div class="checkout-basket__name"><?= htmlspecialchars($bi['NAME']) ?></div>
+                                    <?php if ($articleBrandHtml !== ''): ?>
+                                    <div class="checkout-basket__article"><?= $articleBrandHtml ?></div>
+                                    <?php endif; ?>
                                     <div class="checkout-basket__meta">
                                         <?= $bi['QTY'] ?> шт. × <?= $bi['PRICE_FMT'] ?>
                                     </div>
                                     <?php if (!$bi['RETURNABLE']): ?>
                                     <div class="checkout-basket__no-return"><svg class="icon"><use href="#icon-x-circle"></use></svg> Без возврата</div>
+                                    <?php endif; ?>
+                                    <?php if ($isMgr && $bi['SUPPLIER_CODE'] !== ''): ?>
+                                    <div class="checkout-basket__supplier">
+                                        Поставщик: <?= htmlspecialchars($bi['SUPPLIER_LABEL']) ?><?php if (!empty($bi['WAREHOUSE'])): ?> &middot; Склад: <?= htmlspecialchars($bi['WAREHOUSE']) ?><?php endif; ?><?php if ($bi['DELIVERY_TEXT'] !== ''): ?> &middot; Доставка: <?= htmlspecialchars($bi['DELIVERY_TEXT']) ?><?php endif; ?>
+                                    </div>
+                                    <?php elseif ($bi['DELIVERY_TEXT'] !== ''): ?>
+                                    <div class="checkout-basket__supplier">Доставка: <?= htmlspecialchars($bi['DELIVERY_TEXT']) ?></div>
                                     <?php endif; ?>
                                 </div>
                                 <div class="checkout-basket__price"><?= $bi['SUM_FMT'] ?></div>
@@ -465,7 +531,9 @@ if ($paymentHoldDeadlineTs <= 0) {
 .checkout-basket__img img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .checkout-basket__info { flex: 1; min-width: 0; }
 .checkout-basket__name { font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--black); }
+.checkout-basket__article { font-size: 11px; color: var(--gray); margin-top: 2px; }
 .checkout-basket__meta { font-size: 11px; color: var(--gray-light); margin-top: 2px; }
+.checkout-basket__supplier { font-size: 11px; color: var(--gray-light); margin-top: 2px; }
 .checkout-basket__price { font-weight: 800; font-size: 13px; flex-shrink: 0; }
 .checkout-summary__rows { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
 .checkout-summary__row { display: flex; justify-content: space-between; font-size: 13px; color: var(--gray); }
