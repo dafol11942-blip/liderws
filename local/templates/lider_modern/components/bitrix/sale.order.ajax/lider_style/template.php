@@ -266,9 +266,14 @@ if ($paymentHoldDeadlineTs <= 0) {
                                 }
                             }
                             $val = htmlspecialchars($rawVal);
-                            $type = in_array($prop['TYPE'], ['TEL','PHONE']) ? 'tel' :
+                            $isPhoneProp = in_array($prop['TYPE'], ['TEL', 'PHONE']);
+                            $type = $isPhoneProp ? 'tel' :
                                     (in_array($prop['TYPE'], ['EMAIL']) ? 'email' : 'text');
                             $req = ($prop['REQUIED'] ?? '') === 'Y';
+                            // Телефон уже подтверждён SMS при входе — не даём вписать сюда
+                            // другой, непроверенный номер. Менять его можно только через
+                            // "Изменить номер" в профиле (там снова требуется SMS-подтверждение).
+                            $lockPhone = $isPhoneProp && $rawVal !== '';
                         ?>
                         <div class="form-row">
                             <label><?= $prop['NAME'] ?><?= $req ? ' *' : '' ?></label>
@@ -277,7 +282,11 @@ if ($paymentHoldDeadlineTs <= 0) {
                             <?php else: ?>
                                 <input type="<?= $type ?>" name="ORDER_PROP_<?= $prop['ID'] ?>"
                                        value="<?= $val ?>" placeholder="<?= $prop['NAME'] ?>"
+                                       <?= $lockPhone ? 'readonly' : '' ?>
                                        <?= $req && !$val ? 'required' : '' ?>>
+                                <?php if ($lockPhone): ?>
+                                <div class="form-row__hint">Подтверждён по SMS · изменить можно в <a href="/personal/">профиле</a></div>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </div>
                         <?php endforeach; ?>
@@ -704,6 +713,9 @@ if ($paymentHoldDeadlineTs <= 0) {
     box-shadow: 0 0 0 3px rgba(102,139,234,0.08);
 }
 .form-row textarea { resize: vertical; min-height: 70px; }
+.form-row input[readonly] { background: var(--bg); color: var(--gray); cursor: not-allowed; }
+.form-row__hint { font-size: 12px; color: var(--gray); margin-top: 5px; }
+.form-row__hint a { color: var(--blue); text-decoration: underline; }
 
 .option-list { display: flex; flex-direction: column; gap: 8px; }
 .option-card { cursor: pointer; display: block; }
