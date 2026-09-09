@@ -378,6 +378,7 @@ if ($paymentHoldDeadlineTs <= 0) {
                                 <?php foreach ($pickupDeliveries as $did => $del): ?>
                                 <label class="option-card <?= ($del['CHECKED'] ?? '') === 'Y' ? 'option-card--active' : '' ?>">
                                     <input type="radio" name="DELIVERY_ID" value="<?= $del['ID'] ?>"
+                                           data-pickup-address="<?= htmlspecialchars($extractPickupAddress($del)) ?>"
                                            <?= ($del['CHECKED'] ?? '') === 'Y' ? 'checked' : '' ?>>
                                     <div class="option-card__box">
                                         <div class="option-card__icon"><svg class="icon"><use href="#icon-pin"></use></svg></div>
@@ -424,8 +425,23 @@ if ($paymentHoldDeadlineTs <= 0) {
                                     var cache = {};
                                     try { cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); } catch (e) {}
 
+                                    // Метки по адресу — нужны, чтобы связать карточки выбора
+                                    // точки самовывоза с метками на карте в обе стороны.
+                                    var placemarksByAddress = {};
+
                                     function placeMark(address, coords) {
-                                        map.geoObjects.add(new ymaps.Placemark(coords, { balloonContent: address }));
+                                        var placemark = new ymaps.Placemark(coords, { balloonContent: address }, {
+                                            preset: 'islands#blueDotIcon'
+                                        });
+                                        placemark.events.add('click', function () {
+                                            var radio = document.querySelector('input[name="DELIVERY_ID"][data-pickup-address="' + CSS.escape(address) + '"]');
+                                            if (radio && !radio.checked) {
+                                                radio.checked = true;
+                                                radio.dispatchEvent(new Event('change'));
+                                            }
+                                        });
+                                        map.geoObjects.add(placemark);
+                                        placemarksByAddress[address] = placemark;
                                         return coords;
                                     }
 
@@ -451,6 +467,30 @@ if ($paymentHoldDeadlineTs <= 0) {
                                         coordsList = coordsList.filter(Boolean);
                                         if (coordsList.length) map.setBounds(map.geoObjects.getBounds(), { checkZoomRange: true });
                                         if (mapEl.offsetParent !== null) map.container.fitToViewport();
+
+                                        // Выбор карточки точки самовывоза — подсвечиваем и
+                                        // центрируем карту на соответствующей метке.
+                                        var pickupRadios = document.querySelectorAll('input[name="DELIVERY_ID"][data-pickup-address]');
+                                        function highlightSelected(address) {
+                                            Object.keys(placemarksByAddress).forEach(function (addr) {
+                                                placemarksByAddress[addr].options.set('preset', addr === address ? 'islands#redIcon' : 'islands#blueDotIcon');
+                                            });
+                                        }
+                                        pickupRadios.forEach(function (radio) {
+                                            radio.addEventListener('change', function () {
+                                                if (!this.checked) return;
+                                                var address = this.getAttribute('data-pickup-address');
+                                                var placemark = placemarksByAddress[address];
+                                                highlightSelected(address);
+                                                if (placemark && mapEl.offsetParent !== null) {
+                                                    map.setCenter(placemark.geometry.getCoordinates(), Math.max(map.getZoom(), 15), { checkZoomRange: true });
+                                                    placemark.balloon.open();
+                                                }
+                                            });
+                                            if (radio.checked) {
+                                                highlightSelected(radio.getAttribute('data-pickup-address'));
+                                            }
+                                        });
                                     });
                                 });
                             })();
