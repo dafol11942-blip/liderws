@@ -274,8 +274,11 @@ if ($paymentHoldDeadlineTs <= 0) {
                             // корпус, подъезд, квартира)", поэтому сравниваем по подстроке.
                             if (mb_stripos($prop['NAME'], 'адрес доставки') !== false) continue;
                             $rawVal = (string)($prop['VALUE'] ?? '');
-                            $isPhoneProp = in_array($prop['TYPE'], ['TEL', 'PHONE']);
-                            $isEmailProp = $prop['TYPE'] === 'EMAIL';
+                            // TYPE у этих свойств в админке не обязательно 'EMAIL'/'TEL'/'PHONE'
+                            // (проверено: определение по TYPE не срабатывало) — определяем
+                            // по имени свойства, как уже сделано для ФИО и адреса выше.
+                            $isPhoneProp = in_array($prop['TYPE'], ['TEL', 'PHONE']) || mb_stripos($prop['NAME'], 'телефон') !== false;
+                            $isEmailProp = $prop['TYPE'] === 'EMAIL' || mb_stripos($prop['NAME'], 'mail') !== false;
                             $isFioProp = mb_strtoupper(trim($prop['NAME'])) === 'ФИО';
                             if ($isEmailProp && ($profileOverrides['EMAIL'] ?? '') !== '') {
                                 $rawVal = $profileOverrides['EMAIL'];
@@ -292,8 +295,7 @@ if ($paymentHoldDeadlineTs <= 0) {
                                 }
                             }
                             $val = htmlspecialchars($rawVal);
-                            $type = $isPhoneProp ? 'tel' :
-                                    (in_array($prop['TYPE'], ['EMAIL']) ? 'email' : 'text');
+                            $type = $isPhoneProp ? 'tel' : ($isEmailProp ? 'email' : 'text');
                             $req = ($prop['REQUIED'] ?? '') === 'Y';
                             // Телефон уже подтверждён SMS при входе — не даём вписать сюда
                             // другой, непроверенный номер. Менять его можно только через
