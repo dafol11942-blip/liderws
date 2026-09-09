@@ -251,6 +251,9 @@ if ($paymentHoldDeadlineTs <= 0) {
                         </div>
                         <?php foreach ($userProps as $prop):
                             if ($prop['TYPE'] === 'LOCATION') continue;
+                            // Способ получения (шаг 2) уже разделён на самовывоз/курьер —
+                            // отдельное поле адреса в контактных данных больше не нужно.
+                            if (mb_strtoupper(trim($prop['NAME'])) === 'АДРЕС ДОСТАВКИ') continue;
                             $rawVal = (string)($prop['VALUE'] ?? '');
                             // Bitrix автозаполняет ФИО как "Имя Фамилия" (NAME + LAST_NAME);
                             // на сайте принят порядок "Фамилия Имя" — переставляем местами.
@@ -293,10 +296,6 @@ if ($paymentHoldDeadlineTs <= 0) {
                         <div class="form-row">
                             <label>Город доставки *</label>
                             <input type="text" name="ORDER_PROP_4" value="" placeholder="Введите ваш город" required>
-                        </div>
-                        <div class="form-row">
-                            <label>Адрес доставки</label>
-                            <input type="text" name="ORDER_PROP_8" value="" placeholder="Улица, дом, корпус, квартира">
                         </div>
                         <?php endif; ?>
                     </div>
