@@ -77,6 +77,20 @@ $connectorsByCode = [
         'USER_ID' => '165286',
         'PASSWORD' => 'LidGates16',
     ]),
+    'armtek' => new \Lider\Supplier\ArmtekConnector([
+        'LOGIN' => 'lider-16@bk.ru',
+        'PASSWORD' => 'LidGates166',
+        'VKORG' => '4220',
+        'KUNRG' => '40039944',
+        'KUNWE' => '43039417',
+        'KUNZA' => '48022996',
+        'VBELN' => '40359920',
+    ]),
+    'tatparts' => new \Lider\Supplier\TatpartsConnector([
+        'LOGIN' => 'lider-16@bk.ru',
+        'PASSWORD' => "'8dTpDU8}Myr)*&",
+        'TIMEOUT' => 10,
+    ]),
     // Другие поставщики добавятся сюда по мере реализации у них
     // SupplierOrderStatusProvider — остальной скрипт их не касается.
 ];
