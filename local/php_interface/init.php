@@ -125,6 +125,17 @@ function loadSupplierBasketOrderMeta(int $basketItemId): array
     }
 }
 
+function getYandexMapsApiKey(): string
+{
+    static $key = null;
+    if ($key === null) {
+        $configFile = __DIR__ . '/config/yandex_maps_config.php';
+        $config = is_file($configFile) ? require $configFile : [];
+        $key = (string)($config['API_KEY'] ?? '');
+    }
+    return $key;
+}
+
 function getMobileIdClient(): \Lider\Auth\MobileIdClient
 {
     static $client = null;

@@ -1,0 +1,7 @@
+<?php
+// Скопируйте этот файл в yandex_maps_config.php (без .example) и впишите
+// реальный API-ключ JS API из кабинета Яндекс.Карт (yandex.ru/dev/maps/jsapi/).
+// Файл исключён из git правилом "*config*.php" в .gitignore.
+return [
+    'API_KEY' => '',
+];
