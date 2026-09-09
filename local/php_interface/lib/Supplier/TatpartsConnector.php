@@ -522,7 +522,10 @@ class TatpartsConnector implements SupplierInterface, SupplierOrderable, Supplie
     private function normalizeStage(string $stateName, string $error): string
     {
         $s = mb_strtolower($stateName . ' ' . $error);
-        if (str_contains($s, 'не найдена') || str_contains($s, 'отказ') || str_contains($s, 'аннулир') || str_contains($s, 'нет в наличии')) return 'refused';
+        // Подтверждено вживую (заказ №192): реальный текст статуса при отказе —
+        // "запрос на отмену заказа" (корень "отмен", а не "отказ" — на сайте
+        // ТатПартс при этом уже видно финальный статус "отказ клиента").
+        if (str_contains($s, 'не найдена') || str_contains($s, 'отказ') || str_contains($s, 'отмен') || str_contains($s, 'аннулир') || str_contains($s, 'нет в наличии')) return 'refused';
         if (str_contains($s, 'выдан') || str_contains($s, 'получен') || str_contains($s, 'доставлен') || str_contains($s, 'завершен')) return 'ready';
         if (str_contains($s, 'пути') || str_contains($s, 'отгруж') || str_contains($s, 'транзит')) return 'in_transit';
         return 'ordered';
