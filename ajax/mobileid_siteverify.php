@@ -50,6 +50,7 @@ if ($normalizedPhone === null) {
 try {
     [$userId, $isNew] = PhoneUserService::findOrCreateUserId($normalizedPhone);
 } catch (\Throwable $e) {
+    error_log('mobileid_siteverify: findOrCreateUserId упал: ' . $e->getMessage());
     http_response_code(200);
     echo json_encode(['success' => false, 'message' => 'Не удалось создать пользователя']);
     exit;

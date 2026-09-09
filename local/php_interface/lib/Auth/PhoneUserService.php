@@ -47,11 +47,9 @@ class PhoneUserService
     {
         $login = self::buildUniqueLogin($normalizedPhone);
         $password = self::generateRandomPassword();
-
         $groupIds = self::getDefaultGroupIds();
 
-        $user = new \CUser();
-        $fields = [
+        $baseFields = [
             'LOGIN'             => $login,
             'PASSWORD'          => $password,
             'CONFIRM_PASSWORD'  => $password,
@@ -60,12 +58,30 @@ class PhoneUserService
             'LID'               => defined('SITE_ID') ? SITE_ID : 's1',
         ];
         if (!empty($groupIds)) {
-            $fields['GROUP_ID'] = $groupIds;
+            $baseFields['GROUP_ID'] = $groupIds;
         }
 
-        $id = $user->Add($fields);
+        $user = new \CUser();
+        $id = $user->Add($baseFields);
+
         if (!$id) {
-            throw new \RuntimeException('Не удалось создать пользователя по телефону: ' . $user->LAST_ERROR);
+            $firstError = strip_tags((string)$user->LAST_ERROR);
+            error_log('PhoneUserService::createUserByPhone: первая попытка без email провалилась: ' . $firstError);
+
+            // Некоторые инсталляции Bitrix требуют EMAIL (например, опция
+            // "Использовать e-mail в качестве логина"). Пробуем один раз с
+            // сгенерированным плейсхолдером — пользователь сможет заменить
+            // его на реальный email на шаге auth/complete.php.
+            $user = new \CUser();
+            $fieldsWithEmail = $baseFields;
+            $fieldsWithEmail['EMAIL'] = $login . '@lider.local';
+            $id = $user->Add($fieldsWithEmail);
+
+            if (!$id) {
+                $secondError = strip_tags((string)$user->LAST_ERROR);
+                error_log('PhoneUserService::createUserByPhone: повторная попытка с email тоже провалилась: ' . $secondError);
+                throw new \RuntimeException('Не удалось создать пользователя по телефону: ' . $secondError);
+            }
         }
 
         return (int)$id;
