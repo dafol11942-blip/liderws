@@ -403,15 +403,31 @@ if ($paymentHoldDeadlineTs <= 0) {
                                     // размерами; при показе панели переключатель ниже вызывает
                                     // fitToViewport(), чтобы карта пересчитала размер и отрисовалась.
                                     window.pickupMapInstance = map;
+
+                                    // Адреса самовывоза не меняются — геокодируем каждый
+                                    // адрес максимум один раз на браузер и кэшируем координаты
+                                    // в localStorage, чтобы повторные заходы в оформление заказа
+                                    // не расходовали запросы к геокодеру повторно.
+                                    var CACHE_KEY = 'pickupGeocodeCache';
+                                    var cache = {};
+                                    try { cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); } catch (e) {}
+
+                                    function placeMark(address, coords) {
+                                        map.geoObjects.add(new ymaps.Placemark(coords, { balloonContent: address }));
+                                        return coords;
+                                    }
+
                                     var geocodeQueue = points.map(function (address) {
+                                        if (cache[address]) {
+                                            return Promise.resolve(placeMark(address, cache[address]));
+                                        }
                                         return ymaps.geocode(address).then(function (res) {
                                             var obj = res.geoObjects.get(0);
                                             if (!obj) return null;
-                                            var placemark = new ymaps.Placemark(obj.geometry.getCoordinates(), {
-                                                balloonContent: address
-                                            });
-                                            map.geoObjects.add(placemark);
-                                            return obj.geometry.getCoordinates();
+                                            var coords = obj.geometry.getCoordinates();
+                                            cache[address] = coords;
+                                            try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch (e) {}
+                                            return placeMark(address, coords);
                                         });
                                     });
                                     Promise.all(geocodeQueue).then(function (coordsList) {
