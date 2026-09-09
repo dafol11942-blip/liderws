@@ -16,6 +16,12 @@ $bRes = CSaleBasket::GetList(['NAME' => 'ASC'], [
 ]);
 $totalBasket = 0; $totalBasketQty = 0;
 $hasNonReturnableItem = false;
+// Срок доставки заказа — тот же принцип, что в корзине
+// (sale.basket.basket/lider_style/template.php): максимальный (самый
+// долгий) срок среди позиций, либо "сегодня", если все позиции своего склада.
+$hasSupplierItem = false;
+$cartMaxDeliveryDays = -1;
+$cartMaxDeliveryText = '';
 while ($b = $bRes->Fetch()) {
     $b['PRICE_NUM'] = (float)$b['PRICE'];
     $b['QTY'] = (int)$b['QUANTITY'];
@@ -44,6 +50,7 @@ while ($b = $bRes->Fetch()) {
     if (!$b['RETURNABLE']) $hasNonReturnableItem = true;
 
     $supplierCode = $props['SUPPLIER_NAME'] ?? '';
+    if ($supplierCode !== '') $hasSupplierItem = true;
     $b['ARTICLE'] = $props['SUPPLIER_ARTICLE'] ?? '';
     $b['BRAND']   = $props['SUPPLIER_BRAND'] ?? '';
 
@@ -72,6 +79,10 @@ while ($b = $bRes->Fetch()) {
     } else {
         $b['DELIVERY_TEXT'] = '';
     }
+    if ($deliveryDays !== null && $deliveryDays >= 0 && $deliveryDays > $cartMaxDeliveryDays) {
+        $cartMaxDeliveryDays = $deliveryDays;
+        $cartMaxDeliveryText = $b['DELIVERY_TEXT'];
+    }
 
     // Поставщик/склад — только для менеджеров (клиенту реальный склад не показываем).
     $b['SUPPLIER_CODE'] = $supplierCode;
@@ -90,6 +101,13 @@ while ($b = $bRes->Fetch()) {
     $basketItems[] = $b;
 }
 $totalBasketFmt = number_format($totalBasket, 0, ',', ' ') . ' ₽';
+if (!empty($basketItems) && !$hasSupplierItem) {
+    $checkoutDeliveryFmt = 'Доступен к самовывозу сегодня';
+} elseif ($cartMaxDeliveryText !== '') {
+    $checkoutDeliveryFmt = $cartMaxDeliveryText;
+} else {
+    $checkoutDeliveryFmt = 'Рассчитывается при оформлении';
+}
 
 // Свойства
 $userProps = $arResult['ORDER_PROP']['USER_PROPS_Y'] ?? ($arResult['ORDER_PROP']['USER_PROPS_N'] ?? []);
@@ -667,7 +685,7 @@ if ($paymentHoldDeadlineTs <= 0) {
                             </div>
                             <div class="checkout-summary__row">
                                 <span>Доставка</span>
-                                <span>Уточняется</span>
+                                <span><?= htmlspecialchars($checkoutDeliveryFmt) ?></span>
                             </div>
                         </div>
                         <div class="checkout-summary__total">
