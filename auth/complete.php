@@ -24,6 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && check_bitrix_sessid()) {
         $error = 'Укажите имя и фамилию';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Укажите корректный email';
+    } elseif (($_POST['agree_pd'] ?? '') !== 'Y') {
+        $error = 'Для продолжения необходимо согласие на обработку персональных данных';
     } else {
         $user = new CUser();
         $ok = $user->Update($USER->GetID(), [
@@ -71,6 +73,11 @@ $APPLICATION->SetTitle("Завершение регистрации");
                 <label>Email <span class="required-mark">*</span></label>
                 <input type="email" name="EMAIL" value="<?= htmlspecialchars($arCurrentUser['EMAIL'] ?? '') ?>" required>
             </div>
+
+            <label class="pd-consent">
+                <input type="checkbox" name="agree_pd" value="Y" required>
+                <span>Я согласен(на) с условиями <a href="/soglasie/" target="_blank">Политики обработки персональных данных</a> и даю согласие на обработку моих персональных данных</span>
+            </label>
 
             <button type="submit" class="btn btn--primary">Продолжить</button>
         </form>

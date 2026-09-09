@@ -20,7 +20,13 @@ $APPLICATION->SetTitle("Авторизация");
     <div class="auth-card">
         <h2>Вход по номеру телефона</h2>
         <p class="auth-card__hint">Отправим код подтверждения по SMS</p>
-        <div id="mobileid-login-widget"></div>
+
+        <label class="pd-consent">
+            <input type="checkbox" id="auth-agree-pd" value="Y">
+            <span>Я согласен(на) с условиями <a href="/soglasie/" target="_blank">Политики обработки персональных данных</a> и даю согласие на обработку моих персональных данных</span>
+        </label>
+
+        <div id="mobileid-login-widget" class="auth-widget-gated"></div>
         <div id="mobileid-login-error" class="auth-card__error" style="display:none;"></div>
     </div>
 </div>
@@ -30,10 +36,25 @@ $APPLICATION->SetTitle("Авторизация");
 (function () {
     var backurl = <?= json_encode($backurl) ?>;
     var errorBox = document.getElementById('mobileid-login-error');
+    var widgetGate = document.getElementById('mobileid-login-widget');
+    var agreeCheckbox = document.getElementById('auth-agree-pd');
 
     function showError(text) {
         errorBox.textContent = text;
         errorBox.style.display = 'block';
+    }
+
+    // Виджет визуально заблокирован, пока не отмечено согласие на обработку
+    // персональных данных — сам виджет стороннего скрипта не даёт встроить
+    // чекбокс внутрь себя, поэтому блокируем контейнер снаружи.
+    function syncWidgetGate() {
+        var agreed = !!(agreeCheckbox && agreeCheckbox.checked);
+        widgetGate.style.pointerEvents = agreed ? '' : 'none';
+        widgetGate.style.opacity = agreed ? '' : '0.5';
+    }
+    if (agreeCheckbox) {
+        agreeCheckbox.addEventListener('change', syncWidgetGate);
+        syncWidgetGate();
     }
 
     if (typeof MobileIDWidget === 'undefined') {
@@ -88,12 +109,17 @@ $APPLICATION->SetTitle("Авторизация");
             gap: '14px'
         },
         onVerified: function (data) {
+            if (!agreeCheckbox || !agreeCheckbox.checked) {
+                showError('Подтвердите согласие на обработку персональных данных');
+                return;
+            }
             fetch('/ajax/mobileid_siteverify.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     session_id: data.session_id,
-                    verify_token: data.verify_token
+                    verify_token: data.verify_token,
+                    agree_pd: 'Y'
                 })
             })
                 .then(function (res) { return res.json(); })

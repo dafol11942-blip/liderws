@@ -29,6 +29,7 @@
                 <a href="/contacts/">Контакты</a>
                 <a href="/delivery/">Доставка и оплата</a>
                 <a href="/returns/">Возврат товара</a>
+                <a href="/soglasie/">Обработка персональных данных</a>
             </div>
             <div class="footer__col">
                 <h4>Услуги</h4>
@@ -46,11 +47,14 @@
             </div>
         </div>
         <div class="footer__bottom">
-            <div class="container">
+            <div class="container footer__bottom-inner">
                 <p>© <?= date('Y') ?> Лидер — магазин автозапчастей в Елабуге. Все права защищены.</p>
+                <a href="/soglasie/" class="footer__legal-link">Согласие на обработку персональных данных</a>
             </div>
         </div>
     </footer>
+
+    <?php require __DIR__ . '/include/cookie-consent.php'; ?>
 
     <button type="button" id="backToTop" class="back-to-top" title="Наверх">
         <svg class="icon"><use href="#icon-arrow-up"></use></svg>

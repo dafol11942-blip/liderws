@@ -31,6 +31,15 @@ if ($sessionId === '' || $verifyToken === '') {
     exit;
 }
 
+// Согласие на обработку персональных данных (152-ФЗ) — форма на /auth/
+// блокирует виджет до отметки чекбокса, но не доверяем одной только JS-
+// проверке, дублируем на сервере.
+if (($input['agree_pd'] ?? '') !== 'Y') {
+    http_response_code(200);
+    echo json_encode(['success' => false, 'message' => 'Подтвердите согласие на обработку персональных данных']);
+    exit;
+}
+
 [$status, $body] = getMobileIdClient()->siteVerify($sessionId, $verifyToken);
 
 if ($status !== 200 || empty($body['success']) || ($body['status'] ?? '') !== 'verified') {

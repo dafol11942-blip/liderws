@@ -392,6 +392,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
         return;
     }
 
+    // Согласие на обработку персональных данных (152-ФЗ) — обязательно для
+    // любого заказа, никогда не доверяем одной только JS-проверке в форме.
+    if (($_POST['agree_pd'] ?? '') !== 'Y') {
+        $orderPdConsentError = true;
+        return;
+    }
+
     $order->setBasket($basket);
 
     // Доставка

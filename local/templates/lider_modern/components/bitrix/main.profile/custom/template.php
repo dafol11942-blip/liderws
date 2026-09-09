@@ -38,6 +38,11 @@
         </div>
     </div>
 
+    <label class="pd-consent">
+        <input type="checkbox" name="agree_pd" value="Y" required>
+        <span>Я согласен(на) с условиями <a href="/soglasie/" target="_blank">Политики обработки персональных данных</a></span>
+    </label>
+
     <input type="hidden" name="save" value="Y">
 
     <button type="submit" class="btn btn--primary"><svg class="icon"><use href="#icon-save"></use></svg> Сохранить изменения</button>

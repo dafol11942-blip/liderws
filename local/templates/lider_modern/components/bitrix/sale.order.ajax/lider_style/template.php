@@ -252,6 +252,12 @@ if ($paymentHoldDeadlineTs <= 0) {
             Подтвердите, что вы ознакомлены с невозвратным товаром в заказе — без этого оформить заказ нельзя.
         </div>
         <?php endif; ?>
+        <?php if (!empty($orderPdConsentError)): ?>
+        <div class="checkout-error">
+            <svg class="icon"><use href="#icon-alert"></use></svg>
+            Для оформления заказа необходимо согласие на обработку персональных данных.
+        </div>
+        <?php endif; ?>
 
         <form name="ORDER_FORM" id="ORDER_FORM" method="post" action=""
               onsubmit="return validateForm()">
@@ -704,12 +710,17 @@ if ($paymentHoldDeadlineTs <= 0) {
                         </label>
                         <?php endif; ?>
 
+                        <label class="pd-consent" id="agree_pd_label">
+                            <input type="checkbox" name="agree_pd" id="agree_pd" value="Y" required>
+                            <span>Я согласен(на) с условиями <a href="/soglasie/" target="_blank">Политики обработки персональных данных</a> и даю согласие на обработку моих персональных данных</span>
+                        </label>
+
                         <input type="hidden" name="confirmorder" value="Y">
                         <button type="submit" class="btn btn--primary btn--lg btn--block">
                             Оформить заказ
                         </button>
                         <p class="checkout-agreement">
-                            Нажимая «Оформить заказ», вы соглашаетесь с условиями
+                            Нажимая «Оформить заказ», вы соглашаетесь с условиями <a href="/soglasie/" target="_blank">обработки персональных данных</a>
                         </p>
                     </div>
                 </div>
@@ -912,6 +923,12 @@ function validateForm() {
     if (agreeNoReturn && !agreeNoReturn.checked) {
         alert('Подтвердите, что вы ознакомлены с невозвратным товаром в заказе');
         agreeNoReturn.focus();
+        return false;
+    }
+    var agreePd = document.getElementById('agree_pd');
+    if (agreePd && !agreePd.checked) {
+        alert('Подтвердите согласие на обработку персональных данных');
+        agreePd.focus();
         return false;
     }
     return true;

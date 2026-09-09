@@ -67,3 +67,27 @@ function updateBasketItem(id, quantity) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 })();
+
+// Согласие на обработку cookie — показывается заново в каждой новой сессии
+// браузера (sessionStorage, а не localStorage/cookie), закрывается по
+// «Принять» или крестику.
+(function() {
+    var KEY = 'lider_cookie_consent_seen';
+    var el = document.getElementById('cookieConsent');
+    if (!el) return;
+
+    var alreadySeen = false;
+    try { alreadySeen = sessionStorage.getItem(KEY) === '1'; } catch (e) {}
+
+    if (!alreadySeen) el.hidden = false;
+
+    function dismiss() {
+        el.hidden = true;
+        try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+    }
+
+    var acceptBtn = document.getElementById('cookieConsentAccept');
+    var closeBtn = document.getElementById('cookieConsentClose');
+    if (acceptBtn) acceptBtn.addEventListener('click', dismiss);
+    if (closeBtn) closeBtn.addEventListener('click', dismiss);
+})();
