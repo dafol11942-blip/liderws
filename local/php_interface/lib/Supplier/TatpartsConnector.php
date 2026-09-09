@@ -3,7 +3,7 @@ namespace Lider\Supplier;
 
 use Lider\Search\SearchResultItem;
 
-class TatpartsConnector implements SupplierInterface
+class TatpartsConnector implements SupplierInterface, SupplierOrderable, SupplierOrderStatusProvider
 {
     private string $user     = 'lider16';
     private string $password = "'8dTpDU8}Myr)*&";
@@ -234,6 +234,18 @@ class TatpartsConnector implements SupplierInterface
         $r->stockId=(string)($item['itemHash']??''); $r->supplierName='ТатПартс';
         $r->isSched=($q<=0); $r->multiplicity=max(1,(int)($item['packing']??1)); $r->unit='шт.';
         $r->returnable=($item['return']??'')==='possible'; $r->raw=$item;
+
+        // Для оформления заказа (см. SupplierOrderable::placeOrder()) — itemHash
+        // из поиска (GetPriceList) устаревает к моменту оформления, перед
+        // makeOrderOffline нужно заново подтвердить его через PreOrderSearch,
+        // который и выдаёт актуальный itemId. code/producer сохраняем как
+        // пришли от ТатПартс (а не нормализованные article/brand сайта) —
+        // именно их ждёт PreOrderSearch.
+        $r->orderMeta = [
+            'item_hash' => (string)($item['itemHash'] ?? ''),
+            'code'      => (string)($item['code'] ?? $da),
+            'producer'  => (string)($item['producer'] ?? $db),
+        ];
         return $r;
     }
 
@@ -291,5 +303,239 @@ class TatpartsConnector implements SupplierInterface
         static $m=['а'=>'a','б'=>'b','в'=>'v','г'=>'g','д'=>'d','е'=>'e','ё'=>'yo','ж'=>'zh','з'=>'z','и'=>'i','й'=>'y','к'=>'k','л'=>'l','м'=>'m','н'=>'n','о'=>'o','п'=>'p','р'=>'r','с'=>'s','т'=>'t','у'=>'u','ф'=>'f','х'=>'h','ц'=>'ts','ч'=>'ch','ш'=>'sh','щ'=>'sch','ъ'=>'','ы'=>'y','ь'=>'','э'=>'e','ю'=>'yu','я'=>'ya',' '=>'_','.'=>'','-'=>'','('=>'',')'=>'','«'=>'','»'=>'','"'=>''];
         $t='';foreach(mb_str_split(mb_strtolower(trim($n))) as $c)$t.=$m[$c]??$c;
         return 'ttp_'.str_pad(substr(preg_replace('/[^a-z0-9]/','',$t),0,3),3,'x');
+    }
+
+    // ==================== ЗАКАЗ (SupplierOrderable) ====================
+
+    /**
+     * Один запрос на позицию (а не батч из нескольких container-элементов) —
+     * пример в документации показывает ровно один provider/itemHash на
+     * container-элемент, поведение батча из нескольких элементов с разными
+     * itemHash не описано и не проверено, поэтому не рискуем.
+     */
+    private function preOrderSearch(string $itemHash, string $article, string $brand): ?array
+    {
+        $body = [
+            'user'      => $this->user,
+            'password'  => $this->password,
+            'service'   => 'provider',
+            'timeLimit' => $this->timeout,
+            'action'    => 'PreOrderSearch',
+            'container' => [[
+                'provider' => $this->provider,
+                'login'    => $this->supLogin,
+                'password' => $this->supPass,
+                'code'     => $article,
+                'producer' => $brand,
+                'itemHash' => $itemHash,
+            ]],
+        ];
+        $resp = $this->execPost($body);
+        if ($resp === null) return null;
+        $data = json_decode($resp, true);
+        if (!is_array($data)) return null;
+        foreach (($data['container'] ?? []) as $cont) {
+            foreach (($cont['items'] ?? []) as $row) {
+                if (is_array($row) && !empty($row['itemId'])) return $row;
+            }
+        }
+        return null;
+    }
+
+    public function placeOrder(array $items, bool $test = false): array
+    {
+        // Доступ к makeOrderOffline "оговаривается дополнительно с
+        // менеджерами" и не имеет документированного тестового флага (в
+        // отличие от Армтека с его createTestOrder) — как у Иксоры/Авторуси/
+        // Росско, в тестовом режиме запрос вообще не отправляется.
+        if ($test) {
+            $this->log('placeOrder: тестовый режим не поддерживается API ТатПартс (нет флага теста у makeOrderOffline) — запрос не отправлен, items=' . count($items));
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'test_mode_not_supported'];
+        }
+
+        // Шаг 1 (обязателен по документации): PreOrderSearch по каждой
+        // позиции — актуализирует цену/наличие и выдаёт свежий itemId,
+        // itemHash из поиска (GetPriceList) к моменту оформления мог устареть.
+        $orderItems = [];
+        $basketByItemId = [];
+        $skipped = 0;
+        foreach ($items as $item) {
+            $itemHash     = trim((string)($item['order_meta']['item_hash'] ?? ''));
+            $article      = trim((string)($item['order_meta']['code'] ?? $item['article'] ?? ''));
+            $brand        = trim((string)($item['order_meta']['producer'] ?? $item['brand'] ?? ''));
+            $qty          = (int)($item['quantity'] ?? 0);
+            $basketItemId = (int)($item['basket_item_id'] ?? 0);
+            if ($itemHash === '' || $qty <= 0 || $basketItemId <= 0) { $skipped++; continue; }
+
+            $fresh = $this->preOrderSearch($itemHash, $article, $brand);
+            if (!$fresh || empty($fresh['itemId'])) {
+                $this->log("placeOrder: PreOrderSearch не подтвердил позицию itemHash={$itemHash} basket_item_id={$basketItemId}");
+                $skipped++;
+                continue;
+            }
+
+            $itemId = (string)$fresh['itemId'];
+            $orderItems[] = [
+                'itemId'    => $itemId,
+                'quantity'  => (string)$qty,
+                'reference' => (string)($item['reference'] ?? $basketItemId),
+                'comment'   => (string)($item['comment'] ?? ''),
+            ];
+            $basketByItemId[$itemId] = $basketItemId;
+        }
+
+        if (empty($orderItems)) {
+            $this->log('placeOrder: нет ни одной валидной позиции после PreOrderSearch, пропущено ' . $skipped);
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_valid_items'];
+        }
+
+        // Шаг 2: makeOrderOffline — в отличие от PreOrderSearch, здесь один
+        // provider-элемент батчит сразу несколько items по документации.
+        $body = [
+            'user'     => $this->user,
+            'password' => $this->password,
+            'service'  => 'provider',
+            'action'   => 'makeOrderOffline',
+            'param'    => [[
+                'provider' => $this->provider,
+                'login'    => $this->supLogin,
+                'password' => $this->supPass,
+                'comment'  => (string)($items[0]['comment'] ?? ''),
+                'items'    => $orderItems,
+            ]],
+        ];
+
+        $this->log('placeOrder: request items=' . count($orderItems) . ' skipped=' . $skipped . ' body=' . json_encode($body, JSON_UNESCAPED_UNICODE));
+
+        $resp = $this->execPost($body);
+        $this->log('placeOrder: response body=' . substr((string)$resp, 0, 4000));
+
+        if ($resp === null) {
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'http_error'];
+        }
+
+        $decoded = json_decode($resp, true);
+        if (!is_array($decoded)) {
+            return ['http_code' => 200, 'success' => false, 'raw' => ['_raw_text' => $resp], 'error' => 'invalid_json'];
+        }
+
+        if (!empty($decoded['error'])) {
+            return ['http_code' => 200, 'success' => false, 'raw' => $decoded, 'error' => (string)$decoded['error']];
+        }
+
+        $itemReferences = [];
+        $overallStatus  = null;
+        foreach (($decoded['result'] ?? []) as $res) {
+            if (!is_array($res)) continue;
+            $overallStatus = $res['orderStatus'] ?? $overallStatus;
+            foreach (($res['items'] ?? []) as $row) {
+                if (!is_array($row)) continue;
+                $itemId       = (string)($row['itemId'] ?? '');
+                $orderItemId  = (string)($row['orderItemId'] ?? '');
+                $rowError     = trim((string)($row['error'] ?? ''));
+                $basketItemId = $basketByItemId[$itemId] ?? 0;
+                if ($basketItemId <= 0 || $orderItemId === '' || $rowError !== '') continue;
+                $itemReferences[$basketItemId] = $orderItemId;
+            }
+        }
+
+        // orderStatus MakeOrderError — заказ не создан целиком, даже если
+        // где-то по позиции error пуст (см. документацию makeOrderOffline).
+        $success = !empty($itemReferences) && $overallStatus !== 'MakeOrderError';
+
+        return [
+            'http_code'       => 200,
+            'success'         => $success,
+            'raw'             => $decoded,
+            'error'           => $success ? null : ($overallStatus === 'MakeOrderError' ? 'order_rejected' : 'unparsable_response'),
+            'item_references' => $itemReferences,
+        ];
+    }
+
+    // ==================== СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ====================
+
+    /** $reference — orderItemId, полученный из placeOrder()::item_references. */
+    public function fetchOrderStatusByReference(string $reference): array
+    {
+        $reference = trim($reference);
+        if ($reference === '') return [];
+
+        $body = [
+            'user'      => $this->user,
+            'password'  => $this->password,
+            'service'   => 'provider',
+            'action'    => 'getItemsStatus',
+            'timeLimit' => $this->timeout,
+            'container' => [[
+                'provider' => $this->provider,
+                'login'    => $this->supLogin,
+                'password' => $this->supPass,
+                'items'    => [$reference],
+            ]],
+        ];
+
+        $resp = $this->execPost($body);
+        $this->log("fetchOrderStatusByReference({$reference}): response body=" . substr((string)$resp, 0, 4000));
+        if ($resp === null) return [];
+
+        $decoded = json_decode($resp, true);
+        if (!is_array($decoded)) return [];
+
+        foreach (($decoded['container'] ?? []) as $cont) {
+            if (!is_array($cont)) continue;
+            foreach (($cont['items'] ?? []) as $row) {
+                if (!is_array($row)) continue;
+                // Документация ТатПартс сама себе противоречит: в примере JSON
+                // ответа поле называется providerItemId, а в таблице параметров
+                // ниже — orderItemId. Проверяем оба варианта.
+                $id = (string)($row['orderItemId'] ?? $row['providerItemId'] ?? '');
+                if ($id !== '' && $id !== $reference) continue;
+
+                $stateName = trim((string)($row['stateName'] ?? ''));
+                $rowError  = trim((string)($row['error'] ?? ''));
+
+                return [[
+                    'order_number'    => (string)($row['providerOrderNumber'] ?? ''),
+                    'state_id'        => isset($row['stateId']) && $row['stateId'] !== '' ? (string)$row['stateId'] : null,
+                    'state_text'      => $stateName !== '' ? $stateName : ($rowError ?: null),
+                    'stage'           => $this->normalizeStage($stateName, $rowError),
+                    'expected_date'   => null,
+                    'guaranteed_date' => null,
+                    'store_count'     => null,
+                    'release_count'   => null,
+                    'refusal_count'   => null,
+                    'comment'         => $rowError ?: null,
+                    'raw'             => $row,
+                ]];
+            }
+        }
+        return [];
+    }
+
+    /**
+     * Список статусов у ТатПартс динамический на поставщика (см. getStatusList)
+     * — единого фиксированного словаря id/названий, в отличие от других
+     * поставщиков, документация не даёт. Классификация по ключевым словам в
+     * тексте статуса/ошибки, безопасный дефолт — 'ordered' (никогда молча
+     * не считаем неизвестный текст 'ready'/'refused').
+     */
+    private function normalizeStage(string $stateName, string $error): string
+    {
+        $s = mb_strtolower($stateName . ' ' . $error);
+        if (str_contains($s, 'не найдена') || str_contains($s, 'отказ') || str_contains($s, 'аннулир') || str_contains($s, 'нет в наличии')) return 'refused';
+        if (str_contains($s, 'выдан') || str_contains($s, 'получен') || str_contains($s, 'доставлен') || str_contains($s, 'завершен')) return 'ready';
+        if (str_contains($s, 'пути') || str_contains($s, 'отгруж') || str_contains($s, 'транзит')) return 'in_transit';
+        return 'ordered';
+    }
+
+    private function log(string $message): void
+    {
+        $root = $_SERVER['DOCUMENT_ROOT'] ?? '/var/www/u3564357/data/www/liderws.ru';
+        $file = $root . '/upload/logs/tatparts_' . date('Y-m-d') . '.log';
+        $dir  = dirname($file);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        @file_put_contents($file, '[' . date('Y-m-d H:i:s') . '] ' . $message . "\n", FILE_APPEND);
     }
 }
