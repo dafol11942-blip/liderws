@@ -492,13 +492,14 @@ class TatpartsConnector implements SupplierInterface, SupplierOrderable, Supplie
                 if ($id !== '' && $id !== $reference) continue;
 
                 $stateName = trim((string)($row['stateName'] ?? ''));
+                $stateId   = isset($row['stateId']) && $row['stateId'] !== '' ? (string)$row['stateId'] : null;
                 $rowError  = trim((string)($row['error'] ?? ''));
 
                 return [[
                     'order_number'    => (string)($row['providerOrderNumber'] ?? ''),
-                    'state_id'        => isset($row['stateId']) && $row['stateId'] !== '' ? (string)$row['stateId'] : null,
+                    'state_id'        => $stateId,
                     'state_text'      => $stateName !== '' ? $stateName : ($rowError ?: null),
-                    'stage'           => $this->normalizeStage($stateName, $rowError),
+                    'stage'           => $this->normalizeStage($stateId, $stateName, $rowError),
                     'expected_date'   => null,
                     'guaranteed_date' => null,
                     'store_count'     => null,
@@ -513,18 +514,119 @@ class TatpartsConnector implements SupplierInterface, SupplierOrderable, Supplie
     }
 
     /**
-     * Список статусов у ТатПартс динамический на поставщика (см. getStatusList)
-     * — единого фиксированного словаря id/названий, в отличие от других
-     * поставщиков, документация не даёт. Классификация по ключевым словам в
-     * тексте статуса/ошибки, безопасный дефолт — 'ordered' (никогда молча
-     * не считаем неизвестный текст 'ready'/'refused').
+     * Полный официальный словарь статусов ТатПартс (getStatusList, снят вживую
+     * 2026-09-09 для provider=tatparts_ru, 70 значений) — числовые id это
+     * реальные статусы позиции заказа, id вида "provider.*"/"error.*" —
+     * технические события конвейера оформления (добавление в корзину
+     * поставщика, ошибки API). Точное сопоставление по id, а не по тексту:
+     * текстовые фразы ТатПартс используют неочевидно ("запрос на отмену
+     * заказа", id=15, подтверждено вживую по заказу №192 — это УЖЕ одобренный
+     * отказ, а не ожидание решения, при этом на сайте ТатПартс дальше видно
+     * финальный статус id=14 "отказ клиента" — оба считаем refused).
+     *
+     * Разметка неочевидных случаев:
+     *  - id 27 "Выдано не все количество" / 19 "не все кол-во" — частичное
+     *    исполнение, не финал ни в одну сторону → in_transit.
+     *  - id 30 "возврат отклонён" — запрос на возврат СОРВАЛСЯ, значит товар
+     *    остаётся у клиента → ready (успешная поставка в силе).
+     *  - id 44/45/47/48/50 "недовоз от поставщика"/"МСК брак/не влезло, для
+     *    прихода" — внутренние проблемы снабжения ТатПартс ДО решения по
+     *    нашей позиции, ещё не финал → ordered.
+     *  - id 52 "Возврат на согласовании" — решение не принято (в отличие от
+     *    id 28/29, где ТатПартс использует "запрос"/"одобрен" как готовый
+     *    факт) → ordered.
      */
-    private function normalizeStage(string $stateName, string $error): string
+    private const STAGE_BY_STATE_ID = [
+        // --- финальный успех ---
+        '7'  => 'ready',  // выдано
+        '22' => 'ready',  // К выдаче
+        '30' => 'ready',  // возврат отклонён — товар остаётся у клиента
+
+        // --- физически движется/подтверждено, но ещё не выдано ---
+        '2'  => 'in_transit', // в работе
+        '3'  => 'in_transit', // пришло на склад
+        '8'  => 'in_transit', // подтвержден поставщиком
+        '11' => 'in_transit', // ожидается приход на склад ночью
+        '13' => 'in_transit', // Собран поставщиком
+        '19' => 'in_transit', // в пути на склад не все кол-во
+        '27' => 'in_transit', // выдано не все количество (частично)
+        '33' => 'in_transit', // в пути на склад, изменилась дата
+        '39' => 'in_transit', // ожидается приход на склад днём
+        '40' => 'in_transit', // ожидается приход на склад вечером
+        '43' => 'in_transit', // завтра дневной приход
+        '53' => 'in_transit', // завтра ночной приход
+        '57' => 'in_transit', // в пути на склад
+        'provider.send_basket' => 'in_transit',
+
+        // --- отказ/возврат/ошибка — финал НЕ в пользу заказа ---
+        '4'  => 'refused', // нет в наличии
+        '14' => 'refused', // отказ клиента (подтверждено вживую, заказ №192)
+        '15' => 'refused', // запрос на отмену заказа (подтверждено вживую — уже одобрен)
+        '16' => 'refused', // возврат от покупателя
+        '17' => 'refused', // возврат поставщику
+        '18' => 'refused', // отказ поставщика
+        '28' => 'refused', // запрос на возврат
+        '29' => 'refused', // возврат одобрен
+        '31' => 'refused', // Отказ, брак
+        '32' => 'refused', // Отказ, пересортица
+        '34' => 'refused', // Отказ, недовоз
+        '37' => 'refused', // отказ, изменение цены
+        '42' => 'refused', // Недовоз клиенту
+        '49' => 'refused', // МСК отказ клиента, для прихода
+        'error.order'                       => 'refused',
+        'error.basket'                      => 'refused',
+        'error.service'                     => 'refused',
+        'error.not_found'                   => 'refused',
+        'provider.order_canceled'           => 'refused',
+        'provider.basket_canceled'          => 'refused',
+        'provider.basket_canceled.by_price'  => 'refused',
+        'provider.basket_canceled.by_amount' => 'refused',
+
+        // --- принято/в обработке, финал ещё не наступил ---
+        '0'  => 'ordered', // в корзине
+        '1'  => 'ordered', // заказ принят
+        '9'  => 'ordered', // приостановлено
+        '10' => 'ordered', // возможна задержка
+        '20' => 'ordered', // замена номера
+        '23' => 'ordered', // задержка поставки 1 день
+        '24' => 'ordered', // задержка поставки 2 дня
+        '25' => 'ordered', // задержка, причины и сроки выясняются
+        '26' => 'ordered', // задержка, изменение даты поставки
+        '35' => 'ordered', // Подтвердите (увеличение цены!)
+        '36' => 'ordered', // Подтверждено клиентом
+        '38' => 'ordered', // для внутреннего пользования
+        '41' => 'ordered', // WEB ЗАКАЗ
+        '44' => 'ordered', // Недовоз от пост. в Н.Ч.
+        '45' => 'ordered', // недовоз от пост. в МСК
+        '46' => 'ordered', // Перемещено
+        '47' => 'ordered', // МСК недовоз, для прихода
+        '48' => 'ordered', // МСК брак, для прихода
+        '50' => 'ordered', // МСК не влезло, для прихода
+        '51' => 'ordered', // На экспертизе
+        '52' => 'ordered', // Возврат на согласовании
+        '54' => 'ordered', // Ожидает приемки (ночь)
+        '55' => 'ordered', // Ожидает приемки (МСК)
+        '56' => 'ordered', // Ожидает приемки (день)
+        '58' => 'ordered', // Ожидает приемки WMS
+        '59' => 'ordered', // Запрос на рассмотрении
+        '60' => 'ordered', // УПД в МСК
+        '61' => 'ordered', // Требуется доп. информация
+        'provider.order_done'  => 'ordered', // товар добавлен в заказ
+        'provider.basket_done' => 'ordered', // товар добавлен в корзину
+        'service.divided'      => 'ordered', // технический маркер разделения позиции
+    ];
+
+    private function normalizeStage(?string $stateId, string $stateName, string $error): string
     {
+        if ($stateId !== null && isset(self::STAGE_BY_STATE_ID[$stateId])) {
+            return self::STAGE_BY_STATE_ID[$stateId];
+        }
+
+        // Fallback для id, которого нет в словаре (новый статус у ТатПартс,
+        // не попавший в снятый вживую список) — эвристика по тексту, тот же
+        // безопасный дефолт 'ordered', что и раньше.
+        $this->log("normalizeStage: неизвестный id='" . ($stateId ?? '') . "' name='{$stateName}' — использую текстовый фолбэк");
         $s = mb_strtolower($stateName . ' ' . $error);
-        // Подтверждено вживую (заказ №192): реальный текст статуса при отказе —
-        // "запрос на отмену заказа" (корень "отмен", а не "отказ" — на сайте
-        // ТатПартс при этом уже видно финальный статус "отказ клиента").
         if (str_contains($s, 'не найдена') || str_contains($s, 'отказ') || str_contains($s, 'отмен') || str_contains($s, 'аннулир') || str_contains($s, 'нет в наличии')) return 'refused';
         if (str_contains($s, 'выдан') || str_contains($s, 'получен') || str_contains($s, 'доставлен') || str_contains($s, 'завершен')) return 'ready';
         if (str_contains($s, 'пути') || str_contains($s, 'отгруж') || str_contains($s, 'транзит')) return 'in_transit';
