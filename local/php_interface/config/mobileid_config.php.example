@@ -1,0 +1,9 @@
+<?php
+// Скопируйте этот файл в mobileid_config.php (без .example) и заполните
+// реальными значениями из личного кабинета SMS AERO, раздел "Мобильная
+// авторизация" (MobileID). Сам mobileid_config.php уже исключён из git
+// правилом "*config*.php" в .gitignore — секреты в репозиторий не попадут.
+return [
+    'CLIENT_ID'   => 'pub_xxxxxxxxxxxxxxxx',
+    'API_SECRET'  => 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+];

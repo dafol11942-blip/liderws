@@ -1,4 +1,5 @@
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
+require($_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/include/require_phone_auth.php");
 $APPLICATION->SetTitle("История заказов");
 
 // Если активен любой фильтр из шапки списка (дата/статус/поставщик/артикул) —

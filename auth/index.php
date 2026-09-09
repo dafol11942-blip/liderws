@@ -1,63 +1,93 @@
-<?
-define("NEED_AUTH", true);
-require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
-// require($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_before.php");
-$APPLICATION->SetTitle("");
-GLOBAL $USER;
+<?php
+require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 
-//debug($_REQUEST);
-//if (isset($_REQUEST["login"]) && strlen($_REQUEST["backurl"])>0){ 
-	// debug($arResult);
-	
-	//LocalRedirect($_REQUEST["backurl"]);
-////echo "234234234";
+global $USER;
 
-?><?$APPLICATION->IncludeComponent("bitrix:main.auth.forgotpasswd", "", Array(
-	"AUTH_AUTH_URL" => "",	// Страница для авторизации
-		"AUTH_REGISTER_URL" => "",	// Страница для регистрации
-	),
-	false
-);?>
+$backurl = (string)($_REQUEST['backurl'] ?? '/personal/');
+if ($backurl === '' || $backurl[0] !== '/') {
+    $backurl = '/personal/';
+}
 
-<?
+if ($USER->IsAuthorized()) {
+    LocalRedirect($backurl);
+    die();
+}
 
-//	debug($USER);
-
+$APPLICATION->SetTitle("Авторизация");
 ?>
-<?//if($USER->IsAuthorized()):?>
-	<?
 
+<div class="container" style="max-width:480px;margin:40px auto;">
+    <h2>Вход по номеру телефона</h2>
+    <div id="mobileid-login-widget"></div>
+    <div id="mobileid-login-error" style="display:none;background:#fff0f0;border:1px solid #f5c6cb;color:#721c24;padding:12px 16px;border-radius:8px;margin-top:16px;"></div>
+</div>
 
-	$APPLICATION->SetTitle("Авторизация");
-	?>
-	<?
+<script src="https://cdn.smsaero.ru/mid-widget/1/mobileid-widget.min.js"></script>
+<script>
+(function () {
+    var backurl = <?= json_encode($backurl) ?>;
+    var errorBox = document.getElementById('mobileid-login-error');
 
-	// $APPLICATION->IncludeComponent(
-	// 	"bitrix:system.auth.confirmation",
-	// 	"form_auth_podtverjdenie",
-	// 	Array(
-	// 		"CONFIRM_CODE" => "confirm_code",
-	// 		"LOGIN" => "login",
-	// 		"USER_ID" => "confirm_user_id"
-	// 	)
-	// );
+    function showError(text) {
+        errorBox.textContent = text;
+        errorBox.style.display = 'block';
+    }
 
+    var widget = new MobileIDWidget({
+        tokenUrl: '/ajax/mobileid_token.php',
+        resultView: 'text',
+        allowChangePhone: true,
+        input: {
+            autoSubmitOtp: false,
+            otpLength: 4
+        },
+        texts: {
+            phoneLabel: 'Номер телефона',
+            phonePlaceholder: '+7 (___) ___-__-__',
+            submitPhone: 'Получить код',
+            otpLabel: 'Введите код из SMS',
+            otpPlaceholder: '• • • •',
+            submitOtp: 'Подтвердить',
+            back: 'Изменить номер',
+            pendingText: 'Отправляем запрос...',
+            successTitle: 'Номер подтверждён',
+            rejectedTitle: 'Верификация отклонена',
+            retryBtn: 'Попробовать снова',
+            rateLimitTitle: 'Превышен лимит запросов'
+        },
+        onVerified: function (data) {
+            fetch('/ajax/mobileid_siteverify.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: data.session_id,
+                    verify_token: data.verify_token
+                })
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (result) {
+                    if (result.success) {
+                        window.location.href = backurl;
+                    } else {
+                        showError(result.message || 'Не удалось подтвердить номер');
+                    }
+                })
+                .catch(function () {
+                    showError('Ошибка соединения с сервером');
+                });
+        },
+        onRejected: function () {
+            showError('Верификация отклонена, попробуйте снова');
+        },
+        onError: function (err) {
+            showError((err && err.message) || 'Ошибка виджета авторизации');
+        },
+        onRateLimit: function () {
+            showError('Превышен лимит запросов, попробуйте позже');
+        }
+    });
+    widget.mount('#mobileid-login-widget');
+})();
+</script>
 
-	?>
-	 <?
-
-	//  $APPLICATION->IncludeComponent(
-	// 	"bitrix:main.auth.form",
-	// 	"template1",
-	// 	Array(
-	// 		"AUTH_FORGOT_PASSWORD_URL" => "forget.php",
-	// 		"AUTH_REGISTER_URL" => "",
-	// 		"USER_PROPERTY" => array("UF_SOGLASIE_FORM"),
-	// 		"AUTH_SUCCESS_URL" => "/personal/"
-	// 	)
-	// );
-
-	?> 
-<?// else:?>
-	<? //	LocalRedirect(' /catalog/'); ?>
-<? //endif;?><?//require($_SERVER["DOCUMENT_ROOT"]."/bitrix/footer.php");?>
+<?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/footer.php"); ?>

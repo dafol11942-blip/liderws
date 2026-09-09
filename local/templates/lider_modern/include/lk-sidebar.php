@@ -3,10 +3,19 @@ $lkNavActive = $lkNavActive ?? '';
 ?>
 <aside class="lk-sidebar">
     <div class="lk-user-block">
+        <?php
+        // Для аккаунтов, созданных автоматически по телефону (LOGIN вида
+        // "tel_9161234567"), пока не заполнено ФИО, показываем отформатированный
+        // номер вместо технического логина — require_phone_auth.php уже
+        // гарантирует, что до /personal/* эта ситуация не доходит, но сюда
+        // может попасть шаблон, вызванный из другого места без гварда.
+        $lkLogin = $USER->GetLogin();
+        $lkDisplayName = $USER->GetFullName() ?: (strpos($lkLogin, 'tel_') === 0 ? '+7 ' . substr($lkLogin, 4) : $lkLogin);
+        ?>
         <div class="lk-user-avatar">
-            <?= mb_substr($USER->GetFullName() ?: $USER->GetLogin(), 0, 1) ?>
+            <?= mb_substr($lkDisplayName, 0, 1) ?>
         </div>
-        <div class="lk-user-name"><?= $USER->GetFullName() ?: $USER->GetLogin() ?></div>
+        <div class="lk-user-name"><?= htmlspecialchars($lkDisplayName) ?></div>
     </div>
     <nav class="lk-nav">
         <a href="/personal/" class="<?= $lkNavActive === 'profile' ? 'active' : '' ?>"><svg class="icon"><use href="#icon-user"></use></svg> Профиль</a>

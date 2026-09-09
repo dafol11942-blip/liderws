@@ -125,6 +125,20 @@ function loadSupplierBasketOrderMeta(int $basketItemId): array
     }
 }
 
+function getMobileIdClient(): \Lider\Auth\MobileIdClient
+{
+    static $client = null;
+    if ($client === null) {
+        $configFile = __DIR__ . '/config/mobileid_config.php';
+        $config = is_file($configFile) ? require $configFile : [];
+        $client = new \Lider\Auth\MobileIdClient(
+            (string)($config['CLIENT_ID'] ?? ''),
+            (string)($config['API_SECRET'] ?? '')
+        );
+    }
+    return $client;
+}
+
 function getSupplierFactory(): \Lider\Supplier\SupplierFactory
 {
     static $factory = null;
@@ -185,6 +199,15 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
         $factory->register(new \Lider\Supplier\AutopiterConnector([
             'USER_ID' => '165286',
             'PASSWORD' => 'LidGates16',
+        ]));
+        $factory->register(new \Lider\Supplier\ArmtekConnector([
+            'LOGIN' => 'lider1-16@bk.ru',
+            'PASSWORD' => 'LidGates166',
+            'VKORG' => '4220',
+            'KUNRG' => '40039944',
+            'KUNWE' => '43039417',
+            'KUNZA' => '48022996',
+            'VBELN' => '40359920',
         ]));
     }
     return $factory;

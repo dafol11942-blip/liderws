@@ -129,7 +129,7 @@ $cartQty = (int)$_SESSION['CART_QTY'];
                     <svg class="icon"><use href="#icon-cart"></use></svg>
                     <span class="badge" id="cartBadge"<?= $cartQty > 0 ? '' : ' style="display:none;"' ?>><?= $cartQty ?></span>
                 </a>
-                <a href="/personal/" class="header__icon" title="Личный кабинет"><svg class="icon"><use href="#icon-user"></use></svg></a>
+                <a href="<?= $USER->IsAuthorized() ? '/personal/' : '/auth/' ?>" class="header__icon" title="<?= $USER->IsAuthorized() ? 'Личный кабинет' : 'Войти' ?>"><svg class="icon"><use href="#icon-user"></use></svg></a>
             </div>
         </div>
     </header>
