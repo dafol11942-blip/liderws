@@ -249,6 +249,23 @@ if ($paymentHoldDeadlineTs <= 0) {
                         <div class="checkout-block__title">
                             <span class="checkout-block__num">1</span> Контактные данные
                         </div>
+                        <?php
+                        global $USER;
+                        // sale.order.ajax подставляет значения не из текущего профиля
+                        // пользователя, а из ранее сохранённого профиля доставки
+                        // (b_sale_order_user_props) — там могут годами лежать старые
+                        // данные с гостевого/тестового заказа. Раз телефон теперь
+                        // read-only и должен быть авторитетным (см. ниже), для
+                        // авторизованного пользователя принудительно берём email/ФИО/
+                        // телефон из его актуального профиля, а не из $prop['VALUE'].
+                        $profileOverrides = [];
+                        if ($USER->IsAuthorized()) {
+                            $arCurrentUser = \CUser::GetByID($USER->GetID())->Fetch();
+                            $profileOverrides['EMAIL'] = trim((string)($arCurrentUser['EMAIL'] ?? ''));
+                            $profileOverrides['FIO'] = trim(($arCurrentUser['LAST_NAME'] ?? '') . ' ' . ($arCurrentUser['NAME'] ?? ''));
+                            $profileOverrides['PHONE'] = trim((string)($arCurrentUser['PERSONAL_PHONE'] ?? ''));
+                        }
+                        ?>
                         <?php foreach ($userProps as $prop):
                             if ($prop['TYPE'] === 'LOCATION') continue;
                             // Способ получения (шаг 2) уже разделён на самовывоз/курьер —
@@ -257,16 +274,24 @@ if ($paymentHoldDeadlineTs <= 0) {
                             // корпус, подъезд, квартира)", поэтому сравниваем по подстроке.
                             if (mb_stripos($prop['NAME'], 'адрес доставки') !== false) continue;
                             $rawVal = (string)($prop['VALUE'] ?? '');
-                            // Bitrix автозаполняет ФИО как "Имя Фамилия" (NAME + LAST_NAME);
-                            // на сайте принят порядок "Фамилия Имя" — переставляем местами.
-                            if (mb_strtoupper(trim($prop['NAME'])) === 'ФИО' && $rawVal !== '') {
+                            $isPhoneProp = in_array($prop['TYPE'], ['TEL', 'PHONE']);
+                            $isEmailProp = $prop['TYPE'] === 'EMAIL';
+                            $isFioProp = mb_strtoupper(trim($prop['NAME'])) === 'ФИО';
+                            if ($isEmailProp && ($profileOverrides['EMAIL'] ?? '') !== '') {
+                                $rawVal = $profileOverrides['EMAIL'];
+                            } elseif ($isPhoneProp && ($profileOverrides['PHONE'] ?? '') !== '') {
+                                $rawVal = $profileOverrides['PHONE'];
+                            } elseif ($isFioProp && ($profileOverrides['FIO'] ?? '') !== '') {
+                                $rawVal = $profileOverrides['FIO'];
+                            } elseif ($isFioProp && $rawVal !== '') {
+                                // Фолбэк (не авторизован / профиль без ФИО) — Bitrix отдаёт
+                                // "Имя Фамилия", на сайте принят порядок "Фамилия Имя".
                                 $fioParts = preg_split('/\s+/', trim($rawVal));
                                 if (count($fioParts) === 2) {
                                     $rawVal = $fioParts[1] . ' ' . $fioParts[0];
                                 }
                             }
                             $val = htmlspecialchars($rawVal);
-                            $isPhoneProp = in_array($prop['TYPE'], ['TEL', 'PHONE']);
                             $type = $isPhoneProp ? 'tel' :
                                     (in_array($prop['TYPE'], ['EMAIL']) ? 'email' : 'text');
                             $req = ($prop['REQUIED'] ?? '') === 'Y';
