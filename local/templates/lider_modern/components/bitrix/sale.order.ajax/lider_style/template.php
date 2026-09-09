@@ -340,6 +340,15 @@ if ($paymentHoldDeadlineTs <= 0) {
                                 }
                                 return trim($del['NAME'] . ' ' . ($del['DESCRIPTION'] ?? ''));
                             };
+                            // Точные координаты [широта, долгота] для известных точек
+                            // самовывоза — проверены вручную, чтобы не расходовать
+                            // геокодер на каждый показ карты. Для точки, которой здесь
+                            // нет (например, добавят новый адрес в админке), ниже в JS
+                            // остаётся рабочий фолбэк на ymaps.geocode().
+                            $pickupKnownCoords = [
+                                'РТ, Елабуга, пр-т Нефтяников 4' => [55.74767080512837, 52.00686362268443],
+                                'Елабуга, ул. Баки Урманче 17а'  => [55.77622330421297, 52.02240121966068],
+                            ];
                         ?>
 
                         <?php if ($hasPickup && $hasCourier): ?>
@@ -388,7 +397,10 @@ if ($paymentHoldDeadlineTs <= 0) {
 
                             <?php if ($yandexMapsApiKey !== ''): ?>
                             <div class="pickup-map" id="pickup-map"
-                                 data-points='<?= htmlspecialchars(json_encode(array_map($extractPickupAddress, array_values($pickupDeliveries))), ENT_QUOTES) ?>'></div>
+                                 data-points='<?= htmlspecialchars(json_encode(array_map(function ($del) use ($extractPickupAddress, $pickupKnownCoords) {
+                                     $addr = $extractPickupAddress($del);
+                                     return ['address' => $addr, 'coords' => $pickupKnownCoords[$addr] ?? null];
+                                 }, array_values($pickupDeliveries))), ENT_QUOTES) ?>'></div>
                             <script src="https://api-maps.yandex.ru/2.1/?apikey=<?= urlencode($yandexMapsApiKey) ?>&lang=ru_RU"></script>
                             <script>
                             (function () {
@@ -417,7 +429,12 @@ if ($paymentHoldDeadlineTs <= 0) {
                                         return coords;
                                     }
 
-                                    var geocodeQueue = points.map(function (address) {
+                                    var geocodeQueue = points.map(function (point) {
+                                        var address = point.address;
+                                        // Известные координаты (проверены вручную) — без обращения к геокодеру.
+                                        if (point.coords) {
+                                            return Promise.resolve(placeMark(address, point.coords));
+                                        }
                                         if (cache[address]) {
                                             return Promise.resolve(placeMark(address, cache[address]));
                                         }
