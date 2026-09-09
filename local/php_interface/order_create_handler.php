@@ -155,8 +155,13 @@ if (!function_exists('saveSupplierOrderRecord')) {
 // логируется.
 if (!function_exists('dispatchSupplierOrders')) {
     /** @return bool true, если хотя бы один поставщик подтвердил приём заказа (success=true) */
-    function dispatchSupplierOrders(int $orderId, \Bitrix\Sale\Basket $basket, string $buyerName = ''): bool
+    function dispatchSupplierOrders(int $orderId, \Bitrix\Sale\Basket $basket, string $buyerName = '', string $customerComment = ''): bool
     {
+        $supplierComment = 'Заказ №' . $orderId . ($buyerName !== '' ? ', ' . $buyerName : '') . ' с сайта liderws.ru';
+        if ($customerComment !== '') {
+            $supplierComment .= '. Комментарий клиента: ' . $customerComment;
+        }
+
         // BasketPropertiesCollection не имеет метода getItemValues() — читаем
         // свойство по CODE вручную через перебор коллекции (см. order_from_supplier.php).
         $readProp = function ($props, string $code) {
@@ -195,7 +200,7 @@ if (!function_exists('dispatchSupplierOrders')) {
                 'quantity'       => $basketItem->getQuantity(),
                 'order_meta'     => $orderMeta,
                 'reference'      => $orderId . '_' . $basketItem->getId(),
-                'comment'        => 'Заказ №' . $orderId . ($buyerName !== '' ? ', ' . $buyerName : '') . ' с сайта liderws.ru',
+                'comment'        => $supplierComment,
             ];
         }
 
@@ -309,10 +314,14 @@ if (!function_exists('dispatchHeldOrderIfPaid')) {
         try {
             $buyerName = trim((string)$order->getPropertyCollection()->getPayerName());
         } catch (\Throwable $e) {}
+        $customerComment = '';
+        try {
+            $customerComment = trim((string)$order->getField('USER_DESCRIPTION'));
+        } catch (\Throwable $e) {}
 
         $anySent = false;
         try {
-            $anySent = dispatchSupplierOrders($orderId, $basket, $buyerName);
+            $anySent = dispatchSupplierOrders($orderId, $basket, $buyerName, $customerComment);
         } catch (\Throwable $e) {
             logSupplierOrderDispatch("Заказ №{$orderId}: dispatchSupplierOrders (после оплаты) упал целиком — " . $e->getMessage());
         }
@@ -493,6 +502,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
             $buyerName = trim((string)($_POST['ORDER_PROP_2'] ?? ''));
         }
 
+        // Комментарий из чекаута ("Укажите детали...", поле ORDER_DESCRIPTION) —
+        // тот же принцип, что и с ФИО: сохранён на заказе как USER_DESCRIPTION,
+        // передаём поставщику вместе с номером заказа.
+        $customerComment = '';
+        try {
+            $customerComment = trim((string)$order->getField('USER_DESCRIPTION'));
+        } catch (\Throwable $e) {}
+
         // Не-менеджер с хотя бы одной позицией "под заказ" у поставщика — заказ
         // поставщику не уходит сразу: сначала 15 минут на оплату (см. план
         // "Оплата в течение 15 минут"). Менеджеры (оформляют заказы за клиентов
@@ -514,7 +531,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
             // Наш заказ уже сохранён — сбой здесь НЕ должен помешать покупателю
             // увидеть страницу "Спасибо за заказ", только залогироваться.
             try {
-                $anySupplierOrderSent = dispatchSupplierOrders($orderId, $basket, $buyerName);
+                $anySupplierOrderSent = dispatchSupplierOrders($orderId, $basket, $buyerName, $customerComment);
             } catch (\Throwable $e) {
                 $anySupplierOrderSent = false;
                 logSupplierOrderDispatch("dispatchSupplierOrders упал целиком: " . $e->getMessage());
