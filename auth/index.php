@@ -16,10 +16,13 @@ if ($USER->IsAuthorized()) {
 $APPLICATION->SetTitle("Авторизация");
 ?>
 
-<div class="container" style="max-width:480px;margin:40px auto;">
-    <h2>Вход по номеру телефона</h2>
-    <div id="mobileid-login-widget"></div>
-    <div id="mobileid-login-error" style="display:none;background:#fff0f0;border:1px solid #f5c6cb;color:#721c24;padding:12px 16px;border-radius:8px;margin-top:16px;"></div>
+<div class="container auth-page">
+    <div class="auth-card">
+        <h2>Вход по номеру телефона</h2>
+        <p class="auth-card__hint">Отправим код подтверждения по SMS</p>
+        <div id="mobileid-login-widget"></div>
+        <div id="mobileid-login-error" class="auth-card__error" style="display:none;"></div>
+    </div>
 </div>
 
 <script src="https://cdn.smsaero.ru/mid-widget/1/mobileid-widget.min.js" onerror="document.getElementById('mobileid-login-error').textContent='Не удалось загрузить скрипт виджета авторизации (cdn.smsaero.ru недоступен)'; document.getElementById('mobileid-login-error').style.display='block';"></script>
@@ -61,6 +64,28 @@ $APPLICATION->SetTitle("Авторизация");
             rejectedTitle: 'Верификация отклонена',
             retryBtn: 'Попробовать снова',
             rateLimitTitle: 'Превышен лимит запросов'
+        },
+        theme: {
+            primaryColor: '#668BEA',
+            primaryHover: '#465B91',
+            primaryText: '#ffffff',
+            bgColor: '#ffffff',
+            inputBg: '#ffffff',
+            inputBorder: '#E2E2E2',
+            inputBorderFocus: '#668BEA',
+            inputText: '#000000',
+            labelColor: '#000000',
+            hintColor: '#666666',
+            errorColor: '#c0392b',
+            successColor: '#2f8a44',
+            rejectedColor: '#c0392b',
+            spinnerColor: '#668BEA',
+            borderRadius: '10px',
+            fontFamily: 'Nunito, sans-serif',
+            fontSize: '14px',
+            padding: '11px 14px',
+            gapLabel: '5px',
+            gap: '14px'
         },
         onVerified: function (data) {
             fetch('/ajax/mobileid_siteverify.php', {

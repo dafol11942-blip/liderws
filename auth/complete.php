@@ -44,35 +44,37 @@ $arCurrentUser = \CUser::GetByID($USER->GetID())->Fetch();
 $APPLICATION->SetTitle("Завершение регистрации");
 ?>
 
-<div class="container" style="max-width:480px;margin:40px auto;">
-    <h2>Завершите регистрацию</h2>
-    <p>Укажите имя, фамилию и email — они нужны для оформления заказов и уведомлений.</p>
+<div class="container auth-page">
+    <div class="auth-card">
+        <h2>Завершите регистрацию</h2>
+        <p class="auth-card__hint">Укажите имя, фамилию и email — они нужны для оформления заказов и уведомлений</p>
 
-    <?php if ($error): ?>
-        <div style="background:#fff0f0;border:1px solid #f5c6cb;color:#721c24;padding:12px 16px;border-radius:8px;margin-bottom:16px;">
-            <?= htmlspecialchars($error) ?>
-        </div>
-    <?php endif; ?>
+        <?php if ($error): ?>
+            <div class="auth-card__error" style="margin-bottom:16px;">
+                <?= htmlspecialchars($error) ?>
+            </div>
+        <?php endif; ?>
 
-    <form method="post" action="">
-        <?= bitrix_sessid_post() ?>
-        <input type="hidden" name="backurl" value="<?= htmlspecialchars($backurl) ?>">
+        <form method="post" action="">
+            <?= bitrix_sessid_post() ?>
+            <input type="hidden" name="backurl" value="<?= htmlspecialchars($backurl) ?>">
 
-        <div style="margin-bottom:12px;">
-            <label>Имя *</label><br>
-            <input type="text" name="NAME" value="<?= htmlspecialchars($arCurrentUser['NAME'] ?? '') ?>" required style="width:100%;padding:8px;">
-        </div>
-        <div style="margin-bottom:12px;">
-            <label>Фамилия *</label><br>
-            <input type="text" name="LAST_NAME" value="<?= htmlspecialchars($arCurrentUser['LAST_NAME'] ?? '') ?>" required style="width:100%;padding:8px;">
-        </div>
-        <div style="margin-bottom:12px;">
-            <label>Email *</label><br>
-            <input type="email" name="EMAIL" value="<?= htmlspecialchars($arCurrentUser['EMAIL'] ?? '') ?>" required style="width:100%;padding:8px;">
-        </div>
+            <div class="form-field">
+                <label>Имя <span class="required-mark">*</span></label>
+                <input type="text" name="NAME" value="<?= htmlspecialchars($arCurrentUser['NAME'] ?? '') ?>" required>
+            </div>
+            <div class="form-field">
+                <label>Фамилия <span class="required-mark">*</span></label>
+                <input type="text" name="LAST_NAME" value="<?= htmlspecialchars($arCurrentUser['LAST_NAME'] ?? '') ?>" required>
+            </div>
+            <div class="form-field">
+                <label>Email <span class="required-mark">*</span></label>
+                <input type="email" name="EMAIL" value="<?= htmlspecialchars($arCurrentUser['EMAIL'] ?? '') ?>" required>
+            </div>
 
-        <button type="submit" class="btn btn--primary">Продолжить</button>
-    </form>
+            <button type="submit" class="btn btn--primary">Продолжить</button>
+        </form>
+    </div>
 </div>
 
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/footer.php"); ?>

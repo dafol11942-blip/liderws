@@ -80,6 +80,16 @@
                 otpLabel: 'Введите код из SMS',
                 submitOtp: 'Подтвердить'
             },
+            theme: {
+                primaryColor: '#668BEA',
+                primaryHover: '#465B91',
+                primaryText: '#ffffff',
+                inputBorder: '#E2E2E2',
+                inputBorderFocus: '#668BEA',
+                borderRadius: '10px',
+                fontFamily: 'Nunito, sans-serif',
+                fontSize: '14px'
+            },
             onVerified: function (data) {
                 fetch('/ajax/mobileid_change_phone.php', {
                     method: 'POST',
