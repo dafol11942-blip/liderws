@@ -162,7 +162,19 @@ $cartQty = (int)$_SESSION['CART_QTY'];
                 <a href="/catalog/tormoznye-kolodki/">Тормозные колодки</a>
                 <a href="/catalog/grm/">ГРМ</a>
                 <a href="/catalog/shiny/">Шины и диски</a>
-                <a href="/autoservice/">Автосервис</a>
+                <div class="services-dropdown-wrapper">
+                    <a href="/autoservice/">Автосервис</a>
+                    <div class="services-dropdown">
+                        <a href="/autoservice/diagnostika-i-remont-podveski/">Диагностика и ремонт подвески</a>
+                        <a href="/autoservice/zamena-masla-v-dvigatele/">Замена масла в двигателе</a>
+                        <a href="/autoservice/tekhnicheskoe-obsluzhivanie/">Техническое обслуживание и мелкий ремонт</a>
+                        <a href="/autoservice/remont-tormoznoy-sistemy/">Ремонт тормозной системы</a>
+                        <a href="/autoservice/zamena-tsepi-remnya-grm/">Замена цепи/ремня ГРМ</a>
+                        <a href="/autoservice/zamena-masla-v-transmissii/">Замена масла в трансмиссии</a>
+                        <a href="/autoservice/zamena-filtrov/">Замена фильтров</a>
+                        <a href="/autoservice/" class="services-dropdown__all">Все услуги автосервиса →</a>
+                    </div>
+                </div>
             </nav>
         </div>
     </div>
