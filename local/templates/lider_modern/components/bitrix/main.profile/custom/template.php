@@ -46,7 +46,7 @@
 <div id="lk-change-phone-widget" style="display:none;margin-top:16px;max-width:420px;"></div>
 <div id="lk-change-phone-message" style="display:none;margin-top:12px;padding:12px 16px;border-radius:8px;"></div>
 
-<script src="https://cdn.smsaero.ru/mid-widget/1/mobileid-widget.min.js"></script>
+<script src="<?= SITE_TEMPLATE_PATH ?>/assets/js/mobileid-widget.min.js"></script>
 <script>
 (function () {
     var btn = document.getElementById('lk-change-phone-btn');

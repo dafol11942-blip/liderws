@@ -25,7 +25,7 @@ $APPLICATION->SetTitle("Авторизация");
     </div>
 </div>
 
-<script src="https://cdn.smsaero.ru/mid-widget/1/mobileid-widget.min.js" onerror="document.getElementById('mobileid-login-error').textContent='Не удалось загрузить скрипт виджета авторизации (cdn.smsaero.ru недоступен)'; document.getElementById('mobileid-login-error').style.display='block';"></script>
+<script src="<?= SITE_TEMPLATE_PATH ?>/assets/js/mobileid-widget.min.js" onerror="document.getElementById('mobileid-login-error').textContent='Не удалось загрузить скрипт виджета авторизации'; document.getElementById('mobileid-login-error').style.display='block';"></script>
 <script>
 (function () {
     var backurl = <?= json_encode($backurl) ?>;
