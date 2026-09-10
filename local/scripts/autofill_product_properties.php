@@ -76,6 +76,16 @@ $EXCLUDE_CODES = [
 // Минимальная длина значения словаря, чтобы участвовать в поиске (отсекает шум вида "1", "-")
 $MIN_VALUE_LENGTH = 2;
 
+// Частые служебные слова (предлоги/союзы), которые никогда не считаем
+// найденным значением, даже если они каким-то образом попали в словарь
+// свойства (реальный случай: в справочнике "Бренд" оказалось значение "НА" —
+// оно находилось в любом названии со словом "на"). Резать по длине нельзя:
+// короткие настоящие бренды типа "GM" не должны пострадать.
+$STOPWORDS = [
+    'на', 'и', 'с', 'со', 'по', 'для', 'от', 'до', 'из', 'за', 'не', 'но', 'как', 'или', 'а', 'у', 'к', 'о', 'в', 'то',
+    'the', 'for', 'and', 'or', 'in', 'on', 'of', 'to', 'a', 'an',
+];
+
 // Максимум значений, проставляемых в одно множественное свойство за раз
 $MAX_MATCHES_PER_MULTIPLE_PROPERTY = 5;
 
@@ -101,14 +111,35 @@ function normalizeKey(string $value): string
 }
 
 /**
+ * true, если найденный фрагмент — единственное содержимое пары скобок,
+ * т.е. вокруг него (без учёта пробелов) сразу "(" и ")": "... (LECAR) ..."
+ * Отличаем такой явный "бренд в скобках" от значения, которое просто
+ * оказалось частью списка через запятую внутри скобок: "(i30, SOLARIS,
+ * KIA Ceed, ...)" — там перед "KIA" стоит ", ", а не "(", и такое
+ * совпадение не должно считаться сильным сигналом "это и есть бренд".
+ */
+function isTightlyParenthesized(string $name, int $byteOffset, int $byteLen): bool
+{
+    $before = rtrim(substr($name, 0, $byteOffset));
+    $after = ltrim(substr($name, $byteOffset + $byteLen));
+    return substr($before, -1) === '(' && substr($after, 0, 1) === ')';
+}
+
+/**
  * Находит в $name все значения словаря и возвращает до $maxMatches лучших.
- * "Лучший" — тот, что встречается РАНЬШЕ в названии (при равенстве позиции —
- * более длинный текст). Это важно: в названиях вида "Свеча Denso ... Nissan
+ * Приоритет отбора:
+ *   1) значение, которое само по себе — всё содержимое пары скобок
+ *      ("... (LECAR) ...") — самый надёжный сигнал "это и есть бренд/тип";
+ *   2) при остальных равных — то, что встречается РАНЬШЕ в названии;
+ *   3) при равенстве позиции — более длинный текст.
+ *
+ * Два реальных случая, из-за которых так: в "Свеча Denso ... Nissan
  * Juke/Mazda CX-5 ..." словарь бренда содержит и "Denso" (настоящий
- * производитель, стоит первым), и "Nissan"/"Mazda" (марки авто в списке
- * применимости, встречаются дальше по тексту) — при сортировке просто по
- * длине совпадения побеждал произвольный из них, что путало бренд товара
- * с маркой автомобиля, для которого он подходит.
+ * производитель, стоит первым словом), и "Nissan"/"Mazda" (марки авто в
+ * списке применимости дальше по тексту) — тут выигрывает более ранний.
+ * А в "Концевик двери Renault (Logan/Largus) (LECAR) в сборе" всё наоборот:
+ * марка авто "Renault" стоит раньше, а настоящий бренд "LECAR" — в
+ * скобках в конце; тут одной только позиции недостаточно, и решают скобки.
  *
  * @param array $vocab Список ['value' => string, 'id' => int|null]
  * @return array Список подходящих элементов словаря (без повторов)
@@ -118,13 +149,18 @@ function matchVocabInName(string $name, array $vocab, int $maxMatches): array
     $candidates = [];
     foreach ($vocab as $entry) {
         if (preg_match(buildBoundaryRegex($entry['value']), $name, $m, PREG_OFFSET_CAPTURE)) {
-            $candidates[] = ['entry' => $entry, 'offset' => $m[0][1], 'len' => mb_strlen($entry['value'])];
+            $offset = $m[0][1];
+            $tight = isTightlyParenthesized($name, $offset, strlen($m[0][0]));
+            $candidates[] = ['entry' => $entry, 'offset' => $offset, 'len' => mb_strlen($entry['value']), 'tight' => $tight];
         }
     }
     if (empty($candidates)) {
         return [];
     }
     usort($candidates, static function ($a, $b) {
+        if ($a['tight'] !== $b['tight']) {
+            return $b['tight'] <=> $a['tight'];
+        }
         if ($a['offset'] !== $b['offset']) {
             return $a['offset'] <=> $b['offset'];
         }
@@ -224,6 +260,9 @@ foreach ($PROPERTY_CODES as $code) {
             if (mb_strlen($value) < $MIN_VALUE_LENGTH) {
                 continue;
             }
+            if (in_array(normalizeKey($value), $STOPWORDS, true)) {
+                continue;
+            }
             $vocab[] = ['value' => $value, 'id' => (int)$enumRow['ID']];
         }
         usort($vocab, static fn($a, $b) => mb_strlen($b['value']) <=> mb_strlen($a['value']));
@@ -286,7 +325,7 @@ while ($obEl = $dbEl->GetNextElement()) {
                 $usageCountById[$code][$enumId] = ($usageCountById[$code][$enumId] ?? 0) + 1;
             } elseif ($propertyInfo[$code]['PROPERTY_TYPE'] === 'S') {
                 $value = trim((string)$rawValue);
-                if (mb_strlen($value) >= $MIN_VALUE_LENGTH) {
+                if (mb_strlen($value) >= $MIN_VALUE_LENGTH && !in_array(normalizeKey($value), $STOPWORDS, true)) {
                     $propertyVocab[$code][$value] = ['value' => $value, 'id' => null];
                     $usageCountByValue[$code][$value] = ($usageCountByValue[$code][$value] ?? 0) + 1;
                 }
