@@ -307,55 +307,66 @@ $usageCountByValue = []; // code => [строка => count]      (для S)
 // семейство методов чтения свойств. Единственный подтверждённо рабочий
 // способ — классический PROPERTY_<CODE> прямо в SELECT у GetList(): для
 // одиночных свойств отдаёт скаляр, для множественных — массив, без
-// размножения строк на элемент.
-$selectFields = ['ID', 'NAME'];
-foreach ($targetCodes as $code) {
-    $selectFields[] = 'PROPERTY_' . $code;
-}
+// размножения строк на элемент. Но все ~116 свойств в одном SELECT
+// упираются в лимит MySQL на число таблиц в JOIN (у каждого свойства
+// минимум одна присоединяемая таблица, у списочных — две) — поэтому
+// читаем пачками.
+const PROPS_BATCH_SIZE = 20;
 
 $filter = ['IBLOCK_ID' => $IBLOCK_ID, 'ACTIVE' => 'Y'];
-$dbEl = CIBlockElement::GetList(['ID' => 'ASC'], $filter, false, false, $selectFields);
 $total = 0;
-while ($arEl = $dbEl->Fetch()) {
-    $id = $arEl['ID'];
-    $elements[$id] = ['NAME' => $arEl['NAME'], 'PROPS' => []];
-    $total++;
+foreach (array_chunk($targetCodes, PROPS_BATCH_SIZE) as $batchCodes) {
+    $selectFields = ['ID', 'NAME'];
+    foreach ($batchCodes as $code) {
+        $selectFields[] = 'PROPERTY_' . $code;
+    }
 
-    foreach ($targetCodes as $code) {
-        $isList = $propertyInfo[$code]['PROPERTY_TYPE'] === 'L';
-        // Для списочных свойств _VALUE — это текст, а не ID варианта;
-        // нам нужен именно ID (для SetPropertyValuesEx), он в _ENUM_ID.
-        $rawValues = $arEl['PROPERTY_' . $code . '_VALUE'] ?? null;
-        $rawEnumIds = $arEl['PROPERTY_' . $code . '_ENUM_ID'] ?? null;
-        $values = is_array($rawValues) ? $rawValues : [$rawValues];
-        $enumIds = is_array($rawEnumIds) ? $rawEnumIds : [$rawEnumIds];
+    $dbEl = CIBlockElement::GetList(['ID' => 'ASC'], $filter, false, false, $selectFields);
+    $batchTotal = 0;
+    while ($arEl = $dbEl->Fetch()) {
+        $id = $arEl['ID'];
+        if (!isset($elements[$id])) {
+            $elements[$id] = ['NAME' => $arEl['NAME'], 'PROPS' => []];
+        }
+        $batchTotal++;
 
-        foreach ($values as $idx => $rawValue) {
-            if ($rawValue === null || $rawValue === '' || $rawValue === false) {
-                continue;
-            }
-            $storedValue = $isList ? ($enumIds[$idx] ?? null) : $rawValue;
-            if ($storedValue === null || $storedValue === '') {
-                continue;
-            }
-            $elements[$id]['PROPS'][$code][] = ['VALUE' => $storedValue];
+        foreach ($batchCodes as $code) {
+            $isList = $propertyInfo[$code]['PROPERTY_TYPE'] === 'L';
+            // Для списочных свойств _VALUE — это текст, а не ID варианта;
+            // нам нужен именно ID (для SetPropertyValuesEx), он в _ENUM_ID.
+            $rawValues = $arEl['PROPERTY_' . $code . '_VALUE'] ?? null;
+            $rawEnumIds = $arEl['PROPERTY_' . $code . '_ENUM_ID'] ?? null;
+            $values = is_array($rawValues) ? $rawValues : [$rawValues];
+            $enumIds = is_array($rawEnumIds) ? $rawEnumIds : [$rawEnumIds];
 
-            if ($isList) {
-                $enumId = (int)$storedValue;
-                $usageCountById[$code][$enumId] = ($usageCountById[$code][$enumId] ?? 0) + 1;
-            } else {
-                $value = trim((string)$rawValue);
-                if (mb_strlen($value) >= $MIN_VALUE_LENGTH && !in_array(normalizeKey($value), $STOPWORDS, true)) {
-                    $propertyVocab[$code][$value] = ['value' => $value, 'id' => null];
-                    $usageCountByValue[$code][$value] = ($usageCountByValue[$code][$value] ?? 0) + 1;
+            foreach ($values as $idx => $rawValue) {
+                if ($rawValue === null || $rawValue === '' || $rawValue === false) {
+                    continue;
+                }
+                $storedValue = $isList ? ($enumIds[$idx] ?? null) : $rawValue;
+                if ($storedValue === null || $storedValue === '') {
+                    continue;
+                }
+                $elements[$id]['PROPS'][$code][] = ['VALUE' => $storedValue];
+
+                if ($isList) {
+                    $enumId = (int)$storedValue;
+                    $usageCountById[$code][$enumId] = ($usageCountById[$code][$enumId] ?? 0) + 1;
+                } else {
+                    $value = trim((string)$rawValue);
+                    if (mb_strlen($value) >= $MIN_VALUE_LENGTH && !in_array(normalizeKey($value), $STOPWORDS, true)) {
+                        $propertyVocab[$code][$value] = ['value' => $value, 'id' => null];
+                        $usageCountByValue[$code][$value] = ($usageCountByValue[$code][$value] ?? 0) + 1;
+                    }
                 }
             }
         }
-    }
 
-    if ($LIMIT > 0 && $total >= $LIMIT) {
-        break;
+        if ($LIMIT > 0 && $batchTotal >= $LIMIT) {
+            break;
+        }
     }
+    $total = max($total, $batchTotal);
 }
 echo "Товаров для анализа: $total\n";
 

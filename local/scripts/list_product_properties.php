@@ -94,30 +94,40 @@ echo "Всего свойств в инфоблоке: " . count($properties) . 
 // ----- 2. Проход по товарам, считаем заполненность -----
 // GetNextElement()->GetProperties() на этой сборке ядра не отдаёт вообще
 // ничего (проверено на боевых данных — см. debug_check_properties.php),
-// поэтому читаем через PROPERTY_<CODE> прямо в SELECT у GetList().
-$selectFields = ['ID'];
-foreach (array_keys($properties) as $code) {
-    $selectFields[] = 'PROPERTY_' . $code;
-}
+// поэтому читаем через PROPERTY_<CODE> прямо в SELECT у GetList(). Все
+// 169 свойств в одном SELECT упираются в лимит MySQL на число таблиц в
+// JOIN (у каждого свойства минимум одна присоединяемая таблица, у
+// списочных — две; 169 штук сразу — далеко за пределами дефолтных 61) —
+// поэтому читаем пачками.
+const PROPS_BATCH_SIZE = 20;
 
-$filter = ['IBLOCK_ID' => $IBLOCK_ID, 'ACTIVE' => 'Y'];
-$dbEl = CIBlockElement::GetList(['ID' => 'ASC'], $filter, false, false, $selectFields);
 $total = 0;
-while ($arEl = $dbEl->Fetch()) {
-    $total++;
-    foreach ($properties as $code => &$p) {
-        $value = $arEl['PROPERTY_' . $code . '_VALUE'] ?? null;
-        $isFilled = is_array($value)
-            ? count(array_filter($value, static fn($v) => $v !== null && $v !== '' && $v !== false)) > 0
-            : ($value !== null && $value !== '' && $value !== false);
-        if ($isFilled) {
-            $p['FILLED']++;
+$allCodes = array_keys($properties);
+foreach (array_chunk($allCodes, PROPS_BATCH_SIZE) as $batchCodes) {
+    $selectFields = ['ID'];
+    foreach ($batchCodes as $code) {
+        $selectFields[] = 'PROPERTY_' . $code;
+    }
+
+    $filter = ['IBLOCK_ID' => $IBLOCK_ID, 'ACTIVE' => 'Y'];
+    $dbEl = CIBlockElement::GetList(['ID' => 'ASC'], $filter, false, false, $selectFields);
+    $batchTotal = 0;
+    while ($arEl = $dbEl->Fetch()) {
+        $batchTotal++;
+        foreach ($batchCodes as $code) {
+            $value = $arEl['PROPERTY_' . $code . '_VALUE'] ?? null;
+            $isFilled = is_array($value)
+                ? count(array_filter($value, static fn($v) => $v !== null && $v !== '' && $v !== false)) > 0
+                : ($value !== null && $value !== '' && $value !== false);
+            if ($isFilled) {
+                $properties[$code]['FILLED']++;
+            }
+        }
+        if ($LIMIT > 0 && $batchTotal >= $LIMIT) {
+            break;
         }
     }
-    unset($p);
-    if ($LIMIT > 0 && $total >= $LIMIT) {
-        break;
-    }
+    $total = max($total, $batchTotal);
 }
 
 echo "Товаров проверено: $total\n\n";
