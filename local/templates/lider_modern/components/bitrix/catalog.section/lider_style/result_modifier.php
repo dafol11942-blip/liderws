@@ -3,11 +3,14 @@ if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true) die();
 
 if (empty($arResult['ITEMS'])) return;
 
+$inStockOnly = ($_REQUEST['in_stock_only'] ?? '') === 'Y';
+
 $removedCount = 0;
 foreach ($arResult['ITEMS'] as $key => $item) {
     $qty = (int)($item['CATALOG_QUANTITY'] ?? 0);
     $canBuyZero = ($item['CATALOG_CAN_BUY_ZERO'] ?? 'N') === 'Y';
-    if ($qty <= 0 && !$canBuyZero) {
+    // «Только в наличии» скрывает и товары под заказ (qty=0, но can_buy_zero=Y)
+    if (($qty <= 0 && !$canBuyZero) || ($inStockOnly && $qty <= 0)) {
         unset($arResult['ITEMS'][$key]);
         $removedCount++;
     }
