@@ -103,7 +103,16 @@ const PROPS_BATCH_SIZE = 20;
 
 $total = 0;
 $batchNum = 0;
-$allCodes = array_keys($properties);
+// Множественные свойства (MULTIPLE=Y) при выборке PROPERTY_<CODE> в этой
+// сборке иногда размножают строки результата (по значению на строку, а не
+// по товару) — и это раздувает счётчики ВСЕХ свойств в той же пачке, не
+// только их самих. Для нас они и так все служебные/неподдерживаемые типы
+// (CML2_TRAITS, CML2_TAXES, CML2_ATTRIBUTES, MORE_PHOTO, FILES), точный
+// % заполненности по ним не нужен — просто не выбираем их.
+$allCodes = array_values(array_filter(
+    array_keys($properties),
+    static fn($code) => $properties[$code]['MULTIPLE'] !== 'Y'
+));
 foreach (array_chunk($allCodes, PROPS_BATCH_SIZE) as $batchCodes) {
     $batchNum++;
     // Bitrix всегда возвращает ключ PROPERTY_<CODE>_VALUE в верхнем
