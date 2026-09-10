@@ -1,16 +1,20 @@
 <?php
 /**
- * Диагностика: какие свойства вообще существуют у инфоблока каталога и
- * насколько они заполнены у товаров. Нужен, чтобы понять, какие коды
- * добавить в $PROPERTY_CODES в autofill_product_properties.php — там
- * сейчас захардкожен только список из fix_section_property.php (14 шт.),
- * а реальных свойств в инфоблоке обычно больше.
+ * Диагностика: какие свойства вообще существуют у инфоблока каталога,
+ * насколько они заполнены у товаров и (для списочных) сколько вариантов
+ * значений вообще определено в справочнике свойства.
+ *
+ * autofill_product_properties.php сам обрабатывает все свойства типа
+ * "список" (L) и "строка" (S), кроме служебных из $EXCLUDE_CODES (список
+ * ниже продублирован оттуда для отчёта) — этот скрипт просто показывает,
+ * что из этого реально имеет смысл: у свойства должен быть непустой
+ * справочник (L) или хотя бы один уже заполненный товар (S), иначе
+ * автозаполнению неоткуда брать значения.
  *
  * Определения свойств читаются напрямую из b_iblock_property (это
  * стабильная системная таблица, не зависит от способа хранения значений).
- * А вот процент заполненности каждого свойства у товаров считается через
- * официальный API (GetNextElement()->GetProperties()), а не через SQL —
- * значения свойств в Bitrix могут храниться либо в общей таблице
+ * А вот заполненность и справочник значений считаются через официальный
+ * API — значения свойств в Bitrix могут храниться либо в общей таблице
  * b_iblock_element_property, либо в персональной b_iblock_element_prop_s{ID}
  * в зависимости от настроек инфоблока, и наугад собирать под это SQL
  * ненадёжно (плюс мы уже словили баг в статическом
@@ -29,14 +33,28 @@ $IBLOCK_ID = 42;
 // 0 = весь каталог; если товаров очень много и хочется быстрой прикидки — поставьте число
 $LIMIT = 0;
 
-// Коды, которые уже участвуют в local/scripts/autofill_product_properties.php
-$ALREADY_HANDLED = [
-    'CML2_MANUFACTURER', 'TIP_3', 'KLASS_VYAZKOSTI_SAE', 'STANDART_API', 'STANDART_DOT',
-    'TIP_SHCHETKI', 'TSOKOL_LAMPY', 'SEZONNOST', 'TIP_DVIGATELYA', 'STORONA_KREPLENIYA',
-    'TIP_KREPLENIYA', 'INDEKS_DOPUSKA_VAG', 'TIP', 'TSVET',
+// Должно совпадать с $EXCLUDE_CODES в autofill_product_properties.php
+$EXCLUDE_CODES = [
+    'CML2_ARTICLE', 'CML2_BASE_UNIT', 'CML2_BAR_CODE', 'CML2_TRAITS', 'CML2_TAXES', 'CML2_ATTRIBUTES',
+    'IN_RECOMMEND', 'IN_STOCK',
+    'NAIMENOVANIE_TOVARA_V_UCHETNOY_SISTEME_POSTAVSHCHI', 'KOD_TOVARA_V_UCHETNOY_SISTEME_POSTAVSHCHIKA',
 ];
 
 global $DB;
+
+/**
+ * printf("%-Ns", ...) в PHP считает ширину по байтам, а не по символам,
+ * поэтому кириллица (2 байта/символ в UTF-8) ломает выравнивание колонок.
+ * Дополняем вручную по mb_strlen().
+ */
+function padDisplay(string $s, int $width): string
+{
+    $len = mb_strlen($s, 'UTF-8');
+    if ($len >= $width) {
+        return mb_substr($s, 0, $width);
+    }
+    return $s . str_repeat(' ', $width - $len);
+}
 
 echo "========================================\n";
 echo "  Свойства инфоблока $IBLOCK_ID и их заполненность\n";
@@ -59,7 +77,16 @@ while ($row = $res->Fetch()) {
         'REQUIRED' => $row['IS_REQUIRED'],
         'ACTIVE' => $row['ACTIVE'],
         'FILLED' => 0,
+        'ENUM_COUNT' => null,
     ];
+    if ($row['PROPERTY_TYPE'] === 'L') {
+        $enumRes = CIBlockPropertyEnum::GetList([], ['IBLOCK_ID' => $IBLOCK_ID, 'CODE' => $code]);
+        $cnt = 0;
+        while ($enumRes->Fetch()) {
+            $cnt++;
+        }
+        $properties[$code]['ENUM_COUNT'] = $cnt;
+    }
 }
 
 echo "Всего свойств в инфоблоке: " . count($properties) . "\n\n";
@@ -91,26 +118,39 @@ while ($obEl = $dbEl->GetNextElement()) {
 echo "Товаров проверено: $total\n\n";
 echo "----------------------------------------\n\n";
 
-// ----- 3. Отчёт: сначала самые незаполненные (кандидаты на автозаполнение) -----
+// ----- 3. Отчёт: сначала самые незаполненные -----
 uasort($properties, static fn($a, $b) => $a['FILLED'] <=> $b['FILLED']);
 
-printf("%-26s %-30s %-6s %-4s %-16s %s\n", 'CODE', 'NAME', 'TYPE', 'MULT', 'ЗАПОЛНЕНО', 'В АВТОЗАПОЛНЕНИИ');
-echo str_repeat('-', 110) . "\n";
+echo padDisplay('CODE', 30) . padDisplay('NAME', 26) . padDisplay('TYPE', 5) . padDisplay('MULT', 5)
+    . padDisplay('СПРАВОЧНИК', 12) . padDisplay('ЗАПОЛНЕНО', 16) . "АВТОЗАПОЛНЕНИЕ\n";
+echo str_repeat('-', 120) . "\n";
+
+$willProcessCount = 0;
 foreach ($properties as $code => $p) {
     $pct = $total > 0 ? round($p['FILLED'] / $total * 100) : 0;
-    $inList = in_array($code, $ALREADY_HANDLED, true) ? '✅' : '';
-    printf(
-        "%-26s %-30s %-6s %-4s %-16s %s\n",
-        $code,
-        mb_substr($p['NAME'], 0, 30),
-        $p['TYPE'],
-        $p['MULTIPLE'] === 'Y' ? 'Y' : '',
-        "{$p['FILLED']}/{$total} ({$pct}%)",
-        $inList
-    );
+
+    $willProcess = in_array($p['TYPE'], ['L', 'S'], true) && !in_array($code, $EXCLUDE_CODES, true);
+    if ($p['TYPE'] === 'L' && $p['ENUM_COUNT'] === 0) {
+        $mark = '— пуст справочник';
+    } elseif ($willProcess) {
+        $mark = '✅ обрабатывается';
+        $willProcessCount++;
+    } else {
+        $mark = in_array($code, $EXCLUDE_CODES, true) ? '— служебное' : '— тип не поддержан';
+    }
+
+    echo padDisplay($code, 30)
+        . padDisplay(mb_substr($p['NAME'], 0, 24), 26)
+        . padDisplay($p['TYPE'], 5)
+        . padDisplay($p['MULTIPLE'] === 'Y' ? 'Y' : '', 5)
+        . padDisplay($p['ENUM_COUNT'] !== null ? (string)$p['ENUM_COUNT'] : '-', 12)
+        . padDisplay("{$p['FILLED']}/{$total} ({$pct}%)", 16)
+        . $mark . "\n";
 }
 
 echo "\n========================================\n";
-echo "Подсказка: свойства с низким % заполнения и типом L (список) или S (строка)\n";
-echo "и без ✅ — кандидаты на добавление в \$PROPERTY_CODES в autofill_product_properties.php\n";
+echo "Автозаполнением будет обработано свойств: $willProcessCount\n";
+echo "Подсказка: для L-свойств с пустым справочником сначала нужно завести\n";
+echo "варианты значений в админке (Каталог -> Свойства -> нужное свойство),\n";
+echo "иначе автозаполнению неоткуда брать значения.\n";
 echo "========================================\n";

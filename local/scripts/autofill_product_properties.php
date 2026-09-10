@@ -19,6 +19,15 @@
  * Новые (несуществующие в каталоге) значения никогда не придумываются —
  * это исключает порчу каталога случайным распознаванием.
  *
+ * Список обрабатываемых свойств не хардкодится: берутся ВСЕ свойства
+ * инфоблока типа "список" (L) и "строка" (S), кроме явно служебных
+ * (см. $EXCLUDE_CODES) — F/N и не годятся для текстового поиска.
+ * Это безопасно само по себе: если у свойства нет ни одного известного
+ * значения (пустой справочник и ни один товар ещё не заполнен), для
+ * него просто не из чего построить словарь, и скрипт его молча
+ * пропускает (см. "N вариантов" в выводе) — лишние свойства в списке
+ * ничего не портят, только не дают эффекта.
+ *
  * По умолчанию скрипт работает в режиме DRY_RUN (только печатает, что
  * собирается изменить) и не трогает уже заполненные свойства. Проверьте
  * вывод на выборке (LIMIT) и только потом включайте DRY_RUN=false.
@@ -49,22 +58,19 @@ $NORMALIZE_EXISTING = true;
 // Ограничить число обрабатываемых товаров (0 = без ограничения), удобно для теста
 $LIMIT = 200;
 
-// Коды свойств, которые пробуем заполнять (см. local/scripts/fix_section_property.php)
-$PROPERTY_CODES = [
-    'CML2_MANUFACTURER',
-    'TIP_3',
-    'KLASS_VYAZKOSTI_SAE',
-    'STANDART_API',
-    'STANDART_DOT',
-    'TIP_SHCHETKI',
-    'TSOKOL_LAMPY',
-    'SEZONNOST',
-    'TIP_DVIGATELYA',
-    'STORONA_KREPLENIYA',
-    'TIP_KREPLENIYA',
-    'INDEKS_DOPUSKA_VAG',
-    'TIP',
-    'TSVET',
+// Коды свойств, которые НЕ трогаем, даже если они типа L/S — служебные поля
+// 1С-обмена и подобное, никак не связанное с текстом названия товара.
+$EXCLUDE_CODES = [
+    'CML2_ARTICLE',
+    'CML2_BASE_UNIT',
+    'CML2_BAR_CODE',
+    'CML2_TRAITS',
+    'CML2_TAXES',
+    'CML2_ATTRIBUTES',
+    'IN_RECOMMEND',
+    'IN_STOCK',
+    'NAIMENOVANIE_TOVARA_V_UCHETNOY_SISTEME_POSTAVSHCHI',
+    'KOD_TOVARA_V_UCHETNOY_SISTEME_POSTAVSHCHIKA',
 ];
 
 // Минимальная длина значения словаря, чтобы участвовать в поиске (отсекает шум вида "1", "-")
@@ -160,6 +166,21 @@ echo "========================================\n\n";
 
 $propertyInfo = [];   // code => ['ID'=>, 'PROPERTY_TYPE'=>, 'MULTIPLE'=>, 'NAME'=>]
 $propertyVocab = [];  // code => [ ['value'=>..,'id'=>..], ... ] сортировка по убыв. длины
+
+// Автообнаружение: берём все свойства инфоблока типа L/S, кроме исключённых
+$PROPERTY_CODES = [];
+$resAllProps = CIBlockProperty::GetList(['SORT' => 'ASC'], ['IBLOCK_ID' => $IBLOCK_ID, 'ACTIVE' => 'Y']);
+while ($p = $resAllProps->Fetch()) {
+    $code = $p['CODE'];
+    if ($code === '' || in_array($code, $EXCLUDE_CODES, true)) {
+        continue;
+    }
+    if (!in_array($p['PROPERTY_TYPE'], ['L', 'S'], true)) {
+        continue;
+    }
+    $PROPERTY_CODES[] = $code;
+}
+echo "Автообнаружено свойств для обработки: " . count($PROPERTY_CODES) . " (типы L/S, без служебных)\n\n";
 
 foreach ($PROPERTY_CODES as $code) {
     $res = CIBlockProperty::GetList([], ['IBLOCK_ID' => $IBLOCK_ID, 'CODE' => $code]);
