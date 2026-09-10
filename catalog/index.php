@@ -71,19 +71,31 @@ switch ($currentSort) {
     default:            $sortField = 'sort'; $sortOrder = 'asc';
 }
 
-// --- Категории для фильтра в сайдбаре (верхний уровень + подсветка текущей ветки) ---
-$sidebarTopSections = [];
-$rsSidebarTop = CIBlockSection::GetList(['SORT' => 'ASC'], ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => 0, 'ACTIVE' => 'Y'], false, ['ID', 'NAME', 'CODE']);
-while ($row = $rsSidebarTop->GetNext()) { $sidebarTopSections[] = $row; }
+// --- Категории для фильтра в сайдбаре: дрилл-даун по аналогии с part-kom.ru —
+// показываем раздел ТОГО ЖЕ уровня, что и текущий (братья текущего раздела),
+// с "‹ Назад" к родителю, а не фиксированный список корня на любой глубине.
+// Ссылки — просто "/catalog/<CODE>/": роутинг в этом файле резолвит раздел
+// только по последнему сегменту URL (см. "--- Парсим URL ---" выше), поэтому
+// префикс пути можно не собирать — так же делают хлебные крошки и плитки подразделов.
+$sidebarParentId = 0;
+$sidebarBackSection = null;
 
-$sidebarActiveTopId = 0;
 if ($sectionId > 0) {
-    $sidebarActiveTopId = (int)$sectionId;
-    $rsChainTop = CIBlockSection::GetNavChain($iblockId, $sectionId, ['ID']);
-    if ($firstAncestor = $rsChainTop->GetNext()) {
-        $sidebarActiveTopId = (int)$firstAncestor['ID'];
+    $rsCurrentSection = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'ID' => $sectionId], false, ['ID', 'IBLOCK_SECTION_ID']);
+    if ($arCurrentSection = $rsCurrentSection->GetNext()) {
+        $sidebarParentId = (int)$arCurrentSection['IBLOCK_SECTION_ID'];
+    }
+    if ($sidebarParentId > 0) {
+        $rsParentSection = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'ID' => $sidebarParentId], false, ['ID', 'NAME', 'CODE']);
+        if ($arParentSection = $rsParentSection->GetNext()) {
+            $sidebarBackSection = $arParentSection;
+        }
     }
 }
+
+$sidebarLevelSections = [];
+$rsSidebarLevel = CIBlockSection::GetList(['SORT' => 'ASC'], ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => $sidebarParentId, 'ACTIVE' => 'Y'], false, ['ID', 'NAME', 'CODE']);
+while ($row = $rsSidebarLevel->GetNext()) { $sidebarLevelSections[] = $row; }
 ?>
 
 <?php
@@ -182,9 +194,12 @@ if ($sectionId > 0) {
                 <span class="filter__arrow">▾</span>
             </div>
             <div class="filter__body">
-                <a href="/catalog/" class="filter__cat-link<?= $sectionId == 0 ? ' active' : '' ?>">Все товары</a>
-                <?php foreach ($sidebarTopSections as $topSec): ?>
-                    <a href="/catalog/<?= $topSec['CODE'] ?>/" class="filter__cat-link<?= $sidebarActiveTopId == $topSec['ID'] ? ' active' : '' ?>"><?= htmlspecialchars($topSec['NAME']) ?></a>
+                <a href="/catalog/" class="filter__cat-link filter__cat-link--all<?= $sectionId == 0 ? ' active' : '' ?>">Все товары</a>
+                <?php if ($sidebarBackSection): ?>
+                    <a href="/catalog/<?= $sidebarBackSection['CODE'] ?>/" class="filter__cat-link filter__cat-link--back">‹ <?= htmlspecialchars($sidebarBackSection['NAME']) ?></a>
+                <?php endif; ?>
+                <?php foreach ($sidebarLevelSections as $levelSec): ?>
+                    <a href="/catalog/<?= $levelSec['CODE'] ?>/" class="filter__cat-link<?= $sectionId == $levelSec['ID'] ? ' active' : '' ?>"><?= htmlspecialchars($levelSec['NAME']) ?></a>
                 <?php endforeach; ?>
             </div>
         </div>

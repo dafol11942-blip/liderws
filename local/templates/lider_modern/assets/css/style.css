@@ -636,6 +636,9 @@ ul, ol { list-style: none; }
 }
 .filter__cat-link:hover { color: var(--blue); background: var(--bg); }
 .filter__cat-link.active { color: var(--blue); font-weight: 700; background: rgba(102,139,234,0.10); }
+.filter__cat-link--all { font-weight: 700; border-bottom: 1px solid var(--bg); margin-bottom: 4px; padding-bottom: 9px; }
+.filter__cat-link--back { color: var(--gray); font-weight: 700; border-bottom: 1px solid var(--bg); margin-bottom: 4px; padding-bottom: 9px; }
+.filter__cat-link--back:hover { color: var(--blue); }
 
 /* Поля ввода */
 .filter__input {
