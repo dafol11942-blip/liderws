@@ -3,14 +3,20 @@ if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true) die();
 
 if (empty($arResult['ITEMS'])) return;
 
-$inStockOnly = ($_REQUEST['in_stock_only'] ?? '') === 'Y';
+// CATALOG_QUANTITY/CATALOG_CAN_BUY_ZERO у этого каталога не совпадают с
+// реальным остатком по складам (как на карточке товара — см. её же
+// CCatalogStoreProduct::GetList), поэтому наличие считаем так же, как там.
+CModule::IncludeModule('catalog');
 
 $removedCount = 0;
 foreach ($arResult['ITEMS'] as $key => $item) {
-    $qty = (int)($item['CATALOG_QUANTITY'] ?? 0);
-    $canBuyZero = ($item['CATALOG_CAN_BUY_ZERO'] ?? 'N') === 'Y';
-    // «Только в наличии» скрывает и товары под заказ (qty=0, но can_buy_zero=Y)
-    if (($qty <= 0 && !$canBuyZero) || ($inStockOnly && $qty <= 0)) {
+    $totalAmount = 0;
+    $dbStore = CCatalogStoreProduct::GetList([], ['PRODUCT_ID' => $item['ID']], false, false, ['AMOUNT']);
+    while ($arStore = $dbStore->Fetch()) {
+        $totalAmount += (int)$arStore['AMOUNT'];
+    }
+
+    if ($totalAmount <= 0) {
         unset($arResult['ITEMS'][$key]);
         $removedCount++;
     }
