@@ -102,11 +102,17 @@ echo "Всего свойств в инфоблоке: " . count($properties) . 
 const PROPS_BATCH_SIZE = 20;
 
 $total = 0;
+$batchNum = 0;
 $allCodes = array_keys($properties);
 foreach (array_chunk($allCodes, PROPS_BATCH_SIZE) as $batchCodes) {
+    $batchNum++;
+    // Bitrix всегда возвращает ключ PROPERTY_<CODE>_VALUE в верхнем
+    // регистре независимо от регистра в SELECT (у нас так с "brand_lider" —
+    // единственным свойством с CODE не капсом), поэтому и в SELECT, и при
+    // чтении результата код приводим к верхнему регистру.
     $selectFields = ['ID'];
     foreach ($batchCodes as $code) {
-        $selectFields[] = 'PROPERTY_' . $code;
+        $selectFields[] = 'PROPERTY_' . mb_strtoupper($code);
     }
 
     $filter = ['IBLOCK_ID' => $IBLOCK_ID, 'ACTIVE' => 'Y'];
@@ -115,7 +121,7 @@ foreach (array_chunk($allCodes, PROPS_BATCH_SIZE) as $batchCodes) {
     while ($arEl = $dbEl->Fetch()) {
         $batchTotal++;
         foreach ($batchCodes as $code) {
-            $value = $arEl['PROPERTY_' . $code . '_VALUE'] ?? null;
+            $value = $arEl['PROPERTY_' . mb_strtoupper($code) . '_VALUE'] ?? null;
             $isFilled = is_array($value)
                 ? count(array_filter($value, static fn($v) => $v !== null && $v !== '' && $v !== false)) > 0
                 : ($value !== null && $value !== '' && $value !== false);
@@ -127,8 +133,10 @@ foreach (array_chunk($allCodes, PROPS_BATCH_SIZE) as $batchCodes) {
             break;
         }
     }
+    echo "  [пачка $batchNum] " . implode(',', $batchCodes) . " -> строк: $batchTotal\n";
     $total = max($total, $batchTotal);
 }
+echo "\n";
 
 echo "Товаров проверено: $total\n\n";
 echo "----------------------------------------\n\n";

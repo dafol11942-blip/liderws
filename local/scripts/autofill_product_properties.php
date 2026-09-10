@@ -316,9 +316,13 @@ const PROPS_BATCH_SIZE = 20;
 $filter = ['IBLOCK_ID' => $IBLOCK_ID, 'ACTIVE' => 'Y'];
 $total = 0;
 foreach (array_chunk($targetCodes, PROPS_BATCH_SIZE) as $batchCodes) {
+    // Bitrix всегда возвращает ключ PROPERTY_<CODE>_VALUE в верхнем
+    // регистре независимо от регистра в SELECT (у нас так с "brand_lider" —
+    // единственным свойством с CODE не капсом: без этого его значения
+    // никогда не находились, и "уже заполнено" для него всегда было false).
     $selectFields = ['ID', 'NAME'];
     foreach ($batchCodes as $code) {
-        $selectFields[] = 'PROPERTY_' . $code;
+        $selectFields[] = 'PROPERTY_' . mb_strtoupper($code);
     }
 
     $dbEl = CIBlockElement::GetList(['ID' => 'ASC'], $filter, false, false, $selectFields);
@@ -332,10 +336,11 @@ foreach (array_chunk($targetCodes, PROPS_BATCH_SIZE) as $batchCodes) {
 
         foreach ($batchCodes as $code) {
             $isList = $propertyInfo[$code]['PROPERTY_TYPE'] === 'L';
+            $upperCode = mb_strtoupper($code);
             // Для списочных свойств _VALUE — это текст, а не ID варианта;
             // нам нужен именно ID (для SetPropertyValuesEx), он в _ENUM_ID.
-            $rawValues = $arEl['PROPERTY_' . $code . '_VALUE'] ?? null;
-            $rawEnumIds = $arEl['PROPERTY_' . $code . '_ENUM_ID'] ?? null;
+            $rawValues = $arEl['PROPERTY_' . $upperCode . '_VALUE'] ?? null;
+            $rawEnumIds = $arEl['PROPERTY_' . $upperCode . '_ENUM_ID'] ?? null;
             $values = is_array($rawValues) ? $rawValues : [$rawValues];
             $enumIds = is_array($rawEnumIds) ? $rawEnumIds : [$rawEnumIds];
 
@@ -366,6 +371,7 @@ foreach (array_chunk($targetCodes, PROPS_BATCH_SIZE) as $batchCodes) {
             break;
         }
     }
+    echo "  [пачка] " . implode(',', $batchCodes) . " -> строк: $batchTotal\n";
     $total = max($total, $batchTotal);
 }
 echo "Товаров для анализа: $total\n";
