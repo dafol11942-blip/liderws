@@ -39,12 +39,21 @@ $cartQty = (int)$_SESSION['CART_QTY'];
     <?php $APPLICATION->ShowPanel(); ?>
     <?php require __DIR__ . '/include/svg-sprite.php'; ?>
     <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/include/shop_locations.php'; ?>
+    <?php
+        $shopLocationsForHours = getShopLocations();
+        $uniqueHours = array_unique(array_filter(array_column($shopLocationsForHours, 'hours')));
+        $commonShopHours = count($uniqueHours) === 1 ? reset($uniqueHours) : null;
+    ?>
 
     <!-- Верхняя полоса -->
     <div class="top-bar">
         <div class="container">
+            <div class="top-bar__left">
+            <?php if ($commonShopHours): ?>
+            <span class="top-bar__hours"><svg class="icon"><use href="#icon-clock"></use></svg> <?= htmlspecialchars($commonShopHours) ?></span>
+            <?php endif; ?>
             <div class="top-bar__stores">
-                <?php foreach (getShopLocations() as $shop): ?>
+                <?php foreach ($shopLocationsForHours as $shop): ?>
                 <div class="top-bar__store">
                     <button type="button" class="top-bar__store-toggle">
                         <svg class="icon"><use href="#icon-pin"></use></svg>
@@ -65,6 +74,7 @@ $cartQty = (int)$_SESSION['CART_QTY'];
                     </div>
                 </div>
                 <?php endforeach; ?>
+            </div>
             </div>
             <div class="top-bar__links">
                 <a href="/about/" class="top-bar__link">О компании</a>
