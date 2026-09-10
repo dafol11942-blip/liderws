@@ -157,6 +157,24 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
         $arrFilter['<=CATALOG_PRICE_1'] = (int)$_REQUEST['arrFilter_P1_MAX'];
     }
 }
+
+// Реальный остаток по складам (CATALOG_QUANTITY у этого каталога не
+// синхронизирован с ним — см. детальную карточку, которая тоже считает
+// через CCatalogStoreProduct). Отсекаем на уровне SQL, до пагинации,
+// иначе компонент режет строго по 12 штук ДО того, как узнает, что
+// часть из них пуста, и страница остаётся недобитой.
+global $DB;
+$inStockIds = [];
+$rsStock = $DB->Query("
+    SELECT PRODUCT_ID
+    FROM b_catalog_store_product
+    GROUP BY PRODUCT_ID
+    HAVING SUM(AMOUNT) > 0
+");
+while ($arStock = $rsStock->Fetch()) {
+    $inStockIds[] = (int)$arStock['PRODUCT_ID'];
+}
+$arrFilter['ID'] = $inStockIds ?: [0];
 ?>
 <?php if (!$isElement): ?>
 <div class="catalog-layout">
