@@ -330,7 +330,7 @@ if ($inStockOnly) {
                     "IBLOCK_ID"         => $iblockId,
                     "SECTION_ID"        => $sectionId,
                     "SECTION_CODE"      => $sectionCode,
-                    "INCLUDE_SUBSECTIONS" => "N",
+                    "INCLUDE_SUBSECTIONS" => "Y",
                     "ELEMENT_SORT_FIELD"  => $sortField,
                     "ELEMENT_SORT_ORDER"  => $sortOrder,
                     "FILTER_NAME"       => "arrFilter",
