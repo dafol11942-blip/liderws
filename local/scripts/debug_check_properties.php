@@ -37,3 +37,17 @@ foreach (['brand_lider', 'STANDART_API', 'KLASS_VYAZKOSTI_SAE'] as $code) {
     var_export($props[$code]['CODE'] ?? '(нет поля CODE)');
     echo "\n\n";
 }
+
+echo "----------------------------------------\n";
+echo "Независимая проверка классическим способом (PROPERTY_* в SELECT):\n\n";
+
+$row = CIBlockElement::GetList(
+    [],
+    ['ID' => $id],
+    false,
+    false,
+    ['ID', 'NAME', 'PROPERTY_brand_lider', 'PROPERTY_STANDART_API', 'PROPERTY_KLASS_VYAZKOSTI_SAE']
+)->Fetch();
+
+var_export($row);
+echo "\n";
