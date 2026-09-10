@@ -85,7 +85,7 @@ function pickCatalogNavIcon(string $name): string {
             ['SORT' => 'ASC'],
             ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => 0, 'ACTIVE' => 'Y'],
             false,
-            ['ID', 'NAME', 'CODE']
+            ['ID', 'NAME', 'CODE', 'PICTURE']
         );
         $catalogNavSections = [];
         while ($top = $topSections->GetNext()) {
@@ -93,7 +93,7 @@ function pickCatalogNavIcon(string $name): string {
                 ['SORT' => 'ASC'],
                 ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => $top['ID'], 'ACTIVE' => 'Y'],
                 false,
-                ['ID', 'NAME', 'CODE']
+                ['ID', 'NAME', 'CODE', 'PICTURE']
             );
             $subs = [];
             while ($sub = $subRes->GetNext()) {
@@ -106,7 +106,11 @@ function pickCatalogNavIcon(string $name): string {
         <div class="catalog-dropdown__nav">
             <?php foreach ($catalogNavSections as $i => $top): ?>
                 <a href="/catalog/<?= $top['CODE'] ?>/" class="catalog-dropdown__nav-item<?= $i === 0 ? ' active' : '' ?>" data-panel="catalogNavPanel<?= $top['ID'] ?>">
-                    <svg class="icon"><use href="#<?= pickCatalogNavIcon($top['NAME']) ?>"></use></svg>
+                    <?php if (!empty($top['PICTURE'])): ?>
+                        <img src="<?= CFile::GetPath($top['PICTURE']) ?>" alt="">
+                    <?php else: ?>
+                        <svg class="icon"><use href="#<?= pickCatalogNavIcon($top['NAME']) ?>"></use></svg>
+                    <?php endif; ?>
                     <span><?= htmlspecialchars($top['NAME']) ?></span>
                     <span class="catalog-dropdown__nav-arrow">›</span>
                 </a>
@@ -119,7 +123,13 @@ function pickCatalogNavIcon(string $name): string {
                     <div class="catalog-dropdown__tiles">
                         <?php foreach ($top['SUBS'] as $sub): ?>
                             <a href="/catalog/<?= $top['CODE'] ?>/<?= $sub['CODE'] ?>/" class="catalog-dropdown__tile">
-                                <span class="catalog-dropdown__tile-icon"><svg class="icon"><use href="#icon-box"></use></svg></span>
+                                <span class="catalog-dropdown__tile-icon">
+                                    <?php if (!empty($sub['PICTURE'])): ?>
+                                        <img src="<?= CFile::GetPath($sub['PICTURE']) ?>" alt="">
+                                    <?php else: ?>
+                                        <svg class="icon"><use href="#icon-box"></use></svg>
+                                    <?php endif; ?>
+                                </span>
                                 <span class="catalog-dropdown__tile-name"><?= htmlspecialchars($sub['NAME']) ?></span>
                             </a>
                         <?php endforeach; ?>

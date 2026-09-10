@@ -206,6 +206,7 @@ ul, ol { list-style: none; }
     transition: all 0.15s;
 }
 .catalog-dropdown__nav-item .icon { width: 18px; height: 18px; flex-shrink: 0; color: var(--gray); }
+.catalog-dropdown__nav-item img { width: 22px; height: 22px; object-fit: contain; flex-shrink: 0; }
 .catalog-dropdown__nav-item span:not(.catalog-dropdown__nav-arrow) { flex: 1; }
 .catalog-dropdown__nav-arrow { font-size: 15px; color: var(--gray-light); flex-shrink: 0; }
 .catalog-dropdown__nav-item:hover,
@@ -230,6 +231,7 @@ ul, ol { list-style: none; }
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .catalog-dropdown__tile-icon .icon { width: 20px; height: 20px; color: var(--blue); }
+.catalog-dropdown__tile-icon img { width: 28px; height: 28px; object-fit: contain; }
 .catalog-dropdown__tile--all { background: transparent; border: 1px dashed var(--border); color: var(--blue); }
 
 /* Поиск */
