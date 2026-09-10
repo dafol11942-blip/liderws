@@ -3,6 +3,8 @@ require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 $APPLICATION->SetPageProperty("description", "Замена масла в АКПП и МКПП в Елабуге — автосервис ЛИДЕР.");
 $APPLICATION->SetPageProperty("title", "Замена масла в трансмиссии (АКПП/МКПП) в Елабуге | ЛИДЕР");
 $APPLICATION->SetTitle("Замена масла в автоматической и механической трансмиссиях");
+require_once $_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/include/shop_locations.php";
+$stoPhones = getAutoservicePhones();
 ?>
 <div class="breadcrumbs container">
     <ul>
@@ -24,8 +26,8 @@ $APPLICATION->SetTitle("Замена масла в автоматической 
             <p>У нас вы сможете получить полный комплекс услуг: от подбора и покупки масла до его замены в нашем автосервисе. Мы применяем как обычную, щадящую замену масла, так и используем специальное оборудование для прокачки масла в АКПП.</p>
         </div>
         <div class="service-detail__cta">
-            <a href="tel:+78000000000" class="btn btn--primary btn--lg"><svg class="icon"><use href="#icon-phone"></use></svg> 8-800-000-00-00</a>
-            <span style="color:var(--gray);font-size:13px;">Елабуга, пр-т Нефтяников, 4 · Пн-Вс: 9:00–20:00</span>
+            <?php foreach ($stoPhones as $p): ?><a href="tel:<?= htmlspecialchars($p['tel']) ?>" class="btn btn--primary btn--lg"><svg class="icon"><use href="#icon-phone"></use></svg> <?= htmlspecialchars($p['display']) ?></a> <?php endforeach; ?>
+            <span style="color:var(--gray);font-size:13px;">Елабуга, пр-т Нефтяников, 4 · Пн-Вс: 8:00–19:00</span>
         </div>
     </div>
 </div>

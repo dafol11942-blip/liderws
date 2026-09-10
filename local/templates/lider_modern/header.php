@@ -38,13 +38,35 @@ $cartQty = (int)$_SESSION['CART_QTY'];
 <body>
     <?php $APPLICATION->ShowPanel(); ?>
     <?php require __DIR__ . '/include/svg-sprite.php'; ?>
+    <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/include/shop_locations.php'; ?>
 
     <!-- Верхняя полоса -->
     <div class="top-bar">
         <div class="container">
-            <span class="top-bar__city"><svg class="icon"><use href="#icon-pin"></use></svg> Елабуга, пр-т Нефтяников, 4 &nbsp;|&nbsp; Пн-Вс: 9:00–20:00</span>
+            <div class="top-bar__stores">
+                <?php foreach (getShopLocations() as $shop): ?>
+                <div class="top-bar__store">
+                    <button type="button" class="top-bar__store-toggle">
+                        <svg class="icon"><use href="#icon-pin"></use></svg>
+                        <?= htmlspecialchars($shop['short']) ?>
+                        <svg class="icon top-bar__store-caret"><use href="#icon-chevron-down"></use></svg>
+                    </button>
+                    <div class="top-bar__store-panel">
+                        <div class="top-bar__store-address"><?= htmlspecialchars($shop['address']) ?></div>
+                        <?php if (!empty($shop['hours'])): ?>
+                        <div class="top-bar__store-hours"><svg class="icon"><use href="#icon-clock"></use></svg> <?= htmlspecialchars($shop['hours']) ?></div>
+                        <?php endif; ?>
+                        <?php foreach ($shop['phones'] as $phone): ?>
+                        <a href="tel:<?= htmlspecialchars($phone['tel']) ?>" class="top-bar__store-phone">
+                            <span><?= htmlspecialchars($phone['label']) ?></span>
+                            <b><?= htmlspecialchars($phone['display']) ?></b>
+                        </a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
             <div class="top-bar__links">
-                <a href="tel:+78000000000" class="top-bar__phone"><svg class="icon"><use href="#icon-phone"></use></svg> 8-800-000-00-00</a>
                 <a href="/about/" class="top-bar__link">О компании</a>
                 <a href="/contacts/" class="top-bar__link">Контакты</a>
             </div>

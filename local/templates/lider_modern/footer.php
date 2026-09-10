@@ -38,12 +38,23 @@
                 <a href="/tekhosmotr/">Техосмотр</a>
                 <a href="/kolesa-darom/">Колеса Даром</a>
             </div>
+            <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/include/shop_locations.php'; ?>
+            <?php foreach (getShopLocations() as $shop): ?>
+            <div class="footer__col">
+                <h4><?= htmlspecialchars($shop['short']) ?></h4>
+                <p><svg class="icon"><use href="#icon-pin"></use></svg> <?= htmlspecialchars($shop['address']) ?></p>
+                <?php if (!empty($shop['hours'])): ?>
+                <p><svg class="icon"><use href="#icon-clock"></use></svg> <?= htmlspecialchars($shop['hours']) ?></p>
+                <?php endif; ?>
+                <?php foreach ($shop['phones'] as $phone): ?>
+                <p><svg class="icon"><use href="#icon-phone"></use></svg> <a href="tel:<?= htmlspecialchars($phone['tel']) ?>" style="color:#fff;font-weight:700;"><?= htmlspecialchars($phone['display']) ?></a> <span style="color:#c7cbe0;">— <?= htmlspecialchars($phone['label']) ?></span></p>
+                <?php endforeach; ?>
+            </div>
+            <?php endforeach; ?>
             <div class="footer__col">
                 <h4>Контакты</h4>
-                <p><svg class="icon"><use href="#icon-pin"></use></svg> РТ, Елабуга, пр-т Нефтяников, 4</p>
-                <p><svg class="icon"><use href="#icon-phone"></use></svg> <a href="tel:+78000000000" style="color:#fff;font-weight:700;">8-800-000-00-00</a></p>
                 <p><svg class="icon"><use href="#icon-mail"></use></svg> info@liderws.ru</p>
-                <p><svg class="icon"><use href="#icon-clock"></use></svg> Пн-Вс: 9:00–20:00</p>
+                <p><a href="/contacts/" style="color:#fff;font-weight:700;">Все контакты и карта →</a></p>
             </div>
         </div>
         <div class="footer__bottom">

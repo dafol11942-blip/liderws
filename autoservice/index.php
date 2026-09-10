@@ -4,6 +4,9 @@ $APPLICATION->SetPageProperty("description", "Автосервис в Елабу
 $APPLICATION->SetPageProperty("title", "Автосервис в Елабуге — ремонт и обслуживание автомобилей | ЛИДЕР");
 $APPLICATION->SetTitle("Автосервис");
 
+require_once $_SERVER["DOCUMENT_ROOT"] . '/local/php_interface/include/shop_locations.php';
+$stoPhones = getAutoservicePhones();
+
 $services = [
     [
         'code' => 'diagnostika-i-remont-podveski',
@@ -62,7 +65,9 @@ $services = [
             <h1 class="hero__title"><svg class="icon"><use href="#icon-wrench"></use></svg> Автосервис <span>в Елабуге</span></h1>
             <p class="hero__subtitle">Диагностика, ремонт и техническое обслуживание автомобилей любых марок. Работаем на своём оборудовании, запчасти и расходники — из соседнего магазина ЛИДЕР, без ожидания доставки.</p>
             <div class="hero__buttons">
-                <a href="tel:+78000000000" class="btn btn--primary btn--lg"><svg class="icon"><use href="#icon-phone"></use></svg> 8-800-000-00-00</a>
+                <?php foreach ($stoPhones as $p): ?>
+                <a href="tel:<?= htmlspecialchars($p['tel']) ?>" class="btn btn--primary btn--lg"><svg class="icon"><use href="#icon-phone"></use></svg> <?= htmlspecialchars($p['display']) ?></a>
+                <?php endforeach; ?>
                 <a href="#services" class="btn btn--white btn--lg">Все услуги</a>
             </div>
         </div>
@@ -94,9 +99,13 @@ $services = [
         <div style="display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;">
             <div>
                 <div class="auto-finder__title">Запишитесь на автосервис</div>
-                <div class="auto-finder__subtitle">Елабуга, пр-т Нефтяников, 4 · Пн-Вс: 9:00–20:00</div>
+                <div class="auto-finder__subtitle">Елабуга, пр-т Нефтяников, 4 · Пн-Вс: 8:00–19:00</div>
             </div>
-            <a href="tel:+78000000000" class="btn btn--primary btn--lg"><svg class="icon"><use href="#icon-phone"></use></svg> Позвонить: 8-800-000-00-00</a>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <?php foreach ($stoPhones as $p): ?>
+                <a href="tel:<?= htmlspecialchars($p['tel']) ?>" class="btn btn--primary btn--lg"><svg class="icon"><use href="#icon-phone"></use></svg> <?= htmlspecialchars($p['display']) ?></a>
+                <?php endforeach; ?>
+            </div>
         </div>
     </div>
 </div>

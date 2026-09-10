@@ -3,6 +3,8 @@ require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 $APPLICATION->SetPageProperty("description", "Диагностика и ремонт подвески (ходовой части) в Елабуге — автосервис ЛИДЕР.");
 $APPLICATION->SetPageProperty("title", "Диагностика и ремонт подвески в Елабуге | ЛИДЕР");
 $APPLICATION->SetTitle("Диагностика и ремонт подвески");
+require_once $_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/include/shop_locations.php";
+$stoPhones = getAutoservicePhones();
 ?>
 <div class="breadcrumbs container">
     <ul>
@@ -25,8 +27,8 @@ $APPLICATION->SetTitle("Диагностика и ремонт подвески"
             <p>В нашем автосервисе вы можете провести диагностику подвески и получить объективные рекомендации по её ремонту, а в магазине автозапчастей сразу же приобрести всё необходимое для дальнейшей беспроблемной эксплуатации автомобиля.</p>
         </div>
         <div class="service-detail__cta">
-            <a href="tel:+78000000000" class="btn btn--primary btn--lg"><svg class="icon"><use href="#icon-phone"></use></svg> 8-800-000-00-00</a>
-            <span style="color:var(--gray);font-size:13px;">Елабуга, пр-т Нефтяников, 4 · Пн-Вс: 9:00–20:00</span>
+            <?php foreach ($stoPhones as $p): ?><a href="tel:<?= htmlspecialchars($p['tel']) ?>" class="btn btn--primary btn--lg"><svg class="icon"><use href="#icon-phone"></use></svg> <?= htmlspecialchars($p['display']) ?></a> <?php endforeach; ?>
+            <span style="color:var(--gray);font-size:13px;">Елабуга, пр-т Нефтяников, 4 · Пн-Вс: 8:00–19:00</span>
         </div>
     </div>
 </div>
