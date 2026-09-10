@@ -3,7 +3,7 @@ $APPLICATION->SetTitle("ЛИДЕР — автозапчасти для ином�
 
 <!-- HERO -->
 <div class="hero">
-    <div class="hero__content">
+    <div class="hero__content hero__content--brand">
         <h1 class="hero__title">Автозапчасти<br><span>для иномарок и ВАЗ</span><br>в Елабуге</h1>
         <p class="hero__subtitle">Оригинальные запчасти, масла, фильтры, шины и диски от ведущих производителей. Собственный автосервис и шиномонтаж. Доставка по городу.</p>
         <div class="hero__buttons">
