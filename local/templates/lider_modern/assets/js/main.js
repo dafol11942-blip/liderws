@@ -145,7 +145,7 @@ function updateBasketItem(id, quantity) {
         currentAbort = new AbortController();
         filterPanel.classList.add('is-loading');
         mainPanel.classList.add('is-loading');
-        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: currentAbort.signal })
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: currentAbort.signal, cache: 'no-store' })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 filterPanel.innerHTML = data.filter;
