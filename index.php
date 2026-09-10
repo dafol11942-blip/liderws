@@ -28,38 +28,6 @@ $APPLICATION->SetTitle("ЛИДЕР — автозапчасти для ином�
     false
 ); ?>
 
-<!-- ПОПУЛЯРНЫЕ КАТЕГОРИИ -->
-<div class="section-header">
-    <h2 class="section-title"><svg class="icon"><use href="#icon-box"></use></svg> Популярные категории</h2>
-    <a href="/catalog/" class="section-link">Весь каталог →</a>
-</div>
-<div class="categories-grid">
-    <a href="/catalog/masla/" class="category-card"><span class="category-card__icon"><svg class="icon"><use href="#icon-droplet"></use></svg></span><span class="category-card__name">Масла и жидкости</span></a>
-    <a href="/catalog/filtry/" class="category-card"><span class="category-card__icon"><svg class="icon"><use href="#icon-filter"></use></svg></span><span class="category-card__name">Фильтры</span></a>
-    <a href="/catalog/tormoznye-kolodki/" class="category-card"><span class="category-card__icon"><svg class="icon"><use href="#icon-disc"></use></svg></span><span class="category-card__name">Тормозные колодки</span></a>
-    <a href="/catalog/grm/" class="category-card"><span class="category-card__icon"><svg class="icon"><use href="#icon-settings"></use></svg></span><span class="category-card__name">ГРМ и привод</span></a>
-    <a href="/catalog/shiny/" class="category-card"><span class="category-card__icon"><svg class="icon"><use href="#icon-tire"></use></svg></span><span class="category-card__name">Шины и диски</span></a>
-    <a href="/catalog/akkumulyatory/" class="category-card"><span class="category-card__icon"><svg class="icon"><use href="#icon-battery"></use></svg></span><span class="category-card__name">Аккумуляторы</span></a>
-</div>
-
-<!-- ПОПУЛЯРНЫЕ ТОВАРЫ -->
-<div class="section-header">
-    <h2 class="section-title"><svg class="icon"><use href="#icon-star"></use></svg> Популярные товары</h2>
-    <a href="/catalog/" class="section-link">Все товары →</a>
-</div>
-<?php $APPLICATION->IncludeComponent("bitrix:catalog.section", "lider_style", [
-    "IBLOCK_TYPE" => "1c_catalog", "IBLOCK_ID" => "42", "SECTION_ID" => "",
-    "ELEMENT_SORT_FIELD" => "sort", "ELEMENT_SORT_ORDER" => "asc",
-    "INCLUDE_SUBSECTIONS" => "Y", "SHOW_ALL_WO_SECTION" => "Y",
-    "PAGE_ELEMENT_COUNT" => "8", "LINE_ELEMENT_COUNT" => "4",
-    "PRICE_CODE" => ["Ручная розничная цена"],
-    "PROPERTY_CODE" => ["CML2_ARTICLE", "CML2_MANUFACTURER", "IN_STOCK"],
-    "HIDE_NOT_AVAILABLE" => "Y",
-    "BASKET_URL" => "/cart/",
-    "CACHE_TYPE" => "A", "CACHE_TIME" => "36000000",
-    "SET_TITLE" => "N",
-], false); ?>
-
 <!-- АВТОСЕРВИС -->
 <div class="hero mt-20">
     <div class="hero__content">
