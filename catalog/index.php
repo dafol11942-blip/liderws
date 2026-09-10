@@ -157,6 +157,12 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
         $arrFilter['<=CATALOG_PRICE_1'] = (int)$_REQUEST['arrFilter_P1_MAX'];
     }
 }
+
+// Товары с нулевым остатком не показываем нигде в каталоге. Фильтруем на
+// уровне SQL (до пагинации компонента), а не постфактум в result_modifier —
+// иначе компонент режет строго по PAGE_ELEMENT_COUNT ДО того, как узнаёт,
+// что часть уже отобранных товаров пуста, и страница остаётся недобитой.
+$arrFilter['>=CATALOG_QUANTITY'] = 1;
 ?>
 <?php if (!$isElement): ?>
 <div class="catalog-layout">
