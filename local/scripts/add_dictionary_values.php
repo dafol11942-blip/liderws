@@ -81,7 +81,6 @@ foreach ($TO_ADD as $code => $values) {
             'VALUE' => $value,
             'DEF' => 'N',
             'SORT' => $maxSort,
-            'XML_ID' => '',
         ]);
         if ($result->isSuccess()) {
             echo "  + \"$value\" добавлено (ID={$result->getId()})\n";
