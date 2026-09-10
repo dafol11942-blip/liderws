@@ -300,39 +300,50 @@ $elements = []; // id => ['NAME'=>, 'PROPS'=>[code => [arProp...]]]
 $usageCountById = [];    // code => [enumId => count]      (для L)
 $usageCountByValue = []; // code => [строка => count]      (для S)
 
-// Статический CIBlockElement::GetProperty($IBLOCK_ID, $ID, ...) в этой сборке
-// падает на внутреннем экранировании (mysqli::real_escape_string() получает
-// массив вместо строки) независимо от переданных $arOrder/$arFilter — судя
-// по всему, баг самого метода на этой версии ядра. Поэтому читаем товар и
-// его свойства через объектный GetNextElement()->GetProperties(), это
-// самый распространённый и надёжный способ в Bitrix.
+// И статический CIBlockElement::GetProperty(), и объектный
+// GetNextElement()->GetProperties() на этой сборке ядра не отдают вообще
+// ничего (проверено на боевых данных: 0 ключей для товара с подтверждённым
+// в админке значением) — судя по всему, у этой версии сломан весь этот
+// семейство методов чтения свойств. Единственный подтверждённо рабочий
+// способ — классический PROPERTY_<CODE> прямо в SELECT у GetList(): для
+// одиночных свойств отдаёт скаляр, для множественных — массив, без
+// размножения строк на элемент.
+$selectFields = ['ID', 'NAME'];
+foreach ($targetCodes as $code) {
+    $selectFields[] = 'PROPERTY_' . $code;
+}
+
 $filter = ['IBLOCK_ID' => $IBLOCK_ID, 'ACTIVE' => 'Y'];
-$dbEl = CIBlockElement::GetList(['ID' => 'ASC'], $filter, false, false, ['ID', 'NAME']);
+$dbEl = CIBlockElement::GetList(['ID' => 'ASC'], $filter, false, false, $selectFields);
 $total = 0;
-while ($obEl = $dbEl->GetNextElement()) {
-    $arEl = $obEl->GetFields();
+while ($arEl = $dbEl->Fetch()) {
     $id = $arEl['ID'];
     $elements[$id] = ['NAME' => $arEl['NAME'], 'PROPS' => []];
     $total++;
 
-    $arProps = $obEl->GetProperties();
-    foreach ($arProps as $code => $arProp) {
-        if (!isset($propertyInfo[$code])) {
-            continue;
-        }
-        $rawValues = is_array($arProp['VALUE']) ? array_values($arProp['VALUE']) : [$arProp['VALUE']];
-        foreach ($rawValues as $rawValue) {
+    foreach ($targetCodes as $code) {
+        $isList = $propertyInfo[$code]['PROPERTY_TYPE'] === 'L';
+        // Для списочных свойств _VALUE — это текст, а не ID варианта;
+        // нам нужен именно ID (для SetPropertyValuesEx), он в _ENUM_ID.
+        $rawValues = $arEl['PROPERTY_' . $code . '_VALUE'] ?? null;
+        $rawEnumIds = $arEl['PROPERTY_' . $code . '_ENUM_ID'] ?? null;
+        $values = is_array($rawValues) ? $rawValues : [$rawValues];
+        $enumIds = is_array($rawEnumIds) ? $rawEnumIds : [$rawEnumIds];
+
+        foreach ($values as $idx => $rawValue) {
             if ($rawValue === null || $rawValue === '' || $rawValue === false) {
                 continue;
             }
-            $singleProp = $arProp;
-            $singleProp['VALUE'] = $rawValue;
-            $elements[$id]['PROPS'][$code][] = $singleProp;
+            $storedValue = $isList ? ($enumIds[$idx] ?? null) : $rawValue;
+            if ($storedValue === null || $storedValue === '') {
+                continue;
+            }
+            $elements[$id]['PROPS'][$code][] = ['VALUE' => $storedValue];
 
-            if ($propertyInfo[$code]['PROPERTY_TYPE'] === 'L') {
-                $enumId = (int)$rawValue;
+            if ($isList) {
+                $enumId = (int)$storedValue;
                 $usageCountById[$code][$enumId] = ($usageCountById[$code][$enumId] ?? 0) + 1;
-            } elseif ($propertyInfo[$code]['PROPERTY_TYPE'] === 'S') {
+            } else {
                 $value = trim((string)$rawValue);
                 if (mb_strlen($value) >= $MIN_VALUE_LENGTH && !in_array(normalizeKey($value), $STOPWORDS, true)) {
                     $propertyVocab[$code][$value] = ['value' => $value, 'id' => null];
