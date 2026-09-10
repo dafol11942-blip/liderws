@@ -10,6 +10,9 @@ CModule::IncludeModule('iblock');
 CModule::IncludeModule('catalog');
 
 $q = trim($_REQUEST['q'] ?? '');
+$APPLICATION->SetPageProperty("title", $q !== ''
+    ? 'Поиск «' . $q . '» — купить запчасти в Елабуге | ЛИДЕР'
+    : 'Поиск запчастей по артикулу, VIN и названию — ЛИДЕР Елабуга');
 $selectedBrand = trim($_REQUEST['brand'] ?? '');
 $selectedNumber = trim($_REQUEST['number'] ?? '');
 $brandKey = $_REQUEST['brand_key'] ?? '';

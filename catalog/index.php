@@ -169,6 +169,18 @@ if ($isElement && $elementCode) {
         $breadcrumbs[] = ['NAME' => $el['NAME'], 'LINK' => ''];
     }
 }
+
+// Заголовок вкладки браузера/SEO — по названию товара, раздела или общий для корня каталога.
+// Обязательно SetPageProperty (а не только SetTitle): title, заданный компонентами каталога
+// после require bitrix/header.php, до <title> в шаблоне не долетает — см. /index.php.
+$catalogPageName = end($breadcrumbs)['NAME'] ?? 'Каталог автозапчастей';
+if ($isElement) {
+    $APPLICATION->SetPageProperty('title', $catalogPageName . ' купить в Елабуге — цена, наличие | ЛИДЕР');
+} elseif ($sectionId > 0) {
+    $APPLICATION->SetPageProperty('title', $catalogPageName . ' в Елабуге — купить в интернет-магазине ЛИДЕР');
+} else {
+    $APPLICATION->SetPageProperty('title', 'Каталог автозапчастей в Елабуге — ЛИДЕР');
+}
 ?>
 <div class="breadcrumbs container">
     <ul>

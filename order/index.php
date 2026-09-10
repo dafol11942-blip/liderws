@@ -1,5 +1,6 @@
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 require($_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/include/require_phone_auth.php");
+$APPLICATION->SetPageProperty("title", "Оформление заказа — ЛИДЕР, автозапчасти в Елабуге");
 $APPLICATION->SetTitle("Оформление заказа");
 ?>
 

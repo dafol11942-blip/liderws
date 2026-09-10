@@ -1,4 +1,6 @@
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
+$APPLICATION->SetPageProperty("title", "ЛИДЕР — автозапчасти для иномарок и ВАЗ в Елабуге | Елабуга");
+$APPLICATION->SetPageProperty("description", "Магазин автозапчастей ЛИДЕР в Елабуге: детали для иномарок и ВАЗ, масла, фильтры, тормозные колодки, шины и диски. Собственный автосервис и шиномонтаж.");
 $APPLICATION->SetTitle("ЛИДЕР — автозапчасти для иномарок и ВАЗ в Елабуге"); ?>
 
 <!-- HERO -->

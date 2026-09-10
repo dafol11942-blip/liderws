@@ -1,5 +1,6 @@
 <?
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
+$APPLICATION->SetPageProperty("title", "Способы оплаты — автозапчасти ЛИДЕР в Елабуге");
 $APPLICATION->SetTitle("Оплата");
 ?><?$APPLICATION->IncludeComponent(
 	"bitrix:menu",

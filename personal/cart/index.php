@@ -1,5 +1,6 @@
 <?php
 require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
+$APPLICATION->SetPageProperty("title", "Корзина — ЛИДЕР, автозапчасти в Елабуге");
 $APPLICATION->SetTitle("Корзина");
 
 // Обрабатываем прямое добавление (если AJAX не сработал)

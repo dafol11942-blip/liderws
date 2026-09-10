@@ -1,5 +1,6 @@
 <?php
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
+$APPLICATION->SetPageProperty("title", "Услуги автосервиса — ЛИДЕР Елабуга");
 $APPLICATION->SetTitle("услуги");
 ?><?$APPLICATION->IncludeComponent(
 	"bitrix:catalog", 

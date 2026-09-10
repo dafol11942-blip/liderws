@@ -13,6 +13,7 @@ if ($USER->IsAuthorized()) {
     die();
 }
 
+$APPLICATION->SetPageProperty("title", "Вход и регистрация — ЛИДЕР, автозапчасти в Елабуге");
 $APPLICATION->SetTitle("Авторизация");
 ?>
 

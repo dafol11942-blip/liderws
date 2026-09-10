@@ -1,5 +1,6 @@
 <?
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
+$APPLICATION->SetPageProperty("title", "Доставка и оплата — автозапчасти ЛИДЕР в Елабуге");
 $APPLICATION->SetTitle("Доставка");
 if(!CModule::IncludeModule("iblock"))
 return; 

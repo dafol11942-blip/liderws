@@ -1,4 +1,5 @@
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
+$APPLICATION->SetPageProperty("title", "Оформление заказа — ЛИДЕР, автозапчасти в Елабуге");
 $APPLICATION->SetTitle("Оформление заказа"); ?>
 
 <div class="checkout-page">

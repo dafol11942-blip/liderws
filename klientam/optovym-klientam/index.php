@@ -1,5 +1,6 @@
 <?
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
+$APPLICATION->SetPageProperty("title", "Оптовым клиентам — автозапчасти ЛИДЕР в Елабуге");
 $APPLICATION->SetTitle("Оптовым клиентам");
 ?>
 <section class="optom">
