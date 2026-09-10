@@ -11,8 +11,9 @@ $APPLICATION->SetTitle("ЛИДЕР — автозапчасти для ином�
             <a href="/about/" class="btn btn--white btn--lg">О магазине</a>
         </div>
     </div>
-    <div class="hero__image hero__image--photo">
-        <img src="<?= SITE_TEMPLATE_PATH ?>/assets/images/stores-hero.webp" alt="Магазины ЛИДЕР в Елабуге — Нефтяников 4 и Баки Урманче 17а">
+    <div class="hero__image hero__image--photo hero__image--split">
+        <img src="<?= SITE_TEMPLATE_PATH ?>/assets/images/store-neftyanikov.webp" alt="Магазин ЛИДЕР на пр-те Нефтяников, 4 в Елабуге">
+        <img src="<?= SITE_TEMPLATE_PATH ?>/assets/images/store-urmanche.webp" alt="Магазин ЛИДЕР на ул. Баки Урманче, 17а в Елабуге">
     </div>
 </div>
 
