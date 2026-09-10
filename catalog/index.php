@@ -166,8 +166,8 @@ if ($inStockOnly) {
 ?>
 <?php if (!$isElement): ?>
 <div class="catalog-layout">
-    <?php ob_start(); ?>
     <aside class="catalog-sidebar" id="catalogFilterPanel">
+    <?php ob_start(); ?>
         <h3><svg class="icon"><use href="#icon-filter"></use></svg> Фильтр</h3>
 
         <div class="filter__box">
@@ -234,13 +234,13 @@ if ($inStockOnly) {
                 $arrFilter['>=CATALOG_QUANTITY'] = 1;
         }
         ?>
-    </aside>
     <?php
     $sidebarHtml = ob_get_clean();
-    if (!$isAjax) echo $sidebarHtml;
-    ob_start();
+    echo $sidebarHtml;
     ?>
+    </aside>
     <div class="catalog-main" id="catalogMain">
+    <?php ob_start(); ?>
 <?php else: ?>
     <div class="container">
 <?php endif; ?>
@@ -424,7 +424,6 @@ if ($inStockOnly) {
         <?php endif; ?>
 
 <?php if (!$isElement): ?>
-    </div><!-- /catalog-main -->
     <?php
     $mainHtml = ob_get_clean();
     if ($isAjax) {
@@ -435,6 +434,7 @@ if ($inStockOnly) {
     }
     echo $mainHtml;
     ?>
+    </div><!-- /catalog-main -->
 </div><!-- /catalog-layout -->
 <?php else: ?>
     </div><!-- /container -->
