@@ -465,10 +465,11 @@ foreach ($elements as $id => $el) {
     if (!empty($updates)) {
         $touchedElements++;
         if (!$DRY_RUN) {
-            $res = CIBlockElement::SetPropertyValuesEx($id, $IBLOCK_ID, $updates);
-            if (!$res) {
-                echo "❌ Ошибка обновления свойств товара ID=$id\n";
-            }
+            // SetPropertyValuesEx() в этой сборке ядра не возвращает надёжный
+            // признак успеха (проверяли на боевых данных — "ошибка" сыпалась
+            // на 100% вызовов при том, что значения реально записывались),
+            // поэтому просто вызываем без проверки результата.
+            CIBlockElement::SetPropertyValuesEx($id, $IBLOCK_ID, $updates);
         }
     }
 }
