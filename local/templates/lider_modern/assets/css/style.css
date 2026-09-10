@@ -151,12 +151,33 @@ ul, ol { list-style: none; }
 .top-bar__link { color: #ccc; font-size: 12px; }
 .top-bar__link:hover { color: #fff; }
 
-/* Магазины (адрес + основной телефон) в верхней полосе; полный список
-   телефонов отделов и график — на странице /contacts/ */
+/* Магазины (адрес + график + телефоны отделов) в верхней полосе */
 .top-bar__stores { display: flex; gap: 22px; flex-wrap: wrap; }
-.top-bar__store { display: inline-flex; align-items: center; gap: 6px; color: #ddd; white-space: nowrap; }
-.top-bar__store-phone { color: #fff; font-weight: 700; }
-.top-bar__store-phone:hover { color: var(--green); }
+.top-bar__store { position: relative; }
+.top-bar__store-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: none; border: none; padding: 0; cursor: pointer;
+    color: #fff; font-weight: 700; font-size: 13px; font-family: inherit;
+}
+.top-bar__store-toggle:hover { color: var(--green); }
+.top-bar__store-caret { width: 10px; height: 10px; opacity: 0.7; }
+.top-bar__store-panel {
+    display: none; position: absolute; top: 100%; left: -14px; margin-top: 8px;
+    background: #fff; border-top: 3px solid var(--blue); box-shadow: var(--shadow-xl);
+    border-radius: 0 0 var(--radius) var(--radius);
+    z-index: 200; min-width: 260px; padding: 14px;
+}
+.top-bar__store:hover .top-bar__store-panel { display: block; }
+.top-bar__store-address { color: var(--black); font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.top-bar__store-hours { display: flex; align-items: center; gap: 6px; color: var(--gray); font-size: 12px; margin-bottom: 10px; }
+.top-bar__store-phone {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 6px 0; border-top: 1px solid var(--border); font-size: 13px;
+}
+.top-bar__store-phone:first-of-type { border-top: none; }
+.top-bar__store-phone span { color: var(--gray); }
+.top-bar__store-phone b { color: var(--blue); white-space: nowrap; }
+.top-bar__store-phone:hover b { color: var(--blue-dark); }
 
 /* =============================================
    ШАПКА
@@ -513,7 +534,11 @@ ul, ol { list-style: none; }
 .footer__col a { color: #bbb; font-size: 13px; display: block; padding: 3px 0; transition: color var(--transition); }
 .footer__col a:hover { color: var(--green); }
 .footer__col p { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #bbb; padding: 2px 0; }
-.footer__store-line span { white-space: nowrap; }
+
+.footer__phone-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.12); display: flex; flex-direction: column; gap: 8px; }
+.footer__phone-row { display: flex; flex-direction: column; gap: 1px; }
+.footer__phone-row a { color: #fff; font-weight: 700; font-size: 13px; white-space: nowrap; padding: 0; }
+.footer__phone-row small { color: #9aa0c3; font-size: 11px; }
 .footer__bottom { border-top: 1px solid rgba(255,255,255,0.1); padding: 16px 0; text-align: center; font-size: 12px; color: #999; }
 .footer__bottom-inner { display: flex; justify-content: center; align-items: center; gap: 6px 20px; flex-wrap: wrap; }
 .footer__legal-link { color: #999; font-size: 12px; text-decoration: underline; }
@@ -1061,6 +1086,7 @@ ul, ol { list-style: none; }
     .container { padding: 0 10px; }
     .top-bar .container { justify-content: center; text-align: center; }
     .top-bar__stores { justify-content: center; gap: 14px; }
+    .top-bar__store-panel { left: 50%; transform: translateX(-50%); }
     .top-bar__links { justify-content: center; flex-wrap: wrap; }
     .header__inner { gap: 8px; }
     .logo img { height: 30px; }
