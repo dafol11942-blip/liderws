@@ -38,30 +38,53 @@ if (empty($arResult['ITEMS'])) {
                         <?php
                         $minVal = $arItem['VALUES']['MIN']['HTML_VALUE'] ?: $arItem['VALUES']['MIN']['VALUE'];
                         $maxVal = $arItem['VALUES']['MAX']['HTML_VALUE'] ?: $arItem['VALUES']['MAX']['VALUE'];
+                        $boundMin = (float)$arItem['VALUES']['MIN']['VALUE'];
+                        $boundMax = (float)$arItem['VALUES']['MAX']['VALUE'];
+                        $sliderStep = (floor($boundMin) == $boundMin && floor($boundMax) == $boundMax) ? 1 : 0.01;
                         ?>
-                        <div class="filter__range">
-                            <input
-                                type="text"
-                                class="filter__input filter__input--half"
-                                name="<?= $arItem['VALUES']['MIN']['CONTROL_NAME'] ?>"
-                                id="<?= $arItem['VALUES']['MIN']['CONTROL_ID'] ?>"
-                                value="<?= $minVal ?>"
-                                placeholder="<?= number_format($arItem['VALUES']['MIN']['VALUE'], 0, ',', ' ') ?>"
-                            >
-                            <span class="filter__range-sep">–</span>
-                            <input
-                                type="text"
-                                class="filter__input filter__input--half"
-                                name="<?= $arItem['VALUES']['MAX']['CONTROL_NAME'] ?>"
-                                id="<?= $arItem['VALUES']['MAX']['CONTROL_ID'] ?>"
-                                value="<?= $maxVal ?>"
-                                placeholder="<?= number_format($arItem['VALUES']['MAX']['VALUE'], 0, ',', ' ') ?>"
-                            >
+                        <div class="filter__price-range">
+                            <div class="filter__range">
+                                <input
+                                    type="text"
+                                    class="filter__input filter__input--half"
+                                    data-role="min"
+                                    name="<?= $arItem['VALUES']['MIN']['CONTROL_NAME'] ?>"
+                                    id="<?= $arItem['VALUES']['MIN']['CONTROL_ID'] ?>"
+                                    value="<?= $minVal ?>"
+                                    placeholder="<?= number_format($arItem['VALUES']['MIN']['VALUE'], 0, ',', ' ') ?>"
+                                >
+                                <span class="filter__range-sep">–</span>
+                                <input
+                                    type="text"
+                                    class="filter__input filter__input--half"
+                                    data-role="max"
+                                    name="<?= $arItem['VALUES']['MAX']['CONTROL_NAME'] ?>"
+                                    id="<?= $arItem['VALUES']['MAX']['CONTROL_ID'] ?>"
+                                    value="<?= $maxVal ?>"
+                                    placeholder="<?= number_format($arItem['VALUES']['MAX']['VALUE'], 0, ',', ' ') ?>"
+                                >
+                            </div>
+                            <div class="filter__slider" data-bound-min="<?= $boundMin ?>" data-bound-max="<?= $boundMax ?>">
+                                <div class="filter__slider-track"><div class="filter__slider-fill"></div></div>
+                                <input type="range" class="filter__slider-input" data-role="min" min="<?= $boundMin ?>" max="<?= $boundMax ?>" step="<?= $sliderStep ?>" value="<?= $minVal !== '' ? $minVal : $boundMin ?>">
+                                <input type="range" class="filter__slider-input" data-role="max" min="<?= $boundMin ?>" max="<?= $boundMax ?>" step="<?= $sliderStep ?>" value="<?= $maxVal !== '' ? $maxVal : $boundMax ?>">
+                            </div>
                         </div>
 
                     <?php else: ?>
-                        <?php foreach ($arItem['VALUES'] as $val => $ar): ?>
-                            <?php if (empty($ar['VALUE']) && $ar['VALUE'] !== '0') continue; ?>
+                        <?php
+                        $visibleValues = array_filter($arItem['VALUES'], function ($ar) {
+                            return !(empty($ar['VALUE']) && $ar['VALUE'] !== '0');
+                        });
+                        $showLimit = 6;
+                        $totalValues = count($visibleValues);
+                        $idx = 0;
+                        ?>
+                        <?php if ($totalValues > 10): ?>
+                            <input type="text" class="filter__search" placeholder="Поиск...">
+                        <?php endif; ?>
+                        <?php foreach ($visibleValues as $val => $ar): $idx++; ?>
+                            <?php if ($idx === $showLimit + 1): ?><div class="filter__more-items" hidden><?php endif; ?>
                             <label class="filter__checkbox <?= $ar['DISABLED'] ? 'filter__checkbox--disabled' : '' ?>">
                                 <input
                                     type="checkbox"
@@ -77,6 +100,10 @@ if (empty($arResult['ITEMS'])) {
                                 <?php endif; ?>
                             </label>
                         <?php endforeach; ?>
+                        <?php if ($totalValues > $showLimit): ?>
+                            </div>
+                            <button type="button" class="filter__show-more" data-more-label="Показать ещё (<?= $totalValues - $showLimit ?>)" data-less-label="Скрыть"><?= 'Показать ещё (' . ($totalValues - $showLimit) . ')' ?></button>
+                        <?php endif; ?>
                     <?php endif; ?>
 
                 </div>
