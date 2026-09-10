@@ -91,25 +91,30 @@ while ($row = $res->Fetch()) {
 
 echo "Всего свойств в инфоблоке: " . count($properties) . "\n\n";
 
-// ----- 2. Проход по товарам через официальный API, считаем заполненность -----
+// ----- 2. Проход по товарам, считаем заполненность -----
+// GetNextElement()->GetProperties() на этой сборке ядра не отдаёт вообще
+// ничего (проверено на боевых данных — см. debug_check_properties.php),
+// поэтому читаем через PROPERTY_<CODE> прямо в SELECT у GetList().
+$selectFields = ['ID'];
+foreach (array_keys($properties) as $code) {
+    $selectFields[] = 'PROPERTY_' . $code;
+}
+
 $filter = ['IBLOCK_ID' => $IBLOCK_ID, 'ACTIVE' => 'Y'];
-$dbEl = CIBlockElement::GetList(['ID' => 'ASC'], $filter, false, false, ['ID']);
+$dbEl = CIBlockElement::GetList(['ID' => 'ASC'], $filter, false, false, $selectFields);
 $total = 0;
-while ($obEl = $dbEl->GetNextElement()) {
+while ($arEl = $dbEl->Fetch()) {
     $total++;
-    $arProps = $obEl->GetProperties();
-    foreach ($arProps as $code => $arProp) {
-        if (!isset($properties[$code])) {
-            continue;
-        }
-        $value = $arProp['VALUE'];
+    foreach ($properties as $code => &$p) {
+        $value = $arEl['PROPERTY_' . $code . '_VALUE'] ?? null;
         $isFilled = is_array($value)
             ? count(array_filter($value, static fn($v) => $v !== null && $v !== '' && $v !== false)) > 0
             : ($value !== null && $value !== '' && $value !== false);
         if ($isFilled) {
-            $properties[$code]['FILLED']++;
+            $p['FILLED']++;
         }
     }
+    unset($p);
     if ($LIMIT > 0 && $total >= $LIMIT) {
         break;
     }
