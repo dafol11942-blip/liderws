@@ -207,46 +207,53 @@ $elements = []; // id => ['NAME'=>, 'PROPS'=>[code => [arProp...]]]
 $usageCountById = [];    // code => [enumId => count]      (для L)
 $usageCountByValue = []; // code => [строка => count]      (для S)
 
+// Статический CIBlockElement::GetProperty($IBLOCK_ID, $ID, ...) в этой сборке
+// падает на внутреннем экранировании (mysqli::real_escape_string() получает
+// массив вместо строки) независимо от переданных $arOrder/$arFilter — судя
+// по всему, баг самого метода на этой версии ядра. Поэтому читаем товар и
+// его свойства через объектный GetNextElement()->GetProperties(), это
+// самый распространённый и надёжный способ в Bitrix.
 $filter = ['IBLOCK_ID' => $IBLOCK_ID, 'ACTIVE' => 'Y'];
 $dbEl = CIBlockElement::GetList(['ID' => 'ASC'], $filter, false, false, ['ID', 'NAME']);
 $total = 0;
-while ($arEl = $dbEl->Fetch()) {
-    $elements[$arEl['ID']] = ['NAME' => $arEl['NAME'], 'PROPS' => []];
+while ($obEl = $dbEl->GetNextElement()) {
+    $arEl = $obEl->GetFields();
+    $id = $arEl['ID'];
+    $elements[$id] = ['NAME' => $arEl['NAME'], 'PROPS' => []];
     $total++;
+
+    $arProps = $obEl->GetProperties();
+    foreach ($arProps as $code => $arProp) {
+        if (!isset($propertyInfo[$code])) {
+            continue;
+        }
+        $rawValues = is_array($arProp['VALUE']) ? array_values($arProp['VALUE']) : [$arProp['VALUE']];
+        foreach ($rawValues as $rawValue) {
+            if ($rawValue === null || $rawValue === '' || $rawValue === false) {
+                continue;
+            }
+            $singleProp = $arProp;
+            $singleProp['VALUE'] = $rawValue;
+            $elements[$id]['PROPS'][$code][] = $singleProp;
+
+            if ($propertyInfo[$code]['PROPERTY_TYPE'] === 'L') {
+                $enumId = (int)$rawValue;
+                $usageCountById[$code][$enumId] = ($usageCountById[$code][$enumId] ?? 0) + 1;
+            } elseif ($propertyInfo[$code]['PROPERTY_TYPE'] === 'S') {
+                $value = trim((string)$rawValue);
+                if (mb_strlen($value) >= $MIN_VALUE_LENGTH) {
+                    $propertyVocab[$code][$value] = ['value' => $value, 'id' => null];
+                    $usageCountByValue[$code][$value] = ($usageCountByValue[$code][$value] ?? 0) + 1;
+                }
+            }
+        }
+    }
+
     if ($LIMIT > 0 && $total >= $LIMIT) {
         break;
     }
 }
 echo "Товаров для анализа: $total\n";
-
-foreach ($elements as $id => &$el) {
-    // Фильтр по CODE через API не работает с массивом кодов (падает на
-    // экранировании), поэтому забираем все свойства элемента и отбираем
-    // нужные коды на стороне PHP.
-    $dbProp = CIBlockElement::GetProperty($IBLOCK_ID, $id, ['sort' => 'asc']);
-    while ($arProp = $dbProp->Fetch()) {
-        $code = $arProp['CODE'];
-        if (!isset($propertyInfo[$code])) {
-            continue;
-        }
-        if ($arProp['VALUE'] === null || $arProp['VALUE'] === '' || $arProp['VALUE'] === false) {
-            continue;
-        }
-        $el['PROPS'][$code][] = $arProp;
-
-        if ($propertyInfo[$code]['PROPERTY_TYPE'] === 'L') {
-            $enumId = (int)$arProp['VALUE'];
-            $usageCountById[$code][$enumId] = ($usageCountById[$code][$enumId] ?? 0) + 1;
-        } elseif ($propertyInfo[$code]['PROPERTY_TYPE'] === 'S') {
-            $value = trim((string)$arProp['VALUE']);
-            if (mb_strlen($value) >= $MIN_VALUE_LENGTH) {
-                $propertyVocab[$code][$value] = ['value' => $value, 'id' => null];
-                $usageCountByValue[$code][$value] = ($usageCountByValue[$code][$value] ?? 0) + 1;
-            }
-        }
-    }
-}
-unset($el);
 
 foreach ($propertyInfo as $code => $prop) {
     if ($prop['PROPERTY_TYPE'] === 'S') {
