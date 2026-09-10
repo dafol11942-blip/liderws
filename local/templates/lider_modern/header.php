@@ -44,26 +44,11 @@ $cartQty = (int)$_SESSION['CART_QTY'];
     <div class="top-bar">
         <div class="container">
             <div class="top-bar__stores">
-                <?php foreach (getShopLocations() as $shop): ?>
-                <div class="top-bar__store">
-                    <button type="button" class="top-bar__store-toggle">
-                        <svg class="icon"><use href="#icon-pin"></use></svg>
-                        <?= htmlspecialchars($shop['short']) ?>
-                        <svg class="icon top-bar__store-caret"><use href="#icon-chevron-down"></use></svg>
-                    </button>
-                    <div class="top-bar__store-panel">
-                        <div class="top-bar__store-address"><?= htmlspecialchars($shop['address']) ?></div>
-                        <?php if (!empty($shop['hours'])): ?>
-                        <div class="top-bar__store-hours"><svg class="icon"><use href="#icon-clock"></use></svg> <?= htmlspecialchars($shop['hours']) ?></div>
-                        <?php endif; ?>
-                        <?php foreach ($shop['phones'] as $phone): ?>
-                        <a href="tel:<?= htmlspecialchars($phone['tel']) ?>" class="top-bar__store-phone">
-                            <span><?= htmlspecialchars($phone['label']) ?></span>
-                            <b><?= htmlspecialchars($phone['display']) ?></b>
-                        </a>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
+                <?php foreach (getShopLocations() as $shop): $mainPhone = $shop['phones'][0]; ?>
+                <span class="top-bar__store">
+                    <svg class="icon"><use href="#icon-pin"></use></svg> <?= htmlspecialchars($shop['short']) ?>:
+                    <a href="tel:<?= htmlspecialchars($mainPhone['tel']) ?>" class="top-bar__store-phone"><?= htmlspecialchars($mainPhone['display']) ?></a>
+                </span>
                 <?php endforeach; ?>
             </div>
             <div class="top-bar__links">
