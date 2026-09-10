@@ -58,59 +58,79 @@ $cartQty = (int)$_SESSION['CART_QTY'];
                 <img src="<?= SITE_TEMPLATE_PATH ?>/assets/images/logo.png" alt="Лидер — автотехцентр">
             </a>
 
-<!-- Кнопка Каталог + выпадающее меню -->
+<!-- Кнопка Каталог + выпадающее меню (флайаут: слева категории, справа плитки подразделов активной) -->
+<?php
+// Иконка для категории верхнего уровня — подбираем по ключевым словам в
+// названии (данные разделов могут меняться в админке, поэтому не хардкодим
+// по ID/коду), с разумным запасным вариантом.
+function pickCatalogNavIcon(string $name): string {
+    $name = mb_strtolower($name);
+    if (mb_strpos($name, 'масл') !== false || mb_strpos($name, 'жидк') !== false) return 'icon-droplet';
+    if (mb_strpos($name, 'шин') !== false || mb_strpos($name, 'диск') !== false) return 'icon-tire';
+    if (mb_strpos($name, 'аккум') !== false || mb_strpos($name, 'батар') !== false) return 'icon-battery';
+    if (mb_strpos($name, 'инструм') !== false || mb_strpos($name, 'оборудован') !== false) return 'icon-settings';
+    return 'icon-car';
+}
+?>
 <div class="catalog-dropdown-wrapper">
     <a href="/catalog/" class="catalog-btn" id="catalogBtn">
         <span class="catalog-btn__burger"></span>
         Каталог
     </a>
     <div class="catalog-dropdown" id="catalogDropdown">
-        <div class="catalog-dropdown__grid">
-            <?php
-            CModule::IncludeModule('iblock');
-            $iblockId = 42;
-            $topSections = CIBlockSection::GetList(
+        <?php
+        CModule::IncludeModule('iblock');
+        $iblockId = 42;
+        $topSections = CIBlockSection::GetList(
+            ['SORT' => 'ASC'],
+            ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => 0, 'ACTIVE' => 'Y'],
+            false,
+            ['ID', 'NAME', 'CODE']
+        );
+        $catalogNavSections = [];
+        while ($top = $topSections->GetNext()) {
+            $subRes = CIBlockSection::GetList(
                 ['SORT' => 'ASC'],
-                ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => 0, 'ACTIVE' => 'Y'],
+                ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => $top['ID'], 'ACTIVE' => 'Y'],
                 false,
-                ['ID', 'NAME', 'CODE', 'SECTION_PAGE_URL']
+                ['ID', 'NAME', 'CODE']
             );
-            while ($top = $topSections->GetNext()):
-                // Получаем подразделы
-                $subRes = CIBlockSection::GetList(
-                    ['SORT' => 'ASC'],
-                    ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => $top['ID'], 'ACTIVE' => 'Y'],
-                    false,
-                    ['ID', 'NAME', 'CODE']
-                );
-                $subs = [];
-                while ($sub = $subRes->GetNext()) {
-                    $subs[] = $sub;
-                }
-                $topUrl = '/catalog/' . $top['CODE'] . '/';
-            ?>
-                <div class="catalog-dropdown__col">
-                    <a href="<?= $topUrl ?>" class="catalog-dropdown__title">
-                        <?= $top['NAME'] ?>
-                    </a>
-                    <?php if (!empty($subs)): ?>
-                    <ul class="catalog-dropdown__list">
-                        <?php foreach ($subs as $sub): ?>
-                        <li>
-                            <a href="/catalog/<?= $top['CODE'] ?>/<?= $sub['CODE'] ?>/">
-                                <?= $sub['NAME'] ?>
+            $subs = [];
+            while ($sub = $subRes->GetNext()) {
+                $subs[] = $sub;
+            }
+            $top['SUBS'] = $subs;
+            $catalogNavSections[] = $top;
+        }
+        ?>
+        <div class="catalog-dropdown__nav">
+            <?php foreach ($catalogNavSections as $i => $top): ?>
+                <a href="/catalog/<?= $top['CODE'] ?>/" class="catalog-dropdown__nav-item<?= $i === 0 ? ' active' : '' ?>" data-panel="catalogNavPanel<?= $top['ID'] ?>">
+                    <svg class="icon"><use href="#<?= pickCatalogNavIcon($top['NAME']) ?>"></use></svg>
+                    <span><?= htmlspecialchars($top['NAME']) ?></span>
+                    <span class="catalog-dropdown__nav-arrow">›</span>
+                </a>
+            <?php endforeach; ?>
+        </div>
+        <div class="catalog-dropdown__panels">
+            <?php foreach ($catalogNavSections as $i => $top): ?>
+                <div class="catalog-dropdown__panel<?= $i === 0 ? ' active' : '' ?>" id="catalogNavPanel<?= $top['ID'] ?>">
+                    <?php if (!empty($top['SUBS'])): ?>
+                    <div class="catalog-dropdown__tiles">
+                        <?php foreach ($top['SUBS'] as $sub): ?>
+                            <a href="/catalog/<?= $top['CODE'] ?>/<?= $sub['CODE'] ?>/" class="catalog-dropdown__tile">
+                                <span class="catalog-dropdown__tile-icon"><svg class="icon"><use href="#icon-box"></use></svg></span>
+                                <span class="catalog-dropdown__tile-name"><?= htmlspecialchars($sub['NAME']) ?></span>
                             </a>
-                        </li>
                         <?php endforeach; ?>
-                        <li>
-                            <a href="<?= $topUrl ?>" class="catalog-dropdown__all">
-                                Все товары раздела →
-                            </a>
-                        </li>
-                    </ul>
+                        <a href="/catalog/<?= $top['CODE'] ?>/" class="catalog-dropdown__tile catalog-dropdown__tile--all">
+                            <span class="catalog-dropdown__tile-icon"><svg class="icon"><use href="#icon-list"></use></svg></span>
+                            <span class="catalog-dropdown__tile-name">Все товары раздела</span>
+                        </a>
+                    </div>
                     <?php endif; ?>
                 </div>
-            <?php endwhile; ?>
+            <?php endforeach; ?>
         </div>
     </div>
 </div>

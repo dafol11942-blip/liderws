@@ -47,6 +47,30 @@ function updateBasketItem(id, quantity) {
                 wrapper.classList.remove('open');
             }
         });
+
+        // Переключение активной категории во флайауте: наведение (десктоп) и
+        // первый тап (сенсорные экраны — тап переключает панель, повторный
+        // тап по уже активному пункту идёт по ссылке как обычно).
+        var activatePanel = function(item) {
+            dropdown.querySelectorAll('.catalog-dropdown__nav-item').forEach(function(el) {
+                el.classList.remove('active');
+            });
+            dropdown.querySelectorAll('.catalog-dropdown__panel').forEach(function(el) {
+                el.classList.remove('active');
+            });
+            item.classList.add('active');
+            var panel = document.getElementById(item.dataset.panel);
+            if (panel) panel.classList.add('active');
+        };
+        dropdown.querySelectorAll('.catalog-dropdown__nav-item').forEach(function(item) {
+            item.addEventListener('mouseenter', function() { activatePanel(item); });
+            item.addEventListener('click', function(e) {
+                if (!item.classList.contains('active')) {
+                    e.preventDefault();
+                    activatePanel(item);
+                }
+            });
+        });
     }
 })();
 
