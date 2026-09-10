@@ -220,12 +220,18 @@ while ($arEl = $dbEl->Fetch()) {
 echo "Товаров для анализа: $total\n";
 
 foreach ($elements as $id => &$el) {
-    $dbProp = CIBlockElement::GetProperty($IBLOCK_ID, $id, ['sort' => 'asc'], ['CODE' => $targetCodes]);
+    // Фильтр по CODE через API не работает с массивом кодов (падает на
+    // экранировании), поэтому забираем все свойства элемента и отбираем
+    // нужные коды на стороне PHP.
+    $dbProp = CIBlockElement::GetProperty($IBLOCK_ID, $id, ['sort' => 'asc']);
     while ($arProp = $dbProp->Fetch()) {
+        $code = $arProp['CODE'];
+        if (!isset($propertyInfo[$code])) {
+            continue;
+        }
         if ($arProp['VALUE'] === null || $arProp['VALUE'] === '' || $arProp['VALUE'] === false) {
             continue;
         }
-        $code = $arProp['CODE'];
         $el['PROPS'][$code][] = $arProp;
 
         if ($propertyInfo[$code]['PROPERTY_TYPE'] === 'L') {
