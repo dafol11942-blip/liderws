@@ -134,9 +134,6 @@ function updateBasketItem(id, quantity) {
             });
             new FormData(form).forEach(function(value, key) { params.append(key, value); });
         }
-        var inStock = filterPanel.querySelector('input[name="in_stock_only"]');
-        params.delete('in_stock_only');
-        if (inStock && inStock.checked) params.set('in_stock_only', 'Y');
         return params;
     }
 

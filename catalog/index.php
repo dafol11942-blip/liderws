@@ -157,12 +157,6 @@ if (!empty($_REQUEST['arrFilter_P1_MIN']) || !empty($_REQUEST['arrFilter_P1_MAX'
         $arrFilter['<=CATALOG_PRICE_1'] = (int)$_REQUEST['arrFilter_P1_MAX'];
     }
 }
-
-// Ручной фильтр «В наличии» (не завязан на свойства инфоблока)
-$inStockOnly = ($_REQUEST['in_stock_only'] ?? '') === 'Y';
-if ($inStockOnly) {
-    $arrFilter['>=CATALOG_QUANTITY'] = 1;
-}
 ?>
 <?php if (!$isElement): ?>
 <div class="catalog-layout">
@@ -180,20 +174,6 @@ if ($inStockOnly) {
                 <?php foreach ($sidebarTopSections as $topSec): ?>
                     <a href="/catalog/<?= $topSec['CODE'] ?>/" class="filter__cat-link<?= $sidebarActiveTopId == $topSec['ID'] ? ' active' : '' ?>"><?= htmlspecialchars($topSec['NAME']) ?></a>
                 <?php endforeach; ?>
-            </div>
-        </div>
-
-        <div class="filter__box">
-            <div class="filter__title" onclick="this.parentElement.classList.toggle('closed')">
-                Наличие
-                <span class="filter__arrow">▾</span>
-            </div>
-            <div class="filter__body">
-                <label class="filter__checkbox">
-                    <input type="checkbox" name="in_stock_only" value="Y" <?= $inStockOnly ? 'checked' : '' ?>>
-                    <span class="filter__checkmark"></span>
-                    <span class="filter__label">Только в наличии</span>
-                </label>
             </div>
         </div>
 
@@ -230,8 +210,6 @@ if ($inStockOnly) {
                 $arrFilter['>=CATALOG_PRICE_1'] = (int)$_REQUEST['arrFilter_P1_MIN'];
             if (!empty($_REQUEST['arrFilter_P1_MAX']))
                 $arrFilter['<=CATALOG_PRICE_1'] = (int)$_REQUEST['arrFilter_P1_MAX'];
-            if ($inStockOnly)
-                $arrFilter['>=CATALOG_QUANTITY'] = 1;
         }
         ?>
     <?php
