@@ -11,6 +11,11 @@ function getShopLocations(): array
             'id'      => 'neftyanikov',
             'short'   => 'Нефтяников, 4',
             'address' => 'РТ, Елабуга, пр-т Нефтяников, 4',
+            // Уникальное слово из адреса — чтобы находить телефоны магазина по
+            // адресу точки самовывоза из sale.order.ajax, где имя формируется
+            // Bitrix-доставкой и может немного отличаться форматированием
+            // (без "РТ,", с иной расстановкой запятых).
+            'keyword' => 'нефтяников',
             'hours'   => 'Пн-Вс: 8:00–19:00',
             'coords'  => [55.74767080512837, 52.00686362268443],
             'phones'  => [
@@ -24,6 +29,7 @@ function getShopLocations(): array
             'id'      => 'baki-urmanche',
             'short'   => 'Баки Урманче, 17а',
             'address' => 'РТ, Елабуга, ул. Баки Урманче, 17а',
+            'keyword' => 'урманче',
             'hours'   => '',
             'coords'  => [55.77622330421297, 52.02240121966068],
             'phones'  => [
@@ -32,6 +38,20 @@ function getShopLocations(): array
             ],
         ],
     ];
+}
+
+// Находит магазин по адресу точки самовывоза (например, из имени доставки
+// в sale.order.ajax) — сравнение по ключевому слову, а не по строке целиком,
+// т.к. формат адреса у доставки и у магазина может немного отличаться.
+function findShopByAddress(string $address): ?array
+{
+    $needle = mb_strtolower($address);
+    foreach (getShopLocations() as $shop) {
+        if (mb_strpos($needle, $shop['keyword']) !== false) {
+            return $shop;
+        }
+    }
+    return null;
 }
 
 // Телефоны для записи на СТО (автосервис) — отдельная пара номеров,

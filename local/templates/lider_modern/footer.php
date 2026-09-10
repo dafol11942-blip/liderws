@@ -26,7 +26,6 @@
             <div class="footer__col">
                 <h4>Покупателям</h4>
                 <a href="/about/">О компании</a>
-                <a href="/contacts/">Контакты</a>
                 <a href="/delivery/">Доставка и оплата</a>
                 <a href="/returns/">Возврат товара</a>
                 <a href="/soglasie/">Обработка персональных данных</a>

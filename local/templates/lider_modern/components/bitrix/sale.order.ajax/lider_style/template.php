@@ -410,6 +410,7 @@ if ($paymentHoldDeadlineTs <= 0) {
                                 'РТ, Елабуга, пр-т Нефтяников 4' => [55.74767080512837, 52.00686362268443],
                                 'Елабуга, ул. Баки Урманче 17а'  => [55.77622330421297, 52.02240121966068],
                             ];
+                            require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/include/shop_locations.php';
                         ?>
 
                         <?php if ($hasPickup && $hasCourier): ?>
@@ -436,7 +437,7 @@ if ($paymentHoldDeadlineTs <= 0) {
                         <?php if ($hasPickup): ?>
                         <div class="receipt-method-panel" id="receipt-panel-pickup" <?= ($hasCourier && $activeMethod !== 'pickup') ? 'style="display:none;"' : '' ?>>
                             <div class="option-list">
-                                <?php foreach ($pickupDeliveries as $did => $del): ?>
+                                <?php foreach ($pickupDeliveries as $did => $del): $pickupShop = findShopByAddress($extractPickupAddress($del)); ?>
                                 <label class="option-card <?= ($del['CHECKED'] ?? '') === 'Y' ? 'option-card--active' : '' ?>">
                                     <input type="radio" name="DELIVERY_ID" value="<?= $del['ID'] ?>"
                                            data-pickup-address="<?= htmlspecialchars($extractPickupAddress($del)) ?>"
@@ -447,6 +448,16 @@ if ($paymentHoldDeadlineTs <= 0) {
                                             <div class="option-card__title"><?= $del['NAME'] ?></div>
                                             <?php if (!empty($del['DESCRIPTION'])): ?>
                                             <div class="option-card__desc"><?= $del['DESCRIPTION'] ?></div>
+                                            <?php endif; ?>
+                                            <?php if ($pickupShop): ?>
+                                            <div class="option-card__phones">
+                                                <?php if (!empty($pickupShop['hours'])): ?>
+                                                <span class="option-card__hours"><svg class="icon"><use href="#icon-clock"></use></svg> <?= htmlspecialchars($pickupShop['hours']) ?></span>
+                                                <?php endif; ?>
+                                                <?php foreach ($pickupShop['phones'] as $phone): ?>
+                                                <a href="tel:<?= htmlspecialchars($phone['tel']) ?>"><svg class="icon"><use href="#icon-phone"></use></svg> <?= htmlspecialchars($phone['display']) ?> <span><?= htmlspecialchars($phone['label']) ?></span></a>
+                                                <?php endforeach; ?>
+                                            </div>
                                             <?php endif; ?>
                                         </div>
                                         <div class="option-card__price">
@@ -850,6 +861,12 @@ if ($paymentHoldDeadlineTs <= 0) {
 
 .receipt-method-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
 .receipt-method-panel { margin-top: 4px; }
+.option-card__phones { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; }
+.option-card__hours { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--gray); }
+.option-card__phones a { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--black); font-weight: 700; }
+.option-card__phones a:hover { color: var(--blue); }
+.option-card__phones a span { color: var(--gray); font-weight: 400; }
+.option-card__phones .icon, .option-card__hours .icon { width: 13px; height: 13px; flex-shrink: 0; color: var(--blue); }
 .pickup-map { width: 100%; height: 260px; border-radius: var(--radius); overflow: hidden; margin-top: 12px; border: 1px solid var(--border); }
 .pickup-map-fallback { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .pickup-map-fallback__link {
