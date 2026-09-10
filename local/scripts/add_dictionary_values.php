@@ -76,11 +76,18 @@ foreach ($TO_ADD as $code => $values) {
             continue;
         }
         $maxSort += 10;
+        // Уникальный индекс в базе — по паре (PROPERTY_ID, XML_ID), и пустая
+        // строка там тоже полноценное значение: первая же запись с XML_ID=''
+        // занимает его для этого свойства, все следующие с ним бьются в
+        // "Duplicate entry". Префикс autofill_ — чтобы точно не столкнуться
+        // с внешними кодами, которые расставляет обмен с 1С.
+        $xmlId = 'autofill_' . preg_replace('/[^A-Za-z0-9]+/', '_', $value);
         $result = PropertyEnumerationTable::add([
             'PROPERTY_ID' => $propertyId,
             'VALUE' => $value,
             'DEF' => 'N',
             'SORT' => $maxSort,
+            'XML_ID' => $xmlId,
         ]);
         if ($result->isSuccess()) {
             echo "  + \"$value\" добавлено (ID={$result->getId()})\n";
