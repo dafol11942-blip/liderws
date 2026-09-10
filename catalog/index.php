@@ -71,31 +71,55 @@ switch ($currentSort) {
     default:            $sortField = 'sort'; $sortOrder = 'asc';
 }
 
-// --- Категории для фильтра в сайдбаре: дрилл-даун по аналогии с part-kom.ru —
-// показываем раздел ТОГО ЖЕ уровня, что и текущий (братья текущего раздела),
-// с "‹ Назад" к родителю, а не фиксированный список корня на любой глубине.
-// Ссылки — просто "/catalog/<CODE>/": роутинг в этом файле резолвит раздел
-// только по последнему сегменту URL (см. "--- Парсим URL ---" выше), поэтому
-// префикс пути можно не собирать — так же делают хлебные крошки и плитки подразделов.
-$sidebarParentId = 0;
-$sidebarBackSection = null;
+// --- Дерево категорий в сайдбаре: разворачивается на месте (стрелкой),
+// без перехода на страницу раздела, с любого уровня — включая корень
+// каталога. Ветка текущего раздела раскрыта по умолчанию, остальные свёрнуты.
+// Ссылки на разделы — просто "/catalog/<CODE>/": роутинг в этом файле
+// резолвит раздел только по последнему сегменту URL (см. "--- Парсим URL
+// ---" выше), поэтому префикс пути можно не собирать — так же делают
+// хлебные крошки и плитки подразделов.
+$sidebarSectionsByParent = [];
+$rsAllSections = CIBlockSection::GetList(['SORT' => 'ASC'], ['IBLOCK_ID' => $iblockId, 'ACTIVE' => 'Y'], false, ['ID', 'NAME', 'CODE', 'IBLOCK_SECTION_ID']);
+while ($row = $rsAllSections->GetNext()) {
+    $sidebarSectionsByParent[(int)$row['IBLOCK_SECTION_ID']][] = $row;
+}
 
+$sidebarActivePath = [];
 if ($sectionId > 0) {
-    $rsCurrentSection = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'ID' => $sectionId], false, ['ID', 'IBLOCK_SECTION_ID']);
-    if ($arCurrentSection = $rsCurrentSection->GetNext()) {
-        $sidebarParentId = (int)$arCurrentSection['IBLOCK_SECTION_ID'];
-    }
-    if ($sidebarParentId > 0) {
-        $rsParentSection = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'ID' => $sidebarParentId], false, ['ID', 'NAME', 'CODE']);
-        if ($arParentSection = $rsParentSection->GetNext()) {
-            $sidebarBackSection = $arParentSection;
-        }
+    $rsActiveChain = CIBlockSection::GetNavChain($iblockId, $sectionId, ['ID']);
+    while ($arChainItem = $rsActiveChain->GetNext()) {
+        $sidebarActivePath[] = (int)$arChainItem['ID'];
     }
 }
 
-$sidebarLevelSections = [];
-$rsSidebarLevel = CIBlockSection::GetList(['SORT' => 'ASC'], ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => $sidebarParentId, 'ACTIVE' => 'Y'], false, ['ID', 'NAME', 'CODE']);
-while ($row = $rsSidebarLevel->GetNext()) { $sidebarLevelSections[] = $row; }
+function renderCategoryTreeNode($section, $sectionsByParent, $activePath, $currentSectionId) {
+    $id = (int)$section['ID'];
+    $children = $sectionsByParent[$id] ?? [];
+    $isOpen = in_array($id, $activePath, true);
+    $isActive = ($id === (int)$currentSectionId);
+
+    $html = '<div class="filter__tree-node' . ($isOpen ? ' filter__tree-node--open' : '') . '">';
+    $html .= '<div class="filter__tree-row">';
+    $html .= $children
+        ? '<button type="button" class="filter__tree-toggle" aria-label="Развернуть"></button>'
+        : '<span class="filter__tree-spacer"></span>';
+    $html .= '<a href="/catalog/' . $section['CODE'] . '/" class="filter__cat-link' . ($isActive ? ' active' : '') . '">' . htmlspecialchars($section['NAME']) . '</a>';
+    $html .= '</div>';
+    if ($children) {
+        $html .= '<div class="filter__tree-children">';
+        foreach ($children as $child) {
+            $html .= renderCategoryTreeNode($child, $sectionsByParent, $activePath, $currentSectionId);
+        }
+        $html .= '</div>';
+    }
+    $html .= '</div>';
+    return $html;
+}
+
+$sidebarCategoryTreeHtml = '';
+foreach (($sidebarSectionsByParent[0] ?? []) as $topSection) {
+    $sidebarCategoryTreeHtml .= renderCategoryTreeNode($topSection, $sidebarSectionsByParent, $sidebarActivePath, $sectionId);
+}
 ?>
 
 <?php
@@ -195,12 +219,7 @@ if ($sectionId > 0) {
             </div>
             <div class="filter__body">
                 <a href="/catalog/" class="filter__cat-link filter__cat-link--all<?= $sectionId == 0 ? ' active' : '' ?>">Все товары</a>
-                <?php if ($sidebarBackSection): ?>
-                    <a href="/catalog/<?= $sidebarBackSection['CODE'] ?>/" class="filter__cat-link filter__cat-link--back">‹ <?= htmlspecialchars($sidebarBackSection['NAME']) ?></a>
-                <?php endif; ?>
-                <?php foreach ($sidebarLevelSections as $levelSec): ?>
-                    <a href="/catalog/<?= $levelSec['CODE'] ?>/" class="filter__cat-link<?= $sectionId == $levelSec['ID'] ? ' active' : '' ?>"><?= htmlspecialchars($levelSec['NAME']) ?></a>
-                <?php endforeach; ?>
+                <div class="filter__tree"><?= $sidebarCategoryTreeHtml ?></div>
             </div>
         </div>
 

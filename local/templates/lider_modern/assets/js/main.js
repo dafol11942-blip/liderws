@@ -218,6 +218,13 @@ function updateBasketItem(id, quantity) {
     });
 
     filterPanel.addEventListener('click', function(e) {
+        var treeToggle = e.target.closest('.filter__tree-toggle');
+        if (treeToggle) {
+            e.preventDefault();
+            treeToggle.closest('.filter__tree-node').classList.toggle('filter__tree-node--open');
+            return;
+        }
+
         var showMoreBtn = e.target.closest('.filter__show-more');
         if (showMoreBtn) {
             var box = showMoreBtn.closest('.filter__box');

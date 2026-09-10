@@ -637,8 +637,37 @@ ul, ol { list-style: none; }
 .filter__cat-link:hover { color: var(--blue); background: var(--bg); }
 .filter__cat-link.active { color: var(--blue); font-weight: 700; background: rgba(102,139,234,0.10); }
 .filter__cat-link--all { font-weight: 700; border-bottom: 1px solid var(--bg); margin-bottom: 4px; padding-bottom: 9px; }
-.filter__cat-link--back { color: var(--gray); font-weight: 700; border-bottom: 1px solid var(--bg); margin-bottom: 4px; padding-bottom: 9px; }
-.filter__cat-link--back:hover { color: var(--blue); }
+
+/* Дерево категорий: разворачивается на месте, без перехода по страницам */
+.filter__tree-row { display: flex; align-items: center; gap: 2px; }
+.filter__tree-row .filter__cat-link { flex: 1; margin: 0; padding: 6px 8px; }
+.filter__tree-toggle, .filter__tree-spacer {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+}
+.filter__tree-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--gray-light);
+}
+.filter__tree-toggle::before {
+    content: '▸';
+    font-size: 10px;
+    transition: transform 0.15s;
+}
+.filter__tree-node--open > .filter__tree-row .filter__tree-toggle::before { transform: rotate(90deg); }
+.filter__tree-toggle:hover { color: var(--blue); }
+.filter__tree-children {
+    display: none;
+    padding-left: 14px;
+}
+.filter__tree-node--open > .filter__tree-children { display: block; }
 
 /* Поля ввода */
 .filter__input {
