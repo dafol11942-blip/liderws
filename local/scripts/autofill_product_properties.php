@@ -101,23 +101,47 @@ function normalizeKey(string $value): string
 }
 
 /**
- * @param array $vocab Список ['value' => string, 'id' => int|null], отсортирован по убыванию длины value
+ * Находит в $name все значения словаря и возвращает до $maxMatches лучших.
+ * "Лучший" — тот, что встречается РАНЬШЕ в названии (при равенстве позиции —
+ * более длинный текст). Это важно: в названиях вида "Свеча Denso ... Nissan
+ * Juke/Mazda CX-5 ..." словарь бренда содержит и "Denso" (настоящий
+ * производитель, стоит первым), и "Nissan"/"Mazda" (марки авто в списке
+ * применимости, встречаются дальше по тексту) — при сортировке просто по
+ * длине совпадения побеждал произвольный из них, что путало бренд товара
+ * с маркой автомобиля, для которого он подходит.
+ *
+ * @param array $vocab Список ['value' => string, 'id' => int|null]
  * @return array Список подходящих элементов словаря (без повторов)
  */
 function matchVocabInName(string $name, array $vocab, int $maxMatches): array
 {
+    $candidates = [];
+    foreach ($vocab as $entry) {
+        if (preg_match(buildBoundaryRegex($entry['value']), $name, $m, PREG_OFFSET_CAPTURE)) {
+            $candidates[] = ['entry' => $entry, 'offset' => $m[0][1], 'len' => mb_strlen($entry['value'])];
+        }
+    }
+    if (empty($candidates)) {
+        return [];
+    }
+    usort($candidates, static function ($a, $b) {
+        if ($a['offset'] !== $b['offset']) {
+            return $a['offset'] <=> $b['offset'];
+        }
+        return $b['len'] <=> $a['len'];
+    });
+
     $found = [];
     $usedValues = [];
-    foreach ($vocab as $entry) {
-        if (isset($usedValues[$entry['value']])) {
+    foreach ($candidates as $c) {
+        $value = $c['entry']['value'];
+        if (isset($usedValues[$value])) {
             continue;
         }
-        if (preg_match(buildBoundaryRegex($entry['value']), $name)) {
-            $found[] = $entry;
-            $usedValues[$entry['value']] = true;
-            if (count($found) >= $maxMatches) {
-                break;
-            }
+        $found[] = $c['entry'];
+        $usedValues[$value] = true;
+        if (count($found) >= $maxMatches) {
+            break;
         }
     }
     return $found;
