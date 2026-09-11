@@ -80,8 +80,10 @@ $connectorsByCode = [
     'armtek' => new \Lider\Supplier\ArmtekConnector([
         'LOGIN' => 'lider1-16@bk.ru',
         'PASSWORD' => 'LidGates166',
-        'VKORG' => '4220',
-        'KUNRG' => '40039944',
+        // См. пояснение у той же секции в init.php: VKORG/KUNRG исправлены
+        // после проверки через getUserVkorgList/getUserInfo.
+        'VKORG' => '4000',
+        'KUNRG' => '43039417',
         'KUNWE' => '43039417',
         'KUNZA' => '48022996',
         'VBELN' => '40359920',

@@ -59,9 +59,8 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
 
     // ==================== АВТОРИЗАЦИЯ ====================
     // Basic Auth — тот же механизм, что у ПартКома (см. PartKomConnector::authHeader()).
-    // В документации Армтека пример передачи авторизации не приведён — если
-    // после подключения будут ошибки 401, значит нужен другой механизм,
-    // проверить по логу первого живого запроса.
+    // Подтверждено живым запросом к getUserVkorgList/getUserInfo с текущими
+    // LOGIN/PASSWORD — механизм рабочий, 401 не было.
     private function authHeader(): string
     {
         return 'Authorization: Basic ' . base64_encode($this->login . ':' . $this->password);
@@ -427,7 +426,16 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
             }
         }
 
-        $success = !empty($itemReferences);
+        // createTestOrder (проверено живым вызовом) НЕ возвращает VBELN/POSNR
+        // даже при полном успехе (RESULT[].VBELN === '') — это тестовый прогон
+        // без создания реального документа. Success для теста определяем по
+        // ERROR верхнего уровня позиции (0 — без ошибки), а не по наличию
+        // ссылки на заказ, которой в тестовом ответе не бывает.
+        if ($test) {
+            $success = !empty($itemsRaw) && !array_filter($itemsRaw, fn($row) => (string)($row['error'] ?? '0') !== '0');
+        } else {
+            $success = !empty($itemReferences);
+        }
 
         return [
             'http_code'       => 200,

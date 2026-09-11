@@ -263,8 +263,15 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
         $factory->register(new \Lider\Supplier\ArmtekConnector([
             'LOGIN' => 'lider1-16@bk.ru',
             'PASSWORD' => 'LidGates166',
-            'VKORG' => '4220',
-            'KUNRG' => '40039944',
+            // VKORG=4220 (со слов поставщика) и KUNRG=40039944 были неверны —
+            // Армтек отвечал "Пользователь не настроен. Не установлена
+            // сбытовая организация" / "Покупатель не может быть установлен
+            // для данного пользователя [40039944]". Проверено напрямую через
+            // getUserVkorgList (VKORG=4000) и getUserInfo/STRUCTURE=1 (KUNRG —
+            // это RG_TAB[0].KUNNR, а не KUNAG верхнего уровня, которым
+            // ошибочно был заполнен KUNRG).
+            'VKORG' => '4000',
+            'KUNRG' => '43039417',
             'KUNWE' => '43039417',
             'KUNZA' => '48022996',
             'VBELN' => '40359920',
