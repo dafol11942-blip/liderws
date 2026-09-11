@@ -854,7 +854,7 @@ function renderCrossInfoCard(data){
         // referrerpolicy="no-referrer" — у image.umapi.ru похоже на защиту от хотлинкинга по
         // Referer (прямой переход по ссылке работает, встраивание с чужого домена — нет);
         // без заголовка Referer запрос выглядит как прямой переход.
-        h += '<div class="phead-img"><img src="'+esc(data.img)+'" alt="'+esc(data.title||'')+'" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest(\'.phead-img\').style.display=\'none\'"></div>';
+        h += '<div class="phead-img" onclick="openImageZoom(this.querySelector(\'img\').src)"><img src="'+esc(data.img)+'" alt="'+esc(data.title||'')+'" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest(\'.phead-img\').style.display=\'none\'"></div>';
     }
     h += '<div class="phead-info">';
     if(data.title) h += '<div class="phead-desc">'+esc(data.title)+'</div>';
@@ -878,6 +878,30 @@ function renderCrossInfoCard(data){
     }
     h += '</div></div>';
     return h;
+}
+
+// Увеличение фото товара в .phead-img по клику — простой оверлей без сторонних библиотек.
+function openImageZoom(src){
+    var overlay=document.getElementById('imgZoomOverlay');
+    if(!overlay){
+        overlay=document.createElement('div');
+        overlay.id='imgZoomOverlay';
+        overlay.className='img-zoom-overlay';
+        overlay.innerHTML='<img class="img-zoom-pic"><button type="button" class="img-zoom-close" aria-label="Закрыть">×</button>';
+        overlay.addEventListener('click',function(e){
+            if(e.target===overlay||e.target.classList.contains('img-zoom-close')) closeImageZoom();
+        });
+        document.addEventListener('keydown',function(e){
+            if(e.key==='Escape') closeImageZoom();
+        });
+        document.body.appendChild(overlay);
+    }
+    overlay.querySelector('.img-zoom-pic').src=src;
+    overlay.classList.add('img-zoom-overlay--open');
+}
+function closeImageZoom(){
+    var overlay=document.getElementById('imgZoomOverlay');
+    if(overlay) overlay.classList.remove('img-zoom-overlay--open');
 }
 
 function favToggleControl(brand,article,supplier,warehouse,token){

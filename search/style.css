@@ -143,8 +143,15 @@
    index.php) — добивается в конец .phead асинхронно, если данные пришли и это не пустой
    ответ; при недоступности UMAPI .phead остаётся как выше (заголовок + "Найдено..."). */
 .phead-body { display: flex; gap: 18px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
-.phead-img { flex-shrink: 0; width: 90px; height: 90px; display: flex; align-items: center; justify-content: center; background: #fafafa; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.phead-img { flex-shrink: 0; width: 90px; height: 90px; display: flex; align-items: center; justify-content: center; background: #fafafa; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; cursor: zoom-in; }
 .phead-img img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+/* Увеличение фото товара по клику (openImageZoom() в index.php) */
+.img-zoom-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: none; align-items: center; justify-content: center; z-index: 9999; cursor: zoom-out; padding: 30px; }
+.img-zoom-overlay--open { display: flex; }
+.img-zoom-pic { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: var(--radius); background: #fff; }
+.img-zoom-close { position: fixed; top: 16px; right: 20px; width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255,255,255,.15); color: #fff; font-size: 24px; line-height: 1; cursor: pointer; }
+.img-zoom-close:hover { background: rgba(255,255,255,.3); }
 .phead-info { flex: 1; min-width: 0; }
 .phead-desc { font-size: 14px; color: var(--black); margin-bottom: 10px; }
 .phead-specs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
