@@ -4,10 +4,12 @@ namespace Lider\Supplier;
 use Lider\Search\SearchResultItem;
 use Lider\Search\BrandNormalizer;
 
-class ShateMConnector implements SupplierInterface
+class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierOrderStatusProvider
 {
     private string $apiUrl;
     private string $apiKey;
+    private string $agreementCode;
+    private string $deliveryAddressCode;
     private int    $timeout;
     private ?string $token = null;
     private ?int   $tokenExpires = null;
@@ -15,9 +17,19 @@ class ShateMConnector implements SupplierInterface
 
     public function __construct(array $config = [])
     {
-        $this->apiUrl  = $config['API_URL']  ?? 'https://api.shate-m.by/api/v1/';
-        $this->apiKey  = $config['API_KEY']  ?? '';
-        $this->timeout = $config['TIMEOUT']  ?? 12;
+        // Домен .ru (не .by) — подтверждено вживую с ключом заказчика.
+        $this->apiUrl             = $config['API_URL']  ?? 'https://api.shate-m.ru/api/v1/';
+        $this->apiKey              = $config['API_KEY'] ?? '';
+        // Единственный активный договор клиента (GET /customer/agreements,
+        // снято вживую) — locationCode SHATE-KAX, поддерживает и доставку, и
+        // самовывоз. AGREEMENT_CODE обязателен для оформления заказа
+        // (OrderCreateByPrices.agreementCode), у поиска — необязателен.
+        $this->agreementCode       = $config['AGREEMENT_CODE'] ?? 'RSAGR56329';
+        // Единственный адрес доставки клиента (GET /delivery/addresses,
+        // снято вживую) — Елабуга. Если не задан — заказ уйдёт на самовывоз
+        // (так документирован API при пустом deliveryInfo).
+        $this->deliveryAddressCode = $config['DELIVERY_ADDRESS_CODE'] ?? 'Д1';
+        $this->timeout             = $config['TIMEOUT']  ?? 12;
     }
 
     public function getCode(): string       { return 'shatem'; }
@@ -43,9 +55,11 @@ class ShateMConnector implements SupplierInterface
         }
         $ch = curl_init();
         curl_setopt_array($ch, [
-            CURLOPT_URL            => $this->apiUrl . 'auth/loginByapiKey',
+            // Подтверждено вживую: поле называется "ApiKey" (с заглавной),
+            // а не "apiKey" — так задано в OpenAPI-схеме auth/loginbyapikey.
+            CURLOPT_URL            => $this->apiUrl . 'auth/loginbyapikey',
             CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => http_build_query(['apiKey' => $this->apiKey]),
+            CURLOPT_POSTFIELDS     => http_build_query(['ApiKey' => $this->apiKey]),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
             CURLOPT_TIMEOUT        => 10,
@@ -92,8 +106,9 @@ class ShateMConnector implements SupplierInterface
         $brands = [];
         $data = json_decode($responseBody, true);
         if (empty($data)) return $brands;
-        if (isset($data['id'])) $data = [$data];
-        foreach ($data as $art) {
+        if (isset($data['article'])) $data = [$data];
+        foreach ($data as $row) {
+            $art = $row['article'] ?? $row;
             $b  = $art['tradeMarkName'] ?? '';
             $n  = $art['code'] ?? '';
             $nm = $art['name'] ?? '';
@@ -132,12 +147,13 @@ class ShateMConnector implements SupplierInterface
 
         $data = json_decode($responseBody, true);
         if (empty($data)) return $results;
-        if (isset($data['id'])) $data = [$data];
+        if (isset($data['article'])) $data = [$data];
 
         $normBrand = BrandNormalizer::normalize($brand);
         $articleIds = [];
         $articleInfo = [];
-        foreach ($data as $art) {
+        foreach ($data as $row) {
+            $art = $row['article'] ?? $row;
             $artBrand = $art['tradeMarkName'] ?? '';
             if ($artBrand === '') continue;
             if ($normBrand !== '' && BrandNormalizer::normalize($artBrand) !== $normBrand) continue;
@@ -205,12 +221,13 @@ class ShateMConnector implements SupplierInterface
 
         $articlesData = json_decode($resp, true);
         if (empty($articlesData)) return $results;
-        if (isset($articlesData['id'])) $articlesData = [$articlesData];
+        if (isset($articlesData['article'])) $articlesData = [$articlesData];
         $articlesData = array_slice($articlesData, 0, 15);
 
         $articleIds = [];
         $articleInfo = [];
-        foreach ($articlesData as $art) {
+        foreach ($articlesData as $row) {
+            $art = $row['article'] ?? $row;
             $id = $art['id'] ?? 0;
             if ($id > 0) {
                 $articleIds[] = $id;
@@ -255,7 +272,7 @@ class ShateMConnector implements SupplierInterface
 
         // --- ЦЕНА ---
         $priceValue = (float)($priceData['price']['value'] ?? 0);
-        $currency   = (string)($priceData['price']['currencyCode'] ?? 'BYN');
+        $currency   = (string)($priceData['price']['currencyCode'] ?? 'RUB');
 
         // --- КОЛИЧЕСТВО + КРАТНОСТЬ ---
         $qtyAvailable = (int)($priceData['quantity']['available'] ?? 0);
@@ -278,8 +295,9 @@ class ShateMConnector implements SupplierInterface
         $supplyRating = is_numeric($supplyRatingRaw) ? max(0, min(100, (int)round((float)$supplyRatingRaw))) : null;
 
         // --- ИДЕНТИФИКАТОРЫ ДЛЯ КОРЗИНЫ/ЗАКАЗА ---
-        $priceId = (string)($priceData['id'] ?? '');
-        $hash    = (int)($priceData['hash'] ?? 0);
+        $priceId   = (string)($priceData['id'] ?? '');
+        $hash      = (int)($priceData['hash'] ?? 0);
+        $articleId = (int)($priceData['articleId'] ?? $articleInfo['id'] ?? $articleData['id'] ?? 0);
 
         $r = new SearchResultItem();
         $r->source       = $this->getCode();
@@ -306,10 +324,10 @@ class ShateMConnector implements SupplierInterface
             $r->deliveryPeriod = max(0, (int)ceil(($delTs - $now) / 3600));
         }
 
-        // --- raw (для будущей корзины/заказа) ---
         $r->raw = [
             'priceId'           => $priceId,
             'hash'              => $hash,
+            'articleId'         => $articleId,
             'locationCode'      => $locCode,
             'locationCodeReal'  => $priceData['locationCodeReal'] ?? '',
             'agreementCode'     => $priceData['agreementCode'] ?? '',
@@ -331,6 +349,17 @@ class ShateMConnector implements SupplierInterface
             'isImport'          => (bool)($priceData['isImport'] ?? false),
             'isFree'            => (bool)($priceData['isFree'] ?? false),
             'priority'          => (int)($priceData['priority'] ?? 0),
+        ];
+
+        // Для оформления заказа (см. SupplierOrderable::placeOrder()) —
+        // priceId нужен для POST /orders/bypriceitems, locationCode — т.к.
+        // "Все строки заказа должны быть из одного locationCode, иначе заказ
+        // не будет оформлен" (документация), articleId — для сопоставления
+        // строк ответа с basket_item_id (ответ не эхует обратно priceId).
+        $r->orderMeta = [
+            'price_id'      => $priceId,
+            'article_id'    => $articleId,
+            'location_code' => $locCode,
         ];
 
         if ($r->price <= 0 && $r->quantity <= 0) {
@@ -358,6 +387,195 @@ class ShateMConnector implements SupplierInterface
         });
         return $unique;
     }
+
+    // ==================== ЗАКАЗ (SupplierOrderable) ====================
+
+    public function placeOrder(array $items, bool $test = false): array
+    {
+        $token = $this->ensureToken();
+        if (!$token) {
+            $this->log('placeOrder: не удалось получить токен');
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'auth_failed'];
+        }
+
+        // "Все строки заказа должны быть из одного locationCode, иначе заказ
+        // не будет оформлен" — группируем позиции по locationCode и делаем
+        // отдельный вызов /orders/bypriceitems на каждую группу.
+        $groups = [];
+        $skipped = 0;
+        foreach ($items as $item) {
+            $priceId  = trim((string)($item['order_meta']['price_id'] ?? ''));
+            $artId    = (int)($item['order_meta']['article_id'] ?? 0);
+            $locCode  = trim((string)($item['order_meta']['location_code'] ?? ''));
+            $qty      = (int)($item['quantity'] ?? 0);
+            $basketItemId = (int)($item['basket_item_id'] ?? 0);
+            if ($priceId === '' || $locCode === '' || $qty <= 0 || $basketItemId <= 0) { $skipped++; continue; }
+
+            $groups[$locCode]['items'][] = [
+                'priceId' => $priceId,
+                'quantity' => $qty,
+                'comment' => mb_substr((string)($item['comment'] ?? ''), 0, 250),
+            ];
+            $groups[$locCode]['queue'][$artId][] = $basketItemId;
+            $groups[$locCode]['comment'] = mb_substr((string)($item['comment'] ?? ''), 0, 250);
+        }
+
+        if (empty($groups)) {
+            $this->log('placeOrder: нет ни одной валидной позиции (нет price_id/location_code в order_meta), пропущено ' . $skipped);
+            return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_valid_items'];
+        }
+
+        $itemReferences = [];
+        $rawResponses = [];
+        $anyHttpCode = null;
+        $anySuccess = false;
+        $errors = [];
+
+        foreach ($groups as $locCode => $group) {
+            $body = json_encode([
+                'agreementCode' => $this->agreementCode,
+                'comment'       => $group['comment'] ?? '',
+                'deliveryInfo'  => $this->deliveryAddressCode !== '' ? [
+                    'deliveryAddressCode' => $this->deliveryAddressCode,
+                ] : null,
+                // Обязательные флаги согласия у API — это B2B-интеграция по
+                // уже действующему договору с ШАТЕ-М, а не форма для
+                // конечного покупателя, поэтому подтверждаем программно.
+                'agreeWithTermsOfDelivery' => true,
+                'agreeWithPersonalDataProcessingPolicyAndUserAgreement' => true,
+                'priceItems' => $group['items'],
+            ], JSON_UNESCAPED_UNICODE);
+
+            $this->log("placeOrder: location={$locCode} items=" . count($group['items']) . " body={$body}");
+
+            $ch = curl_init($this->apiUrl . 'orders/bypriceitems');
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $token, 'Content-Type: application/json', 'Accept: application/json'],
+                CURLOPT_TIMEOUT        => 20,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $body,
+            ]);
+            $resp     = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err      = curl_error($ch);
+            curl_close($ch);
+
+            $this->log("placeOrder: location={$locCode} response http={$httpCode} err={$err} body=" . substr((string)$resp, 0, 4000));
+            $anyHttpCode = $httpCode ?: $anyHttpCode;
+
+            $decoded = json_decode((string)$resp, true);
+            $rawResponses[$locCode] = $decoded;
+
+            if ($err || $httpCode !== 200 || !is_array($decoded)) {
+                $errors[] = is_array($decoded) && !empty($decoded['errors'])
+                    ? implode(',', $decoded['errors']) : ($err ?: 'http_' . $httpCode);
+                continue;
+            }
+
+            // Сопоставление строк ответа с basket_item_id по articleId (ответ
+            // не эхует priceId — только article.id/code/tradeMarkName) —
+            // FIFO-очередь по articleId, тот же принцип, что и у других
+            // коннекторов (Росско/Авторусь/Иксора/Автопитер).
+            foreach ((array)($decoded['orderItems'] ?? []) as $oi) {
+                $lineArtId = (int)($oi['article']['id'] ?? 0);
+                $lineId    = (int)($oi['id'] ?? 0);
+                if ($lineId <= 0 || empty($group['queue'][$lineArtId])) continue;
+                $basketItemId = array_shift($group['queue'][$lineArtId]);
+                if ($basketItemId > 0) {
+                    $itemReferences[$basketItemId] = (string)$lineId;
+                    $anySuccess = true;
+                }
+            }
+        }
+
+        return [
+            'http_code'       => $anyHttpCode,
+            'success'         => $anySuccess,
+            'raw'             => $rawResponses,
+            'error'           => $anySuccess ? null : (implode('; ', $errors) ?: 'order_rejected'),
+            'item_references' => $itemReferences,
+        ];
+    }
+
+    // ==================== СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ====================
+
+    /** $reference — orderItem.id (полученный из placeOrder()::item_references). */
+    public function fetchOrderStatusByReference(string $reference): array
+    {
+        $reference = trim($reference);
+        if ($reference === '' || !ctype_digit($reference)) return [];
+
+        $token = $this->ensureToken();
+        if (!$token) return [];
+
+        $resp = $this->execCurl([
+            'url'     => $this->apiUrl . "orderitems/{$reference}/statuseshistory",
+            'headers' => ['Authorization: Bearer ' . $token, 'Accept: application/json'],
+            'method'  => 'GET',
+            'body'    => null,
+        ]);
+        if ($resp === null) return [];
+
+        $rows = json_decode($resp, true);
+        if (!is_array($rows) || empty($rows)) return [];
+
+        // Берём последнюю по дате запись истории (текущий статус).
+        usort($rows, fn($a, $b) => strtotime((string)($a['dateTime'] ?? '')) <=> strtotime((string)($b['dateTime'] ?? '')));
+        $last = end($rows);
+        $statusCode = (int)($last['statusCode'] ?? -1);
+        $info = self::STATUS_CODES[$statusCode] ?? null;
+
+        return [[
+            'order_number'    => null,
+            'state_id'        => (string)$statusCode,
+            'state_text'      => $info['name'] ?? ('code ' . $statusCode),
+            'stage'           => $info['stage'] ?? 'ordered',
+            'expected_date'   => null,
+            'guaranteed_date' => null,
+            'store_count'     => null,
+            'release_count'   => null,
+            'refusal_count'   => null,
+            'comment'         => $info['description'] ?? null,
+            'raw'             => $last,
+        ]];
+    }
+
+    /**
+     * Полный официальный словарь statusCode (GET /orderitemstatuscodes,
+     * снят вживую 2026-09-11) — name/isFinal как есть от ШАТЕ-М, stage —
+     * наша классификация под общий словарь (ordered/in_transit/ready/refused).
+     */
+    private const STATUS_CODES = [
+        0   => ['name' => 'Создано',                              'stage' => 'ordered'],
+        1   => ['name' => 'Ожидает обработки',                    'stage' => 'ordered'],
+        20  => ['name' => 'Ожидает предоплаты',                   'stage' => 'ordered'],
+        21  => ['name' => 'Заказ ожидает завершения транзакции',  'stage' => 'ordered'],
+        25  => ['name' => 'Ожидает оплаты (Эквайринг)',           'stage' => 'ordered'],
+        26  => ['name' => 'Оплата подтверждена',                  'stage' => 'ordered'],
+        27  => ['name' => 'Оплата не подтверждена (Эквайринг)',   'stage' => 'refused'],
+        30  => ['name' => 'В работе',                             'stage' => 'ordered'],
+        35  => ['name' => 'В перемещении',                        'stage' => 'in_transit'],
+        40  => ['name' => 'Заказ у поставщика',                   'stage' => 'ordered'],
+        45  => ['name' => 'Частично подтвержден поставщиком',     'stage' => 'in_transit'],
+        50  => ['name' => 'Подтвержден поставщиком',              'stage' => 'in_transit'],
+        60  => ['name' => 'Отказ поставщика',                     'stage' => 'refused'],
+        70  => ['name' => 'Отправлено на центральный склад ШМ+',  'stage' => 'in_transit'],
+        80  => ['name' => 'Не удалось зарезервировать позицию',   'stage' => 'ordered'],
+        90  => ['name' => 'Частичное резервирование',             'stage' => 'in_transit'],
+        100 => ['name' => 'Готов к отгрузке',                     'stage' => 'in_transit'],
+        110 => ['name' => 'Минимальная сумма доставки',           'stage' => 'ordered'],
+        120 => ['name' => 'Собран',                                'stage' => 'in_transit'],
+        125 => ['name' => 'Отгружено',                             'stage' => 'in_transit'],
+        130 => ['name' => 'В пути',                                'stage' => 'in_transit'],
+        140 => ['name' => 'Доставлено',                            'stage' => 'ready'],
+        150 => ['name' => 'Выдан',                                 'stage' => 'ready'],
+        160 => ['name' => 'Удален',                                'stage' => 'refused'],
+        170 => ['name' => 'Ошибка',                                'stage' => 'ordered'],
+        180 => ['name' => 'Отменён',                               'stage' => 'refused'],
+    ];
 
     // ==================== HTTP ====================
 
@@ -391,9 +609,17 @@ class ShateMConnector implements SupplierInterface
     {
         if (empty($articleIds)) return [];
         $body = json_encode(array_map(fn($id) => ['articleId' => $id], $articleIds));
+        // Подтверждено вживую: без agreementCode/deliveryAddressCode этот
+        // эндпоинт отдаёт пустой массив для данного аккаунта, даже по ходовым
+        // артикулам с реальным наличием — необходимые query-параметры, а не
+        // опциональные, как можно было понять из документации.
+        $query = http_build_query([
+            'agreementCode' => $this->agreementCode,
+            'deliveryAddressCode' => $this->deliveryAddressCode,
+        ]);
         $ch = curl_init();
         curl_setopt_array($ch, [
-            CURLOPT_URL            => $this->apiUrl . 'prices/search/with_article_info',
+            CURLOPT_URL            => $this->apiUrl . 'prices/search/with_article_info?' . $query,
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => $body,
             CURLOPT_RETURNTRANSFER => true,
@@ -442,6 +668,9 @@ class ShateMConnector implements SupplierInterface
         return $this->locationNames[$code] ?? $code;
     }
 
+    public function supportsCrossSearch(): bool { return false; }
+    public function getSearchTimeout(): int { return 8; }
+
     // ==================== УТИЛИТЫ ====================
 
     private function generateWarehouseCode(string $name): string
@@ -475,7 +704,4 @@ class ShateMConnector implements SupplierInterface
             FILE_APPEND
         );
     }
-
-    public function supportsCrossSearch(): bool { return false; }
-    public function getSearchTimeout(): int { return 8; }
 }
