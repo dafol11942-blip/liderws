@@ -25,16 +25,22 @@ function clog(string $msg): void {
 set_time_limit(180);
 ini_set('memory_limit', '256M');
 
+// init.php НЕ подключаем — он зависит от ядра Bitrix (AddEventHandler() и
+// т.п. определяются только после полной загрузки bitrix/header.php), а этот
+// крон, как и supplier_order_status_poll.php, использует коннектор в отрыве
+// от Bitrix — только автозагрузчик Lider\Supplier\*. Поэтому креды Армтека
+// продублированы здесь же, как и в двух других местах (init.php,
+// supplier_order_status_poll.php) — при смене VKORG/KUNRG/... обновлять везде.
 require_once $docRoot . '/local/php_interface/lib/autoload.php';
-require_once $docRoot . '/local/php_interface/init.php';
 
 clog('=== armtek_warehouse_sync START ===');
 
-$connector = getSupplierFactory()->get('armtek');
-if (!$connector instanceof \Lider\Supplier\ArmtekConnector) {
-    clog('ArmtekConnector не зарегистрирован в фабрике — выход');
-    exit(1);
-}
+$connector = new \Lider\Supplier\ArmtekConnector([
+    'LOGIN'    => 'lider1-16@bk.ru',
+    'PASSWORD' => 'LidGates166',
+    'VKORG'    => '4000',
+    'KUNRG'    => '43039417',
+]);
 
 $t0  = microtime(true);
 $map = $connector->fetchWarehouseMap();
