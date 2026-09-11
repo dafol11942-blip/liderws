@@ -269,6 +269,9 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
             'KUNZA' => '48022996',
             'VBELN' => '40359920',
         ]));
+        $factory->register(new \Lider\Supplier\ShateMConnector([
+            'API_KEY' => 'aa290d6a-2e79-4f2c-858e-c9cf5c9899f3',
+        ]));
     }
     return $factory;
 }

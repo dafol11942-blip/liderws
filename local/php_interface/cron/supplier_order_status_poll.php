@@ -78,7 +78,7 @@ $connectorsByCode = [
         'PASSWORD' => 'LidGates16',
     ]),
     'armtek' => new \Lider\Supplier\ArmtekConnector([
-        'LOGIN' => 'lider-16@bk.ru',
+        'LOGIN' => 'lider1-16@bk.ru',
         'PASSWORD' => 'LidGates166',
         'VKORG' => '4220',
         'KUNRG' => '40039944',
@@ -90,6 +90,9 @@ $connectorsByCode = [
         'LOGIN' => 'lider-16@bk.ru',
         'PASSWORD' => "'8dTpDU8}Myr)*&",
         'TIMEOUT' => 10,
+    ]),
+    'shatem' => new \Lider\Supplier\ShateMConnector([
+        'API_KEY' => 'aa290d6a-2e79-4f2c-858e-c9cf5c9899f3',
     ]),
     // Другие поставщики добавятся сюда по мере реализации у них
     // SupplierOrderStatusProvider — остальной скрипт их не касается.
