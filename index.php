@@ -37,9 +37,8 @@ $APPLICATION->SetTitle("ЛИДЕР — автозапчасти для ином�
         <p class="hero__subtitle">Замена масла, ремонт ходовой, диагностика, шиномонтаж. Купил — поставил с гарантией. Собственный шинный центр «Колеса Даром».</p>
         <div class="hero__buttons"><a href="/autoservice/" class="btn btn--primary">Подробнее об услугах</a></div>
     </div>
-    <div class="hero__image" style="background:var(--bg-dark);display:flex;align-items:center;justify-content:center;gap:16px;color:var(--blue);">
-        <svg class="icon" style="width:64px;height:64px;"><use href="#icon-wrench"></use></svg>
-        <svg class="icon" style="width:64px;height:64px;"><use href="#icon-tire"></use></svg>
+    <div class="hero__image hero__image--photo">
+        <img src="<?= SITE_TEMPLATE_PATH ?>/assets/images/autoservice-shop.webp" alt="Автосервис и шиномонтаж ЛИДЕР в Елабуге" style="object-position:top;">
     </div>
 </div>
 
