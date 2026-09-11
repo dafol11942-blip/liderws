@@ -433,7 +433,16 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
         $seen = [];
         $unique = [];
         foreach ($results as $item) {
-            $key = $item->getDedupeKey() . '|' . $item->warehouse;
+            // Дедуплицируем по стабильному коду склада (locationCodeReal), а
+            // не по отображаемому названию — оно берётся из addInfo.city
+            // конкретного предложения (см. buildSearchResultItem()) и может
+            // отличаться между разными ценовыми "суб-тирами" ОДНОГО и того
+            // же физического склада (у части из них addInfo.city пуст, тогда
+            // название — из статичного справочника, текст другой) —
+            // подтверждено вживую (PATRON PF4127, два "разных" московских
+            // склада с разным текстом оказались одним и тем же SHATE-P01).
+            $locKey = $item->raw['locationCodeReal'] ?? $item->warehouse;
+            $key = $item->getDedupeKey() . '|' . $locKey;
             if (!isset($seen[$key])) {
                 $seen[$key] = true;
                 $unique[] = $item;
