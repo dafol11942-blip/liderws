@@ -14,6 +14,13 @@ $q      = trim($_REQUEST['q'] ?? '');
 $brand  = trim($_REQUEST['brand'] ?? '');
 $number = trim($_REQUEST['number'] ?? '');
 
+// Заголовок вкладки браузера — страница верстает свой <head> вручную (не через шаблон
+// сайта), но title.php шаблона (см. header.php) выводит <title>$APPLICATION->ShowTitle()</title>
+// ПЕРВЫМ в документе; без SetPageProperty тут ShowTitle() отдаёт дефолтный "Title",
+// и браузер берёт именно его, а не второй <title> ниже по странице.
+$searchTitle = ($q ? ($brand . ' ' . $number ?: $q) : 'Поиск запчастей') . ' — liderws.ru';
+$APPLICATION->SetPageProperty('title', $searchTitle);
+
 function fmt($n) { return number_format((float)$n, 2, ',', ' '); }
 function esc($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
@@ -21,7 +28,6 @@ function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
 <html lang="ru">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title><?= $q ? esc($brand.' '.$number ?: $q) : 'Поиск запчастей' ?> — liderws.ru</title>
 <link rel="stylesheet" href="/search/style.css">
 </head>
 <body>
