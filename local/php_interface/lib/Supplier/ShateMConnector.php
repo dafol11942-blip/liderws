@@ -305,6 +305,15 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
         $warningText  = (string)($addInfo['warningText'] ?? '');
         $isSale       = (bool)($addInfo['isSale'] ?? false);
 
+        // addInfo.city — реальный город ЭТОГО конкретного предложения,
+        // точнее статичного справочника /locations (не заполнено не у всех
+        // предложений — у части "дублей" того же склада с другой ценой
+        // город в addInfo пуст, тогда остаётся имя склада из справочника).
+        $offerCity = trim((string)($addInfo['city'] ?? ''));
+        if ($offerCity !== '') {
+            $locName = $offerCity;
+        }
+
         // --- СРОК ДОСТАВКИ (только deliveryDateTime, без самовывоза) ---
         $deliveryDT   = $priceData['deliveryDateTimes'][0]['deliveryDateTime'] ?? null;
 
@@ -711,7 +720,12 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
             $locs = json_decode($resp, true);
             if (is_array($locs)) {
                 foreach ($locs as $loc) {
-                    $this->locationNames[$loc['code']] = $loc['city'] ?? $loc['name'] ?? $loc['code'];
+                    // Подтверждено вживую: "city" в справочнике складов не
+                    // уникален — у SHATE-P01 ("Москва") и SHATE-P02 (заказ из
+                    // Минска/РБ) city одинаково "Домодедово" (офис-адрес
+                    // администрирования), из-за чего разные склады совпадали
+                    // текстом и терялись при дедупликации. "name" — уникален.
+                    $this->locationNames[$loc['code']] = $loc['name'] ?? $loc['city'] ?? $loc['code'];
                 }
             }
         }
