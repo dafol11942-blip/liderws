@@ -78,6 +78,7 @@
 .src-tag--partkom{background:#e8f5e9;color:#2e7d32}.src-tag--ixora{background:#ede7f6;color:#5e35b1}
 .src-tag--shatem{background:#fef3c7;color:#92400e}.src-tag--tatparts{background:#e0f7fa;color:#006064}
 .src-tag--autoruss{background:#fff7ed;color:#c2410c}.src-tag--autopiter{background:#e8eaf6;color:#283593}
+.src-tag--armtek{background:#ccfbf1;color:#0f766e}
 
 /* ====== ВОЗВРАТ ТОВАРА (флаг возможности возврата у поставщика) — рядом с выбором количества ====== */
 .ret-badge { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
