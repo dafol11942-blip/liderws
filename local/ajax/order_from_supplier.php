@@ -144,11 +144,17 @@ try {
         return null;
     };
 
+    // Совпадение только по артикулу+бренду сливало в одну строку разные склады
+    // ОДНОГО поставщика (напр. Армтек: MOV0007394 и MOV0022026) — вторая позиция
+    // терялась, оставался только склад/order_meta первой. Склад — часть
+    // идентичности предложения точно так же, как артикул и бренд.
     $existItem = null;
     foreach ($basket as $basketItem) {
         if ($basketItem->getProductId() != $productId) continue;
         $bProps = $basketItem->getPropertyCollection();
-        if ($readProp($bProps, 'SUPPLIER_ARTICLE') === $article && $readProp($bProps, 'SUPPLIER_BRAND') === $brand) {
+        if ($readProp($bProps, 'SUPPLIER_ARTICLE') === $article
+            && $readProp($bProps, 'SUPPLIER_BRAND') === $brand
+            && $readProp($bProps, 'SUPPLIER_WAREHOUSE') === $realWarehouse) {
             $existItem = $basketItem;
             break;
         }

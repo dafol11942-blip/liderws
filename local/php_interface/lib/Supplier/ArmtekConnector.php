@@ -207,7 +207,7 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
             $r->returnable        = $retDays > 0;
             $r->reliabilityPercent = $reliability;
             $r->supplierName      = $this->getName();
-            $r->warehouse         = 'Армтек: ' . $keyzak;
+            $r->warehouse         = 'Армтек: ' . $this->warehouseName($keyzak);
             $r->stockId           = $keyzak . '|' . $itemNumber;
             $r->deliveryDays      = $deliveryDays;
             $r->deliveryPeriod    = $deliveryPeriod;
@@ -446,6 +446,50 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
         ];
     }
 
+    // ==================== СПРАВОЧНИК СКЛАДОВ (для armtek_warehouse_sync.php) ====================
+
+    /**
+     * getStoreList — единственный источник настоящих названий складов
+     * (Казань, Набережные Челны и т.п.) вместо голых KEYZAK. Отдаёт ПОЛНЫЙ
+     * справочник по всей сети (у VKORG=4000 — ~65 000 строк), фильтра по
+     * KEYZAK в API нет, поэтому вызывающий код (крон) должен сам решать, как
+     * часто это уместно дёргать — сам коннектор здесь не кэширует и не
+     * троттлит, только выполняет один живой запрос.
+     *
+     * @return array<string,string> keyzak => название склада
+     */
+    public function fetchWarehouseMap(): array
+    {
+        if (!$this->isAvailable()) return [];
+
+        // Проверено живым вызовом: ~8.5МБ / ~65 000 строк грузятся около 30с —
+        // обычный $this->timeout (10с, рассчитан на поиск/заказ) здесь рвёт
+        // соединение раньше, чем сервер успевает отдать тело целиком.
+        $resp = $this->execCurl([
+            'url'     => $this->baseUrl . '/ws_user/getStoreList?format=json',
+            'headers' => [$this->authHeader(), 'Accept: application/json'],
+            'method'  => 'POST',
+            'body'    => http_build_query(['VKORG' => $this->vkorg]),
+        ], 90);
+        if ($resp === null) return [];
+
+        $decoded = json_decode($resp, true);
+        if (!is_array($decoded)) return [];
+
+        $rows = $this->unwrapArray($decoded);
+        if (!is_array($rows)) return [];
+
+        $map = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) continue;
+            $keyzak = trim((string)($row['KEYZAK'] ?? ''));
+            $name   = trim((string)($row['SKLNAME'] ?? ''));
+            if ($keyzak === '' || $name === '') continue;
+            $map[$keyzak] = $name;
+        }
+        return $map;
+    }
+
     // ==================== СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ====================
 
     /**
@@ -534,6 +578,32 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ====================
 
     /**
+     * getStoreList (полный справочник складов ВСЕХ партнёров, не только
+     * "своих") — это ~65 000 строк / ~8.5МБ на VKORG=4000, дёргать его живьём
+     * на каждый поиск нельзя (доп. секунды на КАЖДЫЙ запрос с Армтеком, а не
+     * только на холодный кэш). Поэтому здесь только ЧТЕНИЕ заранее собранного
+     * файла-кэша keyzak→название — сам файл наполняет отдельный крон
+     * (armtek_warehouse_sync.php), а не этот класс. Нет файла/нет KEYZAK в нём
+     * — просто показываем голый код склада, как было раньше.
+     */
+    private const WAREHOUSE_CACHE_FILE = '/upload/cache/armtek_warehouses.json';
+    private static ?array $warehouseMap = null;
+
+    private function warehouseName(string $keyzak): string
+    {
+        if (self::$warehouseMap === null) {
+            self::$warehouseMap = [];
+            $root = $_SERVER['DOCUMENT_ROOT'] ?? '/var/www/u3564357/data/www/liderws.ru';
+            $body = @file_get_contents($root . self::WAREHOUSE_CACHE_FILE);
+            if ($body !== false) {
+                $map = json_decode($body, true);
+                if (is_array($map)) self::$warehouseMap = $map;
+            }
+        }
+        return self::$warehouseMap[$keyzak] ?? $keyzak;
+    }
+
+    /**
      * Ответы Армтека могут прийти как голый массив, так и обёрнутыми в
      * {"RESP": {...}} или с одиночным объектом вместо списка из одного
      * элемента — не полагаемся заранее на один формат (тот же принцип, что и
@@ -564,13 +634,13 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
         return max(0, (int)$val);
     }
 
-    private function execCurl(array $req): ?string
+    private function execCurl(array $req, ?int $timeoutOverride = null): ?string
     {
         $ch = curl_init($req['url']);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER     => $req['headers'],
-            CURLOPT_TIMEOUT        => $this->timeout,
+            CURLOPT_TIMEOUT        => $timeoutOverride ?? $this->timeout,
             CURLOPT_CONNECTTIMEOUT => 4,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => 0,
