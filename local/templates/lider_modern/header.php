@@ -224,14 +224,44 @@ function pickCatalogNavIcon(string $name): string {
         <div class="container">
             <nav class="header-nav__menu">
 <a href="/service-parts/" style="color:var(--blue);"><svg class="icon"><use href="#icon-wrench"></use></svg> Запчасти для ТО</a>
-                <a href="/catalog/masla/">Масла</a>
-                <a href="/catalog/filtry/">Фильтры</a>
-                <a href="/catalog/tormoznye-kolodki/">Тормозные колодки</a>
-                <a href="/catalog/grm/">ГРМ</a>
-                <a href="/catalog/shiny/">Шины и диски</a>
-                <div class="services-dropdown-wrapper">
+                <div class="nav-dropdown-wrapper">
+                    <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/">Масла</a>
+                    <div class="nav-dropdown">
+                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/maslo_motornoe/">Масло моторное</a>
+                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/maslo_transmissionnoe/">Масло трансмиссионное</a>
+                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/tormoznaya_zhidkost/">Тормозная жидкость</a>
+                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/okhlazhdayushchaya_zhidkost/">Охлаждающая жидкость</a>
+                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/zhidkost_gur/">Жидкость ГУР</a>
+                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/stekloomyvayushchaya_zhidkost/">Стеклоомывающая жидкость</a>
+                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/" class="nav-dropdown__all">Все масла и жидкости →</a>
+                    </div>
+                </div>
+                <div class="nav-dropdown-wrapper">
+                    <a href="/catalog/inomarki/filtry/">Фильтры</a>
+                    <div class="nav-dropdown">
+                        <a href="/catalog/inomarki/filtry/maslyanye_filtry/">Масляные фильтры</a>
+                        <a href="/catalog/inomarki/filtry/vozdushnye_filtry/">Воздушные фильтры</a>
+                        <a href="/catalog/inomarki/filtry/toplivnye_filtry/">Топливные фильтры</a>
+                        <a href="/catalog/inomarki/filtry/salonnye_filtry/">Салонные фильтры</a>
+                        <a href="/catalog/inomarki/filtry/akpp_filtry/">Фильтры АКПП</a>
+                        <a href="/catalog/vaz/filtry_vaz/">Фильтры ВАЗ</a>
+                        <a href="/catalog/inomarki/filtry/" class="nav-dropdown__all">Все фильтры →</a>
+                    </div>
+                </div>
+                <div class="nav-dropdown-wrapper">
+                    <a href="/catalog/inomarki/tormoznaya_sistema/">Тормозные колодки</a>
+                    <div class="nav-dropdown">
+                        <a href="/catalog/inomarki/tormoznaya_sistema/perednie_kolodki/">Передние колодки</a>
+                        <a href="/catalog/inomarki/tormoznaya_sistema/zadnie_kolodki/">Задние колодки</a>
+                        <a href="/catalog/inomarki/tormoznaya_sistema/kolodki_ruchnika/">Колодки ручника</a>
+                        <a href="/catalog/inomarki/tormoznaya_sistema/diski_tormoznye/">Тормозные диски</a>
+                        <a href="/catalog/vaz/tormoznaya_sistema_vaz/">Тормозная система ВАЗ</a>
+                        <a href="/catalog/inomarki/tormoznaya_sistema/" class="nav-dropdown__all">Вся тормозная система →</a>
+                    </div>
+                </div>
+                <div class="nav-dropdown-wrapper">
                     <a href="/autoservice/">Автосервис</a>
-                    <div class="services-dropdown">
+                    <div class="nav-dropdown">
                         <a href="/autoservice/diagnostika-i-remont-podveski/">Диагностика и ремонт подвески</a>
                         <a href="/autoservice/zamena-masla-v-dvigatele/">Замена масла в двигателе</a>
                         <a href="/autoservice/tekhnicheskoe-obsluzhivanie/">Техническое обслуживание и мелкий ремонт</a>
@@ -239,7 +269,7 @@ function pickCatalogNavIcon(string $name): string {
                         <a href="/autoservice/zamena-tsepi-remnya-grm/">Замена цепи/ремня ГРМ</a>
                         <a href="/autoservice/zamena-masla-v-transmissii/">Замена масла в трансмиссии</a>
                         <a href="/autoservice/zamena-filtrov/">Замена фильтров</a>
-                        <a href="/autoservice/" class="services-dropdown__all">Все услуги автосервиса →</a>
+                        <a href="/autoservice/" class="nav-dropdown__all">Все услуги автосервиса →</a>
                     </div>
                 </div>
             </nav>
