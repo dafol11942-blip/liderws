@@ -115,8 +115,13 @@ try {
             exit;
         }
 
+        // "td" может быть null у части позиций (характеристик/OEM/замен нет), но title/img
+        // на верхнем уровне ответа при этом всё равно присутствуют — считаем данные полезными,
+        // если есть ХОТЬ ЧТО-ТО, а не только когда заполнен td целиком.
         $decoded = json_decode($response, true);
-        $hasData = is_array($decoded) && !empty($decoded['td']) && is_array($decoded['td']);
+        $hasData = is_array($decoded) && (
+            !empty($decoded['td']) || !empty($decoded['title']) || !empty($decoded['img'])
+        );
 
         $toStore = $hasData ? $response : '';
         $db->query(
@@ -133,19 +138,21 @@ try {
     }
 
     $data = json_decode($rawJson, true);
-    $td = $data['td'] ?? [];
-    if (empty($td)) {
-        echo json_encode(['success' => false]);
-        exit;
-    }
+    // td бывает null (нет характеристик/OEM/замен для этой позиции) — это не повод скрывать
+    // то, что ЕСТЬ (title/img на верхнем уровне), см. hasData выше. Приводим к массиву, чтобы
+    // ?? [] на вложенных ключах ниже отрабатывал одинаково что для null, что для отсутствия.
+    $td = (array)($data['td'] ?? []);
 
     // Картинку отдаём со своего домена, а не прямой ссылкой на image.umapi.ru — у части
     // посетителей блокировщики рекламы (в т.ч. встроенный в Opera) блокируют запросы к
     // незнакомым сторонним доменам с картинками (подтверждено: net::ERR_BLOCKED_BY_CLIENT
     // в DevTools). Скачиваем один раз на сервере и кешируем в /upload — дальше отдаём как
     // обычную картинку сайта, same-origin, блокировщикам нечего блокировать.
+    // Путь у UMAPI бывает разного вида ("/4/hash.webp", "/PUBLIC/P2016/AG290.JPEG") —
+    // проверяем только на безопасность (относительный путь, без ".." и посторонних символов),
+    // не на конкретную форму.
     $img = null;
-    if (!empty($data['img']) && preg_match('~^/\d+/[A-Za-z0-9]+\.[A-Za-z0-9]+$~', $data['img'])) {
+    if (!empty($data['img']) && preg_match('~^(/[A-Za-z0-9_\-]+)+\.[A-Za-z0-9]+$~', $data['img'])) {
         $img = cacheUmapiImage('https://image.umapi.ru/IMAGE' . $data['img'], $data['img']);
     }
 
@@ -184,9 +191,15 @@ try {
         if ($num !== '') $supersededOld[] = $num;
     }
 
+    $title = (string)($data['title'] ?? '');
+    if ($title === '' && !$img && empty($criterias) && empty($oem) && empty($supersededNew) && empty($supersededOld)) {
+        echo json_encode(['success' => false]);
+        exit;
+    }
+
     echo json_encode([
         'success'    => true,
-        'title'      => (string)($data['title'] ?? ''),
+        'title'      => $title,
         'img'        => $img,
         'criterias'  => $criterias,
         'oem'        => $oem,
