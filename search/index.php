@@ -881,7 +881,10 @@ function renderCrossInfoCard(data){
 }
 
 // Увеличение фото товара в .phead-img по клику — простой оверлей без сторонних библиотек.
-function openImageZoom(src){
+// window. — эта функция вызывается из инлайнового onclick в HTML (см. renderCrossInfoCard),
+// а инлайновый onclick видит только глобальную область видимости, не замыкание этого IIFE
+// (та же причина, по которой resetFilters/cyclePriceSort в этом файле объявлены так же).
+window.openImageZoom = function(src){
     var overlay=document.getElementById('imgZoomOverlay');
     if(!overlay){
         overlay=document.createElement('div');
@@ -898,7 +901,7 @@ function openImageZoom(src){
     }
     overlay.querySelector('.img-zoom-pic').src=src;
     overlay.classList.add('img-zoom-overlay--open');
-}
+};
 function closeImageZoom(){
     var overlay=document.getElementById('imgZoomOverlay');
     if(overlay) overlay.classList.remove('img-zoom-overlay--open');
