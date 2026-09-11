@@ -6,6 +6,11 @@ if (empty($arResult['ITEMS'])) {
 }
 
 CModule::IncludeModule('catalog');
+
+global $USER;
+$favCatalogIds = $USER->IsAuthorized()
+    ? getFavoritedCatalogIds($USER->GetID(), array_column($arResult['ITEMS'], 'ID'))
+    : [];
 ?>
 
 <div class="products-grid">
@@ -30,6 +35,12 @@ CModule::IncludeModule('catalog');
     ?>
     <div class="product-card">
         <div class="product-card__img">
+            <button type="button" class="fav-btn product-card__fav<?= in_array($item['ID'], $favCatalogIds) ? ' is-active' : '' ?>"
+                    data-fav-type="catalog" data-fav-id="<?= $item['ID'] ?>"
+                    aria-pressed="<?= in_array($item['ID'], $favCatalogIds) ? 'true' : 'false' ?>"
+                    title="В избранное" onclick="toggleFavorite(this)">
+                <svg class="icon<?= in_array($item['ID'], $favCatalogIds) ? ' icon--fill' : '' ?>"><use href="#icon-heart"></use></svg>
+            </button>
             <a href="<?= $item['DETAIL_PAGE_URL'] ?>">
                 <img src="<?= $img ?>" alt="<?= htmlspecialchars($item['NAME']) ?>" loading="lazy">
             </a>

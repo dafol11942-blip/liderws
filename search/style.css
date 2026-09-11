@@ -258,6 +258,10 @@
 .actl-btn .icon { width: 16px; height: 16px; }
 .actl-oos { font-size: 12px; font-weight: 700; color: #b91c1c; text-transform: uppercase; letter-spacing: .02em; }
 
+/* На странице поиска сердечко в ряд с actl-btn — квадратная форма вместо круглой (см.
+   базовый .fav-btn в общем style.css, используемый на карточке каталога/странице товара). */
+.fav-btn { border-radius: var(--radius); }
+
 /* Показать ещё */
 .ft-showmore { display: block; width: 100%; padding: 10px; background: var(--bg); border: none; border-top: 1px solid var(--border); color: var(--blue); font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; }
 .ft-showmore:hover { background: #e8ecf2; }

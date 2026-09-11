@@ -9,6 +9,7 @@ require_once($_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/lib/Search/BrandN
 use Lider\Search\BrandNormalizer;
 
 $isManager = isManager();
+$favSupplierKeys = $USER->IsAuthorized() ? getFavoritedSupplierKeys($USER->GetID()) : [];
 $q      = trim($_REQUEST['q'] ?? '');
 $brand  = trim($_REQUEST['brand'] ?? '');
 $number = trim($_REQUEST['number'] ?? '');
@@ -192,6 +193,8 @@ document.addEventListener('DOMContentLoaded',function(){loadBrands(Q)});
 var API='/search/ajax.php';
 var Q=<?=json_encode($q)?>,B=<?=json_encode($brand)?>,N=<?=json_encode($number)?>;
 var IS_MANAGER=<?=json_encode($isManager)?>;
+var FAV_SUPPLIER_KEYS=<?=json_encode($favSupplierKeys)?>;
+function isFavSupplier(brand,article,supplier){ return FAV_SUPPLIER_KEYS.indexOf((brand||'')+'|'+(article||'')+'|'+(supplier||'')) !== -1; }
 var TASK_ID=null;
 var hideBasePrice=false;
 
@@ -416,6 +419,16 @@ function mergeAnalogOffers(d1, analogOffers, newAnalogs) {
 }
 
 document.addEventListener('click', function(e) {
+    var favBtn = e.target.closest && e.target.closest('.fav-btn');
+    if (favBtn) {
+        // TASK_ID живёт в замыкании этого IIFE, поэтому не наружный window.TASK_ID (которого
+        // тут просто нет) — прокидываем его явно в data-атрибут перед вызовом общей toggleFavorite()
+        // из favorites.js (см. footer.php), которая ждёт task именно там.
+        favBtn.setAttribute('data-task', TASK_ID || '');
+        if (window.toggleFavorite) window.toggleFavorite(favBtn);
+        return;
+    }
+
     var stepBtn = e.target.closest && e.target.closest('.actl-step');
     if (stepBtn) {
         var stepper = stepBtn.closest('.actl-stepper');
@@ -809,6 +822,15 @@ function renderResults(d){
     });
 }
 
+function favToggleControl(brand,article,supplier,warehouse,token){
+    var active=isFavSupplier(brand,article,supplier);
+    return '<button type="button" class="fav-btn'+(active?' is-active':'')+'" data-fav-type="supplier" '
+        +'data-brand="'+esc(brand)+'" data-article="'+esc(article)+'" data-supplier="'+esc(supplier||'')+'" '
+        +'data-warehouse="'+esc(warehouse||'')+'" data-token="'+esc(token||'')+'" '
+        +'title="В избранное" aria-pressed="'+(active?'true':'false')+'">'
+        +'<svg class="icon'+(active?' icon--fill':'')+'"><use href="#icon-heart"></use></svg></button>';
+}
+
 function addToCartControl(brand,article,supplier,warehouse,token,qty,description,multiplicity){
     var step=Math.max(1,parseInt(multiplicity,10)||1);
     var avail=Math.max(0,parseInt(qty,10)||0);
@@ -864,7 +886,7 @@ function priceBlock(s){
 
 function hlCard(o,title,cardCls,badgeCls,type){
     var det=o._description||o.description||'';
-    return '<div class="hl-card '+cardCls+'"><div class="hl-badge '+badgeCls+'">'+title+'</div><div class="hl-type">'+type+'</div><div class="hl-name">'+esc(o._brand)+' / '+esc(o._article)+'</div>'+(det?'<div class="hl-desc">'+esc(det)+'</div>':'')+'<div class="hl-price">'+priceBlock(o)+'</div><div class="hl-meta">'+o.quantity_label+' '+esc(o.unit||'шт.')+' &middot; '+dRange(o)+'</div><div class="hl-src">'+supplierBadge(o)+'</div><div class="hl-actl">'+reliabilityBadge(o)+returnIcon(o)+addToCartControl(o._brand,o._article,o.supplier,o.warehouse,o.offer_token,o.quantity,det,o.multiplicity)+'</div></div>';
+    return '<div class="hl-card '+cardCls+'"><div class="hl-badge '+badgeCls+'">'+title+'</div><div class="hl-type">'+type+'</div><div class="hl-name">'+esc(o._brand)+' / '+esc(o._article)+'</div>'+(det?'<div class="hl-desc">'+esc(det)+'</div>':'')+'<div class="hl-price">'+priceBlock(o)+'</div><div class="hl-meta">'+o.quantity_label+' '+esc(o.unit||'шт.')+' &middot; '+dRange(o)+'</div><div class="hl-src">'+supplierBadge(o)+'</div><div class="hl-actl">'+reliabilityBadge(o)+returnIcon(o)+favToggleControl(o._brand,o._article,o.supplier,o.warehouse,o.offer_token)+addToCartControl(o._brand,o._article,o.supplier,o.warehouse,o.offer_token,o.quantity,det,o.multiplicity)+'</div></div>';
 }
 
 function supplierTable(suppliers,type,brand,article,sortKey){
@@ -878,7 +900,7 @@ function supplierTable(suppliers,type,brand,article,sortKey){
     list.forEach(function(s,i){
         var cls=i>=limit?' class="ft-more"':'';
         var det=s._description||s.description||'—';
-        h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span>'+supplierBadge(s)+'</td><td class="ft-td--num" data-label="Кол.">'+s.quantity_label+'</td><td class="ft-td--num" data-label="Ед.">'+esc(s.unit||'шт.')+'</td><td class="ft-td--num" data-label="Доставка">'+dRange(s)+'</td><td class="ft-td--prc" data-label="Цена">'+priceBlock(s)+'</td><td class="ft-td--act">'+reliabilityBadge(s)+returnIcon(s)+addToCartControl(brand,article,s.supplier,s.warehouse,s.offer_token,s.quantity,det,s.multiplicity)+'</td></tr>';
+        h+='<tr'+cls+'><td class="ft-td--det" data-label="Деталь">'+esc(det)+'</td><td class="ft-td--skl" data-label="Склад"><span class="ft-skl-name">'+esc(s.warehouse||'—')+'</span>'+supplierBadge(s)+'</td><td class="ft-td--num" data-label="Кол.">'+s.quantity_label+'</td><td class="ft-td--num" data-label="Ед.">'+esc(s.unit||'шт.')+'</td><td class="ft-td--num" data-label="Доставка">'+dRange(s)+'</td><td class="ft-td--prc" data-label="Цена">'+priceBlock(s)+'</td><td class="ft-td--act">'+reliabilityBadge(s)+returnIcon(s)+favToggleControl(brand,article,s.supplier,s.warehouse,s.offer_token)+addToCartControl(brand,article,s.supplier,s.warehouse,s.offer_token,s.quantity,det,s.multiplicity)+'</td></tr>';
     });
     h+='</tbody></table>';
     if(suppliers.length>limit)h+='<button class="ft-showmore" data-count="'+(suppliers.length-limit)+'">Показать еще '+(suppliers.length-limit)+' товаров</button>';

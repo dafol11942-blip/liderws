@@ -396,6 +396,16 @@ ul, ol { list-style: none; }
 .product-card__badge--hit { background: var(--red); }
 .product-card__badge--new { background: var(--green); }
 .product-card__badge--sale { background: #F90; }
+
+/* Кнопка "В избранное" — переиспользуется на карточке каталога (оверлей над фото),
+   странице товара и в офферах /search/ (рядом с actl-btn). Активное состояние: is-active
+   (цвет кнопки) + icon--fill на самом svg (заливка сердечка, класс уже есть в style.css). */
+.fav-btn { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex-shrink: 0; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: #fff; color: var(--gray-light); cursor: pointer; box-shadow: var(--shadow-sm); transition: all var(--transition); }
+.fav-btn .icon { width: 18px; height: 18px; }
+.fav-btn:hover { border-color: var(--red); color: var(--red); }
+.fav-btn.is-active { border-color: var(--red); color: var(--red); background: #fdecec; }
+.fav-btn:disabled { opacity: 0.6; cursor: default; }
+.product-card__fav { position: absolute; top: 8px; right: 8px; z-index: 2; }
 .product-card__body { padding: 14px 16px 18px; display: flex; flex-direction: column; flex: 1; }
 .product-card__brand { display: inline-flex; align-self: flex-start; font-size: 10px; font-weight: 800; color: var(--blue); background: rgba(102,139,234,0.10); padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
 .product-card__name { font-weight: 700; font-size: 13px; line-height: 1.4; margin-bottom: 6px; flex: 1; overflow-wrap: break-word; }

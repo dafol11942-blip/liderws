@@ -32,6 +32,9 @@ while ($arStore = $dbStore->Fetch()) {
     $totalAmount += (int)$arStore['AMOUNT'];
 }
 $inStock = $totalAmount > 0;
+
+global $USER;
+$isFav = $USER->IsAuthorized() && !empty(getFavoritedCatalogIds($USER->GetID(), [$item['ID']]));
 ?>
 
 <div class="product-detail">
@@ -81,6 +84,12 @@ $inStock = $totalAmount > 0;
             <?php else: ?>
                 <button class="btn btn--outline btn--lg" disabled>Нет в наличии</button>
             <?php endif; ?>
+            <button type="button" class="fav-btn<?= $isFav ? ' is-active' : '' ?>" style="width:44px;height:44px;"
+                    data-fav-type="catalog" data-fav-id="<?= $item['ID'] ?>"
+                    aria-pressed="<?= $isFav ? 'true' : 'false' ?>"
+                    title="В избранное" onclick="toggleFavorite(this)">
+                <svg class="icon<?= $isFav ? ' icon--fill' : '' ?>"><use href="#icon-heart"></use></svg>
+            </button>
         </div>
 
         <div class="product-detail__stores">

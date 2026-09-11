@@ -24,6 +24,8 @@ if (!isset($_SESSION['CART_QTY'])) {
     }
 }
 $cartQty = (int)$_SESSION['CART_QTY'];
+global $USER;
+$favQty = $USER->IsAuthorized() ? getFavoritesCount($USER->GetID()) : 0;
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -185,7 +187,10 @@ function pickCatalogNavIcon(string $name): string {
             </div>
 
             <div class="header__actions">
-                <a href="/personal/favorites/" class="header__icon" title="Избранное"><svg class="icon"><use href="#icon-heart"></use></svg></a>
+                <a href="/personal/favorites/" class="header__icon" id="favIcon" title="Избранное">
+                    <svg class="icon"><use href="#icon-heart"></use></svg>
+                    <span class="badge" id="favBadge"<?= $favQty > 0 ? '' : ' style="display:none;"' ?>><?= $favQty ?></span>
+                </a>
                 <a href="/personal/compare/" class="header__icon" title="Сравнение"><svg class="icon"><use href="#icon-compare"></use></svg></a>
                 <a href="/cart/" class="header__icon" id="cartIcon" title="Корзина">
                     <svg class="icon"><use href="#icon-cart"></use></svg>

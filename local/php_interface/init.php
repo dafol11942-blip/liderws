@@ -125,6 +125,55 @@ function loadSupplierBasketOrderMeta(int $basketItemId): array
     }
 }
 
+// Срок актуальности заказной позиции (цена/остаток у поставщика) — общий и для
+// корзины (SUPPLIER_ADDED_AT в свойствах, см. sale.basket.basket/lider_style/template.php),
+// и для избранного (CONFIRMED_AT в b_user_favorites, см. local/ajax/favorites.php).
+if (!defined('CART_TTL_SECONDS')) define('CART_TTL_SECONDS', 2 * 3600);
+
+// Избранное (см. local/php_interface/db/user_favorites_table.sql, local/ajax/favorites.php).
+function getFavoritesCount(int $userId): int
+{
+    if ($userId <= 0) return 0;
+    try {
+        $db  = \Bitrix\Main\Application::getConnection();
+        $row = $db->query("SELECT COUNT(*) AS CNT FROM b_user_favorites WHERE USER_ID = {$userId}")->fetch();
+        return (int)($row['CNT'] ?? 0);
+    } catch (\Throwable $e) {
+        return 0;
+    }
+}
+
+// Для одним запросом проставить "активное" сердечко у карточек каталога/страницы товара.
+function getFavoritedCatalogIds(int $userId, array $productIds): array
+{
+    $productIds = array_values(array_unique(array_map('intval', $productIds)));
+    if ($userId <= 0 || empty($productIds)) return [];
+    try {
+        $db   = \Bitrix\Main\Application::getConnection();
+        $ids  = implode(',', $productIds);
+        $rows = $db->query("SELECT PRODUCT_ID FROM b_user_favorites WHERE USER_ID = {$userId} AND TYPE = 'catalog' AND PRODUCT_ID IN ({$ids})")->fetchAll();
+        return array_map(function ($r) { return (int)$r['PRODUCT_ID']; }, $rows);
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+// Плоский список "brand|article|supplier" для гидратации состояния сердечек в search/index.php
+// на клиенте — карточки офферов там рисует JS из JSON, а не PHP-цикл.
+function getFavoritedSupplierKeys(int $userId): array
+{
+    if ($userId <= 0) return [];
+    try {
+        $db   = \Bitrix\Main\Application::getConnection();
+        $rows = $db->query("SELECT ARTICLE, BRAND, SUPPLIER FROM b_user_favorites WHERE USER_ID = {$userId} AND TYPE = 'supplier'")->fetchAll();
+        return array_map(function ($r) {
+            return ($r['BRAND'] ?? '') . '|' . ($r['ARTICLE'] ?? '') . '|' . ($r['SUPPLIER'] ?? '');
+        }, $rows);
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
 function getYandexMapsApiKey(): string
 {
     static $key = null;

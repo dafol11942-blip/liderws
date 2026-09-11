@@ -77,5 +77,6 @@
     </button>
 
     <script src="<?= SITE_TEMPLATE_PATH ?>/assets/js/main.js"></script>
+    <script src="<?= SITE_TEMPLATE_PATH ?>/assets/js/favorites.js"></script>
 </body>
 </html>
