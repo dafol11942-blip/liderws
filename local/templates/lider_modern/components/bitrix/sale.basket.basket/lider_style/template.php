@@ -15,6 +15,7 @@ $bRes = CSaleBasket::GetList(
 );
 
 $totalSum = 0;
+$totalClientSum = 0;
 $totalQty = 0;
 $cartMaxDeliveryDays = -1;
 $cartMaxDeliveryText = '';
@@ -43,6 +44,19 @@ while ($b = $bRes->Fetch()) {
     $b['ARTICLE'] = $props['SUPPLIER_ARTICLE'] ?? '';
     $b['BRAND']   = $props['SUPPLIER_BRAND'] ?? '';
     if ($supplierCode !== '') $hasSupplierItem = true;
+
+    // Менеджер видит в корзине закупочную цену (см. getDisplayPrice() —
+    // $b['PRICE'] для него уже и есть закупочная), поэтому отдельно считаем
+    // клиентскую по SUPPLIER_PRICE_BASE — только у заказных позиций от
+    // поставщика, для товара своего склада отдельной клиентской формулы нет.
+    $b['CLIENT_PRICE_NUM'] = null;
+    $b['CLIENT_SUM_NUM']   = null;
+    if ($isMgr && $supplierCode !== '' && isset($props['SUPPLIER_PRICE_BASE'])) {
+        $b['CLIENT_PRICE_NUM'] = getClientPrice((float)$props['SUPPLIER_PRICE_BASE']);
+        $b['CLIENT_SUM_NUM']   = $b['CLIENT_PRICE_NUM'] * $b['QTY'];
+        $b['CLIENT_PRICE_FMT'] = number_format($b['CLIENT_PRICE_NUM'], 0, ',', ' ') . ' ₽';
+        $b['CLIENT_SUM_FMT']   = number_format($b['CLIENT_SUM_NUM'], 0, ',', ' ') . ' ₽';
+    }
 
     // Возможность возврата — только у заказных позиций от поставщика (напр.
     // ПартКом: flagReturnImpossible в ответе API), у товара своего склада
@@ -104,11 +118,16 @@ while ($b = $bRes->Fetch()) {
     $b['IS_STALE'] = $addedAt > 0 && (time() - $addedAt) > CART_TTL_SECONDS;
 
     $totalSum += $b['SUM_NUM'];
+    // Клиентская сумма по позиции без своей формулы (товар своего склада) —
+    // берём как есть, наравне с закупочной: разница копится только там, где
+    // мы реально знаем и закупку, и клиентскую цену (заказные позиции).
+    $totalClientSum += $b['CLIENT_SUM_NUM'] ?? $b['SUM_NUM'];
     $totalQty += $b['QTY'];
     $items[] = $b;
 }
 
 $totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
+$totalClientFmt = number_format($totalClientSum, 0, ',', ' ') . ' ₽';
 // Страница корзины и так уже посчитала реальное количество товаров —
 // заодно подравниваем кэш счётчика в шапке (header.php), если он разошёлся
 // с БД (несколько вкладок/устройств, изменения в админке и т.п.).
@@ -163,7 +182,11 @@ if (!empty($items) && !$hasSupplierItem) {
                     <?php if (!$item['RETURNABLE']): ?>
                     <div class="cart-item__no-return"><svg class="icon"><use href="#icon-x-circle"></use></svg> Товар не подлежит возврату</div>
                     <?php endif; ?>
+                    <?php if ($item['CLIENT_PRICE_NUM'] !== null): ?>
+                    <div class="cart-item__price-unit">Закуп: <?= $item['PRICE_FMT'] ?> / шт. &middot; Клиент: <?= $item['CLIENT_PRICE_FMT'] ?> / шт.</div>
+                    <?php else: ?>
                     <div class="cart-item__price-unit"><?= $item['PRICE_FMT'] ?> / шт.</div>
+                    <?php endif; ?>
                     <?php if ($item['SUPPLIER_CODE'] !== ''): ?>
                     <div class="cart-item__meta">
                         <?php if ($isMgr): ?>
@@ -188,6 +211,11 @@ if (!empty($items) && !$hasSupplierItem) {
                 </div>
                 <div class="cart-item__price">
                     <div class="cart-item__sum" id="sum-<?= $item['ID'] ?>"><?= $item['SUM_FMT'] ?></div>
+                    <?php if ($item['CLIENT_PRICE_NUM'] !== null): ?>
+                    <div class="cart-item__sum-label">закуп</div>
+                    <div class="cart-item__sum cart-item__sum--client" id="sum-client-<?= $item['ID'] ?>"><?= $item['CLIENT_SUM_FMT'] ?></div>
+                    <div class="cart-item__sum-label">клиент</div>
+                    <?php endif; ?>
                 </div>
                 <button class="cart-item__remove" onclick="basketDelete(<?= $item['ID'] ?>)" title="Удалить"><svg class="icon"><use href="#icon-x"></use></svg></button>
             </div>
@@ -202,13 +230,19 @@ if (!empty($items) && !$hasSupplierItem) {
                         <span>Товары (<span id="cart-count"><?= $totalQty ?></span> шт.)</span>
                         <span id="cart-subtotal"><?= $totalFmt ?></span>
                     </div>
+                    <?php if ($isMgr): ?>
+                    <div class="cart-summary__row cart-summary__row--client">
+                        <span>Клиентская сумма</span>
+                        <span id="cart-subtotal-client"><?= $totalClientFmt ?></span>
+                    </div>
+                    <?php endif; ?>
                     <div class="cart-summary__row">
                         <span>Доставка</span>
                         <span><?= htmlspecialchars($cartDeliveryFmt) ?></span>
                     </div>
                 </div>
                 <div class="cart-summary__total">
-                    <span>Итого</span>
+                    <span><?= $isMgr ? 'Итого (закупка)' : 'Итого' ?></span>
                     <span id="cart-total"><?= $totalFmt ?></span>
                 </div>
                 <a href="/order/" id="checkout-link" class="btn btn--primary btn--lg btn--block">Перейти к оформлению</a>
@@ -311,6 +345,9 @@ if (!empty($items) && !$hasSupplierItem) {
 
 .cart-item__price { text-align: right; flex-shrink: 0; min-width: 110px; }
 .cart-item__sum { font-size: 17px; font-weight: 800; color: var(--black); }
+.cart-item__sum--client { font-size: 14px; font-weight: 700; color: var(--gray); margin-top: 6px; }
+.cart-item__sum-label { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: var(--gray-light); }
+.cart-item__sum-label:first-of-type { margin-top: 2px; }
 
 .cart-item__remove {
     background: none; border: none; font-size: 18px; color: var(--gray-light);
@@ -327,6 +364,7 @@ if (!empty($items) && !$hasSupplierItem) {
 .cart-summary__title { font-size: 18px; font-weight: 700; margin-bottom: 20px; color: var(--black); }
 .cart-summary__rows { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
 .cart-summary__row { display: flex; justify-content: space-between; font-size: 14px; color: var(--gray); }
+.cart-summary__row--client { color: var(--blue); font-weight: 700; }
 .cart-summary__total {
     display: flex; justify-content: space-between; font-size: 18px; font-weight: 800;
     padding-top: 16px; border-top: 2px solid var(--border); margin-bottom: 20px; color: var(--black);
@@ -371,10 +409,14 @@ function basketUpdate(id, qty) {
             if (d.status === 'ok') {
                 var sumEl = document.getElementById('sum-' + id);
                 if (sumEl && d.itemSum) sumEl.textContent = d.itemSum;
+                var sumClientEl = document.getElementById('sum-client-' + id);
+                if (sumClientEl && d.itemClientSum) sumClientEl.textContent = d.itemClientSum;
                 var totalEl = document.getElementById('cart-total');
                 if (totalEl && d.totalSum) totalEl.textContent = d.totalSum;
                 var subtotalEl = document.getElementById('cart-subtotal');
                 if (subtotalEl && d.totalSum) subtotalEl.textContent = d.totalSum;
+                var subtotalClientEl = document.getElementById('cart-subtotal-client');
+                if (subtotalClientEl && d.totalClientSum) subtotalClientEl.textContent = d.totalClientSum;
                 var countEl = document.getElementById('cart-count');
                 if (countEl && d.totalQty !== undefined) countEl.textContent = d.totalQty;
                 if (window.updateCartBadge && d.totalQty !== undefined) window.updateCartBadge(d.totalQty);
