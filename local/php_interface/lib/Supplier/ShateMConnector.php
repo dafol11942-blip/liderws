@@ -267,14 +267,24 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
         string $token,
         string $unitMeasure
     ): ?SearchResultItem {
-        $locCode  = $priceData['locationCode'] ?? '';
-        $priceType = (string)($priceData['type'] ?? '');
-        $locName  = $this->getLocationName($locCode, $token);
-        // Подтверждено вживую (LUZAR LT0822): у ШАТЕ-М несколько разных
-        // locationCode делят один и тот же человекочитаемый склад ("Центральный
-        // склад Казань"), включая склады сторонних поставщиков (type=External)
-        // и агрегированных API-поставщиков (type=Api) — оба выглядят как
-        // "свой" склад ШАТЕ-М, хотя это не так (у External к тому же часто
+        // Подтверждено вживую (PATRON PF4127): locationCode — это код точки
+        // запроса/маршрутизации (для External-предложений всегда равен
+        // складу по нашему договору, SHATE-KAX = "Казань"), а НЕ реальный
+        // физический склад товара — тот в locationCodeReal (в этом примере
+        // SHATE-P01 = Москва/Домодедово). Для отображения названия берём
+        // именно locationCodeReal, иначе московский товар подписывается
+        // "Казань". locationCode оставляем как есть для order_meta —
+        // именно его требует "Все строки заказа из одного locationCode" при
+        // оформлении (см. placeOrder()), а не реальный физический склад.
+        $locCode     = $priceData['locationCode'] ?? '';
+        $locCodeReal = $priceData['locationCodeReal'] ?? $locCode;
+        $priceType   = (string)($priceData['type'] ?? '');
+        $locName     = $this->getLocationName($locCodeReal, $token);
+        // У ШАТЕ-М несколько разных locationCode делят один и тот же
+        // человекочитаемый склад ("Центральный склад Казань"), включая
+        // склады сторонних поставщиков (type=External) и агрегированных
+        // API-поставщиков (type=Api) — оба выглядят как "свой" склад
+        // ШАТЕ-М, хотя это не так (у External к тому же часто
         // isReturnAllowed=false). Помечаем явно, чтобы не вводить в заблуждение.
         if ($priceType === 'External') {
             $locName .= ' (сторонний поставщик)';
