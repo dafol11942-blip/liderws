@@ -21,6 +21,39 @@ const UMAPI_CROSSINFO_KEY = '7aa16ec6-c790-45cb-a184-1c11677b78a1';
 const TTL_FOUND_SECONDS = 30 * 86400; // найденные данные почти не меняются
 const TTL_EMPTY_SECONDS = 1 * 86400;  // подтверждённое "нет данных" — не долбить UMAPI на каждый повтор
 
+// Скачивает картинку с UMAPI один раз и кеширует локально в /upload/umapi_img/<то же
+// относительное имя, что дал UMAPI> — дальше отдаём собственным URL (same-origin), см.
+// вызов ниже. relPath уже провалидирован regex'ом на вызывающей стороне (/\d+/файл.ext).
+function cacheUmapiImage(string $remoteUrl, string $relPath): ?string
+{
+    $localRel  = '/upload/umapi_img' . $relPath;
+    $localAbs  = $_SERVER['DOCUMENT_ROOT'] . $localRel;
+
+    if (is_file($localAbs) && filesize($localAbs) > 0) {
+        return $localRel;
+    }
+
+    $ch = curl_init($remoteUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 4,
+        CURLOPT_TIMEOUT        => 6,
+    ]);
+    $bytes    = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode !== 200 || empty($bytes)) {
+        return null;
+    }
+
+    $dir = dirname($localAbs);
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    @file_put_contents($localAbs, $bytes);
+
+    return is_file($localAbs) ? $localRel : null;
+}
+
 $article = trim((string)($_GET['article'] ?? ''));
 $brand   = trim((string)($_GET['brand'] ?? ''));
 
@@ -106,9 +139,14 @@ try {
         exit;
     }
 
+    // Картинку отдаём со своего домена, а не прямой ссылкой на image.umapi.ru — у части
+    // посетителей блокировщики рекламы (в т.ч. встроенный в Opera) блокируют запросы к
+    // незнакомым сторонним доменам с картинками (подтверждено: net::ERR_BLOCKED_BY_CLIENT
+    // в DevTools). Скачиваем один раз на сервере и кешируем в /upload — дальше отдаём как
+    // обычную картинку сайта, same-origin, блокировщикам нечего блокировать.
     $img = null;
-    if (!empty($data['img'])) {
-        $img = 'https://image.umapi.ru/IMAGE' . $data['img'];
+    if (!empty($data['img']) && preg_match('~^/\d+/[A-Za-z0-9]+\.[A-Za-z0-9]+$~', $data['img'])) {
+        $img = cacheUmapiImage('https://image.umapi.ru/IMAGE' . $data['img'], $data['img']);
     }
 
     $criterias = [];
