@@ -317,12 +317,7 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
         $r->reliabilityPercent = $supplyRating;
 
         // --- СРОКИ ---
-        if ($deliveryDT) {
-            $now   = time();
-            $delTs = strtotime($deliveryDT);
-            $r->deliveryDays   = max(0, (int)ceil(($delTs - $now) / 86400));
-            $r->deliveryPeriod = max(0, (int)ceil(($delTs - $now) / 3600));
-        }
+        [$r->deliveryDays, $r->deliveryPeriod, $r->deliveryLabel, $r->deliveryTimeLabel, $r->deliveryToday] = $this->resolveDelivery($deliveryDT);
 
         $r->raw = [
             'priceId'           => $priceId,
@@ -367,6 +362,34 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
         }
 
         return $r;
+    }
+
+    /**
+     * Срок доставки ШАТЕ-М. API отдаёт одну конкретную дату-время (UTC,
+     * ISO 8601, напр. "2026-09-12T13:00:00Z"), а не диапазон "от-до" — тот
+     * же случай, что у Армтека (DLVDT), формат вывода единый по всему сайту:
+     * день ("Сегодня"/"Завтра"/"дд.мм") + время "ЧЧ:ММ" отдельным бейджем
+     * (см. search/index.php::dRange() — без deliveryLabel фронт падает в
+     * уродливый фолбэк "N дн.", что и было причиной этой правки).
+     *
+     * @return array{0:?int,1:?int,2:?string,3:?string,4:bool}
+     */
+    private function resolveDelivery(?string $deliveryDT): array
+    {
+        if (!$deliveryDT) return [null, null, null, null, false];
+        $ts = strtotime($deliveryDT);
+        if (!$ts) return [null, null, null, null, false];
+
+        $now           = time();
+        $todayStart    = strtotime('today');
+        $tomorrowStart = strtotime('tomorrow');
+        $tsDay         = strtotime(date('Y-m-d', $ts));
+        $days          = ($tsDay <= $todayStart) ? 0 : (int)ceil(($tsDay - $todayStart) / 86400);
+        $dayLabel      = ($tsDay <= $todayStart) ? 'Сегодня' : (($tsDay === $tomorrowStart) ? 'Завтра' : date('d.m', $ts));
+        $timeLabel     = date('H:i', $ts);
+        $hours         = max(0, (int)ceil(($ts - $now) / 3600));
+
+        return [$days, $hours, $dayLabel, $timeLabel, $tsDay <= $todayStart];
     }
 
     private function deduplicateAndSort(array $results): array
