@@ -115,11 +115,23 @@ $isFav = $USER->IsAuthorized() && !empty(getFavoritedCatalogIds($USER->GetID(), 
         </div>
 
 
+        <?php
+        // Скрыто из "Характеристик": служебные/1С-технические (CML2_TRAITS "Реквизиты",
+        // CML2_TAXES "Ставки налогов") и продублированные многократно свойства совместимости
+        // "Марка"/"Марка автомобиля" (MARKA, MARKA_1..6, MARKA_AVTOMOBILYA, _1..3 — в 1С
+        // заведены отдельными свойствами под каждую привязку, а не одним MULTIPLE=Y, поэтому
+        // рендерились отдельными одинаково подписанными строками).
+        $hiddenPropCodes = array_merge(
+            ['CML2_ARTICLE', 'CML2_MANUFACTURER', 'IN_STOCK', 'IN_STOCK_LIST', $brandPropCode, 'CML2_TRAITS', 'CML2_TAXES'],
+            ['MARKA', 'MARKA_1', 'MARKA_2', 'MARKA_3', 'MARKA_4', 'MARKA_5', 'MARKA_6'],
+            ['MARKA_AVTOMOBILYA', 'MARKA_AVTOMOBILYA_1', 'MARKA_AVTOMOBILYA_2', 'MARKA_AVTOMOBILYA_3']
+        );
+        ?>
         <?php if (!empty($item['PROPERTIES'])): ?>
             <div class="product-detail__props">
                 <h3><svg class="icon"><use href="#icon-list"></use></svg> Характеристики</h3>
                 <?php foreach ($item['PROPERTIES'] as $prop): ?>
-                    <?php if (!empty($prop['VALUE']) && !in_array($prop['CODE'], array_filter(['CML2_ARTICLE', 'CML2_MANUFACTURER', 'IN_STOCK', 'IN_STOCK_LIST', $brandPropCode]))): ?>
+                    <?php if (!empty($prop['VALUE']) && !in_array($prop['CODE'], array_filter($hiddenPropCodes))): ?>
                         <div class="prop-row">
                             <span class="prop-row__name"><?= $prop['NAME'] ?>:</span>
                             <span class="prop-row__value">
