@@ -37,9 +37,7 @@ $APPLICATION->SetTitle("ЛИДЕР — автозапчасти для ином�
         <p class="hero__subtitle">Замена масла, ремонт ходовой, диагностика, шиномонтаж. Купил — поставил с гарантией. Собственный шинный центр «Колеса Даром».</p>
         <div class="hero__buttons"><a href="/autoservice/" class="btn btn--primary">Подробнее об услугах</a></div>
     </div>
-    <div class="hero__image hero__image--photo">
-        <img src="<?= SITE_TEMPLATE_PATH ?>/assets/images/autoservice-shop.webp" alt="Автосервис и шиномонтаж ЛИДЕР в Елабуге" style="object-position:top;">
-    </div>
+    <div class="hero__image hero__image--bg" style="background-image:url('<?= SITE_TEMPLATE_PATH ?>/assets/images/autoservice-shop.webp');" role="img" aria-label="Автосервис и шиномонтаж ЛИДЕР в Елабуге"></div>
 </div>
 
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/footer.php"); ?>

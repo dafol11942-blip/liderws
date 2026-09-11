@@ -337,6 +337,7 @@ ul, ol { list-style: none; }
    сверху/снизу даже при небольшом расхождении пропорций на разных экранах. */
 .hero__image--split { display: flex; gap: 3px; aspect-ratio: 3 / 1; background: var(--bg); }
 .hero__image--split img { flex: 1; min-width: 0; object-fit: contain; }
+.hero__image--bg { padding: 0; min-height: 0; aspect-ratio: 3 / 1; background-size: cover; background-position: top center; }
 
 /* =============================================
    ПОДБОР ПО АВТО
