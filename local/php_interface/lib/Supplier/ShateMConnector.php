@@ -267,8 +267,20 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
         string $token,
         string $unitMeasure
     ): ?SearchResultItem {
-        $locCode = $priceData['locationCode'] ?? '';
-        $locName = $this->getLocationName($locCode, $token);
+        $locCode  = $priceData['locationCode'] ?? '';
+        $priceType = (string)($priceData['type'] ?? '');
+        $locName  = $this->getLocationName($locCode, $token);
+        // Подтверждено вживую (LUZAR LT0822): у ШАТЕ-М несколько разных
+        // locationCode делят один и тот же человекочитаемый склад ("Центральный
+        // склад Казань"), включая склады сторонних поставщиков (type=External)
+        // и агрегированных API-поставщиков (type=Api) — оба выглядят как
+        // "свой" склад ШАТЕ-М, хотя это не так (у External к тому же часто
+        // isReturnAllowed=false). Помечаем явно, чтобы не вводить в заблуждение.
+        if ($priceType === 'External') {
+            $locName .= ' (сторонний поставщик)';
+        } elseif ($priceType === 'Api') {
+            $locName .= ' (поставщик API)';
+        }
 
         // --- ЦЕНА ---
         $priceValue = (float)($priceData['price']['value'] ?? 0);
