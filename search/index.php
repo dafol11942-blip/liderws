@@ -197,6 +197,7 @@ var FAV_SUPPLIER_KEYS=<?=json_encode($favSupplierKeys)?>;
 function isFavSupplier(brand,article,supplier){ return FAV_SUPPLIER_KEYS.indexOf((brand||'')+'|'+(article||'')+'|'+(supplier||'')) !== -1; }
 var TASK_ID=null;
 var hideBasePrice=false;
+var crossInfoData=null; // {success,title,img,criterias,oem,superseded} с /local/ajax/umapi_cross_info.php
 
 // Липкая панель фильтров должна встать сразу под липкой шапкой сайта (.header,
 // position:sticky из lider_modern), а не поверх неё. У шапки нет фиксированной
@@ -795,6 +796,7 @@ function renderResults(d){
 
     h+='</div>';
     qs('#resultContent').innerHTML=h;
+    tryRenderCrossInfoCard();
 
     // Раскрытие строк сверх лимита: и кнопка "Показать ещё" внизу таблицы, и стрелка
     // в шапке позиции переключают один и тот же .ft-all-shown у общего контейнера —
@@ -820,6 +822,59 @@ function renderResults(d){
             toggleMoreRows(head.closest('.ft-sec, .ft-group'));
         });
     });
+}
+
+// Карточка товара (фото/характеристики/OEM/замены) — грузится ПАРАЛЛЕЛЬНО с основным
+// поиском предложений (см. вызов рядом с loadResults() в DOMContentLoaded), не блокирует
+// и не задерживает страницу: если UMAPI медленная/недоступна, .phead остаётся как есть
+// (заголовок + "Найдено..."), без ошибок у пользователя (см. план — история инцидента
+// с UMAPI в STAGES.md).
+function loadCrossInfo(){
+    fetch('/local/ajax/umapi_cross_info.php?article=' + encodeURIComponent(N) + '&brand=' + encodeURIComponent(B))
+        .then(function(r){ return r.json(); })
+        .then(function(data){ crossInfoData = data; tryRenderCrossInfoCard(); })
+        .catch(function(){});
+}
+
+// Вызывается и из loadCrossInfo(), и из renderResults() (после каждой перерисовки .phead,
+// в т.ч. повторной после фазы 2) — гонка между "данные UMAPI пришли" и ".phead появился в
+// DOM" решается тем, что оба места дергают одну и ту же функцию, кто последний — тот и
+// отрисует; повторный вызов — no-op (проверка data-cross-rendered).
+function tryRenderCrossInfoCard(){
+    if(!crossInfoData || !crossInfoData.success) return;
+    var phead = document.querySelector('.phead');
+    if(!phead || phead.getAttribute('data-cross-rendered')) return;
+    phead.setAttribute('data-cross-rendered','1');
+    phead.insertAdjacentHTML('beforeend', renderCrossInfoCard(crossInfoData));
+}
+
+function renderCrossInfoCard(data){
+    var h = '<div class="phead-body">';
+    if(data.img){
+        h += '<div class="phead-img"><img src="'+esc(data.img)+'" alt="'+esc(data.title||'')+'" loading="lazy"></div>';
+    }
+    h += '<div class="phead-info">';
+    if(data.title) h += '<div class="phead-desc">'+esc(data.title)+'</div>';
+    if(data.criterias && data.criterias.length){
+        h += '<div class="phead-specs">';
+        data.criterias.forEach(function(c){
+            h += '<span class="phead-spec"><span class="phead-spec-label">'+esc(c.label)+':</span> '+esc(c.value)+'</span>';
+        });
+        h += '</div>';
+    }
+    if(data.oem && data.oem.length){
+        h += '<div class="phead-oem"><span class="phead-oem-label">OEM:</span> '+data.oem.map(esc).join(', ')+'</div>';
+    }
+    if(data.superseded){
+        if(data.superseded.new && data.superseded.new.length){
+            h += '<div class="phead-superseded">Заменён на: '+data.superseded.new.map(esc).join(', ')+'</div>';
+        }
+        if(data.superseded.old && data.superseded.old.length){
+            h += '<div class="phead-superseded">Заменяет: '+data.superseded.old.map(esc).join(', ')+'</div>';
+        }
+    }
+    h += '</div></div>';
+    return h;
 }
 
 function favToggleControl(brand,article,supplier,warehouse,token){
@@ -911,7 +966,7 @@ function showError(msg){
     qs('#resultContent').innerHTML='<div class="hero" style="margin-top:16px"><div class="hero-icon"><svg class="icon"><use href="#icon-alert"></use></svg></div><p>'+esc(msg)+'</p><a href="/search/?q='+encodeURIComponent(Q)+'" class="hero-back">← К выбору бренда</a></div>';
 }
 
-document.addEventListener('DOMContentLoaded',function(){loadResults()});
+document.addEventListener('DOMContentLoaded',function(){loadResults();loadCrossInfo();});
 })();
 </script>
 <?php endif; ?>
