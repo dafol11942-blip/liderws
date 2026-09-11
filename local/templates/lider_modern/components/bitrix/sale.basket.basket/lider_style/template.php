@@ -29,20 +29,6 @@ while ($b = $bRes->Fetch()) {
     $b['SUM_FMT'] = number_format($b['SUM_NUM'], 0, ',', ' ') . ' ₽';
     $b['URL'] = $b['DETAIL_PAGE_URL'] ?? '#';
 
-    // Картинка из инфоблока
-    $b['IMG'] = SITE_TEMPLATE_PATH . '/assets/images/no-photo.png';
-    if ($b['PRODUCT_ID'] > 0) {
-        $el = CIBlockElement::GetByID($b['PRODUCT_ID'])->GetNextElement();
-        if ($el) {
-            $fields = $el->GetFields();
-            $preview = $fields['PREVIEW_PICTURE'] ?? $fields['DETAIL_PICTURE'];
-            if ($preview) {
-                $imgPath = CFile::GetPath($preview);
-                if ($imgPath) $b['IMG'] = $imgPath;
-            }
-        }
-    }
-
     // Свойства позиции, положенные order_from_supplier.php / basket_recheck.php —
     // артикул/бренд/поставщик/склад/срок доставки/остаток/время подтверждения (TTL).
     $props = [];
@@ -169,11 +155,6 @@ if (!empty($items) && !$hasSupplierItem) {
             ?>
             <div class="cart-item<?= $item['IS_STALE'] ? ' cart-item--stale' : '' ?>" id="basket-row-<?= $item['ID'] ?>"
                  data-added-at="<?= (int)$item['ADDED_AT'] ?>" data-search-url="<?= htmlspecialchars($searchUrl) ?>">
-                <div class="cart-item__img">
-                    <a href="<?= $item['URL'] ?>">
-                        <img src="<?= $item['IMG'] ?>" alt="<?= htmlspecialchars($item['NAME']) ?>" loading="lazy">
-                    </a>
-                </div>
                 <div class="cart-item__info">
                     <a href="<?= $item['URL'] ?>" class="cart-item__name"><?= htmlspecialchars($item['NAME']) ?></a>
                     <?php if ($item['ARTICLE_BRAND_HTML'] !== ''): ?>
@@ -267,13 +248,6 @@ if (!empty($items) && !$hasSupplierItem) {
 }
 .cart-item:hover { box-shadow: var(--shadow); }
 
-.cart-item__img {
-    width: 80px; height: 80px; flex-shrink: 0; border-radius: var(--radius);
-    overflow: hidden; background: #fafafa; border: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: center;
-}
-.cart-item__img img { max-width: 100%; max-height: 100%; object-fit: contain; }
-
 .cart-item__info { flex: 1; min-width: 0; }
 .cart-item__name { font-size: 14px; font-weight: 700; color: var(--black); text-decoration: none; display: block; line-height: 1.4; }
 .cart-item__name:hover { color: var(--blue); }
@@ -289,7 +263,6 @@ if (!empty($items) && !$hasSupplierItem) {
 
 .cart-item__stale-banner { display: none; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; color: #a15c00; }
 .cart-item--stale .cart-item__stale-banner { display: flex; }
-.cart-item--stale .cart-item__img,
 .cart-item--stale .cart-item__name,
 .cart-item--stale .cart-item__article,
 .cart-item--stale .cart-item__price-unit,

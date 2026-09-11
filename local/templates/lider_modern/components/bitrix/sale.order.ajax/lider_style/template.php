@@ -28,15 +28,6 @@ while ($b = $bRes->Fetch()) {
     $b['SUM_NUM'] = $b['PRICE_NUM'] * $b['QTY'];
     $b['PRICE_FMT'] = number_format($b['PRICE_NUM'], 0, ',', ' ') . ' ₽';
     $b['SUM_FMT'] = number_format($b['SUM_NUM'], 0, ',', ' ') . ' ₽';
-    $b['IMG'] = SITE_TEMPLATE_PATH . '/assets/images/no-photo.png';
-    if ($b['PRODUCT_ID'] > 0) {
-        $el = CIBlockElement::GetByID($b['PRODUCT_ID'])->GetNextElement();
-        if ($el) {
-            $f = $el->GetFields();
-            $pic = $f['PREVIEW_PICTURE'] ?? $f['DETAIL_PICTURE'];
-            if ($pic) { $p = CFile::GetPath($pic); if ($p) $b['IMG'] = $p; }
-        }
-    }
 
     // Свойства позиции — артикул/бренд/поставщик/склад/срок доставки, тот же
     // источник, что и в корзине (sale.basket.basket/lider_style/template.php).
@@ -667,9 +658,6 @@ if ($paymentHoldDeadlineTs <= 0) {
                                 $articleBrandHtml = implode(' &middot; ', $articleBrandParts);
                             ?>
                             <div class="checkout-basket__item">
-                                <div class="checkout-basket__img">
-                                    <img src="<?= $bi['IMG'] ?>" alt="">
-                                </div>
                                 <div class="checkout-basket__info">
                                     <div class="checkout-basket__name"><?= htmlspecialchars($bi['NAME']) ?></div>
                                     <?php if ($articleBrandHtml !== ''): ?>
@@ -814,12 +802,6 @@ if ($paymentHoldDeadlineTs <= 0) {
 .checkout-summary__title { font-size: 18px; font-weight: 700; margin-bottom: 16px; color: var(--black); }
 .checkout-basket { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; max-height: 320px; overflow-y: auto; }
 .checkout-basket__item { display: flex; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-.checkout-basket__img {
-    width: 48px; height: 48px; border-radius: var(--radius); overflow: hidden;
-    background: #fafafa; border: 1px solid var(--border); flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-}
-.checkout-basket__img img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .checkout-basket__info { flex: 1; min-width: 0; }
 .checkout-basket__name { font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--black); }
 .checkout-basket__article { font-size: 11px; color: var(--gray); margin-top: 2px; }
