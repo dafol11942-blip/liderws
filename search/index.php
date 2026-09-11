@@ -851,7 +851,10 @@ function tryRenderCrossInfoCard(){
 function renderCrossInfoCard(data){
     var h = '<div class="phead-body">';
     if(data.img){
-        h += '<div class="phead-img"><img src="'+esc(data.img)+'" alt="'+esc(data.title||'')+'" loading="lazy"></div>';
+        // referrerpolicy="no-referrer" — у image.umapi.ru похоже на защиту от хотлинкинга по
+        // Referer (прямой переход по ссылке работает, встраивание с чужого домена — нет);
+        // без заголовка Referer запрос выглядит как прямой переход.
+        h += '<div class="phead-img"><img src="'+esc(data.img)+'" alt="'+esc(data.title||'')+'" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest(\'.phead-img\').style.display=\'none\'"></div>';
     }
     h += '<div class="phead-info">';
     if(data.title) h += '<div class="phead-desc">'+esc(data.title)+'</div>';
