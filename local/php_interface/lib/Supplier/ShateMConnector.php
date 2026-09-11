@@ -278,19 +278,15 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
         // оформлении (см. placeOrder()), а не реальный физический склад.
         $locCode     = $priceData['locationCode'] ?? '';
         $locCodeReal = $priceData['locationCodeReal'] ?? $locCode;
+        // Подтверждено заказчиком: все склады в /locations (все SHATE-*) —
+        // СВОЯ сеть городских складов ШАТЕ-М, а не сторонние поставщики,
+        // несмотря на название enum-значения "External" в документации API.
+        // Internal — склад, закреплённый за нашим договором (домашний,
+        // мгновенная отгрузка); External — тот же товар ШАТЕ-М, но физически
+        // на ИХ ДРУГОМ складе в другом городе (отсюда более долгий срок —
+        // межскладская логистика, а не признак стороннего продавца).
         $priceType   = (string)($priceData['type'] ?? '');
         $locName     = $this->getLocationName($locCodeReal, $token);
-        // У ШАТЕ-М несколько разных locationCode делят один и тот же
-        // человекочитаемый склад ("Центральный склад Казань"), включая
-        // склады сторонних поставщиков (type=External) и агрегированных
-        // API-поставщиков (type=Api) — оба выглядят как "свой" склад
-        // ШАТЕ-М, хотя это не так (у External к тому же часто
-        // isReturnAllowed=false). Помечаем явно, чтобы не вводить в заблуждение.
-        if ($priceType === 'External') {
-            $locName .= ' (сторонний поставщик)';
-        } elseif ($priceType === 'Api') {
-            $locName .= ' (поставщик API)';
-        }
 
         // --- ЦЕНА ---
         $priceValue = (float)($priceData['price']['value'] ?? 0);
@@ -313,8 +309,17 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
         $deliveryDT   = $priceData['deliveryDateTimes'][0]['deliveryDateTime'] ?? null;
 
         // --- СТАТИСТИКА ---
-        $supplyRatingRaw = $priceData['supplyProbability']['rating'] ?? null;
-        $supplyRating = is_numeric($supplyRatingRaw) ? max(0, min(100, (int)round((float)$supplyRatingRaw))) : null;
+        // Свой (домашний) склад — Internal — отгрузка гарантирована, поэтому
+        // 100%, тот же принцип, что у собственного склада ПартКома
+        // (PartKomConnector::parseSearchResponse()). Для остальных складов
+        // сети ШАТЕ-М — то, что реально отдаёт их supplyProbability.rating,
+        // без выдумывания своего значения.
+        if ($priceType === 'Internal') {
+            $supplyRating = 100;
+        } else {
+            $supplyRatingRaw = $priceData['supplyProbability']['rating'] ?? null;
+            $supplyRating = is_numeric($supplyRatingRaw) ? max(0, min(100, (int)round((float)$supplyRatingRaw))) : null;
+        }
 
         // --- ИДЕНТИФИКАТОРЫ ДЛЯ КОРЗИНЫ/ЗАКАЗА ---
         $priceId   = (string)($priceData['id'] ?? '');
