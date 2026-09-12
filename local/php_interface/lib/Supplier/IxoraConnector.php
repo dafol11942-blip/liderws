@@ -14,7 +14,9 @@ class IxoraConnector implements SupplierInterface, SupplierOrderable, SupplierOr
     public function __construct(array $config = [])
     {
         $this->authCode = (string)($config['AUTH_CODE'] ?? $config['API_KEY'] ?? '');
-        $this->endpoint = rtrim((string)($config['ENDPOINT'] ?? 'http://ws.ixora-auto.ru/soap/ApiService.asmx'), '/');
+        // ws.ixora-auto.ru отдаёт 301 http→https, а ни один curl-вызов в проекте
+        // не следует редиректам — с http-эндпоинтом поставщик молча не отвечал никогда.
+        $this->endpoint = rtrim((string)($config['ENDPOINT'] ?? 'https://ws.ixora-auto.ru/soap/ApiService.asmx'), '/');
         $this->timeout  = (int)($config['TIMEOUT'] ?? 8);
     }
 
