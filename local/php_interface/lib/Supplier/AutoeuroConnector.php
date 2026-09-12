@@ -11,6 +11,12 @@ class AutoeuroConnector implements SupplierInterface, SupplierOrderable, Supplie
     private int $timeout;
     private ?string $deliveryKey = null;
     private string $payerKey;
+    // Один аккаунт АвтоЕвро, два адреса доставки в Елабуге (найдены через
+    // /get_deliveries: "...пр-кт Нефтяников, д 4" — это $deliveryKey по
+    // умолчанию, второй — "...ул Баки Урманче, д 17А"). Ключ массива — код
+    // склада, как его определяет resolveOrderWarehouseCode() в
+    // order_create_handler.php по выбранному в форме заказа складу.
+    private array $deliveryKeyByWarehouse;
 
     public function __construct(array $config = [])
     {
@@ -19,6 +25,7 @@ class AutoeuroConnector implements SupplierInterface, SupplierOrderable, Supplie
         $this->timeout    = $config['TIMEOUT']      ?? 10;
         $this->deliveryKey = $config['DELIVERY_KEY'] ?? null;
         $this->payerKey    = $config['PAYER_KEY']    ?? '';
+        $this->deliveryKeyByWarehouse = $config['DELIVERY_KEYS_BY_WAREHOUSE'] ?? [];
     }
 
     public function getCode(): string       { return 'autoeuro'; }
@@ -260,7 +267,16 @@ class AutoeuroConnector implements SupplierInterface, SupplierOrderable, Supplie
             return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'test_mode_not_supported'];
         }
 
-        $deliveryKey = $this->getDeliveryKey();
+        // Склад одного заказа один на все позиции (см. dispatchSupplierOrders()
+        // в order_create_handler.php — warehouse_code проставляется туда для
+        // всех позиций сразу, по адресу самовывоза/доставки, выбранному в форме
+        // оформления заказа), поэтому смотрим на первую позицию с этим полем.
+        $warehouseCode = '';
+        foreach ($items as $item) {
+            if (!empty($item['warehouse_code'])) { $warehouseCode = (string)$item['warehouse_code']; break; }
+        }
+
+        $deliveryKey = $this->getDeliveryKey($warehouseCode);
         if (!$deliveryKey) {
             $this->log('placeOrder: не удалось получить delivery_key');
             return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_delivery_key'];
@@ -307,7 +323,7 @@ class AutoeuroConnector implements SupplierInterface, SupplierOrderable, Supplie
             'comment'      => $orderComment,
         ], JSON_UNESCAPED_UNICODE);
 
-        $this->log('placeOrder: request items=' . count($stockItems) . ' skipped=' . $skipped . ' body=' . $body);
+        $this->log('placeOrder: warehouse_code=' . ($warehouseCode ?: '(default)') . ' request items=' . count($stockItems) . ' skipped=' . $skipped . ' body=' . $body);
 
         $ch = curl_init($this->baseUrl . '/create_order');
         curl_setopt_array($ch, [
@@ -478,8 +494,11 @@ class AutoeuroConnector implements SupplierInterface, SupplierOrderable, Supplie
 
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ====================
 
-    private function getDeliveryKey(): ?string
+    private function getDeliveryKey(string $warehouseCode = ''): ?string
     {
+        if ($warehouseCode !== '' && !empty($this->deliveryKeyByWarehouse[$warehouseCode])) {
+            return $this->deliveryKeyByWarehouse[$warehouseCode];
+        }
         if ($this->deliveryKey) return $this->deliveryKey;
         if (!$this->isAvailable()) return null;
 

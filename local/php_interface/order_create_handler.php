@@ -148,6 +148,31 @@ if (!function_exists('saveSupplierOrderRecord')) {
     }
 }
 
+// В форме оформления заказа два адреса самовывоза/доставки (Нефтяников 4 и
+// Баки Урманче, см. lider_style/template.php) — оба приходят как одна и та же
+// сущность Bitrix "служба доставки", различить их можно только по имени
+// службы (DELIVERY_NAME, сохранённому на отгрузке при создании заказа, см.
+// ниже "Доставка"). Читаем его с уже СОХРАНЁННОГО заказа (не из $_POST), чтобы
+// одинаково работать и при немедленной отправке поставщику, и при отложенной
+// (dispatchHeldOrderIfPaid() вызывается позже, вне исходного запроса с
+// $_POST). Сейчас код склада использует только АвтоЕвро (см.
+// AutoeuroConnector::placeOrder()) — у остальных поставщиков он просто
+// игнорируется.
+if (!function_exists('resolveOrderWarehouseCode')) {
+    function resolveOrderWarehouseCode(\Bitrix\Sale\Order $order): string
+    {
+        try {
+            foreach ($order->getShipmentCollection() as $shipment) {
+                $deliveryName = (string)$shipment->getField('DELIVERY_NAME');
+                if ($deliveryName !== '' && mb_stripos($deliveryName, 'урманче') !== false) {
+                    return 'baki_urmanche';
+                }
+            }
+        } catch (\Throwable $e) {}
+        return 'neftyanikov';
+    }
+}
+
 // Точка интеграции: для каждого поставщика, чьи позиции есть в этом заказе,
 // собирает универсальные строки (без завязки на конкретного поставщика) и
 // вызывает placeOrder() на его коннекторе, если тот реализует SupplierOrderable.
@@ -155,7 +180,7 @@ if (!function_exists('saveSupplierOrderRecord')) {
 // логируется.
 if (!function_exists('dispatchSupplierOrders')) {
     /** @return bool true, если хотя бы один поставщик подтвердил приём заказа (success=true) */
-    function dispatchSupplierOrders(int $orderId, \Bitrix\Sale\Basket $basket, string $buyerName = '', string $customerComment = ''): bool
+    function dispatchSupplierOrders(int $orderId, \Bitrix\Sale\Basket $basket, string $buyerName = '', string $customerComment = '', string $warehouseCode = 'neftyanikov'): bool
     {
         $supplierComment = 'Заказ №' . $orderId . ($buyerName !== '' ? ', ' . $buyerName : '') . ' с сайта liderws.ru';
         if ($customerComment !== '') {
@@ -201,6 +226,7 @@ if (!function_exists('dispatchSupplierOrders')) {
                 'order_meta'     => $orderMeta,
                 'reference'      => $orderId . '_' . $basketItem->getId(),
                 'comment'        => $supplierComment,
+                'warehouse_code' => $warehouseCode,
             ];
         }
 
@@ -321,7 +347,7 @@ if (!function_exists('dispatchHeldOrderIfPaid')) {
 
         $anySent = false;
         try {
-            $anySent = dispatchSupplierOrders($orderId, $basket, $buyerName, $customerComment);
+            $anySent = dispatchSupplierOrders($orderId, $basket, $buyerName, $customerComment, resolveOrderWarehouseCode($order));
         } catch (\Throwable $e) {
             logSupplierOrderDispatch("Заказ №{$orderId}: dispatchSupplierOrders (после оплаты) упал целиком — " . $e->getMessage());
         }
@@ -538,7 +564,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
             // Наш заказ уже сохранён — сбой здесь НЕ должен помешать покупателю
             // увидеть страницу "Спасибо за заказ", только залогироваться.
             try {
-                $anySupplierOrderSent = dispatchSupplierOrders($orderId, $basket, $buyerName, $customerComment);
+                $anySupplierOrderSent = dispatchSupplierOrders($orderId, $basket, $buyerName, $customerComment, resolveOrderWarehouseCode($order));
             } catch (\Throwable $e) {
                 $anySupplierOrderSent = false;
                 logSupplierOrderDispatch("dispatchSupplierOrders упал целиком: " . $e->getMessage());

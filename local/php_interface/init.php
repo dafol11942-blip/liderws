@@ -227,7 +227,15 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
 
         $factory->register(new \Lider\Supplier\AutoeuroConnector([
             'API_KEY' => 'wK435HUkjTAbJL4RF4F5z9NBXWYqpFhSorfpVkRLFNYI60T21ksYvVQNawkX',
+            // Доставка. Респ Татарстан, г Елабуга, пр-кт Нефтяников, д 4 (склад по умолчанию)
             'DELIVERY_KEY' => 'q53qrkblKN8GviqxHAUlgA0vlUZgRhN04SG01sixtCpoTjC99FJ165xxzGta89mwhLNonRBxH1vlOg8rjL2xPxAdurElATA',
+            // Один аккаунт, второй адрес доставки — найден через /get_deliveries
+            // ("Доставка. шнв|Респ Татарстан, г Елабуга, ул Баки Урманче, д 17А").
+            // Код склада 'baki_urmanche' проставляется в order_create_handler.php
+            // (resolveOrderWarehouseCode()) по выбранному в форме адресу самовывоза.
+            'DELIVERY_KEYS_BY_WAREHOUSE' => [
+                'baki_urmanche' => 'oQF5DLBhmuS097rxHAUlgA0vlUZgRhN04SG01sixtCpoTjC99FJ165xxzGta89mwhLNonRBxH1vlOg8rjL2xPxAdurElATA',
+            ],
             // "Винокуров С.В. ИП (Елабуга)" — без префикса "ННН" у второго
             // плательщика в /get_payers (тот, судя по имени, дефолтный/неверно
             // заполненный, см. обсуждение при подключении оформления заказа).
