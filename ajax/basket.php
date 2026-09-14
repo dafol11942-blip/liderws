@@ -12,7 +12,7 @@ $action = $_GET['action'] ?? '';
 $id = (int)($_GET['id'] ?? 0);
 $qty = (int)($_GET['quantity'] ?? 0);
 
-if (!in_array($action, ['update', 'delete', 'clear']) || (!$id && $action !== 'clear')) {
+if (!in_array($action, ['update', 'delete', 'clear', 'select', 'selectAll']) || (!$id && !in_array($action, ['clear', 'selectAll']))) {
     echo json_encode(['status' => 'error', 'message' => 'bad request']);
     exit;
 }
@@ -23,6 +23,26 @@ if ($action === 'update' && $qty > 0 && $qty <= 999) {
 
 if ($action === 'delete') {
     CSaleBasket::Delete($id);
+}
+
+// Чекбокс позиции в корзине: снятая галка = DELAY_BUY 'Y' — штатный признак
+// Bitrix «отложено», такие позиции корзина не отправляет на оформление заказа
+// (sale.order.ajax сам исключает их при сборе состава заказа).
+if ($action === 'select') {
+    $selected = ($_GET['value'] ?? 'Y') === 'Y';
+    CSaleBasket::Update($id, ['DELAY_BUY' => $selected ? 'N' : 'Y']);
+}
+
+if ($action === 'selectAll') {
+    $selected = ($_GET['value'] ?? 'Y') === 'Y';
+    $allRes = CSaleBasket::GetList(
+        [],
+        ['FUSER_ID' => CSaleBasket::GetBasketUserID(), 'ORDER_ID' => 'NULL', 'LID' => SITE_ID],
+        false, false, ['ID']
+    );
+    while ($row = $allRes->Fetch()) {
+        CSaleBasket::Update($row['ID'], ['DELAY_BUY' => $selected ? 'N' : 'Y']);
+    }
 }
 
 if ($action === 'clear') {
@@ -40,6 +60,7 @@ if ($action === 'clear') {
 $totalSum = 0;
 $totalClientSum = 0; // только для менеджера (см. cart-summary__row--client в корзине)
 $totalQty = 0;
+$totalQtyAll = 0; // счётчик в шапке — все позиции корзины, вне зависимости от чекбоксов
 $itemSum = 0;
 $itemClientSum = null;
 
@@ -51,8 +72,8 @@ $bRes = CSaleBasket::GetList(
 while ($b = $bRes->Fetch()) {
     $qty = (int)$b['QUANTITY'];
     $sum = (float)$b['PRICE'] * $qty;
-    $totalSum += $sum;
-    $totalQty += $qty;
+    $isSelected = ($b['DELAY_BUY'] ?? 'N') !== 'Y';
+    $totalQtyAll += $qty;
 
     // Клиентская сумма — та же логика, что и в шаблоне корзины
     // (sale.basket.basket/lider_style/template.php): для менеджера у заказных
@@ -69,7 +90,14 @@ while ($b = $bRes->Fetch()) {
             $clientSum = getClientPrice($priceBase) * $qty;
         }
     }
-    $totalClientSum += $clientSum;
+
+    // Итоги в сайдбаре считаются только по отмеченным позициям (чекбоксы в
+    // корзине) — неотмеченные помечены DELAY_BUY='Y' и не идут в заказ.
+    if ($isSelected) {
+        $totalSum += $sum;
+        $totalQty += $qty;
+        $totalClientSum += $clientSum;
+    }
 
     if ($b['ID'] == $id) {
         $itemSum = $sum;
@@ -77,7 +105,7 @@ while ($b = $bRes->Fetch()) {
     }
 }
 
-$_SESSION['CART_QTY'] = $totalQty; // держим счётчик в шапке (header.php) без запроса к БД
+$_SESSION['CART_QTY'] = $totalQtyAll; // держим счётчик в шапке (header.php) без запроса к БД
 
 echo json_encode([
     'status' => 'ok',
@@ -86,4 +114,5 @@ echo json_encode([
     'totalSum' => number_format($totalSum, 0, ',', ' ') . ' ₽',
     'totalClientSum' => $isMgr ? (number_format($totalClientSum, 0, ',', ' ') . ' ₽') : null,
     'totalQty' => $totalQty,
+    'totalQtyAll' => $totalQtyAll,
 ]);

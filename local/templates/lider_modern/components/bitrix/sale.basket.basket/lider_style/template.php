@@ -17,6 +17,7 @@ $bRes = CSaleBasket::GetList(
 $totalSum = 0;
 $totalClientSum = 0;
 $totalQty = 0;
+$totalQtyAll = 0;
 $cartMaxDeliveryDays = -1;
 $cartMaxDeliveryText = '';
 $hasSupplierItem = false;
@@ -117,12 +118,20 @@ while ($b = $bRes->Fetch()) {
     // чтобы не ломать уже лежащее в корзинах.
     $b['IS_STALE'] = $addedAt > 0 && (time() - $addedAt) > CART_TTL_SECONDS;
 
-    $totalSum += $b['SUM_NUM'];
-    // Клиентская сумма по позиции без своей формулы (товар своего склада) —
-    // берём как есть, наравне с закупочной: разница копится только там, где
-    // мы реально знаем и закупку, и клиентскую цену (заказные позиции).
-    $totalClientSum += $b['CLIENT_SUM_NUM'] ?? $b['SUM_NUM'];
-    $totalQty += $b['QTY'];
+    // Чекбокс позиции — штатное поле Bitrix DELAY_BUY ("отложено"), снятая
+    // галка выставляет его в Y, и sale.order.ajax сам не берёт такие позиции
+    // в заказ (см. ajax/basket.php, action=select).
+    $b['SELECTED'] = ($b['DELAY_BUY'] ?? 'N') !== 'Y';
+
+    $totalQtyAll += $b['QTY'];
+    if ($b['SELECTED']) {
+        $totalSum += $b['SUM_NUM'];
+        // Клиентская сумма по позиции без своей формулы (товар своего склада) —
+        // берём как есть, наравне с закупочной: разница копится только там, где
+        // мы реально знаем и закупку, и клиентскую цену (заказные позиции).
+        $totalClientSum += $b['CLIENT_SUM_NUM'] ?? $b['SUM_NUM'];
+        $totalQty += $b['QTY'];
+    }
     $items[] = $b;
 }
 
@@ -130,8 +139,9 @@ $totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
 $totalClientFmt = number_format($totalClientSum, 0, ',', ' ') . ' ₽';
 // Страница корзины и так уже посчитала реальное количество товаров —
 // заодно подравниваем кэш счётчика в шапке (header.php), если он разошёлся
-// с БД (несколько вкладок/устройств, изменения в админке и т.п.).
-$_SESSION['CART_QTY'] = $totalQty;
+// с БД (несколько вкладок/устройств, изменения в админке и т.п.). В шапке
+// считаем все позиции корзины, а не только отмеченные чекбоксом.
+$_SESSION['CART_QTY'] = $totalQtyAll;
 // Корзина целиком из товаров нашего склада (нет ни одной заказной позиции
 // от поставщика) — забрать можно сегодня же, без ожидания поставки.
 if (!empty($items) && !$hasSupplierItem) {
@@ -159,6 +169,10 @@ if (!empty($items) && !$hasSupplierItem) {
         <h1 class="cart-page__title">Корзина</h1>
         <button type="button" id="cart-clear-btn" class="cart-clear-btn">Очистить корзину</button>
     </div>
+    <label class="cart-select-all">
+        <input type="checkbox" id="cart-select-all-cb" <?= $totalQty > 0 && $totalQty === $totalQtyAll ? 'checked' : '' ?>>
+        Выбрать все (<?= count($items) ?>)
+    </label>
     <?php if ($hasNonReturnableItem): ?>
     <div class="cart-notice cart-notice--warn">
         <svg class="icon"><use href="#icon-alert"></use></svg>
@@ -172,8 +186,11 @@ if (!empty($items) && !$hasSupplierItem) {
                     ? '/search/?q=' . urlencode($item['ARTICLE']) . '&brand=' . urlencode($item['BRAND']) . '&number=' . urlencode($item['ARTICLE'])
                     : '/search/';
             ?>
-            <div class="cart-item<?= $item['IS_STALE'] ? ' cart-item--stale' : '' ?>" id="basket-row-<?= $item['ID'] ?>"
+            <div class="cart-item<?= $item['IS_STALE'] ? ' cart-item--stale' : '' ?><?= !$item['SELECTED'] ? ' cart-item--unselected' : '' ?>" id="basket-row-<?= $item['ID'] ?>"
                  data-added-at="<?= (int)$item['ADDED_AT'] ?>" data-search-url="<?= htmlspecialchars($searchUrl) ?>">
+                <div class="cart-item__select">
+                    <input type="checkbox" class="cart-item-cb" id="cb-<?= $item['ID'] ?>" data-id="<?= $item['ID'] ?>" <?= $item['SELECTED'] ? 'checked' : '' ?>>
+                </div>
                 <div class="cart-item__info">
                     <a href="<?= $item['URL'] ?>" class="cart-item__name"><?= htmlspecialchars($item['NAME']) ?></a>
                     <?php if ($item['ARTICLE_BRAND_HTML'] !== ''): ?>
@@ -264,6 +281,18 @@ if (!empty($items) && !$hasSupplierItem) {
 }
 .cart-clear-btn:hover { border-color: var(--red); color: var(--red); background: #fdecec; }
 .cart-clear-btn:disabled { opacity: 0.6; cursor: default; }
+
+.cart-select-all {
+    display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
+    color: var(--gray); margin: -14px 0 16px; cursor: pointer; user-select: none;
+}
+.cart-select-all input { width: 17px; height: 17px; cursor: pointer; accent-color: var(--blue); }
+
+.cart-item__select { flex-shrink: 0; display: flex; align-items: center; }
+.cart-item-cb { width: 18px; height: 18px; cursor: pointer; accent-color: var(--blue); }
+
+.cart-item--unselected .cart-item__info,
+.cart-item--unselected .cart-item__price { opacity: 0.5; }
 .cart-empty { text-align: center; padding: 80px 20px; }
 .cart-empty__icon { font-size: 60px; margin-bottom: 14px; opacity: 0.6; }
 .cart-empty h2 { font-size: 18px; font-weight: 700; margin-bottom: 6px; color: var(--black); }
@@ -419,12 +448,69 @@ function basketUpdate(id, qty) {
                 if (subtotalClientEl && d.totalClientSum) subtotalClientEl.textContent = d.totalClientSum;
                 var countEl = document.getElementById('cart-count');
                 if (countEl && d.totalQty !== undefined) countEl.textContent = d.totalQty;
-                if (window.updateCartBadge && d.totalQty !== undefined) window.updateCartBadge(d.totalQty);
+                if (window.updateCartBadge && d.totalQtyAll !== undefined) window.updateCartBadge(d.totalQtyAll);
             }
         })
         .catch(function() {
             if (input) input.disabled = false;
         });
+}
+
+function applySelectionTotals(d) {
+    var totalEl = document.getElementById('cart-total');
+    if (totalEl && d.totalSum) totalEl.textContent = d.totalSum;
+    var subtotalEl = document.getElementById('cart-subtotal');
+    if (subtotalEl && d.totalSum) subtotalEl.textContent = d.totalSum;
+    var subtotalClientEl = document.getElementById('cart-subtotal-client');
+    if (subtotalClientEl && d.totalClientSum) subtotalClientEl.textContent = d.totalClientSum;
+    var countEl = document.getElementById('cart-count');
+    if (countEl && d.totalQty !== undefined) countEl.textContent = d.totalQty;
+    if (window.updateCartBadge && d.totalQtyAll !== undefined) window.updateCartBadge(d.totalQtyAll);
+}
+
+function basketSelect(id, checked) {
+    return fetch('/ajax/basket.php?action=select&id=' + id + '&value=' + (checked ? 'Y' : 'N'))
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.status === 'ok') applySelectionTotals(d);
+            return d;
+        });
+}
+
+document.querySelectorAll('.cart-item-cb').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+        var row = document.getElementById('basket-row-' + this.getAttribute('data-id'));
+        if (row) row.classList.toggle('cart-item--unselected', !this.checked);
+        basketSelect(this.getAttribute('data-id'), this.checked).then(function() {
+            syncSelectAllCheckbox();
+        });
+    });
+});
+
+function syncSelectAllCheckbox() {
+    var all = document.getElementById('cart-select-all-cb');
+    if (!all) return;
+    var boxes = document.querySelectorAll('.cart-item-cb');
+    var checkedCount = document.querySelectorAll('.cart-item-cb:checked').length;
+    all.checked = boxes.length > 0 && checkedCount === boxes.length;
+}
+
+var selectAllCb = document.getElementById('cart-select-all-cb');
+if (selectAllCb) {
+    selectAllCb.addEventListener('change', function() {
+        var checked = this.checked;
+        fetch('/ajax/basket.php?action=selectAll&value=' + (checked ? 'Y' : 'N'))
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.status !== 'ok') return;
+                document.querySelectorAll('.cart-item-cb').forEach(function(cb) {
+                    cb.checked = checked;
+                    var row = document.getElementById('basket-row-' + cb.getAttribute('data-id'));
+                    if (row) row.classList.toggle('cart-item--unselected', !checked);
+                });
+                applySelectionTotals(d);
+            });
+    });
 }
 
 function basketDelete(id) {
@@ -567,7 +653,17 @@ function recheckItem(id, mode, triggerBtn) {
 var checkoutLink = document.getElementById('checkout-link');
 if (checkoutLink) {
     checkoutLink.addEventListener('click', function(e) {
-        if (document.querySelector('.cart-item--stale')) {
+        if (document.querySelectorAll('.cart-item-cb:checked').length === 0) {
+            e.preventDefault();
+            showToast('Выберите хотя бы одну позицию для оформления');
+            return;
+        }
+        var staleSelected = false;
+        document.querySelectorAll('.cart-item-cb:checked').forEach(function(cb) {
+            var row = document.getElementById('basket-row-' + cb.getAttribute('data-id'));
+            if (row && row.classList.contains('cart-item--stale')) staleSelected = true;
+        });
+        if (staleSelected) {
             e.preventDefault();
             showToast('Обновите устаревшие позиции перед оформлением заказа');
         }
