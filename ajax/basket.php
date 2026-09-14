@@ -37,7 +37,11 @@ if ($action === 'select' || $action === 'selectAll') {
     $delayValue = $selected ? 'N' : 'Y';
     try {
         if ($action === 'select') {
-            \Bitrix\Sale\Internals\BasketTable::update($id, ['DELAY_BUY' => $delayValue]);
+            $upd = \Bitrix\Sale\Internals\BasketTable::update($id, ['DELAY_BUY' => $delayValue]);
+            if (!$upd->isSuccess()) {
+                echo json_encode(['status' => 'error', 'message' => 'update id=' . $id . ': ' . implode('; ', $upd->getErrorMessages())]);
+                exit;
+            }
         } else {
             $allRes = CSaleBasket::GetList(
                 [],
@@ -45,11 +49,15 @@ if ($action === 'select' || $action === 'selectAll') {
                 false, false, ['ID']
             );
             while ($row = $allRes->Fetch()) {
-                \Bitrix\Sale\Internals\BasketTable::update($row['ID'], ['DELAY_BUY' => $delayValue]);
+                $upd = \Bitrix\Sale\Internals\BasketTable::update($row['ID'], ['DELAY_BUY' => $delayValue]);
+                if (!$upd->isSuccess()) {
+                    echo json_encode(['status' => 'error', 'message' => 'update id=' . $row['ID'] . ': ' . implode('; ', $upd->getErrorMessages())]);
+                    exit;
+                }
             }
         }
     } catch (\Throwable $e) {
-        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        echo json_encode(['status' => 'error', 'message' => get_class($e) . ': ' . $e->getMessage()]);
         exit;
     }
 }
