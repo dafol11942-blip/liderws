@@ -473,7 +473,11 @@ function basketSelect(id, checked) {
         .then(function(r) { return r.json(); })
         .then(function(d) {
             if (d.status === 'ok') applySelectionTotals(d);
+            else showToast('Не удалось пересчитать корзину, попробуйте ещё раз');
             return d;
+        })
+        .catch(function() {
+            showToast('Не удалось пересчитать корзину, попробуйте ещё раз');
         });
 }
 
@@ -502,13 +506,16 @@ if (selectAllCb) {
         fetch('/ajax/basket.php?action=selectAll&value=' + (checked ? 'Y' : 'N'))
             .then(function(r) { return r.json(); })
             .then(function(d) {
-                if (d.status !== 'ok') return;
+                if (d.status !== 'ok') { showToast('Не удалось пересчитать корзину, попробуйте ещё раз'); return; }
                 document.querySelectorAll('.cart-item-cb').forEach(function(cb) {
                     cb.checked = checked;
                     var row = document.getElementById('basket-row-' + cb.getAttribute('data-id'));
                     if (row) row.classList.toggle('cart-item--unselected', !checked);
                 });
                 applySelectionTotals(d);
+            })
+            .catch(function() {
+                showToast('Не удалось пересчитать корзину, попробуйте ещё раз');
             });
     });
 }

@@ -27,22 +27,24 @@ if ($action === 'delete') {
 
 // Чекбокс позиции в корзине: снятая галка = DELAY_BUY 'Y' — штатный признак
 // Bitrix «отложено», такие позиции корзина не отправляет на оформление заказа
-// (sale.order.ajax сам исключает их при сборе состава заказа).
-if ($action === 'select') {
+// (sale.order.ajax сам исключает их при сборе состава заказа). Пишем через
+// D7 Basket API, а не старый CSaleBasket::Update() — у старой обёртки
+// ограниченный список полей, которые она реально прокидывает в БД, и
+// DELAY_BUY через неё молча не сохранялся.
+if ($action === 'select' || $action === 'selectAll') {
     $selected = ($_GET['value'] ?? 'Y') === 'Y';
-    CSaleBasket::Update($id, ['DELAY_BUY' => $selected ? 'N' : 'Y']);
-}
-
-if ($action === 'selectAll') {
-    $selected = ($_GET['value'] ?? 'Y') === 'Y';
-    $allRes = CSaleBasket::GetList(
-        [],
-        ['FUSER_ID' => CSaleBasket::GetBasketUserID(), 'ORDER_ID' => 'NULL', 'LID' => SITE_ID],
-        false, false, ['ID']
-    );
-    while ($row = $allRes->Fetch()) {
-        CSaleBasket::Update($row['ID'], ['DELAY_BUY' => $selected ? 'N' : 'Y']);
+    $basket = \Bitrix\Sale\Basket::loadItemsForFUser(CSaleBasket::GetBasketUserID(), SITE_ID);
+    if ($action === 'select') {
+        $basketItem = $basket->getItemById($id);
+        if ($basketItem) {
+            $basketItem->setField('DELAY_BUY', $selected ? 'N' : 'Y');
+        }
+    } else {
+        foreach ($basket as $basketItem) {
+            $basketItem->setField('DELAY_BUY', $selected ? 'N' : 'Y');
+        }
     }
+    $basket->save();
 }
 
 if ($action === 'clear') {
