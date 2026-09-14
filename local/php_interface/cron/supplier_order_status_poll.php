@@ -50,16 +50,39 @@ $connectorsByCode = [
         'LOGIN'    => 'lider16',
         'PASSWORD' => 'LidGates16',
     ]),
+    // ВАЖНО: конфиг коннекторов ниже — ОТДЕЛЬНАЯ копия от getSupplierFactory()
+    // в init.php (этот крон — голый CLI-скрипт без ядра Bitrix, не может
+    // переиспользовать функцию оттуда). Для поставщиков со вторым адресом
+    // (Баки Урманче — см. ACCOUNTS_BY_WAREHOUSE в init.php) reference
+    // заказа приходит с префиксом "baki_urmanche#..." (см. соответствующий
+    // Connector::placeOrder()) — без того же ACCOUNTS_BY_WAREHOUSE здесь
+    // коннектор молча откатится на дефолтный (Нефтяников) аккаунт и не
+    // найдёт чужой заказ, статус останется незамеченным навсегда. Подтверждено
+    // вживую на заказах №200 (Москворечье) и №201 (Берг) — оба молчали.
+    // При обновлении ACCOUNTS_BY_WAREHOUSE в init.php — дублировать и сюда.
     'moskvorechie' => new \Lider\Supplier\MoskvorechieConnector([
         'API_KEY' => 'hRohAwdf9nEy:qb9WatcqtLCdxunJ6klPootnydulyYMZ',
+        'ACCOUNTS_BY_WAREHOUSE' => [
+            'baki_urmanche' => [
+                'API_KEY' => 'TWdkozlYCGEB:L211ViycQRB69BMH6rLiEy3HSWI79u2a',
+            ],
+        ],
     ]),
     'autoeuro' => new \Lider\Supplier\AutoeuroConnector([
         'API_KEY' => 'wK435HUkjTAbJL4RF4F5z9NBXWYqpFhSorfpVkRLFNYI60T21ksYvVQNawkX',
         'DELIVERY_KEY' => 'q53qrkblKN8GviqxHAUlgA0vlUZgRhN04SG01sixtCpoTjC99FJ165xxzGta89mwhLNonRBxH1vlOg8rjL2xPxAdurElATA',
+        // DELIVERY_KEYS_BY_WAREHOUSE здесь не нужен — fetchOrderStatusByReference()
+        // у АвтоЕвро не зависит от delivery_key (один аккаунт на оба адреса).
     ]),
     'berg' => new \Lider\Supplier\BergConnector([
         'API_KEY' => '9e1cc5aea546e263e54c8ba687757a6515de9c78f52c5a9b435bd7ad8303ef36',
         'ADDRESS_ID' => 31173,
+        'ACCOUNTS_BY_WAREHOUSE' => [
+            'baki_urmanche' => [
+                'API_KEY'    => '2c727f00bdb6d1bcab9b3de28dee35fcefd3afe73b73dc3c8495ba518ae04245',
+                'ADDRESS_ID' => 148074,
+            ],
+        ],
     ]),
     'rossko' => new \Lider\Supplier\RosskoConnector([
         'KEY1' => 'd6907f0f857524815255b74cda86fe9b',
@@ -95,6 +118,13 @@ $connectorsByCode = [
     ]),
     'shatem' => new \Lider\Supplier\ShateMConnector([
         'API_KEY' => 'aa290d6a-2e79-4f2c-858e-c9cf5c9899f3',
+        'ACCOUNTS_BY_WAREHOUSE' => [
+            'baki_urmanche' => [
+                'API_KEY' => '{22ea1662-45cf-4dfb-8a57-9921142cba62}',
+                'AGREEMENT_CODE' => 'RSAGR70855',
+                'DELIVERY_ADDRESS_CODE' => 'Д1',
+            ],
+        ],
     ]),
     // Другие поставщики добавятся сюда по мере реализации у них
     // SupplierOrderStatusProvider — остальной скрипт их не касается.

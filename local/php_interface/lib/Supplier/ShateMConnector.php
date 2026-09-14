@@ -589,13 +589,21 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
             // не эхует priceId — только article.id/code/tradeMarkName) —
             // FIFO-очередь по articleId, тот же принцип, что и у других
             // коннекторов (Росско/Авторусь/Иксора/Автопитер).
+            // Для второго кабинета (см. accountsByWarehouse) добавляем префикс
+            // "{warehouseCode}#" — иначе fetchOrderStatusByReference() опросит
+            // orderitems/{id}/statuseshistory ДЕФОЛТНЫМ токеном, а orderItem.id
+            // принадлежит другому customerCode и с чужим токеном не найдётся
+            // (статус молча перестанет обновляться — подтверждено вживую тем
+            // же классом бага на Москворечье/Берге, см. resolveOrderWarehouseCode()
+            // в order_create_handler.php и аналогичные фиксы там).
+            $refPrefix = ($account !== null && $warehouseCode !== '') ? $warehouseCode . '#' : '';
             foreach ((array)($decoded['orderItems'] ?? []) as $oi) {
                 $lineArtId = (int)($oi['article']['id'] ?? 0);
                 $lineId    = (int)($oi['id'] ?? 0);
                 if ($lineId <= 0 || empty($group['queue'][$lineArtId])) continue;
                 $basketItemId = array_shift($group['queue'][$lineArtId]);
                 if ($basketItemId > 0) {
-                    $itemReferences[$basketItemId] = (string)$lineId;
+                    $itemReferences[$basketItemId] = $refPrefix . $lineId;
                     $anySuccess = true;
                 }
             }
@@ -669,13 +677,25 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
 
     // ==================== СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ====================
 
-    /** $reference — orderItem.id (полученный из placeOrder()::item_references). */
+    /**
+     * $reference — orderItem.id, опционально с префиксом "{warehouseCode}#"
+     * для заказов второго кабинета (см. placeOrder()::item_references) —
+     * без него запрос ушёл бы дефолтным токеном и не нашёл бы чужой
+     * orderItem.id (другой customerCode, см. accountsByWarehouse).
+     */
     public function fetchOrderStatusByReference(string $reference): array
     {
+        $warehouseCode = '';
+        if (strpos($reference, '#') !== false) {
+            [$warehouseCode, $reference] = explode('#', $reference, 2);
+        }
         $reference = trim($reference);
         if ($reference === '' || !ctype_digit($reference)) return [];
 
-        $token = $this->ensureToken();
+        $account = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
+        $apiKey  = $account['API_KEY'] ?? null;
+
+        $token = $this->ensureToken($apiKey);
         if (!$token) return [];
 
         $resp = $this->execCurl([
