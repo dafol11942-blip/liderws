@@ -28,27 +28,25 @@ if ($action === 'delete') {
 // Чекбокс позиции в корзине: снятая галка = DELAY_BUY 'Y' — штатный признак
 // Bitrix «отложено», такие позиции корзина не отправляет на оформление заказа
 // (sale.order.ajax сам исключает их при сборе состава заказа). Пишем через
-// D7 Basket API, а не старый CSaleBasket::Update() — у старой обёртки
-// ограниченный список полей, которые она реально прокидывает в БД, и
-// DELAY_BUY через неё молча не сохранялся.
+// ORM-таблицу BasketTable напрямую, в обход бизнес-объекта BasketItem —
+// его setField('DELAY_BUY', ...) кидает ArgumentOutOfRangeException на этом
+// проекте (видимо, поле помечено недоступным для ручного редактирования на
+// уровне бизнес-логики), а прямая запись в колонку БД работает как обычно.
 if ($action === 'select' || $action === 'selectAll') {
     $selected = ($_GET['value'] ?? 'Y') === 'Y';
+    $delayValue = $selected ? 'N' : 'Y';
     try {
-        $basket = \Bitrix\Sale\Basket::loadItemsForFUser(CSaleBasket::GetBasketUserID(), SITE_ID);
         if ($action === 'select') {
-            $basketItem = $basket->getItemById($id);
-            if ($basketItem) {
-                $basketItem->setField('DELAY_BUY', $selected ? 'N' : 'Y');
-            }
+            \Bitrix\Sale\Internals\BasketTable::update($id, ['DELAY_BUY' => $delayValue]);
         } else {
-            foreach ($basket as $basketItem) {
-                $basketItem->setField('DELAY_BUY', $selected ? 'N' : 'Y');
+            $allRes = CSaleBasket::GetList(
+                [],
+                ['FUSER_ID' => CSaleBasket::GetBasketUserID(), 'ORDER_ID' => 'NULL', 'LID' => SITE_ID],
+                false, false, ['ID']
+            );
+            while ($row = $allRes->Fetch()) {
+                \Bitrix\Sale\Internals\BasketTable::update($row['ID'], ['DELAY_BUY' => $delayValue]);
             }
-        }
-        $saveResult = $basket->save();
-        if (!$saveResult->isSuccess()) {
-            echo json_encode(['status' => 'error', 'message' => implode('; ', $saveResult->getErrorMessages())]);
-            exit;
         }
     } catch (\Throwable $e) {
         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
