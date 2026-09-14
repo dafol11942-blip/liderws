@@ -33,18 +33,27 @@ if ($action === 'delete') {
 // DELAY_BUY через неё молча не сохранялся.
 if ($action === 'select' || $action === 'selectAll') {
     $selected = ($_GET['value'] ?? 'Y') === 'Y';
-    $basket = \Bitrix\Sale\Basket::loadItemsForFUser(CSaleBasket::GetBasketUserID(), SITE_ID);
-    if ($action === 'select') {
-        $basketItem = $basket->getItemById($id);
-        if ($basketItem) {
-            $basketItem->setField('DELAY_BUY', $selected ? 'N' : 'Y');
+    try {
+        $basket = \Bitrix\Sale\Basket::loadItemsForFUser(CSaleBasket::GetBasketUserID(), SITE_ID);
+        if ($action === 'select') {
+            $basketItem = $basket->getItemById($id);
+            if ($basketItem) {
+                $basketItem->setField('DELAY_BUY', $selected ? 'N' : 'Y');
+            }
+        } else {
+            foreach ($basket as $basketItem) {
+                $basketItem->setField('DELAY_BUY', $selected ? 'N' : 'Y');
+            }
         }
-    } else {
-        foreach ($basket as $basketItem) {
-            $basketItem->setField('DELAY_BUY', $selected ? 'N' : 'Y');
+        $saveResult = $basket->save();
+        if (!$saveResult->isSuccess()) {
+            echo json_encode(['status' => 'error', 'message' => implode('; ', $saveResult->getErrorMessages())]);
+            exit;
         }
+    } catch (\Throwable $e) {
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        exit;
     }
-    $basket->save();
 }
 
 if ($action === 'clear') {
