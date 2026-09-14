@@ -14,23 +14,6 @@ $bRes = CSaleBasket::GetList(
     ['FUSER_ID' => CSaleBasket::GetBasketUserID(), 'ORDER_ID' => 'NULL', 'LID' => SITE_ID]
 );
 
-// CSaleBasket::GetList() (старый API) не возвращает DELAY_BUY в выборке на
-// этом проекте (см. ajax/basket.php) — читаем поле отдельно через D7 ORM.
-// В try/catch: это публичная страница, сбой здесь не должен ронять корзину
-// целиком — в худшем случае все позиции просто останутся отмеченными.
-$delayMap = [];
-try {
-    $delayRes = \Bitrix\Sale\Internals\BasketTable::getList([
-        'select' => ['ID', 'DELAY_BUY'],
-        'filter' => ['=FUSER_ID' => CSaleBasket::GetBasketUserID()],
-    ]);
-    while ($row = $delayRes->fetch()) {
-        $delayMap[(int)$row['ID']] = $row['DELAY_BUY'];
-    }
-} catch (\Throwable $e) {
-    $delayMap = [];
-}
-
 $totalSum = 0;
 $totalClientSum = 0;
 $totalQty = 0;
@@ -135,10 +118,11 @@ while ($b = $bRes->Fetch()) {
     // чтобы не ломать уже лежащее в корзинах.
     $b['IS_STALE'] = $addedAt > 0 && (time() - $addedAt) > CART_TTL_SECONDS;
 
-    // Чекбокс позиции — штатное поле Bitrix DELAY_BUY ("отложено"), снятая
-    // галка выставляет его в Y, и sale.order.ajax сам не берёт такие позиции
-    // в заказ (см. ajax/basket.php, action=select).
-    $b['SELECTED'] = ($delayMap[(int)$b['ID']] ?? 'N') !== 'Y';
+    // Чекбокс позиции — своё свойство CART_SELECTED ('Y'/'N', см.
+    // ajax/basket.php, action=select). Неотмеченные позиции при переходе к
+    // оформлению временно убираются из корзины (action=stashUnselected) —
+    // штатного DELAY_BUY на этом проекте нет, см. комментарий в ajax/basket.php.
+    $b['SELECTED'] = ($props['CART_SELECTED'] ?? 'Y') !== 'N';
 
     $totalQtyAll += $b['QTY'];
     if ($b['SELECTED']) {
@@ -677,8 +661,9 @@ function recheckItem(id, mode, triggerBtn) {
 var checkoutLink = document.getElementById('checkout-link');
 if (checkoutLink) {
     checkoutLink.addEventListener('click', function(e) {
+        e.preventDefault();
+
         if (document.querySelectorAll('.cart-item-cb:checked').length === 0) {
-            e.preventDefault();
             showToast('Выберите хотя бы одну позицию для оформления');
             return;
         }
@@ -688,9 +673,40 @@ if (checkoutLink) {
             if (row && row.classList.contains('cart-item--stale')) staleSelected = true;
         });
         if (staleSelected) {
-            e.preventDefault();
             showToast('Обновите устаревшие позиции перед оформлением заказа');
+            return;
         }
+
+        // Неотмеченные позиции нужно временно убрать из корзины до перехода —
+        // sale.order.ajax на этом проекте берёт в заказ все строки корзины без
+        // исключений (см. ajax/basket.php, action=stashUnselected). Они
+        // вернутся обратно при следующем заходе на /cart/.
+        var hasUnselected = document.querySelectorAll('.cart-item-cb:not(:checked)').length > 0;
+        if (!hasUnselected) {
+            window.location.href = checkoutLink.getAttribute('href');
+            return;
+        }
+
+        var originalText = checkoutLink.textContent;
+        checkoutLink.textContent = 'Переходим к оформлению...';
+        checkoutLink.style.pointerEvents = 'none';
+
+        fetch('/ajax/basket.php?action=stashUnselected')
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.status === 'ok') {
+                    window.location.href = checkoutLink.getAttribute('href');
+                    return;
+                }
+                checkoutLink.textContent = originalText;
+                checkoutLink.style.pointerEvents = '';
+                showToast('Ошибка: ' + (d.message || 'не удалось перейти к оформлению'));
+            })
+            .catch(function(err) {
+                checkoutLink.textContent = originalText;
+                checkoutLink.style.pointerEvents = '';
+                showToast('Ошибка запроса: ' + err);
+            });
     });
 }
 

@@ -12,7 +12,8 @@ $action = $_GET['action'] ?? '';
 $id = (int)($_GET['id'] ?? 0);
 $qty = (int)($_GET['quantity'] ?? 0);
 
-if (!in_array($action, ['update', 'delete', 'clear', 'select', 'selectAll']) || (!$id && !in_array($action, ['clear', 'selectAll']))) {
+$noIdActions = ['clear', 'selectAll', 'stashUnselected'];
+if (!in_array($action, ['update', 'delete', 'clear', 'select', 'selectAll', 'stashUnselected']) || (!$id && !in_array($action, $noIdActions))) {
     echo json_encode(['status' => 'error', 'message' => 'bad request']);
     exit;
 }
@@ -25,37 +26,107 @@ if ($action === 'delete') {
     CSaleBasket::Delete($id);
 }
 
-// Чекбокс позиции в корзине: снятая галка = DELAY_BUY 'Y' — штатный признак
-// Bitrix «отложено», такие позиции корзина не отправляет на оформление заказа
-// (sale.order.ajax сам исключает их при сборе состава заказа). Пишем через
-// ORM-таблицу BasketTable напрямую, в обход бизнес-объекта BasketItem —
-// его setField('DELAY_BUY', ...) кидает ArgumentOutOfRangeException на этом
-// проекте (видимо, поле помечено недоступным для ручного редактирования на
-// уровне бизнес-логики), а прямая запись в колонку БД работает как обычно.
+// Чекбокс позиции в корзине хранится как свойство CART_SELECTED ('Y'/'N').
+// DELAY_BUY (штатный признак «отложено» в Bitrix) на этом проекте не
+// существует как поле D7-сущности \Bitrix\Sale\Internals\Basket ("Unknown
+// field definition"), поэтому пришлось завести своё свойство — тем же
+// проверенным способом, каким уже пишутся SUPPLIER_* (см.
+// local/ajax/order_from_supplier.php).
 if ($action === 'select' || $action === 'selectAll') {
     $selected = ($_GET['value'] ?? 'Y') === 'Y';
-    $delayValue = $selected ? 'N' : 'Y';
+    $propValue = $selected ? 'Y' : 'N';
     try {
-        if ($action === 'select') {
-            $upd = \Bitrix\Sale\Internals\BasketTable::update($id, ['DELAY_BUY' => $delayValue]);
-            if (!$upd->isSuccess()) {
-                echo json_encode(['status' => 'error', 'message' => 'update id=' . $id . ': ' . implode('; ', $upd->getErrorMessages())]);
-                exit;
-            }
-        } else {
-            $allRes = CSaleBasket::GetList(
-                [],
-                ['FUSER_ID' => CSaleBasket::GetBasketUserID(), 'ORDER_ID' => 'NULL', 'LID' => SITE_ID],
-                false, false, ['ID']
-            );
-            while ($row = $allRes->Fetch()) {
-                $upd = \Bitrix\Sale\Internals\BasketTable::update($row['ID'], ['DELAY_BUY' => $delayValue]);
-                if (!$upd->isSuccess()) {
-                    echo json_encode(['status' => 'error', 'message' => 'update id=' . $row['ID'] . ': ' . implode('; ', $upd->getErrorMessages())]);
-                    exit;
+        $basket = \Bitrix\Sale\Basket::loadItemsForFUser(CSaleBasket::GetBasketUserID(), SITE_ID);
+
+        $upsertSelected = function ($basketItem) use ($propValue) {
+            $props = $basketItem->getPropertyCollection();
+            foreach ($props as $p) {
+                if ($p->getField('CODE') === 'CART_SELECTED') {
+                    $p->setField('VALUE', $propValue);
+                    return;
                 }
             }
+            $p = $props->createItem();
+            $p->setFields(['NAME' => 'Выбрано в корзине', 'CODE' => 'CART_SELECTED', 'VALUE' => $propValue]);
+        };
+
+        if ($action === 'select') {
+            $basketItem = $basket->getItemById($id);
+            if ($basketItem) {
+                $upsertSelected($basketItem);
+            }
+        } else {
+            foreach ($basket as $basketItem) {
+                $upsertSelected($basketItem);
+            }
         }
+
+        $saveResult = $basket->save();
+        if (!$saveResult->isSuccess()) {
+            echo json_encode(['status' => 'error', 'message' => implode('; ', $saveResult->getErrorMessages())]);
+            exit;
+        }
+    } catch (\Throwable $e) {
+        echo json_encode(['status' => 'error', 'message' => get_class($e) . ': ' . $e->getMessage()]);
+        exit;
+    }
+}
+
+// «Перейти к оформлению»: на этом проекте sale.order.ajax берёт в заказ все
+// строки корзины без исключений (нет рабочего штатного механизма фильтрации
+// вроде DELAY_BUY, см. выше) — поэтому неотмеченные чекбоксом позиции перед
+// переходом на /order/ временно удаляются из корзины (со снимком данных в
+// сессии) и возвращаются обратно при следующем заходе на /cart/, см.
+// restoreStashedCartItems() в local/php_interface/init.php и cart/index.php.
+if ($action === 'stashUnselected') {
+    try {
+        $basket = \Bitrix\Sale\Basket::loadItemsForFUser(CSaleBasket::GetBasketUserID(), SITE_ID);
+        $stashed = [];
+        $toDelete = [];
+
+        foreach ($basket as $basketItem) {
+            $itemProps = [];
+            foreach ($basketItem->getPropertyCollection() as $p) {
+                $itemProps[] = [
+                    'NAME'  => $p->getField('NAME'),
+                    'CODE'  => $p->getField('CODE'),
+                    'VALUE' => $p->getField('VALUE'),
+                ];
+            }
+
+            $isSelectedItem = true;
+            $isSupplierItem = false;
+            foreach ($itemProps as $pr) {
+                if ($pr['CODE'] === 'CART_SELECTED') $isSelectedItem = ($pr['VALUE'] !== 'N');
+                if ($pr['CODE'] === 'SUPPLIER_NAME' && $pr['VALUE'] !== '') $isSupplierItem = true;
+            }
+            if ($isSelectedItem) continue;
+
+            $bid = $basketItem->getId();
+            $stashed[] = [
+                'PRODUCT_ID'  => $basketItem->getProductId(),
+                'QUANTITY'    => $basketItem->getQuantity(),
+                'PRICE'       => $basketItem->getPrice(),
+                'CURRENCY'    => $basketItem->getCurrency(),
+                'NAME'        => $basketItem->getField('NAME'),
+                'IS_SUPPLIER' => $isSupplierItem,
+                'PROPS'       => $itemProps,
+                'ORDER_META'  => $isSupplierItem ? loadSupplierBasketOrderMeta($bid) : [],
+            ];
+            $toDelete[] = $bid;
+        }
+
+        foreach ($toDelete as $bid) {
+            CSaleBasket::Delete($bid);
+        }
+
+        if (!empty($stashed)) {
+            $existing = $_SESSION['CART_STASHED_ITEMS'] ?? [];
+            $_SESSION['CART_STASHED_ITEMS'] = array_merge($existing, $stashed);
+        }
+
+        echo json_encode(['status' => 'ok', 'stashedCount' => count($stashed)]);
+        exit;
     } catch (\Throwable $e) {
         echo json_encode(['status' => 'error', 'message' => get_class($e) . ': ' . $e->getMessage()]);
         exit;
@@ -86,49 +157,31 @@ $bRes = CSaleBasket::GetList(
     ['FUSER_ID' => CSaleBasket::GetBasketUserID(), 'ORDER_ID' => 'NULL', 'LID' => SITE_ID]
 );
 
-// CSaleBasket::GetList() (старый API) не возвращает DELAY_BUY в выборке на
-// этом проекте — подтверждено логами (запись через BasketTable проходит
-// успешно, но пересчёт по $b['DELAY_BUY'] её не видит). Читаем поле отдельно
-// через D7 ORM, тем же путём, которым оно пишется. В try/catch — чтобы при
-// сбое (напр. другое имя поля в схеме) вернуть текст ошибки JSON'ом, а не 500.
-$delayMap = [];
-try {
-    $delayRes = \Bitrix\Sale\Internals\BasketTable::getList([
-        'select' => ['ID', 'DELAY_BUY'],
-        'filter' => ['=FUSER_ID' => CSaleBasket::GetBasketUserID()],
-    ]);
-    while ($row = $delayRes->fetch()) {
-        $delayMap[(int)$row['ID']] = $row['DELAY_BUY'];
-    }
-} catch (\Throwable $e) {
-    echo json_encode(['status' => 'error', 'message' => 'delayMap: ' . get_class($e) . ': ' . $e->getMessage()]);
-    exit;
-}
-
 while ($b = $bRes->Fetch()) {
     $qty = (int)$b['QUANTITY'];
     $sum = (float)$b['PRICE'] * $qty;
-    $isSelected = ($delayMap[(int)$b['ID']] ?? 'N') !== 'Y';
+
+    // Свойства позиции читаем одним запросом без фильтра по CODE (проверенный
+    // рабочий путь, как в sale.basket.basket/lider_style/template.php) —
+    // CSaleBasket::GetList() сам поле CART_SELECTED (как и DELAY_BUY) не отдаёт.
+    $propsMap = [];
+    $propsRes = CSaleBasket::GetPropsList([], ['BASKET_ID' => $b['ID']]);
+    while ($pr = $propsRes->Fetch()) {
+        $propsMap[$pr['CODE']] = $pr['VALUE'];
+    }
+    $isSelected = ($propsMap['CART_SELECTED'] ?? 'Y') !== 'N';
     $totalQtyAll += $qty;
 
-    // Клиентская сумма — та же логика, что и в шаблоне корзины
-    // (sale.basket.basket/lider_style/template.php): для менеджера у заказных
-    // позиций поставщика берём наценку от SUPPLIER_PRICE_BASE, для остального
-    // (товар своего склада, обычный покупатель) — как есть, наравне с закупочной.
+    // Клиентская сумма — та же логика, что и в шаблоне корзины: для менеджера
+    // у заказных позиций поставщика берём наценку от SUPPLIER_PRICE_BASE, для
+    // остального (товар своего склада, обычный покупатель) — как есть.
     $clientSum = $sum;
-    if ($isMgr) {
-        $priceBase = null;
-        $propsRes = CSaleBasket::GetPropsList([], ['BASKET_ID' => $b['ID'], 'CODE' => 'SUPPLIER_PRICE_BASE']);
-        if ($pr = $propsRes->Fetch()) {
-            $priceBase = (float)$pr['VALUE'];
-        }
-        if ($priceBase !== null) {
-            $clientSum = getClientPrice($priceBase) * $qty;
-        }
+    if ($isMgr && isset($propsMap['SUPPLIER_PRICE_BASE'])) {
+        $clientSum = getClientPrice((float)$propsMap['SUPPLIER_PRICE_BASE']) * $qty;
     }
 
     // Итоги в сайдбаре считаются только по отмеченным позициям (чекбоксы в
-    // корзине) — неотмеченные помечены DELAY_BUY='Y' и не идут в заказ.
+    // корзине).
     if ($isSelected) {
         $totalSum += $sum;
         $totalQty += $qty;

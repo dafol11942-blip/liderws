@@ -125,6 +125,86 @@ function loadSupplierBasketOrderMeta(int $basketItemId): array
     }
 }
 
+// Чекбоксы в корзине (см. ajax/basket.php, action=stashUnselected): DELAY_BUY
+// как поле D7-сущности \Bitrix\Sale\Internals\Basket на этом проекте не
+// существует ("Unknown field definition"), поэтому исключить неотмеченные
+// позиции из заказа штатным механизмом Bitrix нельзя. Вместо этого при клике
+// «Перейти к оформлению» такие позиции физически удаляются из корзины (со
+// снимком данных в сессии) и возвращаются обратно сюда при следующем заходе
+// на /cart/ — см. cart/index.php.
+function restoreStashedCartItems(): void
+{
+    if (empty($_SESSION['CART_STASHED_ITEMS']) || !is_array($_SESSION['CART_STASHED_ITEMS'])) return;
+    if (!CModule::IncludeModule('sale')) return;
+
+    $stashedItems = $_SESSION['CART_STASHED_ITEMS'];
+
+    try {
+        $basket = \Bitrix\Sale\Basket::loadItemsForFUser(\Bitrix\Sale\Fuser::getId(), SITE_ID);
+        $pending = [];
+
+        foreach ($stashedItems as $stashItem) {
+            $productId = (int)($stashItem['PRODUCT_ID'] ?? 0);
+            if ($productId <= 0) continue;
+
+            $newItem = $basket->createItem('catalog', $productId);
+            if (!empty($stashItem['IS_SUPPLIER'])) {
+                // Заказная позиция от поставщика — цена зафиксирована на момент
+                // добавления, как и при первом добавлении (order_from_supplier.php).
+                $newItem->setFields([
+                    'QUANTITY'     => $stashItem['QUANTITY'] ?? 1,
+                    'CURRENCY'     => $stashItem['CURRENCY'] ?: 'RUB',
+                    'LID'          => SITE_ID,
+                    'PRICE'        => $stashItem['PRICE'] ?? 0,
+                    'CUSTOM_PRICE' => 'Y',
+                    'NAME'         => $stashItem['NAME'] ?? '',
+                ]);
+            } else {
+                // Товар своего склада — как при обычном добавлении в корзину
+                // (ajax/add_to_basket.php), цену на актуальный момент посчитает
+                // сам Bitrix через провайдер каталога.
+                $newItem->setFields([
+                    'QUANTITY'               => $stashItem['QUANTITY'] ?? 1,
+                    'CURRENCY'               => $stashItem['CURRENCY'] ?: \Bitrix\Currency\CurrencyManager::getBaseCurrency(),
+                    'LID'                    => SITE_ID,
+                    'PRODUCT_PROVIDER_CLASS' => '\Bitrix\Catalog\Product\CatalogProvider',
+                ]);
+            }
+
+            $propsCollection = $newItem->getPropertyCollection();
+            foreach ((array)($stashItem['PROPS'] ?? []) as $pr) {
+                if (($pr['CODE'] ?? '') === '') continue;
+                $p = $propsCollection->createItem();
+                $p->setFields([
+                    'NAME'  => $pr['NAME'] ?? $pr['CODE'],
+                    'CODE'  => $pr['CODE'],
+                    'VALUE' => $pr['VALUE'] ?? '',
+                ]);
+            }
+
+            if (!empty($stashItem['ORDER_META'])) {
+                $pending[] = [$newItem, $stashItem['ORDER_META']];
+            }
+        }
+
+        $basket->save();
+
+        // basket_item_id новой позиции известен только после save() — см. тот же
+        // приём в order_from_supplier.php.
+        foreach ($pending as [$newItem, $meta]) {
+            saveSupplierBasketOrderMeta($newItem->getId(), $meta);
+        }
+
+        // Снимок распакован успешно — только теперь можно его убрать. Если
+        // упадём раньше (см. catch ниже), $_SESSION['CART_STASHED_ITEMS']
+        // останется как есть, и восстановление повторится при следующем заходе.
+        unset($_SESSION['CART_STASHED_ITEMS']);
+    } catch (\Throwable $e) {
+        // Не роняем страницу корзины — снимок остаётся в сессии, попробуем
+        // восстановить его снова при следующем открытии /cart/.
+    }
+}
+
 // Срок актуальности заказной позиции (цена/остаток у поставщика) — общий и для
 // корзины (SUPPLIER_ADDED_AT в свойствах, см. sale.basket.basket/lider_style/template.php),
 // и для избранного (CONFIRMED_AT в b_user_favorites, см. local/ajax/favorites.php).

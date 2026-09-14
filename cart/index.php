@@ -1,6 +1,13 @@
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 $APPLICATION->SetPageProperty("title", "Корзина — ЛИДЕР, автозапчасти в Елабуге");
 $APPLICATION->SetTitle("Корзина");
+
+// Позиции, снятые с оформления чекбоксом и временно убранные из корзины при
+// переходе на /order/ (см. ajax/basket.php, action=stashUnselected) — при
+// возврате на страницу корзины возвращаем их обратно.
+if (function_exists('restoreStashedCartItems')) {
+    restoreStashedCartItems();
+}
 ?>
 
 <?php
