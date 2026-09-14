@@ -307,6 +307,22 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
             'REQUISITE_ID' => 20534,
             'CONTACT_NAME' => 'Сергей Викторович',
             'CONTACT_PHONE' => '+7(917)223-61-24',
+            // Второй адрес — Баки Урманче, отдельный личный кабинет Росско
+            // (свои KEY1/KEY2). Каталог общий — сверено вживую (GetSearch под
+            // обоими аккаунтами вернул одинаковые id складов HST... для
+            // одного и того же артикула), переоценка не нужна (см.
+            // RosskoConnector::placeOrder()). address_id=131532 и
+            // requisite_id=39576 получены через GetCheckoutDetails этим
+            // ключом (компания/плательщик регистрируется отдельно на каждый
+            // аккаунт — изначально требовалось её завести).
+            'ACCOUNTS_BY_WAREHOUSE' => [
+                'baki_urmanche' => [
+                    'KEY1' => 'c90231f7558b808c37d7d84dcd1ed94b',
+                    'KEY2' => '67a36697ff93121c787451886a74ca94',
+                    'ADDRESS_ID' => '131532',
+                    'REQUISITE_ID' => 39576,
+                ],
+            ],
         ]));
 
         $factory->register(new \Lider\Supplier\BergConnector([

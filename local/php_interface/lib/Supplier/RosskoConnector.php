@@ -15,6 +15,14 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
     private int $requisiteId;
     private string $contactName;
     private string $contactPhone;
+    // Второй адрес (Баки Урманче) — отдельный личный кабинет Росско (свои
+    // KEY1/KEY2, свой address_id и REQUISITE_ID — компания/плательщик у
+    // Росско регистрируется ОТДЕЛЬНО на каждый аккаунт, даже если это тот же
+    // ИП, см. GetCheckoutDetails). Каталог (stock/partnumber/brand) при этом
+    // общий — сверено вживую: одинаковые id складов (HST...) и цены в ответе
+    // GetSearch под обоими аккаунтами для одного и того же артикула, поэтому
+    // переоценка позиций под второй кабинет НЕ нужна (в отличие от ШАТЕ-М).
+    private array $accountsByWarehouse;
 
     public function __construct(array $config = [])
     {
@@ -27,6 +35,7 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
         $this->requisiteId = (int)($config['REQUISITE_ID'] ?? 0);
         $this->contactName  = $config['CONTACT_NAME']  ?? '';
         $this->contactPhone = $config['CONTACT_PHONE'] ?? '';
+        $this->accountsByWarehouse = $config['ACCOUNTS_BY_WAREHOUSE'] ?? [];
     }
 
     public function getCode(): string       { return 'rossko'; }
@@ -293,6 +302,14 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
             return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'test_mode_not_supported'];
         }
 
+        // Склад одного заказа один на все позиции (см. dispatchSupplierOrders()
+        // в order_create_handler.php), поэтому смотрим на первую позицию.
+        $warehouseCode = '';
+        foreach ($items as $item) {
+            if (!empty($item['warehouse_code'])) { $warehouseCode = (string)$item['warehouse_code']; break; }
+        }
+        $account = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
+
         $parts = [];
         $partKeys = [];
         $skipped = 0;
@@ -324,9 +341,9 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
         }
 
         $orderComment = (string)($items[array_key_first($items)]['comment'] ?? '');
-        $body = $this->buildCheckoutXml($parts, $orderComment);
+        $body = $this->buildCheckoutXml($parts, $orderComment, $account);
 
-        $this->log('placeOrder: request items=' . count($parts) . ' skipped=' . $skipped . ' body=' . $body);
+        $this->log('placeOrder: warehouse=' . ($warehouseCode ?: '(default)') . ' items=' . count($parts) . ' skipped=' . $skipped . ' body=' . $body);
 
         $ch = curl_init('https://api.rossko.ru/service/v2.1/GetCheckout');
         curl_setopt_array($ch, [
@@ -376,6 +393,13 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
             $queue[$key][] = $pk['basket_item_id'];
         }
 
+        // Для второго кабинета (см. accountsByWarehouse) добавляем префикс
+        // "{warehouseCode}#" — иначе fetchOrderStatusByReference() опросит
+        // GetOrders дефолтными KEY1/KEY2 и не найдёт заказ, оформленный
+        // вторым кабинетом (тот же класс бага, что уже чинили у
+        // Москворечья/Берга/ШАТЕ-М/ПартКома).
+        $refPrefix = ($account !== null && $warehouseCode !== '') ? $warehouseCode . '#' : '';
+
         $itemsRaw = [];
         $itemReferences = [];
         $itemNodes = $xml->xpath('//*[local-name()="ItemsList"]/*[local-name()="Item"]');
@@ -393,7 +417,7 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
             if (!empty($queue[$key])) {
                 $basketItemId = array_shift($queue[$key]);
                 if ($basketItemId > 0) {
-                    $itemReferences[$basketItemId] = $orderId . ':' . $pn . '|' . $br;
+                    $itemReferences[$basketItemId] = $refPrefix . $orderId . ':' . $pn . '|' . $br;
                 }
             }
         }
@@ -423,9 +447,17 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
         ];
     }
 
-    private function buildCheckoutXml(array $parts, string $comment): string
+    /** $account — переопределение KEY1/KEY2/адреса/реквизита для второго кабинета (см. accountsByWarehouse в placeOrder()). */
+    private function buildCheckoutXml(array $parts, string $comment, ?array $account = null): string
     {
         $esc = fn($v) => htmlspecialchars((string)$v, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
+        $key1        = $account['KEY1']         ?? $this->key1;
+        $key2        = $account['KEY2']         ?? $this->key2;
+        $deliveryId  = $account['DELIVERY_ID']  ?? $this->deliveryId;
+        $addressId   = $account['ADDRESS_ID']   ?? $this->addressId;
+        $paymentId   = $account['PAYMENT_ID']   ?? $this->paymentId;
+        $requisiteId = $account['REQUISITE_ID'] ?? $this->requisiteId;
 
         $partsXml = '';
         foreach ($parts as $p) {
@@ -439,15 +471,15 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
         }
 
         $body = '<ns1:GetCheckout xmlns:ns1="https://api.rossko.ru/">'
-            . '<ns1:KEY1>' . $esc($this->key1) . '</ns1:KEY1>'
-            . '<ns1:KEY2>' . $esc($this->key2) . '</ns1:KEY2>'
+            . '<ns1:KEY1>' . $esc($key1) . '</ns1:KEY1>'
+            . '<ns1:KEY2>' . $esc($key2) . '</ns1:KEY2>'
             . '<ns1:delivery>'
-                . '<ns1:delivery_id>' . $esc($this->deliveryId) . '</ns1:delivery_id>'
-                . '<ns1:address_id>' . $esc($this->addressId) . '</ns1:address_id>'
+                . '<ns1:delivery_id>' . $esc($deliveryId) . '</ns1:delivery_id>'
+                . '<ns1:address_id>' . $esc($addressId) . '</ns1:address_id>'
             . '</ns1:delivery>'
             . '<ns1:payment>'
-                . '<ns1:payment_id>' . (int)$this->paymentId . '</ns1:payment_id>'
-                . '<ns1:requisite_id>' . (int)$this->requisiteId . '</ns1:requisite_id>'
+                . '<ns1:payment_id>' . (int)$paymentId . '</ns1:payment_id>'
+                . '<ns1:requisite_id>' . (int)$requisiteId . '</ns1:requisite_id>'
             . '</ns1:payment>'
             . '<ns1:contact>'
                 . '<ns1:name>' . $esc($this->contactName) . '</ns1:name>'
@@ -467,7 +499,8 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
     // ==================== СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ====================
 
     /**
-     * $reference — составной "{order_id}:{partnumber}|{brand}" (см.
+     * $reference — составной "{order_id}:{partnumber}|{brand}", опционально с
+     * префиксом "{warehouseCode}#" для заказов второго кабинета (см.
      * placeOrder()::item_references) — GetOrders возвращает позиции заказа без
      * какого-либо собственного построчного ID, только artikul/brand внутри
      * заказа, поэтому, как и у Москворечья/Берга, различаем позиции одного
@@ -475,6 +508,10 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
      */
     public function fetchOrderStatusByReference(string $reference): array
     {
+        $warehouseCode = '';
+        if (strpos($reference, '#') !== false) {
+            [$warehouseCode, $reference] = explode('#', $reference, 2);
+        }
         if (strpos($reference, ':') === false) return [];
         [$orderIdRaw, $partKeyRaw] = explode(':', $reference, 2);
         $orderId = (int)$orderIdRaw;
@@ -483,10 +520,14 @@ class RosskoConnector implements SupplierInterface, SupplierOrderable, SupplierO
         $wantPartnumber = $partKeyParts[0] ?? '';
         $wantBrand      = $partKeyParts[1] ?? '';
 
+        $account = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
+        $key1 = $account['KEY1'] ?? $this->key1;
+        $key2 = $account['KEY2'] ?? $this->key2;
+
         $esc = fn($v) => htmlspecialchars((string)$v, ENT_XML1 | ENT_QUOTES, 'UTF-8');
         $body = '<ns1:GetOrders xmlns:ns1="https://api.rossko.ru/">'
-            . '<ns1:KEY1>' . $esc($this->key1) . '</ns1:KEY1>'
-            . '<ns1:KEY2>' . $esc($this->key2) . '</ns1:KEY2>'
+            . '<ns1:KEY1>' . $esc($key1) . '</ns1:KEY1>'
+            . '<ns1:KEY2>' . $esc($key2) . '</ns1:KEY2>'
             . '<ns1:order_ids><ns1:id>' . (int)$orderId . '</ns1:id></ns1:order_ids>'
             . '</ns1:GetOrders>';
         $body = '<?xml version="1.0" encoding="utf-8"?>'
