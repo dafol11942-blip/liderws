@@ -363,6 +363,13 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
             'PASSWORD_MD5' => '00fd3781d2cfdf0d971b57fa7397cfac',
             'PAYMENT_METHOD' => 1062,
             'SHIPMENT_ADDRESS' => 1696765,
+            // Оба адреса — один и тот же личный кабинет (см.
+            // basket/shipmentAddresses, снято вживую) — Баки Урманче там уже
+            // зарегистрирован, отдельный логин/пароль не нужен. См.
+            // AutorussConnector::placeOrder()/shipmentAddressByWarehouse.
+            'SHIPMENT_ADDRESS_BY_WAREHOUSE' => [
+                'baki_urmanche' => 1706062,
+            ],
         ]));
         $factory->register(new \Lider\Supplier\AutopiterConnector([
             'USER_ID' => '165286',

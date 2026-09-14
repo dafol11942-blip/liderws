@@ -14,6 +14,12 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
     private int $paymentMethod;
     private string $shipmentAddress;
     private string $shipmentMethod;
+    // Оба адреса — один и тот же личный кабинет (см. basket/shipmentAddresses,
+    // снято вживую: тот же LOGIN/PASSWORD_MD5 видит id ОБОИХ адресов), в
+    // отличие от ШАТЕ-М/Берга/Москворечья — здесь не нужен ни второй ключ,
+    // ни переоценка позиций, только другой SHIPMENT_ADDRESS при отправке
+    // заказа (см. placeOrder()/shipmentAddressByWarehouse).
+    private array $shipmentAddressByWarehouse;
 
     public function __construct(array $config = [])
     {
@@ -24,6 +30,7 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
         $this->paymentMethod   = (int)($config['PAYMENT_METHOD'] ?? 0);
         $this->shipmentAddress = (string)($config['SHIPMENT_ADDRESS'] ?? '');
         $this->shipmentMethod  = (string)($config['SHIPMENT_METHOD'] ?? '');
+        $this->shipmentAddressByWarehouse = $config['SHIPMENT_ADDRESS_BY_WAREHOUSE'] ?? [];
     }
 
     public function getCode(): string       { return 'autoruss'; }
@@ -393,12 +400,14 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
         $skipped = 0;
         $minDeadline = null;
         $maxDeadline = null;
+        $warehouseCode = '';
         foreach ($items as $item) {
             $supplierCode = trim((string)($item['order_meta']['supplier_code'] ?? ''));
             $itemKey      = trim((string)($item['order_meta']['item_key'] ?? ''));
             $article      = trim((string)($item['article'] ?? ''));
             $brand        = trim((string)($item['brand'] ?? ''));
             $qty          = (int)($item['quantity'] ?? 0);
+            if ($warehouseCode === '' && !empty($item['warehouse_code'])) $warehouseCode = (string)$item['warehouse_code'];
             if ($supplierCode === '' || $itemKey === '' || $article === '' || $brand === '' || $qty <= 0) { $skipped++; continue; }
 
             $idx = count($positions);
@@ -425,11 +434,19 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
             return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_valid_items'];
         }
 
+        // Второй адрес (Баки Урманче) — тот же личный кабинет, другой
+        // shipmentAddress (см. shipmentAddressByWarehouse в конструкторе).
+        $shipmentAddress = ($warehouseCode !== '' && !empty($this->shipmentAddressByWarehouse[$warehouseCode]))
+            ? (string)$this->shipmentAddressByWarehouse[$warehouseCode]
+            : $this->shipmentAddress;
+
         // shipmentDate обязателен, если в ЛК включена опция "Дни отгрузки" —
         // подтверждено вживую: basket/shipmentDates отдаёт непустой список для
         // этого аккаунта. Берём САМУЮ РАННЮЮ дату из тех, что сам API считает
-        // валидной для диапазона сроков поставки этих позиций.
-        $shipmentDate = $this->resolveShipmentDate($minDeadline, $maxDeadline);
+        // валидной для диапазона сроков поставки этих позиций. Адрес передаём
+        // тот же, что пойдёт в сам заказ — время сборки у офисов отличается
+        // (см. документацию shipmentDates).
+        $shipmentDate = $this->resolveShipmentDate($minDeadline, $maxDeadline, $shipmentAddress);
 
         $orderComment = (string)($items[array_key_first($items)]['comment'] ?? '');
 
@@ -444,7 +461,7 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
             'userlogin'       => $this->login,
             'userpsw'         => $this->passwordMd5,
             'paymentMethod'   => (string)$this->paymentMethod,
-            'shipmentAddress' => $this->shipmentAddress,
+            'shipmentAddress' => $shipmentAddress,
             'comment'         => $orderComment,
         ];
         if ($this->shipmentMethod !== '') $fields['shipmentMethod'] = $this->shipmentMethod;
@@ -459,7 +476,7 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
 
         $body = http_build_query($fields);
 
-        $this->log('placeOrder: request items=' . count($positions) . ' skipped=' . $skipped . ' shipmentDate=' . ($shipmentDate ?? 'null') . ' body=' . $body);
+        $this->log('placeOrder: warehouse=' . ($warehouseCode ?: '(default)') . ' shipmentAddress=' . $shipmentAddress . ' items=' . count($positions) . ' skipped=' . $skipped . ' shipmentDate=' . ($shipmentDate ?? 'null') . ' body=' . $body);
 
         $ch = curl_init($this->baseUrl . '/orders/instant');
         curl_setopt_array($ch, [
@@ -525,7 +542,7 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
         ];
     }
 
-    private function resolveShipmentDate(?int $minDeadline, ?int $maxDeadline): ?string
+    private function resolveShipmentDate(?int $minDeadline, ?int $maxDeadline, ?string $shipmentAddress = null): ?string
     {
         $min = $minDeadline ?? 0;
         $max = $maxDeadline ?? $min;
@@ -533,7 +550,7 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
 
         $url = $this->baseUrl . '/basket/shipmentDates?' . $this->authQuery()
             . '&minDeadlineTime=' . $min . '&maxDeadlineTime=' . $max
-            . '&shipmentAddress=' . urlencode($this->shipmentAddress);
+            . '&shipmentAddress=' . urlencode($shipmentAddress ?? $this->shipmentAddress);
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
