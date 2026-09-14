@@ -22,6 +22,13 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
     private string $resolvedBrandName  = '';
     private bool   $makerIdUsed        = false;
     private ?array $brandsCache        = null;
+    // Второй адрес (Баки Урманче) — отдельный личный кабинет ПартКома (свой
+    // логин/пароль), но каталог (detailNum/makerId/providerId) общий для всей
+    // площадки ПартКома — это глобальные идентификаторы маркетплейса, а цену
+    // мы сами передаём в заказе (не запрашиваем "живую" котировку, в отличие
+    // от ШАТЕ-М), поэтому переоценка позиций под второй кабинет не нужна —
+    // достаточно сменить логин/пароль при отправке (см. placeOrder()).
+    private array $accountsByWarehouse;
 
     public function __construct(array $config = [])
     {
@@ -29,6 +36,7 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
         $this->password = $config['PASSWORD']  ?? 'LidGates16';
         $this->baseUrl  = $config['BASE_URL']  ?? 'https://ws.part-kom.ru/v4';
         $this->timeout  = $config['TIMEOUT']   ?? 8;
+        $this->accountsByWarehouse = $config['ACCOUNTS_BY_WAREHOUSE'] ?? [];
     }
 
     public function getCode(): string           { return 'partkom'; }
@@ -43,9 +51,10 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
         return $this->generateWarehouseCode($realName);
     }
 
-    private function authHeader(): string
+    /** $loginOverride/$passwordOverride — для второго кабинета (см. accountsByWarehouse в placeOrder()/fetchOrderStatusByReference()). */
+    private function authHeader(?string $loginOverride = null, ?string $passwordOverride = null): string
     {
-        return 'Authorization: Basic ' . base64_encode($this->login . ':' . $this->password);
+        return 'Authorization: Basic ' . base64_encode(($loginOverride ?? $this->login) . ':' . ($passwordOverride ?? $this->password));
     }
 
     // ── BRANDS ────────────────────────────────────────────
@@ -604,8 +613,26 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
             'returnOnSuccess' => 1,
         ];
 
+        // Склад одного заказа один на все позиции (см. dispatchSupplierOrders()
+        // в order_create_handler.php), поэтому смотрим на первую позицию.
+        $warehouseCode = '';
+        foreach ($items as $item) {
+            if (!empty($item['warehouse_code'])) { $warehouseCode = (string)$item['warehouse_code']; break; }
+        }
+        $account = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
+
         $idx     = 0;
         $skipped = 0;
+        // item_references — reference, отправленный ЭТОЙ позицией ПартКому, с
+        // префиксом "{warehouseCode}#" ТОЛЬКО для нашего внутреннего хранения
+        // (b_supplier_order_item.REFERENCE) — иначе fetchOrderStatusByReference()
+        // не узнает, каким из двух личных кабинетов опрашивать /basket/motion
+        // (тот же класс бага, что уже был закрыт у Москворечья/Берга/ШАТЕ-М).
+        // Значение, которое реально уходит в orderItems[][reference] ПартКому,
+        // остаётся ЧИСТЫМ (без префикса) — это просто наш трекинг-номер в их
+        // системе, менять его формат смысла нет.
+        $itemReferences = [];
+        $refPrefix = ($account !== null && $warehouseCode !== '') ? $warehouseCode . '#' : '';
         foreach ($items as $item) {
             $makerId    = $item['order_meta']['maker_id'] ?? null;
             $providerId = $item['order_meta']['provider_id'] ?? null;
@@ -623,7 +650,11 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
             $fields["orderItems[{$idx}][providerId]"] = (string)$providerId;
             $fields["orderItems[{$idx}][quantity]"]   = (string)$item['quantity'];
             $fields["orderItems[{$idx}][delivery]"]   = 'regular';
-            if (!empty($item['reference'])) $fields["orderItems[{$idx}][reference]"] = (string)$item['reference'];
+            if (!empty($item['reference'])) {
+                $fields["orderItems[{$idx}][reference]"] = (string)$item['reference'];
+                $basketItemId = (int)($item['basket_item_id'] ?? 0);
+                if ($basketItemId > 0) $itemReferences[$basketItemId] = $refPrefix . $item['reference'];
+            }
             if (!empty($item['comment']))   $fields["orderItems[{$idx}][comment]"]   = (string)$item['comment'];
             $idx++;
         }
@@ -633,12 +664,12 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
             return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_valid_items'];
         }
 
-        $this->log('placeOrder: request test=' . ($test ? 1 : 0) . ' items=' . $idx . ' skipped=' . $skipped . ' fields=' . json_encode($fields, JSON_UNESCAPED_UNICODE));
+        $this->log('placeOrder: warehouse=' . ($warehouseCode ?: '(default)') . ' test=' . ($test ? 1 : 0) . ' items=' . $idx . ' skipped=' . $skipped . ' fields=' . json_encode($fields, JSON_UNESCAPED_UNICODE));
 
         $ch = curl_init($this->baseUrl . '/basket/order');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => [$this->authHeader(), 'Accept: application/json'],
+            CURLOPT_HTTPHEADER     => [$this->authHeader($account['LOGIN'] ?? null, $account['PASSWORD'] ?? null), 'Accept: application/json'],
             CURLOPT_TIMEOUT        => 20,
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_SSL_VERIFYPEER => false,
@@ -666,21 +697,34 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
         $success = $httpCode === 200 && $err === '' && is_array($decoded) && !empty($decoded['success']);
 
         return [
-            'http_code' => $httpCode ?: null,
-            'success'   => $success,
-            'raw'       => $decoded,
-            'error'     => $err ?: null,
+            'http_code'       => $httpCode ?: null,
+            'success'         => $success,
+            'raw'             => $decoded,
+            'error'           => $err ?: null,
+            'item_references' => $itemReferences,
         ];
     }
 
     // ── СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ───────
+    /**
+     * $reference — то, что мы сами отправили ПартКому в orderItems[][reference],
+     * опционально с префиксом "{warehouseCode}#" для заказов второго кабинета
+     * (см. placeOrder()::item_references) — без него запрос ушёл бы дефолтным
+     * логином/паролем и не нашёл бы заказ, оформленный вторым кабинетом.
+     */
     public function fetchOrderStatusByReference(string $reference): array
     {
+        $warehouseCode = '';
+        if (strpos($reference, '#') !== false) {
+            [$warehouseCode, $reference] = explode('#', $reference, 2);
+        }
+        $account = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
+
         $url = $this->baseUrl . '/basket/motion/' . rawurlencode($reference);
         $ch  = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => [$this->authHeader(), 'Accept: application/json'],
+            CURLOPT_HTTPHEADER     => [$this->authHeader($account['LOGIN'] ?? null, $account['PASSWORD'] ?? null), 'Accept: application/json'],
             CURLOPT_TIMEOUT        => 15,
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_SSL_VERIFYPEER => false,

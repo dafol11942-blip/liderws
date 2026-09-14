@@ -49,6 +49,12 @@ $connectorsByCode = [
     'partkom' => new \Lider\Supplier\PartKomConnector([
         'LOGIN'    => 'lider16',
         'PASSWORD' => 'LidGates16',
+        'ACCOUNTS_BY_WAREHOUSE' => [
+            'baki_urmanche' => [
+                'LOGIN' => 'lider2-16',
+                'PASSWORD' => 'zap4ast16',
+            ],
+        ],
     ]),
     // ВАЖНО: конфиг коннекторов ниже — ОТДЕЛЬНАЯ копия от getSupplierFactory()
     // в init.php (этот крон — голый CLI-скрипт без ядра Bitrix, не может

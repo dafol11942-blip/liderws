@@ -345,6 +345,18 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
         $factory->register(new \Lider\Supplier\PartKomConnector([
             'LOGIN' => 'lider16',
             'PASSWORD' => 'LidGates16',
+            // Второй адрес — Баки Урманче, отдельный личный кабинет ПартКома.
+            // Доступ по API для него включили не сразу (сначала отвечал
+            // "Ошибка авторизации" даже с прод-IP, см. историю подключения) —
+            // проверено вживую после включения: GET /basket/pickup-list
+            // отвечает success:true. Каталог (detailNum/makerId/providerId)
+            // общий для площадки, см. accountsByWarehouse в PartKomConnector.
+            'ACCOUNTS_BY_WAREHOUSE' => [
+                'baki_urmanche' => [
+                    'LOGIN' => 'lider2-16',
+                    'PASSWORD' => 'zap4ast16',
+                ],
+            ],
         ]));
 
         $factory->register(new \Lider\Supplier\IxoraConnector([
