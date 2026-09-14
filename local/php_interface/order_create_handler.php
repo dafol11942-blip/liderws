@@ -127,6 +127,24 @@ if (!function_exists('saveSupplierOrderRecord')) {
             // из ответа /orders, см. MoskvorechieConnector::placeOrder()).
             $itemReferences = (array)($result['item_references'] ?? []);
 
+            // $submitStatus='error' означает "поставщик НЕ принял заказ вообще"
+            // (success=false — единственное поле, гарантированно единообразное
+            // у всех коннекторов, см. SupplierOrderable::placeOrder()) — без
+            // этого STAGE молча оставался бы дефолтным 'ordered' и заказ
+            // выглядел бы в личном кабинете/у менеджера как обычный "Заказан у
+            // поставщика", хотя по факту заказа у поставщика не существует
+            // (подтверждено вживую: заказы №205/206/207/209/210, Росско
+            // ответил "Нет в наличии", но STAGE оставался 'ordered' до первого
+            // прохода supplier_order_status_poll.php, который на несуществующий
+            // reference просто ничего не находит и STAGE не трогает вовсе).
+            // 'refused' — уже штатный этап (см. getSupplierStageColor/Label(),
+            // supplier_order_status_aggregate.php) — красный бейдж "Отказано"
+            // сразу, и агрегирующий крон при полном отказе сам отменит заказ.
+            // Частичный отказ (часть позиций одного поставщика прошла, часть
+            // нет) этим не покрывается — надёжного единообразного признака
+            // "эта КОНКРЕТНАЯ позиция принята" у всех коннекторов сейчас нет.
+            $initialStage = $submitStatus === 'error' ? 'refused' : 'ordered';
+
             $values = [];
             foreach ($items as $item) {
                 $basketItemId = (int)($item['basket_item_id'] ?? 0);
@@ -136,10 +154,11 @@ if (!function_exists('saveSupplierOrderRecord')) {
                     '" . $helper->forSql((string)$item['brand']) . "',
                     " . (int)$item['quantity'] . ",
                     " . (float)$item['price_base'] . ",
-                    '" . $helper->forSql((string)$reference) . "')";
+                    '" . $helper->forSql((string)$reference) . "',
+                    '" . $helper->forSql($initialStage) . "')";
             }
             $db->query(
-                'INSERT INTO b_supplier_order_item (SUPPLIER_ORDER_ID, BASKET_ITEM_ID, ARTICLE, BRAND, QUANTITY, PRICE, REFERENCE)
+                'INSERT INTO b_supplier_order_item (SUPPLIER_ORDER_ID, BASKET_ITEM_ID, ARTICLE, BRAND, QUANTITY, PRICE, REFERENCE, STAGE)
                  VALUES ' . implode(',', $values)
             );
         } catch (\Throwable $e) {
