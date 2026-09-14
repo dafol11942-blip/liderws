@@ -109,6 +109,12 @@ $connectorsByCode = [
     'autopiter' => new \Lider\Supplier\AutopiterConnector([
         'USER_ID' => '165286',
         'PASSWORD' => 'LidGates16',
+        'ACCOUNTS_BY_WAREHOUSE' => [
+            'baki_urmanche' => [
+                'USER_ID' => '551324',
+                'PASSWORD' => '123456',
+            ],
+        ],
     ]),
     'armtek' => new \Lider\Supplier\ArmtekConnector([
         'LOGIN' => 'lider1-16@bk.ru',

@@ -11,6 +11,16 @@ class AutopiterConnector implements SupplierInterface, SupplierOrderable, Suppli
     private string $baseUrl;
     private int $timeout;
     private ?string $authCookie = null;
+    // Второй адрес (Баки Урманче) — отдельный личный кабинет Автопитера (свои
+    // USER_ID/PASSWORD): MakeOrderByItems не принимает вообще никакого адреса
+    // доставки — он жёстко привязан к аккаунту, как у ШАТЕ-М/Берга. Каталог
+    // (ArticleId/DetailUid) при этом общий — сверено вживую: под обоими
+    // аккаунтами GetPriceId вернул идентичные DetailUid/цену/остаток для
+    // одного и того же артикула, поэтому переоценка не нужна (в отличие от
+    // ШАТЕ-М) — только смена логина/пароля при отправке заказа, см.
+    // placeOrder()/ensureAuthForAccount().
+    private array $accountsByWarehouse;
+    private array $authCookieByAccount = [];
 
     public function __construct(array $config = [])
     {
@@ -18,6 +28,7 @@ class AutopiterConnector implements SupplierInterface, SupplierOrderable, Suppli
         $this->password = $config['PASSWORD'] ?? '';
         $this->baseUrl  = $config['BASE_URL'] ?? 'https://service.autopiter.ru/v2/price';
         $this->timeout  = $config['TIMEOUT']  ?? 10;
+        $this->accountsByWarehouse = $config['ACCOUNTS_BY_WAREHOUSE'] ?? [];
     }
 
     public function getCode(): string       { return 'autopiter'; }
@@ -57,6 +68,90 @@ class AutopiterConnector implements SupplierInterface, SupplierOrderable, Suppli
             return true;
         }
         return false;
+    }
+
+    /**
+     * Авторизация вторым кабинетом (см. accountsByWarehouse в placeOrder()/
+     * fetchOrderStatusByReference()) — полностью ИЗОЛИРОВАННЫЙ путь, не трогает
+     * $this->authCookie/ensureAuth() дефолтного аккаунта: свой curl-вызов,
+     * свой кэш cookie по USER_ID, чтобы не рисковать уже проверенной логикой
+     * авторизации по умолчанию.
+     */
+    private function ensureAuthForAccount(string $userId, string $password): ?string
+    {
+        if (isset($this->authCookieByAccount[$userId])) return $this->authCookieByAccount[$userId];
+
+        $xml = '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">'
+            . '<soap:Body>'
+            . '<Authorization xmlns="http://www.autopiter.ru/">'
+            . '<UserID>' . htmlspecialchars($userId, ENT_XML1) . '</UserID>'
+            . '<Password>' . htmlspecialchars($password, ENT_XML1) . '</Password>'
+            . '<Save>true</Save>'
+            . '</Authorization>'
+            . '</soap:Body>'
+            . '</soap:Envelope>';
+
+        $ch = curl_init($this->baseUrl);
+        $capturedCookie = null;
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['Content-Type: text/xml; charset=utf-8'],
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $xml,
+            CURLOPT_TIMEOUT        => $this->timeout,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_HEADERFUNCTION => function ($ch, $headerLine) use (&$capturedCookie) {
+                if (stripos($headerLine, 'Set-Cookie:') === 0) {
+                    $cookie = trim(substr($headerLine, 12));
+                    $capturedCookie = explode(';', $cookie)[0];
+                }
+                return strlen($headerLine);
+            },
+        ]);
+        $resp = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+
+        if ($err || $httpCode !== 200 || $resp === null) {
+            $this->log("ensureAuthForAccount({$userId}): HTTP {$httpCode} err={$err}");
+            return null;
+        }
+        if (!preg_match('/AuthorizationResult>true</', $resp) || !$capturedCookie) {
+            $this->log("ensureAuthForAccount({$userId}): авторизация не удалась, body=" . substr($resp, 0, 500));
+            return null;
+        }
+
+        $this->authCookieByAccount[$userId] = $capturedCookie;
+        return $capturedCookie;
+    }
+
+    /** Аналог execSoap(), но с явным cookie второго кабинета — не читает и не пишет $this->authCookie. */
+    private function execSoapWithCookie(string $xml, string $cookie): ?string
+    {
+        $ch = curl_init($this->baseUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['Content-Type: text/xml; charset=utf-8', 'Cookie: ' . $cookie],
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $xml,
+            CURLOPT_TIMEOUT        => $this->timeout,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+        ]);
+        $resp = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+        curl_close($ch);
+
+        if ($err || $httpCode !== 200) {
+            $this->log("execSoapWithCookie: HTTP {$httpCode} err={$err}");
+            return null;
+        }
+        return $resp;
     }
 
     // ==================== БРЕНДЫ ====================
@@ -385,7 +480,21 @@ class AutopiterConnector implements SupplierInterface, SupplierOrderable, Suppli
             return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'test_mode_not_supported'];
         }
 
-        if (!$this->ensureAuth()) {
+        // Склад одного заказа один на все позиции (см. dispatchSupplierOrders()
+        // в order_create_handler.php), поэтому смотрим на первую позицию.
+        $warehouseCode = '';
+        foreach ($items as $item) {
+            if (!empty($item['warehouse_code'])) { $warehouseCode = (string)$item['warehouse_code']; break; }
+        }
+        $account = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
+
+        $cookie = null;
+        if ($account !== null) {
+            $cookie = $this->ensureAuthForAccount((string)$account['USER_ID'], (string)$account['PASSWORD']);
+            if (!$cookie) {
+                return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'auth_failed'];
+            }
+        } elseif (!$this->ensureAuth()) {
             return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'auth_failed'];
         }
 
@@ -414,9 +523,9 @@ class AutopiterConnector implements SupplierInterface, SupplierOrderable, Suppli
 
         $body = $this->buildMakeOrderByItemsXml($models);
 
-        $this->log('placeOrder: request items=' . count($models) . ' skipped=' . $skipped . ' body=' . $body);
+        $this->log('placeOrder: warehouse=' . ($warehouseCode ?: '(default)') . ' items=' . count($models) . ' skipped=' . $skipped . ' body=' . $body);
 
-        $resp = $this->execSoap($body);
+        $resp = $account !== null ? $this->execSoapWithCookie($body, $cookie) : $this->execSoap($body);
 
         $this->log('placeOrder: response body=' . substr((string)$resp, 0, 4000));
 
@@ -474,8 +583,13 @@ class AutopiterConnector implements SupplierInterface, SupplierOrderable, Suppli
                     // определяет позицию внутри него (как orderNumber:positionId
                     // у Авторуси) — составной reference нужен для последующего
                     // GetFullInvoiceOrder(OrderNumber), который возвращает
-                    // список позиций именно по DetailUid.
-                    $itemReferences[$basketItemId] = $orderNumber . ':' . $detailUid;
+                    // список позиций именно по DetailUid. Префикс
+                    // "{warehouseCode}#" — для второго кабинета (см.
+                    // accountsByWarehouse), иначе fetchOrderStatusByReference()
+                    // опросит GetFullInvoiceOrder дефолтным аккаунтом и не
+                    // найдёт заказ, оформленный вторым.
+                    $refPrefix = ($account !== null && $warehouseCode !== '') ? $warehouseCode . '#' : '';
+                    $itemReferences[$basketItemId] = $refPrefix . $orderNumber . ':' . $detailUid;
                 }
             }
         }
@@ -520,20 +634,32 @@ class AutopiterConnector implements SupplierInterface, SupplierOrderable, Suppli
     // ==================== СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ====================
 
     /**
-     * $reference — составной "{OrderNumber}:{DetailUid}" (см.
+     * $reference — составной "{OrderNumber}:{DetailUid}", опционально с
+     * префиксом "{warehouseCode}#" для заказов второго кабинета (см.
      * placeOrder()::item_references) — GetFullInvoiceOrder запрашивается по
      * номеру счёта, DetailUid однозначно определяет конкретную позицию внутри
      * него (один OrderNumber может покрывать несколько наших позиций).
      */
     public function fetchOrderStatusByReference(string $reference): array
     {
+        $warehouseCode = '';
+        if (strpos($reference, '#') !== false) {
+            [$warehouseCode, $reference] = explode('#', $reference, 2);
+        }
         if (strpos($reference, ':') === false) return [];
         [$orderNumber, $detailUid] = explode(':', $reference, 2);
         $orderNumber = trim($orderNumber);
         $detailUid   = trim($detailUid);
         if ($orderNumber === '' || $detailUid === '') return [];
 
-        if (!$this->ensureAuth()) return [];
+        $account = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
+        $cookie = null;
+        if ($account !== null) {
+            $cookie = $this->ensureAuthForAccount((string)$account['USER_ID'], (string)$account['PASSWORD']);
+            if (!$cookie) return [];
+        } elseif (!$this->ensureAuth()) {
+            return [];
+        }
 
         $xml = '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">'
             . '<soap:Body>'
@@ -543,7 +669,7 @@ class AutopiterConnector implements SupplierInterface, SupplierOrderable, Suppli
             . '</soap:Body>'
             . '</soap:Envelope>';
 
-        $resp = $this->execSoap($xml);
+        $resp = $account !== null ? $this->execSoapWithCookie($xml, $cookie) : $this->execSoap($xml);
 
         $this->log("fetchOrderStatusByReference({$reference}): response body=" . substr((string)$resp, 0, 4000));
 

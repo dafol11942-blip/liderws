@@ -410,6 +410,18 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
         $factory->register(new \Lider\Supplier\AutopiterConnector([
             'USER_ID' => '165286',
             'PASSWORD' => 'LidGates16',
+            // Второй адрес — Баки Урманче, отдельный личный кабинет Автопитера
+            // (MakeOrderByItems не принимает параметр адреса вообще — адрес
+            // жёстко привязан к аккаунту). Каталог общий — сверено вживую
+            // (GetPriceId под обоими аккаунтами вернул идентичные DetailUid/
+            // цену/остаток), переоценка не нужна, см.
+            // AutopiterConnector::placeOrder()/accountsByWarehouse.
+            'ACCOUNTS_BY_WAREHOUSE' => [
+                'baki_urmanche' => [
+                    'USER_ID' => '551324',
+                    'PASSWORD' => '123456',
+                ],
+            ],
         ]));
         $factory->register(new \Lider\Supplier\ArmtekConnector([
             'LOGIN' => 'lider1-16@bk.ru',
