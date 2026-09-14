@@ -14,6 +14,26 @@ $bRes = CSaleBasket::GetList(
     ['FUSER_ID' => CSaleBasket::GetBasketUserID(), 'ORDER_ID' => 'NULL', 'LID' => SITE_ID]
 );
 
+// CSaleBasket::GetList() (старый API) не возвращает DELAY_BUY в выборке на
+// этом проекте (см. ajax/basket.php) — читаем поле отдельно через D7 ORM.
+// В try/catch: это публичная страница, сбой здесь не должен ронять корзину
+// целиком — в худшем случае все позиции просто останутся отмеченными.
+$delayMap = [];
+try {
+    $delayRes = \Bitrix\Sale\Internals\BasketTable::getList([
+        'select' => ['ID', 'DELAY_BUY'],
+        'filter' => [
+            '=FUSER_ID' => CSaleBasket::GetBasketUserID(),
+            '=LID' => SITE_ID,
+        ],
+    ]);
+    while ($row = $delayRes->fetch()) {
+        $delayMap[(int)$row['ID']] = $row['DELAY_BUY'];
+    }
+} catch (\Throwable $e) {
+    $delayMap = [];
+}
+
 $totalSum = 0;
 $totalClientSum = 0;
 $totalQty = 0;
@@ -121,7 +141,7 @@ while ($b = $bRes->Fetch()) {
     // Чекбокс позиции — штатное поле Bitrix DELAY_BUY ("отложено"), снятая
     // галка выставляет его в Y, и sale.order.ajax сам не берёт такие позиции
     // в заказ (см. ajax/basket.php, action=select).
-    $b['SELECTED'] = ($b['DELAY_BUY'] ?? 'N') !== 'Y';
+    $b['SELECTED'] = ($delayMap[(int)$b['ID']] ?? 'N') !== 'Y';
 
     $totalQtyAll += $b['QTY'];
     if ($b['SELECTED']) {

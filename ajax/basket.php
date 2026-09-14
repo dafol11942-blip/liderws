@@ -86,10 +86,26 @@ $bRes = CSaleBasket::GetList(
     ['FUSER_ID' => CSaleBasket::GetBasketUserID(), 'ORDER_ID' => 'NULL', 'LID' => SITE_ID]
 );
 
+// CSaleBasket::GetList() (старый API) не возвращает DELAY_BUY в выборке на
+// этом проекте — подтверждено логами (запись через BasketTable проходит
+// успешно, но пересчёт по $b['DELAY_BUY'] её не видит). Читаем поле отдельно
+// через D7 ORM, тем же путём, которым оно пишется.
+$delayMap = [];
+$delayRes = \Bitrix\Sale\Internals\BasketTable::getList([
+    'select' => ['ID', 'DELAY_BUY'],
+    'filter' => [
+        '=FUSER_ID' => CSaleBasket::GetBasketUserID(),
+        '=LID' => SITE_ID,
+    ],
+]);
+while ($row = $delayRes->fetch()) {
+    $delayMap[(int)$row['ID']] = $row['DELAY_BUY'];
+}
+
 while ($b = $bRes->Fetch()) {
     $qty = (int)$b['QUANTITY'];
     $sum = (float)$b['PRICE'] * $qty;
-    $isSelected = ($b['DELAY_BUY'] ?? 'N') !== 'Y';
+    $isSelected = ($delayMap[(int)$b['ID']] ?? 'N') !== 'Y';
     $totalQtyAll += $qty;
 
     // Клиентская сумма — та же логика, что и в шаблоне корзины
