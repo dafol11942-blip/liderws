@@ -207,6 +207,15 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
 
         $factory->register(new \Lider\Supplier\MoskvorechieConnector([
             'API_KEY' => 'hRohAwdf9nEy:qb9WatcqtLCdxunJ6klPootnydulyYMZ',
+            // Второй адрес — Баки Урманче, отдельный API-ключ, но ТОТ ЖЕ
+            // контрагент/договор ("06/ОП/22"), проверено вживую через /profile
+            // обоими ключами — только default delivery_addresses[0] другой.
+            // См. MoskvorechieConnector::placeOrder()/accountsByWarehouse.
+            'ACCOUNTS_BY_WAREHOUSE' => [
+                'baki_urmanche' => [
+                    'API_KEY' => 'TWdkozlYCGEB:L211ViycQRB69BMH6rLiEy3HSWI79u2a',
+                ],
+            ],
         ]));
 
         $factory->register(new \Lider\Supplier\RosskoConnector([

@@ -11,6 +11,15 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable, Sup
     private string $agreementId;
     private string $filialId;
     private ?array $profileCache = null;
+    // Второй адрес (Баки Урманче) — отдельный API-ключ, но ТОТ ЖЕ контрагент
+    // и договор у Москворечья (проверено вживую через /profile обоими
+    // ключами: одинаковый agreements[0].number "06/ОП/22", отличается только
+    // default delivery_addresses[0] — "Нефтяников..." / "Баки Урманче...").
+    // В отличие от ШАТЕ-М (там второй ключ — другой customerCode/клиент),
+    // здесь это один и тот же клиент, просто ключ выдан на конкретный адрес —
+    // поэтому gid из поиска под дефолтным ключом безопасно переносить в
+    // /cart/add под этим ключом, переспрашивать цену не требуется.
+    private array $accountsByWarehouse;
 
     public function __construct(array $config = [])
     {
@@ -19,6 +28,7 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable, Sup
         $this->timeout     = $config['TIMEOUT']      ?? 6;
         $this->agreementId = $config['AGREEMENT_ID'] ?? '';
         $this->filialId    = $config['FILIAL_ID']    ?? '';
+        $this->accountsByWarehouse = $config['ACCOUNTS_BY_WAREHOUSE'] ?? [];
     }
 
     public function getCode(): string       { return 'moskvorechie'; }
@@ -193,9 +203,11 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable, Sup
         $cartPayload = [];
         $basketItemIdByGid = [];
         $skipped = 0;
+        $warehouseCode = '';
         foreach ($items as $item) {
             $gid = trim((string)($item['order_meta']['gid'] ?? ''));
             $qty = (int)($item['quantity'] ?? 0);
+            if ($warehouseCode === '' && !empty($item['warehouse_code'])) $warehouseCode = (string)$item['warehouse_code'];
             if ($gid === '' || $qty <= 0) { $skipped++; continue; }
             $cartPayload[] = ['gid' => $gid, 'quantity' => $qty, 'comment' => (string)($item['comment'] ?? '')];
             $basketItemIdByGid[$gid] = (int)($item['basket_item_id'] ?? 0);
@@ -206,18 +218,33 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable, Sup
             return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'no_valid_items'];
         }
 
-        $profile = $this->loadProfile() ?? [];
-        $this->applyProfileDefaults($profile);
+        // Второй адрес (Баки Урманче) — свой API-ключ (см. accountsByWarehouse),
+        // остальное (agreement_id/filial_id/delivery_term) резолвится через
+        // /profile ИМЕННО этим ключом, а не берётся из дефолтного (там другой
+        // filial_id по умолчанию — Нефтяников).
+        $account = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
+        $apiKey  = $account['API_KEY'] ?? $this->apiKey;
+
+        if ($account !== null) {
+            $profile = $this->loadProfile($apiKey, $warehouseCode) ?? [];
+            $agreementId = (string)($profile['agreement_id'] ?? '');
+            $filialId    = (string)($profile['filial_id'] ?? '');
+        } else {
+            $profile = $this->loadProfile() ?? [];
+            $this->applyProfileDefaults($profile);
+            $agreementId = $this->agreementId;
+            $filialId    = $this->filialId;
+        }
         $deliveryTerm = (string)($profile['delivery_term'] ?? '');
 
         if ($deliveryTerm === '') {
-            $this->log('placeOrder: не удалось определить delivery_term через /profile');
+            $this->log('placeOrder: не удалось определить delivery_term через /profile (warehouse=' . ($warehouseCode ?: '(default)') . ')');
             return ['http_code' => null, 'success' => false, 'raw' => $profile, 'error' => 'no_delivery_term'];
         }
 
-        $this->log('placeOrder: /cart/add items=' . count($cartPayload) . ' skipped=' . $skipped . ' payload=' . json_encode($cartPayload, JSON_UNESCAPED_UNICODE));
+        $this->log('placeOrder: warehouse=' . ($warehouseCode ?: '(default)') . ' /cart/add items=' . count($cartPayload) . ' skipped=' . $skipped . ' payload=' . json_encode($cartPayload, JSON_UNESCAPED_UNICODE));
 
-        $addResult = $this->requestJson('POST', '/cart/add', $cartPayload);
+        $addResult = $this->requestJson('POST', '/cart/add', $cartPayload, $apiKey, $agreementId, $filialId);
         $addBody   = $addResult['body'];
         if ($addResult['error'] || $addResult['http_code'] !== 200 || !is_array($addBody)) {
             return ['http_code' => $addResult['http_code'], 'success' => false, 'raw' => $addBody, 'error' => $addResult['error'] ?: ('cart_add_http_' . $addResult['http_code'])];
@@ -240,7 +267,7 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable, Sup
             'delivery_term' => $deliveryTerm,
             'comment'       => $orderComment,
             'positions'     => $positionIds,
-        ]);
+        ], $apiKey, $agreementId, $filialId);
         $orderBody = $orderResult['body'];
 
         $success = $orderResult['error'] === null
@@ -258,13 +285,19 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable, Sup
         // используется составной reference "{order_number}:{gid}" — иначе при
         // заказе 2+ разных товаров опрос статуса не знал бы, чья именно
         // позиция STAGE относится к какой строке b_supplier_order_item.
+        // Для второго адреса (см. accountsByWarehouse) вдобавок нужен префикс
+        // "{warehouseCode}#" — иначе fetchOrderStatusByReference() не узнает,
+        // каким из двух API-ключей опрашивать /orders/list (заказы одного
+        // ключа не обязательно видны через /orders/list другого, хотя
+        // контрагент и договор у обоих ключей общие).
         $itemReferences = [];
         if ($success) {
             $orderNumber = (string)$orderBody['order']['order_number'];
+            $refPrefix = ($account !== null && $warehouseCode !== '') ? $warehouseCode . '#' : '';
             foreach ((array)($orderBody['order']['positions'] ?? []) as $pos) {
                 $gid = (string)($pos['gid'] ?? '');
                 if ($gid === '' || empty($basketItemIdByGid[$gid])) continue;
-                $itemReferences[$basketItemIdByGid[$gid]] = $orderNumber . ':' . $gid;
+                $itemReferences[$basketItemIdByGid[$gid]] = $refPrefix . $orderNumber . ':' . $gid;
             }
         }
 
@@ -280,22 +313,38 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable, Sup
     /**
      * У Москворечья нет запроса "статус по нашему reference" — только
      * GET /orders/list?order_numbers=... по ИХ номеру заказа. $reference здесь —
-     * составной "{order_number}:{gid}" (см. placeOrder()::item_references),
-     * поэтому сначала разбираем его обратно и ищем внутри ответа именно нужную
-     * позицию по gid, а не берём первую попавшуюся (в одном их заказе может
-     * быть несколько наших позиций).
+     * составной "{order_number}:{gid}", опционально с префиксом "{warehouseCode}#"
+     * для заказов второго адреса (см. placeOrder()::item_references), поэтому
+     * сначала разбираем его обратно и ищем внутри ответа именно нужную позицию
+     * по gid, а не берём первую попавшуюся (в одном их заказе может быть
+     * несколько наших позиций).
      */
     public function fetchOrderStatusByReference(string $reference): array
     {
+        $warehouseCode = '';
+        if (strpos($reference, '#') !== false) {
+            [$warehouseCode, $reference] = explode('#', $reference, 2);
+        }
         if (strpos($reference, ':') === false) return [];
         [$orderNumber, $gid] = explode(':', $reference, 2);
         $orderNumber = trim($orderNumber);
         if ($orderNumber === '') return [];
 
-        $profile = $this->loadProfile() ?? [];
-        $this->applyProfileDefaults($profile);
+        $account = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
+        $apiKey  = $account['API_KEY'] ?? $this->apiKey;
 
-        $resp = $this->requestJson('GET', '/orders/list?order_numbers=' . rawurlencode($orderNumber));
+        if ($account !== null) {
+            $profile     = $this->loadProfile($apiKey, $warehouseCode) ?? [];
+            $agreementId = (string)($profile['agreement_id'] ?? '');
+            $filialId    = (string)($profile['filial_id'] ?? '');
+        } else {
+            $profile = $this->loadProfile() ?? [];
+            $this->applyProfileDefaults($profile);
+            $agreementId = $this->agreementId;
+            $filialId    = $this->filialId;
+        }
+
+        $resp = $this->requestJson('GET', '/orders/list?order_numbers=' . rawurlencode($orderNumber), null, $apiKey, $agreementId, $filialId);
         if ($resp['error'] || $resp['http_code'] !== 200 || !is_array($resp['body'])) {
             return [];
         }
@@ -363,24 +412,30 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable, Sup
      * условие доставки по умолчанию) — кэшируется на диск на 24ч, как и справочник
      * брендов ПартКома (см. PartKomConnector::loadBrands()), т.к. эти данные
      * меняются крайне редко, а /orders требует delivery_term на каждый вызов.
+     *
+     * $apiKeyOverride/$cacheSuffix — для второго адреса (см. accountsByWarehouse
+     * в placeOrder()/fetchOrderStatusByReference()): свой ключ, свой дисковый
+     * кэш (иначе перезаписал бы кэш дефолтного аккаунта) и свой agreement_id/
+     * filial_id, но НЕ кладём результат в $this->profileCache (тот только для
+     * дефолтного аккаунта — вызывается без аргументов).
      */
-    private function loadProfile(): ?array
+    private function loadProfile(?string $apiKeyOverride = null, string $cacheSuffix = ''): ?array
     {
-        if ($this->profileCache !== null) return $this->profileCache;
+        if ($apiKeyOverride === null && $this->profileCache !== null) return $this->profileCache;
 
-        $cacheFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/moskvorechie_profile.json';
+        $cacheFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/cache/search/moskvorechie_profile' . ($cacheSuffix !== '' ? '_' . $cacheSuffix : '') . '.json';
         if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
             $cached = json_decode((string)@file_get_contents($cacheFile), true);
             if (is_array($cached) && !empty($cached['delivery_term'])) {
-                $this->profileCache = $cached;
+                if ($apiKeyOverride === null) $this->profileCache = $cached;
                 return $cached;
             }
         }
 
-        $resp = $this->requestJson('GET', '/profile');
+        $resp = $this->requestJson('GET', '/profile', null, $apiKeyOverride);
         $data = $resp['body']['data'] ?? null;
         if (!is_array($data)) {
-            $this->log('loadProfile: /profile недоступен, http=' . $resp['http_code']);
+            $this->log('loadProfile: /profile недоступен, http=' . $resp['http_code'] . ($cacheSuffix !== '' ? ' (' . $cacheSuffix . ')' : ''));
             return null;
         }
 
@@ -408,23 +463,25 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable, Sup
         }
 
         $profile = ['agreement_id' => $agreementId, 'filial_id' => $filialId, 'delivery_term' => $deliveryTerm];
-        $this->log('loadProfile: resolved ' . json_encode($profile, JSON_UNESCAPED_UNICODE));
+        $this->log('loadProfile: resolved ' . ($cacheSuffix !== '' ? $cacheSuffix . ' ' : '') . json_encode($profile, JSON_UNESCAPED_UNICODE));
 
         if ($deliveryTerm !== '') {
             @mkdir(dirname($cacheFile), 0755, true);
             @file_put_contents($cacheFile, json_encode($profile, JSON_UNESCAPED_UNICODE));
         }
 
-        $this->profileCache = $profile;
+        if ($apiKeyOverride === null) $this->profileCache = $profile;
         return $profile;
     }
 
     /** JSON-запрос с полными деталями ответа (в отличие от execCurl() — нужны
-     * http_code/error отдельно от тела для семантики success в placeOrder()). */
-    private function requestJson(string $method, string $path, $body = null): array
+     * http_code/error отдельно от тела для семантики success в placeOrder()).
+     * $apiKeyOverride/$agreementIdOverride/$filialIdOverride — для второго
+     * адреса (см. accountsByWarehouse в placeOrder()/loadProfile()). */
+    private function requestJson(string $method, string $path, $body = null, ?string $apiKeyOverride = null, ?string $agreementIdOverride = null, ?string $filialIdOverride = null): array
     {
         $url = rtrim($this->apiUrl, '/') . $path;
-        $headers = $this->buildHeaders();
+        $headers = $this->buildHeaders($apiKeyOverride, $agreementIdOverride, $filialIdOverride);
         $headers[] = 'Content-Type: application/json';
 
         $ch = curl_init($url);
@@ -457,11 +514,14 @@ class MoskvorechieConnector implements SupplierInterface, SupplierOrderable, Sup
 
     // ==================== ВСПОМОГАТЕЛЬНЫЕ ====================
 
-    private function buildHeaders(): array
+    private function buildHeaders(?string $apiKeyOverride = null, ?string $agreementIdOverride = null, ?string $filialIdOverride = null): array
     {
-        $h = ['X-API-Key: ' . $this->apiKey, 'Accept: application/json', 'Accept-Encoding: gzip'];
-        if (!empty($this->agreementId)) $h[] = 'X-Agreement-ID: ' . $this->agreementId;
-        if (!empty($this->filialId))    $h[] = 'X-Filial-ID: ' . $this->filialId;
+        $apiKey      = $apiKeyOverride ?? $this->apiKey;
+        $agreementId = $agreementIdOverride ?? $this->agreementId;
+        $filialId    = $filialIdOverride ?? $this->filialId;
+        $h = ['X-API-Key: ' . $apiKey, 'Accept: application/json', 'Accept-Encoding: gzip'];
+        if (!empty($agreementId)) $h[] = 'X-Agreement-ID: ' . $agreementId;
+        if (!empty($filialId))    $h[] = 'X-Filial-ID: ' . $filialId;
         return $h;
     }
 
