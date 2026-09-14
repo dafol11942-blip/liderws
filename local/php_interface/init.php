@@ -232,6 +232,17 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
         $factory->register(new \Lider\Supplier\BergConnector([
             'API_KEY' => '9e1cc5aea546e263e54c8ba687757a6515de9c78f52c5a9b435bd7ad8303ef36',
             'ADDRESS_ID' => 31173,
+            // Второй адрес — Баки Урманче, отдельный API-ключ БЕРГ. Оба id
+            // сверены вживую через GET /references/shipment_address/active —
+            // каждый ключ видит только свой адрес (31173 — "...Нефтяников,
+            // 4, СТО ЛИДЕР", 148074 — "...Баки Урманче, дом № 17, корпус А").
+            // См. BergConnector::placeOrder()/accountsByWarehouse.
+            'ACCOUNTS_BY_WAREHOUSE' => [
+                'baki_urmanche' => [
+                    'API_KEY'    => '2c727f00bdb6d1bcab9b3de28dee35fcefd3afe73b73dc3c8495ba518ae04245',
+                    'ADDRESS_ID' => 148074,
+                ],
+            ],
         ]));
 
         $factory->register(new \Lider\Supplier\AutoeuroConnector([

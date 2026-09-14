@@ -10,6 +10,15 @@ class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrd
     private int $timeout;
     private string $baseUrl;
     private ?int $addressId = null;
+    // Второй адрес — Баки Урманче — отдельный API-ключ БЕРГ (проверено через
+    // GET /references/shipment_address/active: каждый ключ видит ТОЛЬКО свой
+    // адрес — id=31173/Нефтяников у дефолтного, id=148074/Баки Урманче у
+    // этого). Каталог (resource_id/warehouse_id из get_stock) при этом общий
+    // для обоих ключей — один и тот же id склада "BERG KZN" и т.д. в ответе
+    // независимо от ключа, поэтому, в отличие от ШАТЕ-М, переспрашивать
+    // resource_id/warehouse_id под вторым ключом не требуется — меняются
+    // только X-Berg-API-Key и shipment_address_id (см. placeOrder()).
+    private array $accountsByWarehouse;
 
     public function __construct(array $config = [])
     {
@@ -17,6 +26,7 @@ class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrd
         $this->timeout = $config['TIMEOUT'] ?? 7;
         $this->baseUrl   = $config['BASE_URL']   ?? 'https://api.berg.ru/v1.0';
         $this->addressId = (int)($config['ADDRESS_ID'] ?? 0) ?: null;
+        $this->accountsByWarehouse = $config['ACCOUNTS_BY_WAREHOUSE'] ?? [];
     }
 
     public function getCode(): string       { return 'berg'; }
@@ -226,10 +236,12 @@ class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrd
         $basketItemIdBySequence = [];
         $skipped = 0;
         $seq = 0;
+        $warehouseCode = '';
         foreach ($items as $item) {
             $resourceId  = $item['order_meta']['resource_id']  ?? null;
             $warehouseId = $item['order_meta']['warehouse_id'] ?? null;
             $qty         = (int)($item['quantity'] ?? 0);
+            if ($warehouseCode === '' && !empty($item['warehouse_code'])) $warehouseCode = (string)$item['warehouse_code'];
             if (!$resourceId || !$warehouseId || $qty <= 0) { $skipped++; continue; }
 
             $seq++;
@@ -273,6 +285,13 @@ class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrd
         $firstRef = (string)($items[array_key_first($items)]['reference'] ?? '');
         if (preg_match('/^(\d+)_/', $firstRef, $m)) $ourOrderRef = (int)$m[1];
 
+        // Второй адрес (Баки Урманче) — свой X-Berg-API-Key и свой address_id
+        // (см. accountsByWarehouse); resource_id/warehouse_id из items общие
+        // для обоих ключей (единый каталог БЕРГ), поэтому меняем только их.
+        $account   = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
+        $apiKey    = $account['API_KEY']    ?? $this->apiKey;
+        $addressId = $account['ADDRESS_ID'] ?? $this->addressId;
+
         $order = [
             'is_test'       => $test ? 1 : 0,
             'dispatch_type' => 3,
@@ -281,20 +300,20 @@ class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrd
             'comment'       => $orderComment,
             'items'         => $orderItems,
         ];
-        if ($this->addressId)     $order['shipment_address_id'] = $this->addressId;
+        if ($addressId)            $order['shipment_address_id'] = (int)$addressId;
         if ($ourOrderRef !== null) $order['reference'] = $ourOrderRef;
 
         // force=1 — как у ПартКома по духу: позиция с неверным количеством/ценой
         // (max_price) пропускается и уходит в warnings, а не блокирует весь заказ.
         $body = json_encode(['force' => 1, 'order' => $order], JSON_UNESCAPED_UNICODE);
 
-        $this->log('placeOrder: request test=' . ($test ? 1 : 0) . ' items=' . count($orderItems) . ' skipped=' . $skipped
+        $this->log('placeOrder: warehouse=' . ($warehouseCode ?: '(default)') . ' test=' . ($test ? 1 : 0) . ' items=' . count($orderItems) . ' skipped=' . $skipped
             . ' dispatch_at=' . $dispatchDate . ' dispatch_time=' . $dispatchTimeFlag . ' body=' . $body);
 
         $ch = curl_init(rtrim($this->baseUrl, '/') . '/ordering/place_order.json');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-Berg-API-Key: ' . $this->apiKey, 'Accept: application/json'],
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-Berg-API-Key: ' . $apiKey, 'Accept: application/json'],
             // Заведомо короче, чем у остальных поставщиков (20с) — синхронный
             // вызов держит веб-воркер на этом хостинге (ограниченный пул
             // Apache/mod_fcgid, см. инцидент с 502 при заказе), 20-25с одного
@@ -326,11 +345,15 @@ class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrd
         $success = $err === '' && $httpCode >= 200 && $httpCode < 300
             && is_array($decoded) && empty($decoded['errors']) && !empty($orderData['id']);
 
+        // Для второго адреса (см. accountsByWarehouse) добавляем префикс
+        // "{warehouseCode}#" — иначе fetchOrderStatusByReference() не узнает,
+        // каким из двух X-Berg-API-Key опрашивать /ordering/states.json.
         $itemReferences = [];
         if ($success) {
             $orderId = (int)$orderData['id'];
+            $refPrefix = ($account !== null && $warehouseCode !== '') ? $warehouseCode . '#' : '';
             foreach ($basketItemIdBySequence as $sequence => $basketItemId) {
-                if ($basketItemId > 0) $itemReferences[$basketItemId] = $orderId . ':' . $sequence;
+                if ($basketItemId > 0) $itemReferences[$basketItemId] = $refPrefix . $orderId . ':' . $sequence;
             }
         }
 
@@ -396,24 +419,32 @@ class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrd
     // ==================== СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ====================
 
     /**
-     * $reference здесь — составной "{order_id}:{sequence}" (см.
-     * placeOrder()::item_references), т.к. у Берга один заказ (Order.id) может
-     * содержать несколько наших позиций, различаемых по sequence — тот же приём,
-     * что и у MoskvorechieConnector с "{order_number}:{gid}".
+     * $reference здесь — составной "{order_id}:{sequence}", опционально с
+     * префиксом "{warehouseCode}#" для заказов второго адреса (см.
+     * placeOrder()::item_references), т.к. у Берга один заказ (Order.id)
+     * может содержать несколько наших позиций, различаемых по sequence —
+     * тот же приём, что и у MoskvorechieConnector с "{order_number}:{gid}".
      */
     public function fetchOrderStatusByReference(string $reference): array
     {
+        $warehouseCode = '';
+        if (strpos($reference, '#') !== false) {
+            [$warehouseCode, $reference] = explode('#', $reference, 2);
+        }
         if (strpos($reference, ':') === false) return [];
         [$orderIdRaw, $seqRaw] = explode(':', $reference, 2);
         $orderId = (int)$orderIdRaw;
         $seq     = (int)$seqRaw;
         if ($orderId <= 0) return [];
 
+        $account = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
+        $apiKey  = $account['API_KEY'] ?? $this->apiKey;
+
         $url = rtrim($this->baseUrl, '/') . '/ordering/states.json?orders[]=' . $orderId;
         $ch  = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => ['X-Berg-API-Key: ' . $this->apiKey, 'Accept: application/json'],
+            CURLOPT_HTTPHEADER     => ['X-Berg-API-Key: ' . $apiKey, 'Accept: application/json'],
             CURLOPT_TIMEOUT        => 10,
             CURLOPT_CONNECTTIMEOUT => 3,
         ]);
