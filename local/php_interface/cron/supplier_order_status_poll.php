@@ -93,12 +93,10 @@ $connectorsByCode = [
     'rossko' => new \Lider\Supplier\RosskoConnector([
         'KEY1' => 'd6907f0f857524815255b74cda86fe9b',
         'KEY2' => 'a514b4c11299686d7cfe8fd3563d1c58',
-        'ACCOUNTS_BY_WAREHOUSE' => [
-            'baki_urmanche' => [
-                'KEY1' => 'c90231f7558b808c37d7d84dcd1ed94b',
-                'KEY2' => '67a36697ff93121c787451886a74ca94',
-            ],
-        ],
+        // Второй аккаунт (Баки Урманче) временно отключён — см. init.php.
+        // Оба тестовых заказа на него (№205/206) провалились ещё на этапе
+        // placeOrder(), reference'ов с префиксом "baki_urmanche#" в базе нет,
+        // поэтому опрашивать здесь нечего.
     ]),
     'autoruss' => new \Lider\Supplier\AutorussConnector([
         'LOGIN' => 'Lider-16@bk.ru',
