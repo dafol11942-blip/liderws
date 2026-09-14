@@ -20,6 +20,14 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
     // ни переоценка позиций, только другой SHIPMENT_ADDRESS при отправке
     // заказа (см. placeOrder()/shipmentAddressByWarehouse).
     private array $shipmentAddressByWarehouse;
+    // Отдельно от shipmentAddress — у Авторуси включена "мультикорзина"
+    // (GET basket/multibasket, снято вживую: id=0 "Нефтяников пр-кт", id=2
+    // "Баки Урманче"). Заказ №202 подтвердил на практике: orders/instant без
+    // basketId всегда падает в корзину по умолчанию (id=0/Нефтяников)
+    // независимо от shipmentAddress — считать, что верного shipmentAddress
+    // достаточно, оказалось неверно, обязательно передавать ещё и basketId.
+    private int $basketId;
+    private array $basketIdByWarehouse;
 
     public function __construct(array $config = [])
     {
@@ -31,6 +39,8 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
         $this->shipmentAddress = (string)($config['SHIPMENT_ADDRESS'] ?? '');
         $this->shipmentMethod  = (string)($config['SHIPMENT_METHOD'] ?? '');
         $this->shipmentAddressByWarehouse = $config['SHIPMENT_ADDRESS_BY_WAREHOUSE'] ?? [];
+        $this->basketId            = (int)($config['BASKET_ID'] ?? 0);
+        $this->basketIdByWarehouse = $config['BASKET_ID_BY_WAREHOUSE'] ?? [];
     }
 
     public function getCode(): string       { return 'autoruss'; }
@@ -440,6 +450,13 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
             ? (string)$this->shipmentAddressByWarehouse[$warehouseCode]
             : $this->shipmentAddress;
 
+        // Мультикорзина — ОТДЕЛЬНАЯ от shipmentAddress штука (см. basketId в
+        // конструкторе): без неё заказ падает в корзину по умолчанию, даже
+        // если shipmentAddress указан верно (это и произошло с заказом №202).
+        $basketId = ($warehouseCode !== '' && array_key_exists($warehouseCode, $this->basketIdByWarehouse))
+            ? (int)$this->basketIdByWarehouse[$warehouseCode]
+            : $this->basketId;
+
         // shipmentDate обязателен, если в ЛК включена опция "Дни отгрузки" —
         // подтверждено вживую: basket/shipmentDates отдаёт непустой список для
         // этого аккаунта. Берём САМУЮ РАННЮЮ дату из тех, что сам API считает
@@ -462,6 +479,7 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
             'userpsw'         => $this->passwordMd5,
             'paymentMethod'   => (string)$this->paymentMethod,
             'shipmentAddress' => $shipmentAddress,
+            'basketId'        => (string)$basketId,
             'comment'         => $orderComment,
         ];
         if ($this->shipmentMethod !== '') $fields['shipmentMethod'] = $this->shipmentMethod;
@@ -476,7 +494,7 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
 
         $body = http_build_query($fields);
 
-        $this->log('placeOrder: warehouse=' . ($warehouseCode ?: '(default)') . ' shipmentAddress=' . $shipmentAddress . ' items=' . count($positions) . ' skipped=' . $skipped . ' shipmentDate=' . ($shipmentDate ?? 'null') . ' body=' . $body);
+        $this->log('placeOrder: warehouse=' . ($warehouseCode ?: '(default)') . ' shipmentAddress=' . $shipmentAddress . ' basketId=' . $basketId . ' items=' . count($positions) . ' skipped=' . $skipped . ' shipmentDate=' . ($shipmentDate ?? 'null') . ' body=' . $body);
 
         $ch = curl_init($this->baseUrl . '/orders/instant');
         curl_setopt_array($ch, [

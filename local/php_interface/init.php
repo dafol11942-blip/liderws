@@ -370,6 +370,15 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
             'SHIPMENT_ADDRESS_BY_WAREHOUSE' => [
                 'baki_urmanche' => 1706062,
             ],
+            // Мультикорзина (см. GET basket/multibasket, снято вживую) —
+            // ОТДЕЛЬНАЯ от shipmentAddress вещь: заказ №202 показал на практике,
+            // что без basketId заказ всегда падает в корзину по умолчанию
+            // (id=0, "Нефтяников пр-кт"), даже при верном shipmentAddress.
+            // id=2 — "Баки Урманче".
+            'BASKET_ID' => 0,
+            'BASKET_ID_BY_WAREHOUSE' => [
+                'baki_urmanche' => 2,
+            ],
         ]));
         $factory->register(new \Lider\Supplier\AutopiterConnector([
             'USER_ID' => '165286',
