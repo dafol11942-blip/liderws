@@ -89,17 +89,20 @@ $bRes = CSaleBasket::GetList(
 // CSaleBasket::GetList() (старый API) не возвращает DELAY_BUY в выборке на
 // этом проекте — подтверждено логами (запись через BasketTable проходит
 // успешно, но пересчёт по $b['DELAY_BUY'] её не видит). Читаем поле отдельно
-// через D7 ORM, тем же путём, которым оно пишется.
+// через D7 ORM, тем же путём, которым оно пишется. В try/catch — чтобы при
+// сбое (напр. другое имя поля в схеме) вернуть текст ошибки JSON'ом, а не 500.
 $delayMap = [];
-$delayRes = \Bitrix\Sale\Internals\BasketTable::getList([
-    'select' => ['ID', 'DELAY_BUY'],
-    'filter' => [
-        '=FUSER_ID' => CSaleBasket::GetBasketUserID(),
-        '=LID' => SITE_ID,
-    ],
-]);
-while ($row = $delayRes->fetch()) {
-    $delayMap[(int)$row['ID']] = $row['DELAY_BUY'];
+try {
+    $delayRes = \Bitrix\Sale\Internals\BasketTable::getList([
+        'select' => ['ID', 'DELAY_BUY'],
+        'filter' => ['=FUSER_ID' => CSaleBasket::GetBasketUserID()],
+    ]);
+    while ($row = $delayRes->fetch()) {
+        $delayMap[(int)$row['ID']] = $row['DELAY_BUY'];
+    }
+} catch (\Throwable $e) {
+    echo json_encode(['status' => 'error', 'message' => 'delayMap: ' . get_class($e) . ': ' . $e->getMessage()]);
+    exit;
 }
 
 while ($b = $bRes->Fetch()) {

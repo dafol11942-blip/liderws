@@ -22,10 +22,7 @@ $delayMap = [];
 try {
     $delayRes = \Bitrix\Sale\Internals\BasketTable::getList([
         'select' => ['ID', 'DELAY_BUY'],
-        'filter' => [
-            '=FUSER_ID' => CSaleBasket::GetBasketUserID(),
-            '=LID' => SITE_ID,
-        ],
+        'filter' => ['=FUSER_ID' => CSaleBasket::GetBasketUserID()],
     ]);
     while ($row = $delayRes->fetch()) {
         $delayMap[(int)$row['ID']] = $row['DELAY_BUY'];
