@@ -65,7 +65,31 @@ try {
 
     $searchUrl = '/search/?q=' . urlencode($article) . '&brand=' . urlencode($brand) . '&number=' . urlencode($article);
 
-    $freshItem = $connector->getDetail($article, $brand);
+    // getDetail() берёт первое подходящее предложение без учёта склада — при
+    // ревалидации это могло подменить позицию совсем другим складом того же
+    // поставщика (напр. дешёвый удалённый склад вместо изначально выбранного
+    // Казани), с другой ценой и сроком. Ищем предложение ТОГО ЖЕ склада, с
+    // которого товар был добавлен (SUPPLIER_WAREHOUSE), и только если такого
+    // среди свежих предложений больше нет — откатываемся к прежнему поведению.
+    $warehouse = (string)$getProp('SUPPLIER_WAREHOUSE');
+    $items = $connector->searchByBrandArticle($brand, $article);
+
+    $freshItem = null;
+    if ($warehouse !== '') {
+        foreach ($items as $item) {
+            if ((string)($item->warehouse ?? '') === $warehouse && !$item->isSched && $item->price > 0) {
+                $freshItem = $item;
+                break;
+            }
+        }
+    }
+    if ($freshItem === null) {
+        foreach ($items as $item) {
+            if (!$item->isSched && $item->price > 0) { $freshItem = $item; break; }
+        }
+        if ($freshItem === null) $freshItem = $items[0] ?? null;
+    }
+
     if (!$freshItem || $freshItem->price <= 0 || $freshItem->quantity <= 0) {
         echo json_encode(['status' => 'not_found', 'search_url' => $searchUrl]);
         exit;
@@ -131,6 +155,11 @@ try {
     $finalQty = $qtyInsufficient ? max(1, $newQtyAvail) : $requestedQty;
     $basketItem->setFields(['PRICE' => $newPrice, 'QUANTITY' => $finalQty]);
 
+    // Склад мог смениться относительно исходного (см. подбор $freshItem выше,
+    // если исходный склад больше не торгует этим товаром) — держим свойство
+    // в согласии с тем, что реально приняли, иначе следующая ревалидация и
+    // оформление заказа у поставщика будут ссылаться на устаревший склад.
+    $upsertProp($props, 'SUPPLIER_WAREHOUSE',      'Склад',                (string)($freshItem->warehouse ?? $warehouse));
     $upsertProp($props, 'SUPPLIER_PRICE_BASE',     'Закупочная цена',      $freshItem->price);
     $upsertProp($props, 'SUPPLIER_DELIVERY_DAYS',  'Срок доставки (дн)',  $newDeliveryDays);
     $upsertProp($props, 'SUPPLIER_DELIVERY_LABEL', 'Срок доставки',       (string)$newDeliveryLabel);
