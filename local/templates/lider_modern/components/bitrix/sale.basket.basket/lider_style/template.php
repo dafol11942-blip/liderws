@@ -248,12 +248,6 @@ if (!empty($items) && !$hasSupplierItem) {
                         <span>Товары (<span id="cart-count"><?= $totalQty ?></span> шт.)</span>
                         <span id="cart-subtotal"><?= $totalFmt ?></span>
                     </div>
-                    <?php if ($isMgr): ?>
-                    <div class="cart-summary__row cart-summary__row--client">
-                        <span>Клиентская сумма</span>
-                        <span id="cart-subtotal-client"><?= $totalClientFmt ?></span>
-                    </div>
-                    <?php endif; ?>
                     <div class="cart-summary__row">
                         <span>Доставка</span>
                         <span><?= htmlspecialchars($cartDeliveryFmt) ?></span>
@@ -263,6 +257,12 @@ if (!empty($items) && !$hasSupplierItem) {
                     <span><?= $isMgr ? 'Итого (закупка)' : 'Итого' ?></span>
                     <span id="cart-total"><?= $totalFmt ?></span>
                 </div>
+                <?php if ($isMgr): ?>
+                <div class="cart-summary__row cart-summary__row--client">
+                    <span>Клиентская сумма</span>
+                    <span id="cart-subtotal-client"><?= $totalClientFmt ?></span>
+                </div>
+                <?php endif; ?>
                 <a href="/order/" id="checkout-link" class="btn btn--primary btn--lg btn--block">Перейти к оформлению</a>
                 <a href="/catalog/" class="btn btn--outline btn--block" style="margin-top:10px;">Продолжить покупки</a>
             </div>
@@ -394,7 +394,7 @@ if (!empty($items) && !$hasSupplierItem) {
 .cart-summary__title { font-size: 18px; font-weight: 700; margin-bottom: 20px; color: var(--black); }
 .cart-summary__rows { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
 .cart-summary__row { display: flex; justify-content: space-between; font-size: 14px; color: var(--gray); }
-.cart-summary__row--client { color: var(--blue); font-weight: 700; }
+.cart-summary__row--client { color: var(--blue); font-weight: 700; margin: -10px 0 20px; }
 .cart-summary__total {
     display: flex; justify-content: space-between; font-size: 18px; font-weight: 800;
     padding-top: 16px; border-top: 2px solid var(--border); margin-bottom: 20px; color: var(--black);
