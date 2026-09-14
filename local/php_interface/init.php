@@ -286,6 +286,23 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
         ]));
         $factory->register(new \Lider\Supplier\ShateMConnector([
             'API_KEY' => 'aa290d6a-2e79-4f2c-858e-c9cf5c9899f3',
+            // Второй кабинет ШАТЕ-М — Баки Урманче, отдельный клиент (свой
+            // customerCode "RS43516", логин "lider2-16"), не второй адрес в
+            // одном аккаунте, как у АвтоЕвро (см. ShateMConnector::placeOrder()
+            // / repriceItemsForAccount()). agreementCode взят из ДВУХ активных
+            // договоров этого кабинета (GET /customer/agreements, снято вживую
+            // 2026-09-12) — выбран БН/"Юр. лицо" (RSAGR70855), т.к. у уже
+            // работающего кабинета Нефтяников (RSAGR56329) тоже группа БН, а
+            // не ПК/"Физ. лицо" (RSAGR1013561). deliveryAddressCode "Д1" —
+            // код локальный для этого кабинета (GET /delivery/addresses
+            // резолвит его в "БАКИ УРМАНЧЕ 4", а не в Нефтяников).
+            'ACCOUNTS_BY_WAREHOUSE' => [
+                'baki_urmanche' => [
+                    'API_KEY' => '{22ea1662-45cf-4dfb-8a57-9921142cba62}',
+                    'AGREEMENT_CODE' => 'RSAGR70855',
+                    'DELIVERY_ADDRESS_CODE' => 'Д1',
+                ],
+            ],
         ]));
     }
     return $factory;

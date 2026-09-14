@@ -11,9 +11,24 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
     private string $agreementCode;
     private string $deliveryAddressCode;
     private int    $timeout;
-    private ?string $token = null;
-    private ?int   $tokenExpires = null;
     private array  $locationNames = [];
+    // Токен-кэш по apiKey (не единственное значение) — см. accountsByWarehouse
+    // ниже: второй склад ШАТЕ-М обслуживается ДРУГИМ личным кабинетом
+    // (отдельный ApiKey, отдельная авторизация), в отличие от АвтоЕвро, где
+    // оба адреса живут в одном аккаунте под одним ключом.
+    private array $tokenCache = [];
+    // Второй кабинет ШАТЕ-М — Баки Урманче (у Нефтяников свой, дефолтный,
+    // см. $apiKey/$agreementCode/$deliveryAddressCode выше). Код склада —
+    // тот же 'baki_urmanche', что определяет resolveOrderWarehouseCode() в
+    // order_create_handler.php по выбранному в форме адресу. Значения сняты
+    // вживую (2026-09-12) новым ключом: GET /customer/agreements вернул ДВА
+    // активных договора для этого кабинета — БН/"Юр. лицо" (RSAGR70855) и
+    // ПК/"Физ. лицо" (RSAGR1013561); взят БН, т.к. у уже работающего кабинета
+    // Нефтяников (RSAGR56329) тоже группа БН. deliveryAddressCode "Д1" — код
+    // локальный для СВОЕГО кабинета (не путать с "Д1" у Нефтяников — то же
+    // значение кода, но в контексте другого ApiKey резолвится в другой
+    // физический адрес, "БАКИ УРМАНЧЕ 4").
+    private array $accountsByWarehouse;
 
     public function __construct(array $config = [])
     {
@@ -30,6 +45,7 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
         // (так документирован API при пустом deliveryInfo).
         $this->deliveryAddressCode = $config['DELIVERY_ADDRESS_CODE'] ?? 'Д1';
         $this->timeout             = $config['TIMEOUT']  ?? 12;
+        $this->accountsByWarehouse = $config['ACCOUNTS_BY_WAREHOUSE'] ?? [];
     }
 
     public function getCode(): string       { return 'shatem'; }
@@ -48,10 +64,13 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
 
     // ==================== АВТОРИЗАЦИЯ ====================
 
-    private function ensureToken(): string
+    /** $apiKeyOverride — для оформления заказа вторым кабинетом (см. placeOrder()); поиск всегда использует дефолтный $this->apiKey. */
+    private function ensureToken(?string $apiKeyOverride = null): string
     {
-        if ($this->token && $this->tokenExpires && time() < $this->tokenExpires - 60) {
-            return $this->token;
+        $apiKey = $apiKeyOverride ?? $this->apiKey;
+        $cached = $this->tokenCache[$apiKey] ?? null;
+        if ($cached && $cached['token'] && $cached['expires'] && time() < $cached['expires'] - 60) {
+            return $cached['token'];
         }
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -59,7 +78,7 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
             // а не "apiKey" — так задано в OpenAPI-схеме auth/loginbyapikey.
             CURLOPT_URL            => $this->apiUrl . 'auth/loginbyapikey',
             CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => http_build_query(['ApiKey' => $this->apiKey]),
+            CURLOPT_POSTFIELDS     => http_build_query(['ApiKey' => $apiKey]),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
             CURLOPT_TIMEOUT        => 10,
@@ -70,13 +89,13 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
         curl_close($ch);
         if ($httpCode !== 200) {
             $this->log('Auth failed: HTTP ' . $httpCode);
-            $this->token = '';
+            $this->tokenCache[$apiKey] = ['token' => '', 'expires' => null];
             return '';
         }
         $data = json_decode($resp, true);
-        $this->token = $data['access_token'] ?? '';
-        $this->tokenExpires = time() + (int)($data['expires_in'] ?? 3600);
-        return $this->token;
+        $token = $data['access_token'] ?? '';
+        $this->tokenCache[$apiKey] = ['token' => $token, 'expires' => time() + (int)($data['expires_in'] ?? 3600)];
+        return $token;
     }
 
     // ==================== ЭТАП 1: БРЕНДЫ ====================
@@ -460,10 +479,33 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
 
     public function placeOrder(array $items, bool $test = false): array
     {
-        $token = $this->ensureToken();
+        // Склад одного заказа один на все позиции (см. dispatchSupplierOrders()
+        // в order_create_handler.php), поэтому смотрим на первую позицию.
+        $warehouseCode = '';
+        foreach ($items as $item) {
+            if (!empty($item['warehouse_code'])) { $warehouseCode = (string)$item['warehouse_code']; break; }
+        }
+        $account = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
+
+        $apiKey              = $account['API_KEY'] ?? $this->apiKey;
+        $agreementCode       = $account['AGREEMENT_CODE'] ?? $this->agreementCode;
+        $deliveryAddressCode = $account['DELIVERY_ADDRESS_CODE'] ?? $this->deliveryAddressCode;
+
+        $token = $this->ensureToken($account !== null ? $apiKey : null);
         if (!$token) {
-            $this->log('placeOrder: не удалось получить токен');
+            $this->log('placeOrder: не удалось получить токен (warehouse=' . ($warehouseCode ?: '(default)') . ')');
             return ['http_code' => null, 'success' => false, 'raw' => null, 'error' => 'auth_failed'];
+        }
+
+        // Второй кабинет — ОТДЕЛЬНЫЙ клиент ШАТЕ-М (свой customerCode, см.
+        // accountsByWarehouse выше), а не другой адрес в одном аккаунте (как
+        // у АвтоЕвро). price_id/location_code в order_meta были получены
+        // поиском под дефолтным кабинетом (Нефтяников) и вообще не обязаны
+        // быть валидны для чужого customerCode — переспрашиваем цену/наличие
+        // под нужным кабинетом прямо перед отправкой, по тому же articleId
+        // (он общий для всей сети складов ШАТЕ-М, см. buildSearchResultItem()).
+        if ($account !== null) {
+            $items = $this->repriceItemsForAccount($items, $token, $agreementCode, $deliveryAddressCode);
         }
 
         // "Все строки заказа должны быть из одного locationCode, иначе заказ
@@ -501,10 +543,10 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
 
         foreach ($groups as $locCode => $group) {
             $body = json_encode([
-                'agreementCode' => $this->agreementCode,
+                'agreementCode' => $agreementCode,
                 'comment'       => $group['comment'] ?? '',
-                'deliveryInfo'  => $this->deliveryAddressCode !== '' ? [
-                    'deliveryAddressCode' => $this->deliveryAddressCode,
+                'deliveryInfo'  => $deliveryAddressCode !== '' ? [
+                    'deliveryAddressCode' => $deliveryAddressCode,
                 ] : null,
                 // Обязательные флаги согласия у API — это B2B-интеграция по
                 // уже действующему договору с ШАТЕ-М, а не форма для
@@ -514,7 +556,7 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
                 'priceItems' => $group['items'],
             ], JSON_UNESCAPED_UNICODE);
 
-            $this->log("placeOrder: location={$locCode} items=" . count($group['items']) . " body={$body}");
+            $this->log("placeOrder: warehouse=" . ($warehouseCode ?: '(default)') . " location={$locCode} items=" . count($group['items']) . " body={$body}");
 
             $ch = curl_init($this->apiUrl . 'orders/bypriceitems');
             curl_setopt_array($ch, [
@@ -566,6 +608,63 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
             'error'           => $anySuccess ? null : (implode('; ', $errors) ?: 'order_rejected'),
             'item_references' => $itemReferences,
         ];
+    }
+
+    /**
+     * Переспрашивает price_id/location_code под НУЖНЫМ кабинетом (см.
+     * placeOrder()) вместо того, чтобы доверять значениям из корзины,
+     * добытым поиском под дефолтным кабинетом (Нефтяников) — они принадлежат
+     * другому customerCode и не обязаны быть валидны для второго кабинета.
+     * articleId в order_meta общий на всю сеть складов ШАТЕ-М и остаётся
+     * ключом сопоставления. Позиции, для которых у нужного кабинета не
+     * нашлось валидного предложения (нет остатка/артикул недоступен по
+     * этому договору), помечаются пустым price_id — placeOrder() отсеет их
+     * так же, как обычные "нет price_id/location_code" (см. $skipped выше).
+     */
+    private function repriceItemsForAccount(array $items, string $token, string $agreementCode, string $deliveryAddressCode): array
+    {
+        $articleIds = [];
+        foreach ($items as $item) {
+            $artId = (int)($item['order_meta']['article_id'] ?? 0);
+            if ($artId > 0) $articleIds[$artId] = true;
+        }
+        $articleIds = array_keys($articleIds);
+        if (empty($articleIds)) return $items;
+
+        $pricesByArticle = [];
+        foreach ($this->getPrices($articleIds, $token, $agreementCode, $deliveryAddressCode) as $pe) {
+            $artId = (int)($pe['article']['id'] ?? 0);
+            if ($artId > 0) $pricesByArticle[$artId] = (array)($pe['prices'] ?? []);
+        }
+
+        foreach ($items as &$item) {
+            $artId = (int)($item['order_meta']['article_id'] ?? 0);
+            $qtyNeeded = (int)($item['quantity'] ?? 0);
+            $candidates = $pricesByArticle[$artId] ?? [];
+
+            // Предпочитаем свой домашний склад (Internal, как и при обычном
+            // поиске, см. buildSearchResultItem()) — иначе первое предложение
+            // с достаточным остатком.
+            $best = null;
+            foreach ($candidates as $p) {
+                $avail = (int)($p['quantity']['available'] ?? 0);
+                if ($avail < $qtyNeeded) continue;
+                if (($p['type'] ?? '') === 'Internal') { $best = $p; break; }
+                if ($best === null) $best = $p;
+            }
+
+            if ($best === null) {
+                $this->log("repriceItemsForAccount: нет валидного предложения под нужным кабинетом для articleId={$artId}, qty={$qtyNeeded}");
+                $item['order_meta']['price_id'] = '';
+                continue;
+            }
+
+            $item['order_meta']['price_id']      = (string)($best['id'] ?? '');
+            $item['order_meta']['location_code'] = (string)($best['locationCode'] ?? '');
+        }
+        unset($item);
+
+        return $items;
     }
 
     // ==================== СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ====================
@@ -673,7 +772,8 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
         return $resp;
     }
 
-    private function getPrices(array $articleIds, string $token): array
+    /** $agreementCode/$deliveryAddressCode — override для другого кабинета (см. repriceItemsForAccount()); по умолчанию — дефолтный аккаунт. */
+    private function getPrices(array $articleIds, string $token, ?string $agreementCode = null, ?string $deliveryAddressCode = null): array
     {
         if (empty($articleIds)) return [];
         $body = json_encode(array_map(fn($id) => ['articleId' => $id], $articleIds));
@@ -682,8 +782,8 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
         // артикулам с реальным наличием — необходимые query-параметры, а не
         // опциональные, как можно было понять из документации.
         $query = http_build_query([
-            'agreementCode' => $this->agreementCode,
-            'deliveryAddressCode' => $this->deliveryAddressCode,
+            'agreementCode' => $agreementCode ?? $this->agreementCode,
+            'deliveryAddressCode' => $deliveryAddressCode ?? $this->deliveryAddressCode,
         ]);
         $ch = curl_init();
         curl_setopt_array($ch, [
