@@ -71,9 +71,11 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
     // Basic Auth — тот же механизм, что у ПартКома (см. PartKomConnector::authHeader()).
     // Подтверждено живым запросом к getUserVkorgList/getUserInfo с текущими
     // LOGIN/PASSWORD — механизм рабочий, 401 не было.
-    private function authHeader(): string
+    // $loginOverride/$passwordOverride — для второго кабинета (Баки Урманче,
+    // см. accountsByWarehouse в placeOrder()/fetchOrderStatusByReference()).
+    private function authHeader(?string $loginOverride = null, ?string $passwordOverride = null): string
     {
-        return 'Authorization: Basic ' . base64_encode($this->login . ':' . $this->password);
+        return 'Authorization: Basic ' . base64_encode(($loginOverride ?? $this->login) . ':' . ($passwordOverride ?? $this->password));
     }
 
     // ==================== БРЕНДЫ (assortment_search) ====================
@@ -392,11 +394,11 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
         // отправки запроса.
         $method = $test ? 'createTestOrder' : 'createOrder';
 
-        $this->log("placeOrder: method={$method} items={$idx} skipped={$skipped} fields=" . json_encode($fields, JSON_UNESCAPED_UNICODE));
+        $this->log("placeOrder: warehouse=" . ($warehouseCode ?: '(default)') . " method={$method} items={$idx} skipped={$skipped} fields=" . json_encode($fields, JSON_UNESCAPED_UNICODE));
 
         $resp = $this->execCurl([
             'url'     => $this->baseUrl . "/ws_order/{$method}?format=json",
-            'headers' => [$this->authHeader(), 'Accept: application/json'],
+            'headers' => [$this->authHeader($account['LOGIN'] ?? null, $account['PASSWORD'] ?? null), 'Accept: application/json'],
             'method'  => 'POST',
             'body'    => http_build_query($fields),
         ]);
@@ -421,6 +423,13 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
         // ITEMS в ответе документированы как эхо входных полей построчно в том
         // же порядке и количестве, что и запрос (в отличие от Авторуси/Иксоры
         // здесь нет отдельного непрозрачного ключа для сопоставления).
+        // Префикс "{warehouseCode}#" — ТОЛЬКО для нашего внутреннего хранения
+        // (b_supplier_order_item.REFERENCE), иначе fetchOrderStatusByReference()
+        // не узнает, каким из двух кабинетов (LOGIN/PASSWORD) опрашивать
+        // getOrder2 (тот же приём, что у Берга/ПартКома для их вторых
+        // адресов/кабинетов). В сам запрос к Армтеку префикс не уходит.
+        $refPrefix = ($account !== null && $warehouseCode !== '') ? $warehouseCode . '#' : '';
+
         $itemReferences = [];
         $itemsRaw = [];
         $i = 0;
@@ -441,7 +450,7 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
                 // BLOCK: A — не блокирован, B — блокирован, C — закрыт,
                 // D — разблокирован вручную. Только A/D считаем подтверждением.
                 if ($vbeln === '' || $posnr === '' || !in_array($block, ['A', 'D', ''], true)) continue;
-                $itemReferences[$basketItemId] = $vbeln . ':' . $posnr;
+                $itemReferences[$basketItemId] = $refPrefix . $vbeln . ':' . $posnr;
                 break;
             }
         }
@@ -513,15 +522,25 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
     // ==================== СТАТУС ЗАКАЗА (SupplierOrderStatusProvider) ====================
 
     /**
-     * $reference — составной "{VBELN}:{POSNR}" (см. placeOrder()::item_references).
+     * $reference — составной "{VBELN}:{POSNR}", опционально с префиксом
+     * "{warehouseCode}#" для заказов второго кабинета (Баки Урманче, см.
+     * placeOrder()::item_references) — тот же приём, что у Берга/ПартКома.
+     * VKORG/KUNRG у обоих кабинетов одинаковые (общий покупатель Армтека),
+     * меняется только Basic Auth, которым спрашиваем.
      */
     public function fetchOrderStatusByReference(string $reference): array
     {
+        $warehouseCode = '';
+        if (strpos($reference, '#') !== false) {
+            [$warehouseCode, $reference] = explode('#', $reference, 2);
+        }
         if (strpos($reference, ':') === false) return [];
         [$vbeln, $posnr] = explode(':', $reference, 2);
         $vbeln = trim($vbeln);
         $posnr = trim($posnr);
         if ($vbeln === '' || $posnr === '') return [];
+
+        $account = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
 
         $fields = [
             'VKORG' => $this->vkorg,
@@ -531,12 +550,12 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
 
         $resp = $this->execCurl([
             'url'     => $this->baseUrl . '/ws_order/getOrder2?' . http_build_query($fields) . '&format=json',
-            'headers' => [$this->authHeader(), 'Accept: application/json'],
+            'headers' => [$this->authHeader($account['LOGIN'] ?? null, $account['PASSWORD'] ?? null), 'Accept: application/json'],
             'method'  => 'GET',
             'body'    => null,
         ]);
 
-        $this->log("fetchOrderStatusByReference({$reference}): response body=" . substr((string)$resp, 0, 4000));
+        $this->log("fetchOrderStatusByReference(" . ($warehouseCode !== '' ? $warehouseCode . '#' : '') . "{$reference}): response body=" . substr((string)$resp, 0, 4000));
 
         if ($resp === null) return [];
 
