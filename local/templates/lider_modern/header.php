@@ -191,7 +191,6 @@ function pickCatalogNavIcon(string $name): string {
                     <svg class="icon"><use href="#icon-heart"></use></svg>
                     <span class="badge" id="favBadge"<?= $favQty > 0 ? '' : ' style="display:none;"' ?>><?= $favQty ?></span>
                 </a>
-                <a href="/personal/compare/" class="header__icon" title="Сравнение"><svg class="icon"><use href="#icon-compare"></use></svg></a>
                 <a href="/cart/" class="header__icon" id="cartIcon" title="Корзина">
                     <svg class="icon"><use href="#icon-cart"></use></svg>
                     <span class="badge" id="cartBadge"<?= $cartQty > 0 ? '' : ' style="display:none;"' ?>><?= $cartQty ?></span>
