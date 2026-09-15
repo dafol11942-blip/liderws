@@ -55,8 +55,8 @@ if ($urlMod && !$urlBrand && !$urlModel) {
 ?>
 <?php if ($mode === 'embed'): ?>
 <div class="auto-finder">
-    <h2 class="auto-finder__title"><svg class="icon"><use href="#icon-wrench"></use></svg> Подбор запчастей по автомобилю</h2>
-    <p class="auto-finder__subtitle">Выберите марку, модель и модификацию — покажем точный список запчастей для вашего авто</p>
+    <h2 class="auto-finder__title"><svg class="icon"><use href="#icon-wrench"></use></svg> Подбор запчастей для ТО по автомобилю</h2>
+    <p class="auto-finder__subtitle">Выберите марку, модель и модификацию — покажем фильтры, колодки, свечи и масло для технического обслуживания вашего авто</p>
     <div class="auto-finder__form">
         <select class="auto-finder__select" id="brandSelect"><option value="">— Марка —</option></select>
         <select class="auto-finder__select" id="modelSelect" disabled><option value="">— Модель —</option></select>
