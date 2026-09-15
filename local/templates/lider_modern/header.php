@@ -51,6 +51,15 @@ $favQty = $USER->IsAuthorized() ? getFavoritesCount($USER->GetID()) : 0;
         $commonShopStatus = ($commonShopHours && $shopLocationsForHours) ? getShopOpenStatus($shopLocationsForHours[0]) : ['isOpen' => null, 'text' => ''];
     ?>
 
+    <!-- Плашка о бета-тестировании — временная, без возможности закрыть:
+         статус сайта, а не разовое уведомление вроде cookie-consent. -->
+    <div class="beta-banner">
+        <div class="container beta-banner__inner">
+            <svg class="icon"><use href="#icon-alert"></use></svg>
+            <span>Сайт находится в стадии бета-тестирования: оформление заказа и авторизация временно недоступны.</span>
+        </div>
+    </div>
+
     <!-- Верхняя полоса -->
     <div class="top-bar">
         <div class="container">
