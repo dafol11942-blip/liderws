@@ -258,6 +258,7 @@ function pickCatalogNavIcon(string $name): string {
                         <a href="/catalog/inomarki/tormoznaya_sistema/" class="nav-dropdown__all">Вся тормозная система →</a>
                     </div>
                 </div>
+                <a href="/catalog/vaz/elektrika_vaz/akb/">Аккумуляторы</a>
                 <div class="nav-dropdown-wrapper">
                     <a href="/autoservice/">Автосервис</a>
                     <div class="nav-dropdown">
