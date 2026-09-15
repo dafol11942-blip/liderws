@@ -1609,7 +1609,7 @@ ul, ol { list-style: none; }
 .service-detail__cta { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); }
 
 /* Фотогалерея с лайтбоксом (см. .photo-gallery__item в main.js) */
-.photo-gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 20px 0; }
+.photo-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }
 .photo-gallery__item { display: block; border-radius: var(--radius-sm); overflow: hidden; aspect-ratio: 4 / 3; background: var(--bg); }
 .photo-gallery__item img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--transition); }
 .photo-gallery__item:hover img { transform: scale(1.06); }
@@ -1629,7 +1629,7 @@ ul, ol { list-style: none; }
 .lightbox__nav--next .icon { transform: rotate(-90deg); }
 
 @media (max-width: 768px) {
-    .photo-gallery { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .photo-gallery { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .lightbox__nav { width: 42px; height: 42px; }
     .lightbox__nav--prev { left: 6px; }
     .lightbox__nav--next { right: 6px; }

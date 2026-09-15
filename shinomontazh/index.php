@@ -9,13 +9,12 @@ $bookingUrl = 'https://elabuga.kolesa-darom.ru/service/shinomontazh/?utm_referre
 
 $galleryPath = SITE_TEMPLATE_PATH . '/assets/images/shinomontazh/';
 $galleryPhotos = [
-    ['file' => 'shinomontazh-1.jpg', 'caption' => 'Пост шиномонтажа «Колёса Даром» в Елабуге'],
-    ['file' => 'shinomontazh-2.jpg', 'caption' => 'Вход в магазин и пункт шиномонтажа'],
-    ['file' => 'shinomontazh-3.jpg', 'caption' => 'Балансировочный стенд Sivik Stellar'],
-    ['file' => 'shinomontazh-4.jpg', 'caption' => 'Зона шиномонтажа с оборудованием'],
-    ['file' => 'shinomontazh-5.jpg', 'caption' => 'Ассортимент шин в торговом зале'],
-    ['file' => 'shinomontazh-6.jpg', 'caption' => 'Ассортимент литых дисков'],
-    ['file' => 'shinomontazh-7.jpg', 'caption' => 'Зимняя шипованная резина крупным планом'],
+    ['file' => 'shinomontazh-1.jpg', 'caption' => 'Пост шиномонтажа с балансировочным и монтажным оборудованием'],
+    ['file' => 'shinomontazh-2.jpg', 'caption' => 'Стенд правки дисков «Сибек Фаворит-П»'],
+    ['file' => 'shinomontazh-3.jpg', 'caption' => 'Ассортимент шин в торговом зале'],
+    ['file' => 'shinomontazh-4.jpg', 'caption' => 'Зона отдыха для клиентов'],
+    ['file' => 'shinomontazh-5.jpg', 'caption' => 'Ассортимент литых дисков'],
+    ['file' => 'shinomontazh-6.jpg', 'caption' => 'Стойка приёма клиентов'],
 ];
 ?>
 <div class="breadcrumbs container">
