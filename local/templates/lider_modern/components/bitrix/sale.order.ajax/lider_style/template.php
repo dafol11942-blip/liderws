@@ -228,7 +228,10 @@ if ($paymentHoldDeadlineTs <= 0) {
             <div style="font-size:48px;margin-bottom:16px;color:var(--green);"><svg class="icon"><use href="#icon-check-circle"></use></svg></div>
             <h2 style="font-size:20px;margin-bottom:8px;">Спасибо за заказ!</h2>
             <p style="color:var(--gray);margin-bottom:20px;">Мы свяжемся с вами в ближайшее время для подтверждения</p>
-            <a href="/catalog/" class="btn btn--primary">Продолжить покупки</a>
+            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                <a href="/personal/orders/" class="btn btn--secondary">Мои заказы</a>
+                <a href="/catalog/" class="btn btn--primary">Продолжить покупки</a>
+            </div>
         </div>
         <?php endif; ?>
     </div>
