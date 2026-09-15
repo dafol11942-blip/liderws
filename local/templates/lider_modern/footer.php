@@ -34,8 +34,6 @@
                 <h4>Услуги</h4>
                 <a href="/autoservice/">Автосервис</a>
                 <a href="/shinomontazh/">Шиномонтаж</a>
-                <a href="/tekhosmotr/">Техосмотр</a>
-                <a href="/kolesa-darom/">Колеса Даром</a>
             </div>
             <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/include/shop_locations.php'; ?>
             <?php foreach (getShopLocations() as $shop): ?>
