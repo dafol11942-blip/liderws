@@ -3,13 +3,6 @@ require($_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/include/require_phone_
 $APPLICATION->SetPageProperty("title", "История заказов — личный кабинет ЛИДЕР");
 $APPLICATION->SetTitle("История заказов");
 
-// Если активен любой фильтр из шапки списка (дата/статус/доставка/поставщик/артикул) —
-// фильтруем на всём доступном наборе заказов, а не только внутри текущей
-// страницы пагинации. Пагинация ядрового компонента об этих фильтрах не знает.
-$hasOrderFilters = ($_GET['q'] ?? '') !== '' || ($_GET['date_from'] ?? '') !== ''
-    || ($_GET['date_to'] ?? '') !== '' || ($_GET['status'] ?? '') !== ''
-    || ($_GET['delivery'] ?? '') !== '' || ($_GET['supplier'] ?? '') !== '';
-
 // Ядро bitrix:sale.personal.order.list само добавляет 'CANCELED' => 'N' в фильтр,
 // если в запросе нет show_all=Y (см. class.php: $showAll === 'N' — ветка истории/
 // отмены), причём независимо от параметра HISTORIC_STATUSES ниже. Без этого
@@ -28,7 +21,11 @@ $_REQUEST['show_all'] = 'Y';
             "modern",
             array(
                 "SEF_MODE" => "N",
-                "ORDERS_PER_PAGE" => $hasOrderFilters ? "1000" : "10",
+                // Постраничной навигации в шаблоне нет (шапка со списком заказов
+                // рендерится целиком, без "показать ещё"), поэтому грузим сразу
+                // всю историю — иначе фильтр и списки "Способ доставки"/"Поставщик"
+                // в шапке видели бы только последние 10 заказов, а не всю историю.
+                "ORDERS_PER_PAGE" => "1000",
                 "PATH_TO_PAYMENT" => "/personal/order/payment/",
                 "PATH_TO_BASKET" => "/personal/cart/",
                 "SET_TITLE" => "N",

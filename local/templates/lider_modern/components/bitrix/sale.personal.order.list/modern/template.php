@@ -215,7 +215,8 @@ if ($hasFilters) {
             <select id="ordersFilterDelivery" name="delivery">
                 <option value="">Любой способ</option>
                 <?php foreach ($deliveryOptions as $did => $dname): ?>
-                    <option value="<?= htmlspecialchars($did) ?>"<?= $fDelivery === $did ? ' selected' : '' ?>><?= htmlspecialchars($dname) ?></option>
+                    <?php $didStr = (string)$did; // числовой ключ массива PHP автоматически приводит к int — без явного (string) строгое сравнение с $_GET (всегда строкой) не срабатывает ?>
+                    <option value="<?= htmlspecialchars($didStr) ?>"<?= $fDelivery === $didStr ? ' selected' : '' ?>><?= htmlspecialchars($dname) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
