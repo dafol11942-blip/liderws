@@ -1,5 +1,44 @@
 <?php
 // search/index.php — поиск liderws.ru (AJAX, топ-5 в аналогах)
+
+// Если в строку поиска введён VIN или номер кузова, а не артикул — это не наш
+// поиск по складам, а задача каталога/подбора по VIN (виджет АвтоКаталог Онлайн,
+// см. /podbor-po-vin/). Проверяем и уводим туда ДО подключения bitrix/header.php,
+// чтобы редирект ушёл раньше первого байта вывода. Срабатывает только на первом
+// шаге (есть q, ещё нет brand) — второй шаг (brand+number) это уже выбор из
+// таблицы производителей по артикулу, VIN там появиться не может.
+$searchQueryRaw = trim($_REQUEST['q'] ?? '');
+$vinLengthHint = null;
+if ($searchQueryRaw !== '' && empty($_REQUEST['brand'])) {
+    $searchQueryNorm = preg_replace('/\s+/', '', mb_strtoupper($searchQueryRaw, 'UTF-8'));
+    // VIN: ровно 17 символов, без I/O/Q (ISO 3779)
+    $looksLikeVin = (bool)preg_match('/^[A-HJ-NPR-Z0-9]{17}$/', $searchQueryNorm);
+    // Номер кузова: код модели из букв и цифр (обязательно с буквой) — дефис — серийный номер,
+    // напр. JZX90-0012345, AE100-1234567. Отличает от чисто цифровых OEM-номеров вида 90080-51125.
+    $looksLikeFrame = !$looksLikeVin && (bool)preg_match('/^(?=.*[A-Z])[A-Z0-9]{2,7}-\d{4,7}$/', $searchQueryNorm);
+    if ($looksLikeVin || $looksLikeFrame) {
+        header('Location: /podbor-po-vin/?vin=' . urlencode($searchQueryNorm));
+        exit;
+    }
+
+    // Похоже на VIN, но не прошёл строгую проверку — длина не 17 символов или
+    // встречаются буквы I/O/Q (в реальных VIN их не бывает, при ручном вводе их
+    // путают с 1/0). Такую строку у поставщиков по артикулу искать бессмысленно —
+    // вместо тихого "ничего не найдено" объясняем, в чём дело.
+    if (preg_match('/^[A-Z0-9]+$/', $searchQueryNorm)) {
+        $letters = preg_match_all('/[A-Z]/', $searchQueryNorm);
+        $digits  = preg_match_all('/[0-9]/', $searchQueryNorm);
+        $len = strlen($searchQueryNorm);
+        if ($letters >= 5 && $digits >= 5 && $len >= 14 && $len <= 20) {
+            if ($len !== 17) {
+                $vinLengthHint = 'Похоже, вы вводите VIN, но в нём должно быть 17 символов — сейчас введено ' . $len . '. Проверьте номер в ПТС/СТС и попробуйте ещё раз.';
+            } elseif (preg_match('/[IOQ]/', $searchQueryNorm)) {
+                $vinLengthHint = 'Похоже, вы вводите VIN, но в нём есть буквы I, O или Q — в настоящих VIN-номерах они не используются (их легко перепутать с 1 и 0). Проверьте номер и попробуйте ещё раз.';
+            }
+        }
+    }
+}
+
 require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 CModule::IncludeModule('iblock');
 CModule::IncludeModule('catalog');
@@ -42,6 +81,20 @@ function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
         <input type="text" name="q" class="hero-inp" placeholder="Например: W7008" autofocus autocomplete="off">
         <button type="submit" class="hero-btn">Найти</button>
     </form>
+</div>
+
+<?php elseif ($vinLengthHint): ?>
+<div class="topbar">
+    <form class="topbar-frm" method="get">
+        <input type="text" name="q" class="topbar-inp" value="<?=esc($q)?>">
+        <button type="submit" class="topbar-btn"><svg class="icon"><use href="#icon-search"></use></svg></button>
+    </form>
+    <span class="topbar-info">Поиск: <strong><?=esc($q)?></strong></span>
+</div>
+<div class="hero" style="margin-top:16px">
+    <div class="hero-icon"><svg class="icon"><use href="#icon-alert"></use></svg></div>
+    <p><?=esc($vinLengthHint)?></p>
+    <a href="/podbor-po-vin/" class="hero-back">Перейти к каталогу и подбору по VIN →</a>
 </div>
 
 <?php elseif ($q && !$brand): ?>

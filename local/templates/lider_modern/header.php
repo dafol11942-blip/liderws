@@ -222,6 +222,7 @@ function pickCatalogNavIcon(string $name): string {
     <div class="header-nav">
         <div class="container">
             <nav class="header-nav__menu">
+<a href="/podbor-po-vin/" style="color:var(--blue);"><svg class="icon"><use href="#icon-car"></use></svg> Подбор по VIN</a>
 <a href="/service-parts/" style="color:var(--blue);"><svg class="icon"><use href="#icon-wrench"></use></svg> Запчасти для ТО</a>
                 <div class="nav-dropdown-wrapper">
                     <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/">Масла</a>
