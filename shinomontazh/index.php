@@ -6,6 +6,17 @@ $APPLICATION->SetTitle("Шиномонтаж");
 
 $stoPhone = ['tel' => '+79872385111', 'display' => '+7 (987) 238-51-11'];
 $bookingUrl = 'https://elabuga.kolesa-darom.ru/service/shinomontazh/?utm_referrer=https%3A%2F%2Fwww.kolesa-darom.ru%2F';
+
+$galleryPath = SITE_TEMPLATE_PATH . '/assets/images/shinomontazh/';
+$galleryPhotos = [
+    ['file' => 'shinomontazh-1.jpg', 'caption' => 'Пост шиномонтажа «Колёса Даром» в Елабуге'],
+    ['file' => 'shinomontazh-2.jpg', 'caption' => 'Вход в магазин и пункт шиномонтажа'],
+    ['file' => 'shinomontazh-3.jpg', 'caption' => 'Балансировочный стенд Sivik Stellar'],
+    ['file' => 'shinomontazh-4.jpg', 'caption' => 'Зона шиномонтажа с оборудованием'],
+    ['file' => 'shinomontazh-5.jpg', 'caption' => 'Ассортимент шин в торговом зале'],
+    ['file' => 'shinomontazh-6.jpg', 'caption' => 'Ассортимент литых дисков'],
+    ['file' => 'shinomontazh-7.jpg', 'caption' => 'Зимняя шипованная резина крупным планом'],
+];
 ?>
 <div class="breadcrumbs container">
     <ul>
@@ -54,6 +65,15 @@ $bookingUrl = 'https://elabuga.kolesa-darom.ru/service/shinomontazh/?utm_referre
                 <li>потери шипов в шипованных шинах.</li>
             </ul>
             <p>В «Колёса Даром» вы получаете всё в одном месте по выгодной для вас цене.</p>
+
+            <h2>Наш шиномонтаж</h2>
+            <div class="photo-gallery">
+                <?php foreach ($galleryPhotos as $photo): ?>
+                <a href="<?= $galleryPath . $photo['file'] ?>" class="photo-gallery__item" data-caption="<?= htmlspecialchars($photo['caption']) ?>">
+                    <img src="<?= $galleryPath . str_replace('.jpg', '-thumb.jpg', $photo['file']) ?>" alt="<?= htmlspecialchars($photo['caption']) ?>" loading="lazy">
+                </a>
+                <?php endforeach; ?>
+            </div>
         </div>
         <div class="service-detail__cta">
             <a href="tel:<?= htmlspecialchars($stoPhone['tel']) ?>" class="btn btn--primary btn--lg"><svg class="icon"><use href="#icon-phone"></use></svg> <?= htmlspecialchars($stoPhone['display']) ?></a>

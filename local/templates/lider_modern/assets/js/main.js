@@ -298,3 +298,66 @@ function updateBasketItem(id, quantity) {
 
     initSliders();
 })();
+
+// Лайтбокс для фотогалерей: клик по миниатюре в любом .photo-gallery
+// открывает полноразмерное фото с навигацией стрелками/клавиатурой.
+(function() {
+    var gallery = null;
+    var items = [];
+    var index = 0;
+    var overlay = null;
+
+    function build() {
+        overlay = document.createElement('div');
+        overlay.className = 'lightbox';
+        overlay.innerHTML =
+            '<button type="button" class="lightbox__close" aria-label="Закрыть"><svg class="icon"><use href="#icon-x"></use></svg></button>' +
+            '<button type="button" class="lightbox__nav lightbox__nav--prev" aria-label="Предыдущее фото"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>' +
+            '<img class="lightbox__img" src="" alt="">' +
+            '<button type="button" class="lightbox__nav lightbox__nav--next" aria-label="Следующее фото"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>';
+        document.body.appendChild(overlay);
+
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) close();
+        });
+        overlay.querySelector('.lightbox__close').addEventListener('click', close);
+        overlay.querySelector('.lightbox__nav--prev').addEventListener('click', function() { show(index - 1); });
+        overlay.querySelector('.lightbox__nav--next').addEventListener('click', function() { show(index + 1); });
+    }
+
+    function show(i) {
+        index = (i + items.length) % items.length;
+        var link = items[index];
+        overlay.querySelector('.lightbox__img').src = link.getAttribute('href');
+        overlay.querySelector('.lightbox__img').alt = link.getAttribute('data-caption') || '';
+    }
+
+    function open(clickedItems, startIndex) {
+        if (!overlay) build();
+        items = clickedItems;
+        show(startIndex);
+        overlay.classList.add('lightbox--open');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function close() {
+        if (!overlay) return;
+        overlay.classList.remove('lightbox--open');
+        document.body.style.overflow = '';
+    }
+
+    document.addEventListener('click', function(e) {
+        var link = e.target.closest('.photo-gallery__item');
+        if (!link) return;
+        e.preventDefault();
+        gallery = link.closest('.photo-gallery');
+        open(Array.prototype.slice.call(gallery.querySelectorAll('.photo-gallery__item')), Array.prototype.indexOf.call(gallery.querySelectorAll('.photo-gallery__item'), link));
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (!overlay || !overlay.classList.contains('lightbox--open')) return;
+        if (e.key === 'Escape') close();
+        if (e.key === 'ArrowLeft') show(index - 1);
+        if (e.key === 'ArrowRight') show(index + 1);
+    });
+})();
