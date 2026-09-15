@@ -549,7 +549,7 @@ function main_data_select_model($array_main, $format = 'ifMultilist'){
 				       
 				            <div class="product__item">
 				                <div class="product__img">
-				                	<? $bgImage = empty($item['PREVIEW_PICTURE']['SRC']) ? '/local/templates/main_temp/components/bitrix/catalog.section/.default/images/no_photo.png' : $item['PREVIEW_PICTURE']['SRC']; ?>
+				                	<? $bgImage = empty($item['PREVIEW_PICTURE']['SRC']) ? '/local/templates/lider_modern/assets/images/legacy/no_photo.png' : $item['PREVIEW_PICTURE']['SRC']; ?>
 	        						<img src="<?= $bgImage?>" alt="<?= trim($value['id']) ?>">
 
 				                    <!-- <img src="<?//= SITE_TEMPLATE_PATH ?>/images/<?//= trim($value['id']); ?>.png" alt="<?//= trim($value['id']) ?>"> -->
@@ -616,7 +616,7 @@ function main_data_select_model($array_main, $format = 'ifMultilist'){
 				                <div class="product__img">
 
 
-				                	<? $bgImage = empty($value['image']['filename']) ? '/local/templates/main_temp/components/bitrix/catalog.section/.default/images/no_photo.png' : "//static.ilcats.ru/images/" . $_GET['brand'] . $value['image']['filename'];?>
+				                	<? $bgImage = empty($value['image']['filename']) ? '/local/templates/lider_modern/assets/images/legacy/no_photo.png' : "//static.ilcats.ru/images/" . $_GET['brand'] . $value['image']['filename'];?>
 
 				                	<img src="<?= $bgImage?>" alt="<?= trim($value['name']) ?>">
 
@@ -1149,7 +1149,7 @@ function main_data_select_model($array_main, $format = 'ifMultilist'){
 
 				    <div class="product__item not__after">
 				        <a href="<?= $item['url']?>"class="product__img" style='z-index: 0'>
-				        	<? $bgImage = empty($item['PREVIEW_PICTURE']['SRC']) ? '/local/templates/main_temp/components/bitrix/catalog.section/.default/images/no_photo.png' : $item['PREVIEW_PICTURE']['SRC']; ?>
+				        	<? $bgImage = empty($item['PREVIEW_PICTURE']['SRC']) ? '/local/templates/lider_modern/assets/images/legacy/no_photo.png' : $item['PREVIEW_PICTURE']['SRC']; ?>
 	        				<img src="<?= $bgImage?>" alt="<?echo $_GET['brand'] ?> <?= $item['name']?>">
 				            <!-- <img src="//static.ilcats.ru/images/<?echo $_GET['brand'] . $item['image']['filename']?>" alt="<?echo $_GET['brand'] ?> <?= $item['name']?>"> -->
 				        </a>
@@ -1208,7 +1208,7 @@ function main_data_select_model($array_main, $format = 'ifMultilist'){
 		                            <div class="product__zapchsti">
 		                            	<a href="<?= $item['url']?>" class="">
 			                                <div class="zapchasti__image">
-			                                	<? $bgImage = empty($item['image']['filename']) ? '/local/templates/main_temp/components/bitrix/catalog.section/.default/images/no_photo.png' : "//static.ilcats.ru/images/" . $_GET['brand'] . $item['image']['filename']; ?>
+			                                	<? $bgImage = empty($item['image']['filename']) ? '/local/templates/lider_modern/assets/images/legacy/no_photo.png' : "//static.ilcats.ru/images/" . $_GET['brand'] . $item['image']['filename']; ?>
 
 			                                     <img src="<?echo $bgImage?>" alt="<?echo $_GET['brand'] ?> <?= $item['name']?>">
 			                                </div>
@@ -1299,12 +1299,12 @@ function main_data_select_model($array_main, $format = 'ifMultilist'){
 		                    				// echo "YESSSS";
 		                    				$main_image = "//static.ilcats.ru/images/" . $_GET['brand'] . $value['image']['filename'];
 		                    			}else{
-		                    				$main_image = "/local/templates/main_temp/components/bitrix/catalog.section/.default/images/no_photo.png";
+		                    				$main_image = "/local/templates/lider_modern/assets/images/legacy/no_photo.png";
 		                    			}
 		                    		}
 
 	                    		}else{
-	                    			$main_image = "/local/templates/main_temp/components/bitrix/catalog.section/.default/images/no_photo.png";
+	                    			$main_image = "/local/templates/lider_modern/assets/images/legacy/no_photo.png";
 	                    		}
 
 
@@ -1404,7 +1404,7 @@ function main_data_select_model($array_main, $format = 'ifMultilist'){
 	                    				// echo "YESSSS";
 	                    				$main_image = "//static.ilcats.ru/images/" . $_GET['brand'] . $item['image']['filename'];
 	                    			}else{
-	                    				$main_image = "/local/templates/main_temp/components/bitrix/catalog.section/.default/images/no_photo.png";
+	                    				$main_image = "/local/templates/lider_modern/assets/images/legacy/no_photo.png";
 	                    			}
 
 
@@ -1478,7 +1478,7 @@ function main_data_select_model($array_main, $format = 'ifMultilist'){
 		                            	<a href="<?= $item['url']?>" class="">
 			                                <div class="zapchasti__image">
 
-			                                	<? $bgImage = empty($item['image']['filename']) ? '/local/templates/main_temp/components/bitrix/catalog.section/.default/images/no_photo.png' : "//static.ilcats.ru/images/" . $_GET['brand'] . $item['image']['filename']; ?>
+			                                	<? $bgImage = empty($item['image']['filename']) ? '/local/templates/lider_modern/assets/images/legacy/no_photo.png' : "//static.ilcats.ru/images/" . $_GET['brand'] . $item['image']['filename']; ?>
 
 			                                     <img src="<?echo $bgImage?>" alt="<?echo $_GET['brand'] ?> <?= $item['name']?>">
 

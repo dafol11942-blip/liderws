@@ -39,13 +39,13 @@ $APPLICATION->SetTitle("Оплата");
 			</div>
 			<div class="mta df jsb pb15 mt75 delivery-items-images">
 				<div>
- <img src="/local/templates/main_temp/images/oplata/item11.png" alt=""><br>
+ <img src="/local/templates/lider_modern/assets/images/legacy/item11.png" alt=""><br>
 				</div>
 				<div>
  <img width="45" alt="mastercard.png" src="/upload/medialibrary/b18/e05mk21gtj93x0b7s8dd0cunk2hscxym.png" height="30" title="mastercard.png">
 				</div>
 				<div>
- <img src="/local/templates/main_temp/images/oplata/item22.png" alt="">
+ <img src="/local/templates/lider_modern/assets/images/legacy/item22.png" alt="">
 				</div>
 				<div>
  <img width="55.17" alt="JCB.png" src="/upload/medialibrary/da6/42cxnh6nj8yz47dns17tqvbb7mt0x743.png" height="38" title="JCB.png">

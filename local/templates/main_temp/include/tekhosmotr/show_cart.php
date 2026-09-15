@@ -1,1 +1,0 @@
-<a class="show_city_in_map" data-id="70582" href="#">Показать на карте</a>

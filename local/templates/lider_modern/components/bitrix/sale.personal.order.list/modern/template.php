@@ -323,7 +323,7 @@ if ($hasFilters) {
                     <div class="order-card__product">
                         <div class="order-card__product-img">
                             <?php
-                            $imgSrc = '/local/templates/main_temp/assets/images/no-photo.png';
+                            $imgSrc = '/local/templates/lider_modern/assets/images/legacy/no_photo.png';
                             if (!empty($item['PRODUCT_ID'])) {
                                 $el = CIBlockElement::GetByID($item['PRODUCT_ID'])->GetNextElement();
                                 if ($el) {
