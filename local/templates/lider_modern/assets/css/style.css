@@ -287,7 +287,7 @@ ul, ol { list-style: none; }
    ============================================= */
 .header-nav { background: #fff; border-bottom: 1px solid var(--border); box-shadow: var(--shadow-sm); }
 .header-nav .container { display: flex; align-items: center; }
-.header-nav__menu { display: flex; flex-wrap: wrap; }
+.header-nav__menu { display: flex; flex-wrap: wrap; flex: 1; }
 .header-nav__menu a { display: flex; align-items: center; gap: 6px; padding: 14px 20px; color: var(--black); font-size: 14px; font-weight: 700; text-transform: uppercase; border-bottom: 3px solid transparent; transition: border-color var(--transition); }
 .header-nav__menu a:hover, .header-nav__menu a.active { border-bottom-color: var(--blue); color: var(--black); }
 .header-nav__menu a.header-nav__cta { margin-left: auto; align-self: center; padding: 9px 20px; background: var(--blue); color: #fff; border-radius: 999px; border-bottom: none; text-transform: none; }
