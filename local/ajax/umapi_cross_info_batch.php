@@ -11,6 +11,17 @@
  */
 define('NOT_CHECK_PERMISSIONS', true);
 require_once($_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php');
+
+// Сессия Bitrix (файловая блокировка) держится, пока скрипт не закроет её сам — а этот
+// эндпоинт дальше делает МЕДЛЕННЫЕ curl-запросы к UMAPI (десятки пар, до ~10с). Без явного
+// закрытия сессия остаётся заблокированной на всё это время, и любой другой AJAX той же
+// вкладки (в первую очередь search/ajax.php — поиск/докрутка) встаёт в очередь на её
+// открытие — именно это превращало "второстепенную" докачку карточек аналогов в тормоза
+// и таймауты у КРИТИЧНОЙ докрутки складов. Тот же приём уже используется в search/ajax.php.
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+
 require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/BrandNormalizer.php');
 require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/Common/MultiCurlExecutor.php');
 require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/lib/Search/UmapiCrossInfo.php');
