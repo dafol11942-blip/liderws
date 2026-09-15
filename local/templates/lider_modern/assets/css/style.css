@@ -1606,7 +1606,6 @@ ul, ol { list-style: none; }
 .service-detail__text h2 { font-size: 20px; font-weight: 800; margin: 28px 0 14px; }
 .service-detail__text ul { margin: 0 0 14px; padding-left: 22px; }
 .service-detail__text ul li { list-style: disc; margin-bottom: 6px; }
-.service-detail__text .service-detail__note { font-size: 13px; color: var(--gray); }
 .service-detail__cta { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); }
 
 @media (max-width: 768px) {
