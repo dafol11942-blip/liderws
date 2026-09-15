@@ -92,9 +92,16 @@ if ($sectionId > 0) {
     }
 }
 
-function renderCategoryTreeNode($section, $sectionsByParent, $activePath, $currentSectionId) {
+// Дерево в сайдбаре не должно раскрываться до самых листьев — у конечных
+// разделов (например, брендов масла внутри "Масло моторное") бывают
+// десятки подпунктов, и на этом уровне список превращается в простыню.
+// Такие подразделы остаются доступны через плитки "Подразделы" на
+// странице раздела, а сайдбар ограничен основными уровнями структуры.
+const SIDEBAR_TREE_MAX_DEPTH = 2;
+
+function renderCategoryTreeNode($section, $sectionsByParent, $activePath, $currentSectionId, $depth = 1) {
     $id = (int)$section['ID'];
-    $children = $sectionsByParent[$id] ?? [];
+    $children = $depth < SIDEBAR_TREE_MAX_DEPTH ? ($sectionsByParent[$id] ?? []) : [];
     $isOpen = in_array($id, $activePath, true);
     $isActive = ($id === (int)$currentSectionId);
 
@@ -108,7 +115,7 @@ function renderCategoryTreeNode($section, $sectionsByParent, $activePath, $curre
     if ($children) {
         $html .= '<div class="filter__tree-children">';
         foreach ($children as $child) {
-            $html .= renderCategoryTreeNode($child, $sectionsByParent, $activePath, $currentSectionId);
+            $html .= renderCategoryTreeNode($child, $sectionsByParent, $activePath, $currentSectionId, $depth + 1);
         }
         $html .= '</div>';
     }
