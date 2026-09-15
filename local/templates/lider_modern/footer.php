@@ -53,7 +53,7 @@
             <?php endforeach; ?>
             <div class="footer__col">
                 <h4>Контакты</h4>
-                <p><svg class="icon"><use href="#icon-mail"></use></svg> info@liderws.ru</p>
+                <p><svg class="icon"><use href="#icon-mail"></use></svg> lider-16@bk.ru</p>
                 <p><a href="/contacts/" style="color:#fff;font-weight:700;">Все контакты и карта →</a></p>
             </div>
         </div>

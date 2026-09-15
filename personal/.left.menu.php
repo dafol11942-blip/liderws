@@ -16,7 +16,7 @@ $aMenuLinks = Array(
 	),
 	Array(
 		"3", 
-		"mailto:info-lider16@yandex.ru", 
+		"mailto:lider-16@bk.ru",
 		Array(), 
 		Array(), 
 		"" 
