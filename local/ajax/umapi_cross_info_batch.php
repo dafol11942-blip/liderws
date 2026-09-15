@@ -43,7 +43,10 @@ if (!$clean) {
 }
 
 try {
-    echo json_encode(UmapiCrossInfo::fetchMany($clean), JSON_UNESCAPED_UNICODE);
+    // Дедлайн ниже дефолтного (8с) — карточки аналогов второстепенны и не должны своей
+    // холодной загрузкой (десятки пар сразу) заметно задерживать остальные AJAX-запросы
+    // страницы (докрутку аналогов, поллинг прогресса), см. UmapiCrossInfo::prefetchImages().
+    echo json_encode(UmapiCrossInfo::fetchMany($clean, 6.0), JSON_UNESCAPED_UNICODE);
 } catch (\Throwable $e) {
     echo json_encode(new stdClass());
 }

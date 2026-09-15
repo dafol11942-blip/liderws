@@ -261,6 +261,14 @@ class UmapiCrossInfo
             }
         }
 
+        // Картинки для ещё не закешированных локально фото качаем ОДНИМ параллельным проходом
+        // ДО вызова shapeRaw() ниже — сам shapeRaw()/cacheImage() при каждом вызове тянет фото
+        // синхронным curl'ом, и на карточке с 15-40 холодными аналогами это превращалось в
+        // столько же последовательных запросов (до 6с каждый) — то самое "докрутка идёт 30
+        // секунд, а прогресс всё это время висит на старом значении от фазы 1", см. историю
+        // в STAGES.md про перегрузку внешних сервисов и блокировку по IP.
+        self::prefetchImages($rawByNormKey, min(4.0, $deadlineSeconds));
+
         foreach ($normKeyToIds as $normKey => $ids) {
             $raw    = $rawByNormKey[$normKey] ?? null;
             $shaped = ($raw !== null && $raw !== '') ? self::shapeRaw($raw) : null;
@@ -270,5 +278,61 @@ class UmapiCrossInfo
         }
 
         return $result;
+    }
+
+    /**
+     * Достаёт относительный путь картинки UMAPI из сырого JSON, без похода в сеть — та же
+     * валидация пути, что и в shapeRaw()/cacheImage(). Возвращает null, если картинки нет
+     * или JSON невалиден.
+     */
+    private static function extractImgRelPath(string $rawJson): ?string
+    {
+        if ($rawJson === '') return null;
+        $data = json_decode($rawJson, true);
+        if (!is_array($data) || empty($data['img'])) return null;
+        if (!preg_match('~^(/[A-Za-z0-9_\-]+)+\.[A-Za-z0-9]+$~', $data['img'])) return null;
+        return $data['img'];
+    }
+
+    /**
+     * Параллельно скачивает и кеширует на диск все ещё не закешированные картинки среди
+     * переданных сырых ответов UMAPI — чтобы cacheImage() внутри shapeRaw() дальше просто
+     * находил файл на диске (is_file()) и не делал собственный сетевой запрос.
+     */
+    private static function prefetchImages(array $rawByNormKey, float $deadlineSeconds): void
+    {
+        $relPathByNormKey = [];
+        $requests = [];
+        foreach ($rawByNormKey as $normKey => $raw) {
+            $relPath = self::extractImgRelPath($raw);
+            if ($relPath === null) continue;
+
+            $localAbs = $_SERVER['DOCUMENT_ROOT'] . '/upload/umapi_img' . $relPath;
+            if (is_file($localAbs) && filesize($localAbs) > 0) continue; // уже закешировано
+
+            $relPathByNormKey[$normKey] = $relPath;
+            $requests[] = [
+                'url'      => 'https://image.umapi.ru/IMAGE' . $relPath,
+                'headers'  => [],
+                '_timeout' => 6,
+                '_key'     => $normKey,
+            ];
+        }
+
+        if (!$requests) return;
+
+        $executor  = new MultiCurlExecutor();
+        $responses = $executor->executeAll($requests, $deadlineSeconds);
+
+        foreach ($responses as $normKey => $resp) {
+            if (!$resp || $resp['body'] === null) continue;
+            $relPath = $relPathByNormKey[$normKey] ?? null;
+            if ($relPath === null) continue;
+
+            $localAbs = $_SERVER['DOCUMENT_ROOT'] . '/upload/umapi_img' . $relPath;
+            $dir = dirname($localAbs);
+            if (!is_dir($dir)) @mkdir($dir, 0755, true);
+            @file_put_contents($localAbs, $resp['body']);
+        }
     }
 }
