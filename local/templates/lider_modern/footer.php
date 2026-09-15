@@ -36,7 +36,7 @@
             <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/include/shop_locations.php'; ?>
             <?php foreach (getShopLocations() as $shop): ?>
             <div class="footer__col">
-                <h4><?= htmlspecialchars($shop['short']) ?></h4>
+                <h4><a href="/shop/<?= htmlspecialchars($shop['id']) ?>/" style="color:#fff;"><?= htmlspecialchars($shop['short']) ?></a></h4>
                 <p><svg class="icon"><use href="#icon-pin"></use></svg> <?= htmlspecialchars($shop['address']) ?></p>
                 <?php if (!empty($shop['hours'])): ?>
                 <p><svg class="icon"><use href="#icon-clock"></use></svg> <?= htmlspecialchars($shop['hours']) ?></p>

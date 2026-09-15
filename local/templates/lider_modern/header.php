@@ -73,6 +73,7 @@ $favQty = $USER->IsAuthorized() ? getFavoritesCount($USER->GetID()) : 0;
                             <b><?= htmlspecialchars($phone['display']) ?></b>
                         </a>
                         <?php endforeach; ?>
+                        <a href="/shop/<?= htmlspecialchars($shop['id']) ?>/" class="top-bar__store-link">Страница магазина →</a>
                     </div>
                 </div>
                 <?php endforeach; ?>

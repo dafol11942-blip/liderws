@@ -181,6 +181,8 @@ ul, ol { list-style: none; }
 .top-bar__store-phone span { color: var(--gray); }
 .top-bar__store-phone b { color: var(--blue); white-space: nowrap; }
 .top-bar__store-phone:hover b { color: var(--blue-dark); }
+.top-bar__store-link { display: block; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--blue); font-size: 12px; font-weight: 700; }
+.top-bar__store-link:hover { color: var(--blue-dark); }
 
 /* =============================================
    ШАПКА
@@ -1671,6 +1673,8 @@ body.catalog-filter-locked { overflow: hidden; }
 .photo-gallery__item { display: block; border-radius: var(--radius-sm); overflow: hidden; aspect-ratio: 4 / 3; background: var(--bg); }
 .photo-gallery__item img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--transition); }
 .photo-gallery__item:hover img { transform: scale(1.06); }
+.photo-gallery__placeholder { aspect-ratio: 4 / 3; border: 2px dashed var(--border); border-radius: var(--radius-sm); background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--gray); font-size: 13px; }
+.photo-gallery__placeholder .icon { width: 28px; height: 28px; opacity: 0.5; }
 
 .lightbox { display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; }
 .lightbox--open { display: flex; }
@@ -1718,6 +1722,8 @@ body.catalog-filter-locked { overflow: hidden; }
 .contacts-store__phone b { color: var(--blue); white-space: nowrap; }
 .contacts-store__phone span { color: var(--gray); font-size: 12px; }
 .contacts-store__phone .icon { flex-shrink: 0; width: 15px; height: 15px; color: var(--blue); }
+.contacts-store__more { display: inline-block; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--blue); font-size: 13px; font-weight: 700; }
+.contacts-store__more:hover { color: var(--blue-dark); }
 
 .contacts-map-wrap { min-height: 420px; }
 .contacts-map { width: 100%; height: 420px; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }

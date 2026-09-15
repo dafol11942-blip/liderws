@@ -48,6 +48,14 @@ $arUrlRewrite=array (
     'PATH' => '/uslugi/index.php',
     'SORT' => 100,
   ),
+  8 => 
+  array (
+    'CONDITION' => '#^/shop/#',
+    'RULE' => '',
+    'ID' => '',
+    'PATH' => '/shop/index.php',
+    'SORT' => 100,
+  ),
   2 => 
   array (
     'CONDITION' => '#^/ajax/#',

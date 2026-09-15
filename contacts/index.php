@@ -47,6 +47,7 @@ foreach ($shops as $shop) {
                     </a>
                     <?php endforeach; ?>
                 </div>
+                <a href="/shop/<?= htmlspecialchars($shop['id']) ?>/" class="contacts-store__more">Подробнее о магазине →</a>
             </div>
             <?php endforeach; ?>
         </div>
