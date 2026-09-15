@@ -53,7 +53,7 @@ class BrandNormalizer
         'glyco'=>'GLYCO','freccia'=>'FRECCIA','icer'=>'ICER','narva'=>'NARVA','petronas'=>'PETRONAS',
         'ferodo'=>'FERODO','motrio'=>'MOTRIO','glaser'=>'GLASER','bando'=>'BANDO','birth'=>'BIRTH',
         'kamoka'=>'KAMOKA','delco remy'=>'Delco Remy',
-        'hyundai/kia'=>'MOBIS','hyundai'=>'MOBIS','kia'=>'MOBIS',
+        'hyundai/kia'=>'HYUNDAI/KIA','hyundai / kia'=>'HYUNDAI/KIA','hyundai'=>'HYUNDAI/KIA','kia'=>'HYUNDAI/KIA','mobis'=>'HYUNDAI/KIA',
         'general motors'=>'GM','generalmotors'=>'GM',
         'sb'=>'SB NAGAMOCHI',
     ];
