@@ -45,6 +45,10 @@ $favQty = $USER->IsAuthorized() ? getFavoritesCount($USER->GetID()) : 0;
         $shopLocationsForHours = getShopLocations();
         $uniqueHours = array_unique(array_filter(array_column($shopLocationsForHours, 'hours')));
         $commonShopHours = count($uniqueHours) === 1 ? reset($uniqueHours) : null;
+        // Статус "до закрытия" одинаков для всех магазинов, только пока у них
+        // общий график (как сейчас) — считаем по первому, раз $commonShopHours
+        // уже подтвердил, что расписание одно и то же.
+        $commonShopStatus = ($commonShopHours && $shopLocationsForHours) ? getShopOpenStatus($shopLocationsForHours[0]) : ['isOpen' => null, 'text' => ''];
     ?>
 
     <!-- Верхняя полоса -->
@@ -52,7 +56,12 @@ $favQty = $USER->IsAuthorized() ? getFavoritesCount($USER->GetID()) : 0;
         <div class="container">
             <div class="top-bar__left">
             <?php if ($commonShopHours): ?>
-            <span class="top-bar__hours"><svg class="icon"><use href="#icon-clock"></use></svg> <?= htmlspecialchars($commonShopHours) ?></span>
+            <span class="top-bar__hours">
+                <svg class="icon"><use href="#icon-clock"></use></svg> <?= htmlspecialchars($commonShopHours) ?>
+                <?php if ($commonShopStatus['text']): ?>
+                <span class="top-bar__hours-status<?= $commonShopStatus['isOpen'] ? ' top-bar__hours-status--open' : '' ?>">· <?= htmlspecialchars($commonShopStatus['text']) ?></span>
+                <?php endif; ?>
+            </span>
             <?php endif; ?>
             <div class="top-bar__stores">
                 <?php foreach ($shopLocationsForHours as $shop): ?>
@@ -65,7 +74,13 @@ $favQty = $USER->IsAuthorized() ? getFavoritesCount($USER->GetID()) : 0;
                     <div class="top-bar__store-panel">
                         <div class="top-bar__store-address"><?= htmlspecialchars($shop['address']) ?></div>
                         <?php if (!empty($shop['hours'])): ?>
-                        <div class="top-bar__store-hours"><svg class="icon"><use href="#icon-clock"></use></svg> <?= htmlspecialchars($shop['hours']) ?></div>
+                        <?php $shopStatus = getShopOpenStatus($shop); ?>
+                        <div class="top-bar__store-hours">
+                            <svg class="icon"><use href="#icon-clock"></use></svg> <?= htmlspecialchars($shop['hours']) ?>
+                            <?php if ($shopStatus['text']): ?>
+                            <span class="top-bar__hours-status<?= $shopStatus['isOpen'] ? ' top-bar__hours-status--open' : '' ?>">· <?= htmlspecialchars($shopStatus['text']) ?></span>
+                            <?php endif; ?>
+                        </div>
                         <?php endif; ?>
                         <?php foreach ($shop['phones'] as $phone): ?>
                         <a href="tel:<?= htmlspecialchars($phone['tel']) ?>" class="top-bar__store-phone">

@@ -17,6 +17,11 @@ function getShopLocations(): array
             // (без "РТ,", с иной расстановкой запятых).
             'keyword' => 'нефтяников',
             'hours'   => 'Пн-Вс: 8:00–19:00',
+            // Открытие/закрытие в структурированном виде — для отсчёта времени
+            // до закрытия в шапке (getShopOpenStatusText ниже). Магазин работает
+            // ежедневно, поэтому дня недели отдельно не храним.
+            'open'    => '08:00',
+            'close'   => '19:00',
             'coords'  => [55.74767080512837, 52.00686362268443],
             'phones'  => [
                 ['label' => 'Отдел ВАЗ',             'display' => '+7 (85557) 3-20-50 доб.1', 'tel' => '+78555732050,1'],
@@ -31,6 +36,8 @@ function getShopLocations(): array
             'address' => 'РТ, Елабуга, ул. Баки Урманче, 17а',
             'keyword' => 'урманче',
             'hours'   => 'Пн-Вс: 8:00–19:00',
+            'open'    => '08:00',
+            'close'   => '19:00',
             'coords'  => [55.77622330421297, 52.02240121966068],
             'phones'  => [
                 ['label' => 'Отдел ВАЗ',      'display' => '+7 (85557) 99-3-99',  'tel' => '+78555799399'],
@@ -38,6 +45,37 @@ function getShopLocations(): array
             ],
         ],
     ];
+}
+
+// Статус "открыто / закрыто" по времени сервера, с отсчётом до закрытия —
+// сайт хостится и работает по московскому времени, текущее время
+// пользователей на сайте тоже считается московским, поэтому никакого
+// перевода часового пояса не требуется, берём время сервера как есть.
+function getShopOpenStatus(array $shop): array
+{
+    if (empty($shop['open']) || empty($shop['close'])) {
+        return ['isOpen' => null, 'text' => ''];
+    }
+    $now = new DateTime();
+    $open = DateTime::createFromFormat('H:i', $shop['open']);
+    $close = DateTime::createFromFormat('H:i', $shop['close']);
+    if (!$open || !$close) {
+        return ['isOpen' => null, 'text' => ''];
+    }
+    $open->setDate((int)$now->format('Y'), (int)$now->format('n'), (int)$now->format('j'));
+    $close->setDate((int)$now->format('Y'), (int)$now->format('n'), (int)$now->format('j'));
+
+    if ($now >= $open && $now < $close) {
+        $minutesLeft = (int)ceil(($close->getTimestamp() - $now->getTimestamp()) / 60);
+        $h = intdiv($minutesLeft, 60);
+        $m = $minutesLeft % 60;
+        $parts = [];
+        if ($h > 0) $parts[] = $h . ' ч';
+        if ($m > 0 || !$parts) $parts[] = $m . ' мин';
+        return ['isOpen' => true, 'text' => 'закроется через ' . implode(' ', $parts)];
+    }
+
+    return ['isOpen' => false, 'text' => 'закрыто, откроется в ' . $shop['open']];
 }
 
 // Находит магазин по адресу точки самовывоза (например, из имени доставки
