@@ -204,6 +204,18 @@
 .ft-gbrand { font-size: 15px; font-weight: 700; }
 .ft-gart { font-family: monospace; font-size: 13px; background: rgba(102,139,234,.1); color: var(--blue); padding: 3px 8px; border-radius: var(--radius); }
 .ft-gdesc { font-size: 13px; color: var(--gray); }
+
+/* Карточка UMAPI (фото/наименование/параметры) для группы аналога — компактная версия
+   .phead-body для /search/, см. renderAnalogCrossBlock() в index.php. */
+.ft-gcross { display: flex; align-items: center; gap: 8px; }
+.ft-gcross-icon { flex-shrink: 0; width: 28px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: #fafafa; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: zoom-in; }
+.ft-gcross-icon img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.ft-gcross-title { font-size: 13px; color: var(--black); }
+.ft-gcross-dt { font-size: 12px; }
+.ft-gcross-sum { cursor: pointer; color: var(--blue); font-weight: 600; user-select: none; list-style: none; }
+.ft-gcross-sum::-webkit-details-marker { display: none; }
+.ft-gcross-sum:hover { color: var(--blue-dark); }
+.ft-gcross-body { margin-top: 6px; }
 .ft-gmeta { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .ft-gbest { color: var(--gray); }
 .ft-gbest b { color: var(--black); font-size: 15px; font-weight: 700; }

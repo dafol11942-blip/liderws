@@ -204,6 +204,8 @@ function isFavSupplier(brand,article,supplier){ return FAV_SUPPLIER_KEYS.indexOf
 var TASK_ID=null;
 var hideBasePrice=false;
 var crossInfoData=null; // {success,title,img,criterias,oem,superseded} с /local/ajax/umapi_cross_info.php
+var analogCrossInfo={}; // a.key -> та же форма, с /local/ajax/umapi_cross_info_batch.php
+var analogCrossRequested={}; // a.key -> true, как только запрошен (успешно или нет) — не дублировать при повторных renderResults()
 
 // Липкая панель фильтров должна встать сразу под липкой шапкой сайта (.header,
 // position:sticky из lider_modern), а не поверх неё. У шапки нет фиксированной
@@ -784,7 +786,7 @@ function renderResults(d){
         h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title"><svg class="icon"><use href="#icon-refresh"></use></svg> Аналоги ('+analogsVisible.length+')</span></div>';
         analogsVisible.forEach(function(a){
             var groupHasMore=a.suppliers.length>2;
-            h+='<div class="ft-group"><div class="ft-ghead"'+(groupHasMore?' data-ft-toggle':'')+'><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span></div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery_offer?dRange(a.best_delivery_offer):'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty_label+'</span>'+(groupHasMore?'<button type="button" class="ft-gtoggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div></div>';
+            h+='<div class="ft-group"><div class="ft-ghead"'+(groupHasMore?' data-ft-toggle':'')+'><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span>'+renderAnalogCrossBlock(analogCrossInfo[a.key])+'</div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery_offer?dRange(a.best_delivery_offer):'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty_label+'</span>'+(groupHasMore?'<button type="button" class="ft-gtoggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div></div>';
             h+='<div class="ft-gbody">'+supplierTable(a.suppliers,'analog',a.brand,a.article,a.key)+'</div>';
             h+='</div>';
         });
@@ -803,6 +805,7 @@ function renderResults(d){
     h+='</div>';
     qs('#resultContent').innerHTML=h;
     tryRenderCrossInfoCard();
+    loadAnalogCrossInfo(analogsVisible);
 
     // Раскрытие строк сверх лимита: и кнопка "Показать ещё" внизу таблицы, и стрелка
     // в шапке позиции переключают один и тот же .ft-all-shown у общего контейнера —
@@ -883,6 +886,75 @@ function renderCrossInfoCard(data){
         }
     }
     h += '</div></div>';
+    return h;
+}
+
+// Карточки UMAPI для аналогов — та же идея, что и loadCrossInfo() для искомого номера,
+// но одним батч-запросом сразу на все видимые группы аналогов (см. analogCrossRequested —
+// не переспрашивает уже запрошенные ключи при повторных renderResults(), например после
+// смены фильтра или докрутки фазы 2). Не блокирует и не задерживает страницу: если UMAPI
+// медленная/недоступна, у аналогов просто не появляются блоки (см. историю инцидента с
+// перегрузкой внешних API в STAGES.md — именно поэтому запрос батчевый, а не по одному).
+function loadAnalogCrossInfo(analogs){
+    var items=[];
+    (analogs||[]).forEach(function(a){
+        if(!a.key || analogCrossRequested[a.key]) return;
+        analogCrossRequested[a.key]=true;
+        items.push({id:a.key, article:a.article, brand:a.brand});
+    });
+    if(!items.length) return;
+    fetch('/local/ajax/umapi_cross_info_batch.php', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({items:items})
+    }).then(function(r){ return r.json(); }).then(function(map){
+        var changed=false;
+        for(var k in map){
+            if(!map.hasOwnProperty(k)) continue;
+            analogCrossInfo[k]=map[k];
+            changed=true;
+        }
+        if(changed && lastData) renderResults(lastData);
+    }).catch(function(){});
+}
+
+// Компактная карточка UMAPI в шапке группы аналога: значок-ссылка на фото, наименование,
+// и — если есть характеристики/OEM/замены — раскрываемый блок (нативный <details>, без
+// доп. JS на раскрытие). Если полезных данных нет вовсе, data ещё не пришли или пришёл
+// success:false — блок не рисуется совсем.
+function renderAnalogCrossBlock(data){
+    if(!data || !data.success) return '';
+    var h='<div class="ft-gcross">';
+    if(data.img){
+        h+='<button type="button" class="ft-gcross-icon" title="Смотреть фото" onclick="event.stopPropagation();openImageZoom(this.querySelector(\'img\').src)"><img src="'+esc(data.img)+'" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest(\'.ft-gcross-icon\').style.display=\'none\'"></button>';
+    }
+    if(data.title){
+        h+='<span class="ft-gcross-title">'+esc(data.title)+'</span>';
+    }
+    var hasExtra=(data.criterias&&data.criterias.length)||(data.oem&&data.oem.length)||(data.superseded&&((data.superseded.new&&data.superseded.new.length)||(data.superseded.old&&data.superseded.old.length)));
+    if(hasExtra){
+        h+='<details class="ft-gcross-dt" onclick="event.stopPropagation()"><summary class="ft-gcross-sum">Параметры</summary><div class="ft-gcross-body">';
+        if(data.criterias&&data.criterias.length){
+            h+='<div class="phead-specs">';
+            data.criterias.forEach(function(c){
+                h+='<span class="phead-spec"><span class="phead-spec-label">'+esc(c.label)+':</span> '+esc(c.value)+'</span>';
+            });
+            h+='</div>';
+        }
+        if(data.oem&&data.oem.length){
+            h+='<div class="phead-oem"><span class="phead-oem-label">OEM:</span> '+data.oem.map(esc).join(', ')+'</div>';
+        }
+        if(data.superseded){
+            if(data.superseded.new&&data.superseded.new.length){
+                h+='<div class="phead-superseded">Заменён на: '+data.superseded.new.map(esc).join(', ')+'</div>';
+            }
+            if(data.superseded.old&&data.superseded.old.length){
+                h+='<div class="phead-superseded">Заменяет: '+data.superseded.old.map(esc).join(', ')+'</div>';
+            }
+        }
+        h+='</div></details>';
+    }
+    h+='</div>';
     return h;
 }
 
