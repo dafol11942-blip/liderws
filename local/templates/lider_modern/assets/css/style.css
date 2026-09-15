@@ -169,8 +169,7 @@ ul, ol { list-style: none; }
     border-radius: 0 0 var(--radius) var(--radius);
     z-index: 200; min-width: 260px; padding: 14px;
 }
-.top-bar__store:hover .top-bar__store-panel,
-.top-bar__store.is-open .top-bar__store-panel { display: block; }
+.top-bar__store:hover .top-bar__store-panel { display: block; }
 .top-bar__store-address { color: var(--black); font-size: 13px; font-weight: 700; margin-bottom: 4px; }
 .top-bar__store-hours { display: flex; align-items: center; gap: 6px; color: var(--gray); font-size: 12px; margin-bottom: 10px; }
 .top-bar__store-phone {
@@ -181,8 +180,6 @@ ul, ol { list-style: none; }
 .top-bar__store-phone span { color: var(--gray); }
 .top-bar__store-phone b { color: var(--blue); white-space: nowrap; }
 .top-bar__store-phone:hover b { color: var(--blue-dark); }
-.top-bar__store-link { display: block; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--blue); font-size: 12px; font-weight: 700; }
-.top-bar__store-link:hover { color: var(--blue-dark); }
 
 /* =============================================
    ШАПКА
@@ -596,6 +593,12 @@ body.catalog-filter-locked { overflow: hidden; }
 .footer__col a { color: #bbb; font-size: 13px; display: block; padding: 3px 0; transition: color var(--transition); }
 .footer__col a:hover { color: var(--green); }
 .footer__col p { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #bbb; padding: 2px 0; }
+/* Название магазина-ссылки в подвале — выше специфичность .footer__col a (color:#bbb;display:block),
+   чтобы остаться белым жирным заголовком, но со стрелкой и подчёркиванием при наведении. */
+.footer__col h4 .footer__store-link { display: inline-flex; align-items: center; gap: 6px; color: #fff; padding: 0; }
+.footer__col h4 .footer__store-link:hover { color: var(--green); text-decoration: underline; }
+.footer__store-link-arrow { font-size: 12px; opacity: 0.55; transition: transform var(--transition), opacity var(--transition); }
+.footer__col h4 .footer__store-link:hover .footer__store-link-arrow { opacity: 1; transform: translateX(3px); }
 
 .footer__phone-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.12); display: flex; flex-direction: column; gap: 8px; }
 .footer__phone-row { display: flex; flex-direction: column; gap: 1px; }

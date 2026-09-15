@@ -74,31 +74,6 @@ function updateBasketItem(id, quantity) {
     }
 })();
 
-// Панель магазина в верхней полосе (адрес/график/телефоны) — на десктопе
-// открывается по :hover (CSS), но на тач-экранах hover не срабатывает,
-// поэтому дублируем открытие/закрытие по тапу через класс is-open.
-(function() {
-    var stores = document.querySelectorAll('.top-bar__store');
-    if (!stores.length) return;
-
-    stores.forEach(function(store) {
-        var toggle = store.querySelector('.top-bar__store-toggle');
-        if (!toggle) return;
-        toggle.addEventListener('click', function(e) {
-            e.stopPropagation();
-            var wasOpen = store.classList.contains('is-open');
-            stores.forEach(function(s) { s.classList.remove('is-open'); });
-            if (!wasOpen) store.classList.add('is-open');
-        });
-    });
-
-    document.addEventListener('click', function(e) {
-        stores.forEach(function(store) {
-            if (!store.contains(e.target)) store.classList.remove('is-open');
-        });
-    });
-})();
-
 // Подменю разделов шапки (Масла/Фильтры/Тормозные колодки/Автосервис) —
 // на десктопе раскрываются по :hover (CSS), но на тач-экранах первый тап
 // по ссылке должен раскрыть список подпунктов, а не сразу уводить со

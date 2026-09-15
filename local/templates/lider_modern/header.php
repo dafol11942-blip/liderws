@@ -57,11 +57,11 @@ $favQty = $USER->IsAuthorized() ? getFavoritesCount($USER->GetID()) : 0;
             <div class="top-bar__stores">
                 <?php foreach ($shopLocationsForHours as $shop): ?>
                 <div class="top-bar__store">
-                    <button type="button" class="top-bar__store-toggle">
+                    <a href="/shop/<?= htmlspecialchars($shop['id']) ?>/" class="top-bar__store-toggle">
                         <svg class="icon"><use href="#icon-pin"></use></svg>
                         <?= htmlspecialchars($shop['short']) ?>
                         <svg class="icon top-bar__store-caret"><use href="#icon-chevron-down"></use></svg>
-                    </button>
+                    </a>
                     <div class="top-bar__store-panel">
                         <div class="top-bar__store-address"><?= htmlspecialchars($shop['address']) ?></div>
                         <?php if (!empty($shop['hours'])): ?>
@@ -73,7 +73,6 @@ $favQty = $USER->IsAuthorized() ? getFavoritesCount($USER->GetID()) : 0;
                             <b><?= htmlspecialchars($phone['display']) ?></b>
                         </a>
                         <?php endforeach; ?>
-                        <a href="/shop/<?= htmlspecialchars($shop['id']) ?>/" class="top-bar__store-link">Страница магазина →</a>
                     </div>
                 </div>
                 <?php endforeach; ?>
