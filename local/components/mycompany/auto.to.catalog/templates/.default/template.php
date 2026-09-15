@@ -76,15 +76,42 @@ t.onclick=function(){if(o.value)window.location.href=U+'?modification='+o.value;
 });
 </script>
 
-<?php else: ?>
+<?php else:
+// ===== ПОЛНАЯ СТРАНИЦА (/service-parts/): дерево марка → модель → модификация → результат =====
+$brand = $urlBrand ? (hlGet('AutoBrands', ['UF_BRAND_ID' => $urlBrand], [], 1)[0] ?? null) : null;
+$model = $urlModel ? (hlGet('AutoModels', ['UF_MODEL_ID' => $urlModel], [], 1)[0] ?? null) : null;
+$mod   = $urlMod   ? (hlGet('AutoModifications', ['UF_MODIFICATION_ID' => $urlMod], [], 1)[0] ?? null) : null;
+
+$crumbs = [['label' => 'Главная', 'url' => '/']];
+$crumbs[] = ['label' => 'Запчасти для ТО', 'url' => $urlBrand ? '/service-parts/' : null];
+if ($brand) $crumbs[] = ['label' => $brand['UF_NAME'], 'url' => $urlModel ? '/service-parts/?brand=' . $urlBrand : null];
+if ($model) $crumbs[] = ['label' => $model['UF_NAME'], 'url' => $urlMod ? '/service-parts/?brand=' . $urlBrand . '&model=' . $urlModel : null];
+if ($mod)   $crumbs[] = ['label' => $mod['UF_FULL_NAME'], 'url' => null];
+?>
+<div class="breadcrumbs container">
+    <ul>
+        <?php foreach ($crumbs as $c): ?>
+        <li><?php if ($c['url']): ?><a href="<?= htmlspecialchars($c['url']) ?>"><?= htmlspecialchars($c['label']) ?></a><?php else: ?><?= htmlspecialchars($c['label']) ?><?php endif; ?></li>
+        <?php endforeach; ?>
+    </ul>
+</div>
+
+<div class="container">
+    <div class="hero" style="margin-bottom:24px;">
+        <div class="hero__content">
+            <h1 class="hero__title"><svg class="icon"><use href="#icon-wrench"></use></svg> Запчасти для ТО <span>по автомобилю</span></h1>
+            <p class="hero__subtitle">Выберите марку, модель и модификацию — подберём фильтры, колодки, свечи и масло для планового технического обслуживания.</p>
+        </div>
+        <div class="hero__image" style="background:var(--bg-dark);display:flex;align-items:center;justify-content:center;color:var(--blue);">
+            <svg class="icon" style="width:100px;height:100px;"><use href="#icon-wrench"></use></svg>
+        </div>
+    </div>
+
 <div class="to-full-catalog">
 
 <?php
 // ===== ЭТАП 4: РЕЗУЛЬТАТ =====
 if ($urlMod):
-    $mod   = hlGet('AutoModifications', ['UF_MODIFICATION_ID' => $urlMod], [], 1)[0] ?? null;
-    $model = hlGet('AutoModels', ['UF_MODEL_ID' => $urlModel], [], 1)[0] ?? null;
-    $brand = hlGet('AutoBrands', ['UF_BRAND_ID' => $urlBrand], [], 1)[0] ?? null;
     $parts = hlGet('AutoParts', ['UF_MODIFICATION_ID' => $urlMod], ['UF_CATEGORY_ID' => 'ASC']);
     $oils  = hlGet('AutoOils', ['UF_MODIFICATION_ID' => $urlMod], ['UF_ORDER_POSITION' => 'ASC']);
     $specs = hlGet('AutoSpecifications', ['UF_MODIFICATION_ID' => $urlMod], ['UF_NAME' => 'ASC']);
@@ -104,13 +131,6 @@ if ($urlMod):
     }
     $retUrl = urlencode('/service-parts/?brand='.$urlBrand.'&model='.$urlModel.'&modification='.$urlMod);
 ?>
-<div style="margin-bottom:18px;font-size:14px;color:var(--gray);">
-    <a href="/service-parts/" style="color:var(--blue);font-weight:700;">Марки</a>
-    <?php if ($brand): ?> → <a href="/service-parts/?brand=<?= $urlBrand ?>" style="color:var(--blue);font-weight:700;"><?= htmlspecialchars($brand['UF_NAME']) ?></a><?php endif; ?>
-    <?php if ($model): ?> → <a href="/service-parts/?brand=<?= $urlBrand ?>&model=<?= $urlModel ?>" style="color:var(--blue);font-weight:700;"><?= htmlspecialchars($model['UF_NAME']) ?></a><?php endif; ?>
-    <?php if ($mod): ?> → <strong><?= htmlspecialchars($mod['UF_FULL_NAME']) ?></strong><?php endif; ?>
-</div>
-
 <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:20px;box-shadow:var(--shadow-sm);">
     <h2 style="font-size:20px;font-weight:800;margin-bottom:8px;"><?= htmlspecialchars($mod['UF_FULL_NAME'] ?? '') ?></h2>
     <div style="display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--gray);">
@@ -121,7 +141,7 @@ if ($urlMod):
 <?php $hasParts = !empty($grouped['Фильтры']) || !empty($grouped['Тормозная система']) || !empty($grouped['Зажигание и прочее']); ?>
 <?php if ($hasParts): ?>
 <div style="margin-bottom:24px;">
-    <h3 style="font-size:18px;font-weight:700;color:var(--blue-dark);border-bottom:2px solid var(--blue);padding-bottom:8px;margin-bottom:16px;"><svg class="icon"><use href="#icon-wrench"></use></svg> Запчасти для ТО</h3>
+    <h2 class="section-title" style="margin-bottom:16px;"><svg class="icon"><use href="#icon-wrench"></use></svg> Запчасти для ТО</h2>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px;">
     <?php foreach ($grouped as $gName => $items): ?>
         <?php if (empty($items)) continue; ?>
@@ -151,7 +171,7 @@ if ($urlMod):
 
 <?php if ($oils): ?>
 <div style="margin-bottom:24px;">
-    <h3 style="font-size:18px;font-weight:700;color:var(--blue-dark);border-bottom:2px solid var(--blue);padding-bottom:8px;margin-bottom:16px;"><svg class="icon"><use href="#icon-droplet"></use></svg> Масла и жидкости</h3>
+    <h2 class="section-title" style="margin-bottom:16px;"><svg class="icon"><use href="#icon-droplet"></use></svg> Масла и жидкости</h2>
     <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden;">
         <table style="width:100%;border-collapse:collapse;border:none;margin:0;">
             <thead><tr><th style="padding:10px 16px;text-align:left;">Тип</th><th style="padding:10px 16px;text-align:left;">Продукт</th><th style="padding:10px 16px;text-align:left;">Артикул</th><th style="padding:10px 16px;text-align:center;">Объём, л</th></tr></thead>
@@ -172,7 +192,7 @@ if ($urlMod):
 
 <?php if ($specs): ?>
 <div style="margin-bottom:24px;">
-    <h3 style="font-size:18px;font-weight:700;color:var(--blue-dark);border-bottom:2px solid var(--blue);padding-bottom:8px;margin-bottom:16px;"><svg class="icon"><use href="#icon-settings"></use></svg> Спецификации и объёмы заправки</h3>
+    <h2 class="section-title" style="margin-bottom:16px;"><svg class="icon"><use href="#icon-settings"></use></svg> Спецификации и объёмы заправки</h2>
     <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden;">
         <table style="width:100%;border-collapse:collapse;border:none;margin:0;">
             <thead><tr><th style="padding:10px 16px;text-align:left;">Жидкость</th><th style="padding:10px 16px;text-align:center;">Объём</th><th style="padding:10px 16px;text-align:left;">Допуски / примечание</th></tr></thead>
@@ -193,15 +213,8 @@ if ($urlMod):
 <?php
 // ===== ЭТАП 3: МОДИФИКАЦИИ =====
 elseif ($urlModel):
-    $model = hlGet('AutoModels', ['UF_MODEL_ID' => $urlModel], [], 1)[0] ?? null;
-    $brand = hlGet('AutoBrands', ['UF_BRAND_ID' => $urlBrand], [], 1)[0] ?? null;
-    $mods  = hlGet('AutoModifications', ['UF_MODEL_ID' => $urlModel], ['UF_FULL_NAME' => 'ASC']);
+    $mods = hlGet('AutoModifications', ['UF_MODEL_ID' => $urlModel], ['UF_FULL_NAME' => 'ASC']);
 ?>
-<div style="margin-bottom:18px;font-size:14px;color:var(--gray);">
-    <a href="/service-parts/" style="color:var(--blue);font-weight:700;">Марки</a>
-    <?php if ($brand): ?> → <a href="/service-parts/?brand=<?= $urlBrand ?>" style="color:var(--blue);font-weight:700;"><?= htmlspecialchars($brand['UF_NAME']) ?></a><?php endif; ?>
-    <?php if ($model): ?> → <strong><?= htmlspecialchars($model['UF_NAME']) ?></strong><?php endif; ?>
-</div>
 <h2 class="section-title" style="margin-bottom:16px;">Выберите модификацию <?= htmlspecialchars($model['UF_NAME'] ?? '') ?></h2>
 <div style="display:flex;flex-direction:column;gap:6px;">
     <?php foreach ($mods as $m): ?>
@@ -222,14 +235,9 @@ elseif ($urlModel):
 <?php
 // ===== ЭТАП 2: МОДЕЛИ =====
 elseif ($urlBrand):
-    $brand  = hlGet('AutoBrands', ['UF_BRAND_ID' => $urlBrand], [], 1)[0] ?? null;
     $models = hlGet('AutoModels', ['UF_BRAND_ID' => $urlBrand], ['UF_NAME' => 'ASC']);
     $brandCode = strtolower($brand['UF_CODE'] ?? '');
 ?>
-<div style="margin-bottom:18px;font-size:14px;color:var(--gray);">
-    <a href="/service-parts/" style="color:var(--blue);font-weight:700;">Марки</a>
-    <?php if ($brand): ?> → <strong><?= htmlspecialchars($brand['UF_NAME']) ?></strong><?php endif; ?>
-</div>
 <h2 class="section-title" style="margin-bottom:16px;">Выберите модель <?= htmlspecialchars($brand['UF_NAME'] ?? '') ?></h2>
 <input type="text" placeholder="Быстрый поиск модели..." style="width:100%;max-width:400px;padding:10px 14px;border:2px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:var(--font);margin-bottom:16px;box-shadow:var(--shadow-sm);" oninput="var q=this.value.toLowerCase();document.querySelectorAll('.to-brand-card').forEach(function(c){c.style.display=c.querySelector('.to-brand-name').textContent.toLowerCase().includes(q)?'':'none';});">
 <div class="to-brands-grid">
@@ -242,14 +250,14 @@ elseif ($urlBrand):
         );
         $hasImg = $imgPath !== '';
     ?>
-        <a href="?brand=<?= $urlBrand ?>&model=<?= $m['UF_MODEL_ID'] ?>" class="to-brand-card" style="text-decoration:none;">
+        <a href="?brand=<?= $urlBrand ?>&model=<?= $m['UF_MODEL_ID'] ?>" class="to-brand-card">
             <?php if ($hasImg): ?>
-                <img src="<?= $imgPath ?>" alt="<?= htmlspecialchars($m['UF_NAME']) ?>" style="height:48px;width:auto;max-width:100px;object-fit:contain;margin-bottom:6px;">
+                <img src="<?= $imgPath ?>" alt="<?= htmlspecialchars($m['UF_NAME']) ?>" style="height:48px;width:auto;max-width:100px;object-fit:contain;">
             <?php else: ?>
-                <div style="width:80px;height:48px;background:var(--bg);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:var(--blue-dark);margin-bottom:6px;"><svg class="icon"><use href="#icon-car"></use></svg></div>
+                <div style="width:80px;height:48px;background:var(--bg);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:var(--blue-dark);"><svg class="icon"><use href="#icon-car"></use></svg></div>
             <?php endif; ?>
             <span class="to-brand-name"><?= htmlspecialchars($m['UF_NAME']) ?></span>
-            <?php if ($m['UF_YEAR_FROM']): ?><span style="font-size:11px;color:var(--gray);display:block;"><?= $m['UF_YEAR_FROM'] ?>–<?= $m['UF_YEAR_TO'] ?: 'н.в.' ?></span><?php endif; ?>
+            <?php if ($m['UF_YEAR_FROM']): ?><span style="font-size:11px;color:var(--gray);"><?= $m['UF_YEAR_FROM'] ?>–<?= $m['UF_YEAR_TO'] ?: 'н.в.' ?></span><?php endif; ?>
         </a>
     <?php endforeach; ?>
 </div>
@@ -270,11 +278,11 @@ else:
         );
         $hasImg = $imgPath !== '';
     ?>
-        <a href="?brand=<?= $b['UF_BRAND_ID'] ?>" class="to-brand-card" style="text-decoration:none;">
+        <a href="?brand=<?= $b['UF_BRAND_ID'] ?>" class="to-brand-card">
             <?php if ($hasImg): ?>
-                <img src="<?= $imgPath ?>" alt="<?= htmlspecialchars($b['UF_NAME']) ?>" style="height:36px;width:auto;max-width:80px;object-fit:contain;margin-bottom:6px;">
+                <img src="<?= $imgPath ?>" alt="<?= htmlspecialchars($b['UF_NAME']) ?>" style="height:36px;width:auto;max-width:80px;object-fit:contain;">
             <?php else: ?>
-                <div style="width:80px;height:36px;background:var(--bg);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--blue);margin-bottom:6px;"><?= mb_substr($b['UF_NAME'], 0, 2) ?></div>
+                <div style="width:80px;height:36px;background:var(--bg);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--blue);"><?= mb_substr($b['UF_NAME'], 0, 2) ?></div>
             <?php endif; ?>
             <span class="to-brand-name"><?= htmlspecialchars($b['UF_NAME']) ?></span>
         </a>
@@ -282,5 +290,6 @@ else:
 </div>
 <?php endif; ?>
 
+</div>
 </div>
 <?php endif; ?>
