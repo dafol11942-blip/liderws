@@ -16,12 +16,10 @@
         <div class="container footer__grid">
             <div class="footer__col">
                 <h4>Каталог</h4>
-                <a href="/catalog/masla/">Масла и жидкости</a>
+                <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/">Масла и жидкости</a>
                 <a href="/catalog/filtry/">Фильтры</a>
-                <a href="/catalog/tormoznye-kolodki/">Тормозные колодки</a>
-                <a href="/catalog/grm/">ГРМ и привод</a>
-                <a href="/catalog/shiny/">Шины и диски</a>
-                <a href="/catalog/akkumulyatory/">Аккумуляторы</a>
+                <a href="/catalog/inomarki/tormoznaya_sistema/">Тормозные колодки</a>
+                <a href="/catalog/vaz/elektrika_vaz/akb/">Аккумуляторы</a>
             </div>
             <div class="footer__col">
                 <h4>Покупателям</h4>
