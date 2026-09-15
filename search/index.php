@@ -39,15 +39,19 @@ if ($searchQueryRaw !== '' && empty($_REQUEST['brand'])) {
     }
 }
 
+require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
+
 // Подключаем свою вёрстку страницы поиска через штатный SetAdditionalCSS —
 // раньше здесь после require(header.php) шёл собственный <!DOCTYPE html>
 // <html><head>...</head><body>, что давало ВЛОЖЕННЫЙ документ поверх уже
 // открытого шаблоном сайта (два <html>/<head>/<body>, два viewport-meta).
 // Браузеры это «прощают» через HTML5-парсер, но разметка невалидна —
-// подключаем CSS правильно, одним общим <head> сайта.
+// подключаем CSS правильно через SetAdditionalCSS: Bitrix буферизует вывод
+// и подставляет ссылку в уже отрисованный <head> сайта. $APPLICATION
+// создаётся только внутри require(header.php) выше, поэтому вызывать
+// SetAdditionalCSS до этого require нельзя (был фатал "Call to a member
+// function SetAdditionalCSS() on null").
 $APPLICATION->SetAdditionalCSS('/search/style.css');
-
-require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 CModule::IncludeModule('iblock');
 CModule::IncludeModule('catalog');
 require_once($_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/init_pricing.php");
