@@ -38,6 +38,7 @@ if ($vinFromSearch !== '' && !preg_match('/^[A-Z0-9-]{5,17}$/', $vinFromSearch))
             display: block;
             width: 100%;
             border: 0;
+            transition: height .2s ease-out;
         }
         .vin-hint {
             display: flex;
@@ -94,14 +95,32 @@ if ($vinFromSearch !== '' && !preg_match('/^[A-Z0-9-]{5,17}$/', $vinFromSearch))
         var frameTop = document.getElementById("acat-frame").offsetTop;
         window.scrollTo({top: frameTop, behavior: "smooth"});
     }
+
+    // Виджет шлёт acatFrameHeight часто и мелкими шагами — например, пока построчно
+    // догружаются логотипы марок, размер контейнера меняется на каждую картинку,
+    // и страница вокруг «дёргается» от resize к resize. Копим сообщения и применяем
+    // одно финальное значение через паузу, а совсем небольшие изменения (дребезг
+    // в пределах пары пикселей) вовсе игнорируем — реальные переходы между экранами
+    // каталога остаются мгновенными, а не собственно шум сглаживается.
+    var acatFrame = document.getElementById("acat-frame");
+    var acatHeightTimer = null;
+    var acatLastHeight = null;
+    function applyAcatHeight(h) {
+        h = Math.round(h);
+        if (acatLastHeight !== null && Math.abs(h - acatLastHeight) < 8) return;
+        acatLastHeight = h;
+        acatFrame.style.height = h + "px";
+    }
+
     window.addEventListener("message", function (e) {
         try {
             var data = JSON.parse(e.data);
             if (data && data.acatFrameHeight) {
-                document.getElementById("acat-frame").style.height = data.acatFrameHeight + "px";
+                clearTimeout(acatHeightTimer);
+                acatHeightTimer = setTimeout(function () { applyAcatHeight(data.acatFrameHeight); }, 150);
             }
             if (data && data.acatScrollTop) {
-                var frameTop = document.getElementById("acat-frame").offsetTop;
+                var frameTop = acatFrame.offsetTop;
                 window.scrollTo({top: frameTop + data.acatScrollTop, behavior: "smooth"});
             }
         } catch (e) {}
