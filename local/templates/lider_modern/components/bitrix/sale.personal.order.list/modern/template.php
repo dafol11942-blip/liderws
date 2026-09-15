@@ -110,13 +110,25 @@ if ($isMgr) {
     asort($supplierOptions);
 }
 
-// ---- Фильтр шапки: даты, статус, поставщик (только менеджер), поиск по артикулу ----
+// Способы доставки "которые реально встречаются" в заказах пользователя —
+// по аналогии с $supplierOptions выше, но доступно всем (не только менеджеру):
+// способ доставки — это то, что сам покупатель выбирал при оформлении.
+$deliveryOptions = [];
+foreach (($arResult['ORDERS'] ?? []) as $o2) {
+    $sh = $o2['SHIPMENT'][0] ?? [];
+    $did = (string)($sh['DELIVERY_ID'] ?? '');
+    if ($did !== '') $deliveryOptions[$did] = (string)($sh['DELIVERY_NAME'] ?? $did);
+}
+asort($deliveryOptions);
+
+// ---- Фильтр шапки: даты, статус, доставка, поставщик (только менеджер), поиск по артикулу ----
 $fDateFrom = trim((string)($_GET['date_from'] ?? ''));
 $fDateTo   = trim((string)($_GET['date_to'] ?? ''));
 $fStatus   = trim((string)($_GET['status'] ?? ''));
+$fDelivery = trim((string)($_GET['delivery'] ?? ''));
 $fSupplier = $isMgr ? trim((string)($_GET['supplier'] ?? '')) : '';
 $fQuery    = trim((string)($_GET['q'] ?? ''));
-$hasFilters = $fDateFrom !== '' || $fDateTo !== '' || $fStatus !== '' || $fSupplier !== '' || $fQuery !== '';
+$hasFilters = $fDateFrom !== '' || $fDateTo !== '' || $fStatus !== '' || $fDelivery !== '' || $fSupplier !== '' || $fQuery !== '';
 
 $ordersToShow = $arResult['ORDERS'];
 if ($hasFilters) {
@@ -124,7 +136,7 @@ if ($hasFilters) {
     $dateToTs = $fDateTo !== '' ? strtotime($fDateTo . ' 23:59:59') : null;
 
     $ordersToShow = array_filter($ordersToShow, function ($order) use (
-        $dateFromTs, $dateToTs, $fStatus, $fSupplier, $fQuery,
+        $dateFromTs, $dateToTs, $fStatus, $fDelivery, $fSupplier, $fQuery,
         $supplierItemsByOrder, $productArticleById
     ) {
         $o = $order['ORDER'];
@@ -138,6 +150,11 @@ if ($hasFilters) {
         }
 
         if ($fStatus !== '' && ($o['STATUS_ID'] ?? '') !== $fStatus) return false;
+
+        if ($fDelivery !== '') {
+            $orderDeliveryId = (string)(($order['SHIPMENT'][0]['DELIVERY_ID'] ?? ''));
+            if ($orderDeliveryId !== $fDelivery) return false;
+        }
 
         $items = $supplierItemsByOrder[$orderId] ?? [];
 
@@ -192,6 +209,17 @@ if ($hasFilters) {
                 <?php endforeach; ?>
             </select>
         </div>
+        <?php if ($deliveryOptions): ?>
+        <div class="orders-filter__field">
+            <label for="ordersFilterDelivery">Способ доставки</label>
+            <select id="ordersFilterDelivery" name="delivery">
+                <option value="">Любой способ</option>
+                <?php foreach ($deliveryOptions as $did => $dname): ?>
+                    <option value="<?= htmlspecialchars($did) ?>"<?= $fDelivery === $did ? ' selected' : '' ?>><?= htmlspecialchars($dname) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <?php endif; ?>
         <?php if ($isMgr): ?>
         <div class="orders-filter__field">
             <label for="ordersFilterSupplier">Поставщик</label>
