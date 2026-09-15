@@ -197,10 +197,14 @@
 /* Группа аналога */
 .ft-group { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }
 .ft-group:last-child { margin-bottom: 0; }
-.ft-ghead { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--bg); flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border); transition: background .12s; }
+/* flex-wrap: nowrap — .ft-gmeta (лучшая цена/срок/остаток/стрелка) всегда остаётся справа на
+   той же строке; длинное содержимое .ft-ginfo (например наименование из UMAPI) переносится
+   ВНУТРИ себя (см. min-width:0 у .ft-ginfo ниже), а не выталкивает .ft-gmeta на новую строку
+   целиком. На мобильных .ft-ghead и так становится колонкой (см. медиа-запрос ниже). */
+.ft-ghead { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--bg); flex-wrap: nowrap; gap: 10px; border-bottom: 1px solid var(--border); transition: background .12s; }
 .ft-ghead[data-ft-toggle] { cursor: pointer; user-select: none; }
 .ft-ghead[data-ft-toggle]:hover { background: #eef2f8; }
-.ft-ginfo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ft-ginfo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
 .ft-gbrand { font-size: 15px; font-weight: 700; }
 .ft-gart { font-family: monospace; font-size: 13px; background: rgba(102,139,234,.1); color: var(--blue); padding: 3px 8px; border-radius: var(--radius); }
 .ft-gdesc { font-size: 13px; color: var(--gray); }
@@ -210,16 +214,16 @@
    Значок+наименование — инлайновые, в самой .ft-ghead. Раскрываемые параметры — намеренно
    ОТДЕЛЬНОЙ строкой между .ft-ghead и .ft-gbody (а не внутри шапки), чтобы их
    раскрытие/сворачивание не сдвигало сгруппированную в .ft-ghead стрелку toggle складов. */
-.ft-gcross { display: flex; align-items: center; gap: 8px; }
+.ft-gcross { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .ft-gcross-icon { flex-shrink: 0; width: 28px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: #fafafa; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: zoom-in; }
 .ft-gcross-icon img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.ft-gcross-title { font-size: 13px; color: var(--black); }
+.ft-gcross-title { font-size: 13px; color: var(--black); min-width: 0; overflow-wrap: break-word; }
 .ft-gcross-details { background: var(--bg); border-bottom: 1px solid var(--border); padding: 8px 16px; font-size: 12px; }
 .ft-gcross-sum { cursor: pointer; color: var(--blue); font-weight: 600; user-select: none; list-style: none; display: inline-block; }
 .ft-gcross-sum::-webkit-details-marker { display: none; }
 .ft-gcross-sum:hover { color: var(--blue-dark); }
 .ft-gcross-body { margin-top: 8px; }
-.ft-gmeta { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.ft-gmeta { display: flex; align-items: center; gap: 10px; font-size: 13px; flex-shrink: 0; }
 .ft-gbest { color: var(--gray); }
 .ft-gbest b { color: var(--black); font-size: 15px; font-weight: 700; }
 .ft-gtoggle { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; background: none; border: none; border-radius: var(--radius); color: var(--gray); cursor: pointer; }
