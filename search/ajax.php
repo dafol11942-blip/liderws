@@ -86,9 +86,9 @@ const SEARCH_CACHE_SKIP_TTL_HOURS = 1;
 
 // Верхняя граница числа кросс-пар (аналогов) за один поиск — защита от аномально
 // длинных списков. Снижено с 80: при 80 парах Phase2 регулярно рассылал 500-600+
-// запросов к 9 поставщикам и стабильно упиралось в дедлайн ~24с на каждый поиск
-// (см. upload/logs/search_ajax.log) — на виртуальном хостинге с ограниченными
-// ресурсами это стало приводить к перегрузке и убийству PHP-FPM пула хостом.
+// запросов к 9 поставщикам и стабильно упиралось в дедлайн ~24с на каждый поиск —
+// на виртуальном хостинге с ограниченными ресурсами это стало приводить к
+// перегрузке и убийству PHP-FPM пула хостом.
 const MAX_ANALOG_PAIRS = 30;
 
 // Не умеют/нестабильно умеют отдавать кроссы ОДНИМ массовым запросом внутри
@@ -389,12 +389,6 @@ function releaseCrossloadSlot($fp): void {
     if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
 }
 
-$logFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/logs/search_ajax.log';
-function ajaxLog($msg): void {
-    global $logFile;
-    @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . '] ' . $msg . "\n", FILE_APPEND);
-}
-
 // ═══════════════════════════ КЭШ (только негативный список) ═══════════════════════════
 // b_search_offer_cache: (supplier_code, brand_norm, article_norm) → офферы ИЛИ
 // сентинел (quantity=-1) "проверено, пусто". Цена/остаток из кэша НИКОГДА не
@@ -428,7 +422,7 @@ function cacheSkipList(array $pairs, int $ttlHours): array {
     try {
         $rows = $db->query($sql)->fetchAll();
     } catch (\Throwable $e) {
-        ajaxLog('CACHE skiplist error: ' . $e->getMessage());
+        error_log('[search/ajax] CACHE skiplist error: ' . $e->getMessage());
         return [];
     }
     foreach ($rows as $row) {
@@ -465,7 +459,7 @@ function cacheSave(string $supplierCode, string $brandNorm, string $articleNorm,
                     quantity=VALUES(quantity), delivery_days=VALUES(delivery_days), updated_at=NOW()";
         $db->query($sql);
     } catch (\Throwable $e) {
-        ajaxLog('CACHE save error: ' . $e->getMessage());
+        error_log('[search/ajax] CACHE save error: ' . $e->getMessage());
     }
 }
 
@@ -478,7 +472,6 @@ if ($action === 'crossload') {
     $cached = cachedTaskResult('crossload', $taskId);
     if ($cached !== null) {
         releaseTaskLock($crosslockFp);
-        ajaxLog("CROSSLOAD DEDUP task=$taskId — отдан кэш вместо повторного запроса");
         echo $cached;
         exit;
     }
@@ -490,7 +483,6 @@ if ($action === 'crossload') {
     $crossloadSlotFp = acquireCrossloadSlot();
     if ($crossloadSlotFp === null) {
         releaseTaskLock($crosslockFp);
-        ajaxLog("CROSSLOAD THROTTLED task=$taskId — превышен лимит " . CROSSLOAD_MAX_CONCURRENT . " одновременных докруток");
         echo json_encode(['done' => true, 'analog_offers' => [], 'new_analogs' => [], 'throttled' => true], JSON_UNESCAPED_UNICODE);
         exit;
     }
@@ -505,7 +497,6 @@ if ($action === 'crossload') {
     $brandOrig  = trim($_REQUEST['brand'] ?? '');
     $numberOrig = trim($_REQUEST['number'] ?? '');
 
-    ajaxLog("CROSSLOAD START task=$taskId pairs=" . count($crossPairs));
 
     $analogOffers   = [];  // gk => [offer, ...]
     $newAnalogsMeta = [];  // gk => {brand, article, description} — новые карточки для фронтенда
@@ -550,7 +541,6 @@ if ($action === 'crossload') {
                     $newPairs++;
                 }
             }
-            ajaxLog("CROSSLOAD discovery: " . count($discReqs) . " req, +{$newPairs} новых аналогов за " . round(microtime(true) - $tDisc, 2) . "s");
         }
     }
 
@@ -571,7 +561,6 @@ if ($action === 'crossload') {
         $crossPairs
     );
     $skipList = cacheSkipList($lookupPairs, SEARCH_CACHE_SKIP_TTL_HOURS);
-    ajaxLog("CROSSLOAD cache: " . count($skipList) . " supplier×pair пропущено (недавно подтверждённо пусто)");
 
     // ── COVERAGE: brand_orig+article_orig у КАЖДОГО поставщика, который ещё не
     // подтвердил эту пару (ни в Phase1 через _from, ни только что в discovery).
@@ -589,7 +578,6 @@ if ($action === 'crossload') {
             $reqInfo[$key] = [$code, $ck];
         }
     }
-    ajaxLog("CROSSLOAD requests=" . count($allReqs) . " (после вычета Phase1 и заведомо пустых)");
 
     $t0 = microtime(true);
     progWrite($taskId, 10, "Докручиваем аналоги: опрашиваем " . count($allReqs) . " предложений...");
@@ -597,7 +585,6 @@ if ($action === 'crossload') {
     // на хост и тут же подхватывает следующий запрос, не дожидаясь остальных хостов.
     // RATE_SENSITIVE_SUPPLIERS — отдельно, см. curlExecSplit().
     $responses = curlExecSplit($allReqs, fn($key) => $reqInfo[$key][0]);
-    ajaxLog("CROSSLOAD done in " . round(microtime(true) - $t0, 2) . "s responses=" . count(array_filter($responses)));
     progWrite($taskId, 90, 'Обрабатываем ответы поставщиков...');
 
     // ── Разбор ответов ──
@@ -644,7 +631,6 @@ if ($action === 'crossload') {
     foreach ($suppStats as $code => $st) {
         $statsLines[] = "$code:{$st[0]}req/{$st[1]}pass/{$st[2]}add";
     }
-    ajaxLog("CROSSLOAD STATS " . implode(' | ', $statsLines) . " | skipped=" . count($skipList));
 
     foreach ($analogOffers as &$offers) {
         sortOffers($offers);
@@ -757,12 +743,10 @@ if ($action === 'brands') {
     $cachedSearch = cachedTaskResult('search', $taskId);
     if ($cachedSearch !== null) {
         releaseTaskLock($searchLockFp);
-        ajaxLog("PHASE1 DEDUP task=$taskId — отдан кэш вместо повторного запроса");
         echo $cachedSearch;
         exit;
     }
 
-    ajaxLog("PHASE1 START task=$taskId article=$article brand=$brandOrig");
     $tTotal = microtime(true);
 
     $normBrand = BrandNormalizer::normalize($brandOrig);
@@ -785,7 +769,6 @@ if ($action === 'brands') {
 
     $t0 = microtime(true);
     $responses = curlExec($r1Reqs, 15.0);
-    ajaxLog("PHASE1 done in " . round(microtime(true) - $t0, 2) . "s requests=" . count($r1Reqs) . " responses=" . count(array_filter($responses)));
     progWrite($taskId, 75, 'Обрабатываем ответы поставщиков...');
 
     $exactOffers  = [];
@@ -877,7 +860,6 @@ if ($action === 'brands') {
     $crossCount = count($crossPairs);
 
     progWrite($taskId, 100, 'Готово');
-    ajaxLog("PHASE1 done task=$taskId crossPairs=$crossCount exact=" . count($exactOffers) . " analogs=" . count($analogGroups) . " time=" . round(microtime(true) - $tTotal, 2) . "s");
 
     $resp = [];
     if (!empty($exactOffers)) {
@@ -923,7 +905,6 @@ if ($action === 'brands') {
 
     OfferTokenStore::save($taskId, $OFFER_TOKENS);
 
-    ajaxLog("PHASE1 RESPOND task=$taskId time=" . round(microtime(true) - $tTotal, 2) . "s");
     $out = json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_NUMERIC_CHECK);
     saveTaskResult('search', $taskId, $out);
     releaseTaskLock($searchLockFp);

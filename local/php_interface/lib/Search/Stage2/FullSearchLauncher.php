@@ -20,7 +20,6 @@ class FullSearchLauncher
             $p2Results = $this->executePhase2($phase2State);
             $results = array_merge($results, $p2Results);
         }
-        $this->log("TOTAL: " . count($results));
         usort($results, fn($a, $b) => (!$a->isSched && $b->isSched) ? -1 : (($a->isSched && !$b->isSched) ? 1 : $a->price <=> $b->price));
         return $results;
     }
@@ -91,8 +90,6 @@ class FullSearchLauncher
                 }
             } catch (\Throwable $e) {}
         }
-        $this->log("P1: results=" . count($results) . " analogArts=" . count($analogMap));
-
         // Добавляем brandMap в analogMap
         foreach ($brandMap as $gk => $info) {
             [$gkBrand, $gkArt] = array_pad(explode('|', $gk, 2), 2, '');
@@ -142,7 +139,6 @@ class FullSearchLauncher
         }
         if (empty($p2r)) return [];
         $p2Deadline = max(10.0, $deadline * 0.6);
-        $this->log("P2: " . count($p2r) . " for " . count(array_unique(array_column($p2m, 'normArt'))) . " analogs");
         $e2 = new MultiCurlExecutor(); $r2 = $e2->executeAll($p2r, $p2Deadline); $added = 0;
         foreach ($r2 as $key => $resp) {
             if (empty($resp['body'])) continue;
@@ -160,9 +156,6 @@ class FullSearchLauncher
                 }
             } catch (\Throwable $e) {}
         }
-        $this->log("P2 done: +{$added}");
         return $results;
     }
-
-  private function log(string $msg):void{@file_put_contents('/var/www/u3564357/data/www/liderws.ru/upload/logs/fullsearch_'.date('Y-m-d').'.log','['.date('H:i:s').'] '.$msg."\n",FILE_APPEND);}
 }

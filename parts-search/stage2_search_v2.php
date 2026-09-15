@@ -82,9 +82,7 @@ if ($useHybrid) {
     // === ШАГ 1: МГНОВЕННЫЙ поиск по кэшу ===
     $instantStart = microtime(true);
     $cache = new InstantSearcher();
-    file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . " search(article='$normTargetArt', brand='$normTargetBrand')\n", FILE_APPEND);
-$cachedItems = $cache->search($normTargetArt, $normTargetBrand);
-file_put_contents(__DIR__ . '/../upload/logs/debug_cache.log', date('H:i:s') . " found=" . count($cachedItems) . "\n", FILE_APPEND);
+    $cachedItems = $cache->search($normTargetArt, $normTargetBrand);
     $instantMs = round((microtime(true) - $instantStart) * 1000, 1);
     $instantCacheMs = $instantMs; // alias for _hybrid_notice.php
     
