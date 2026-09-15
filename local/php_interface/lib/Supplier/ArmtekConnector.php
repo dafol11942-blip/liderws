@@ -18,6 +18,15 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
     private string $program;
     private int $timeout;
     private bool $lastWithCrosses = false;
+    // Второй адрес — Баки Урманче — тот же аккаунт/договор/покупатель
+    // (VKORG/KUNRG/KUNWE/VBELN), меняется только KUNZA (адрес доставки).
+    // Проверено вживую: createTestOrder с KUNZA=48104498 и ТЕМ ЖЕ VBELN,
+    // что и у дефолтного адреса, прошёл успешно (ERROR:0) — второй VBELN
+    // (40359921), видимый в getUserInfo/DOGOVOR_TAB, для этого адреса
+    // оказался неверным ("По запросу ничего не найдено"), поэтому здесь
+    // переопределяется только KUNZA, как у BergConnector::accountsByWarehouse
+    // (каталог/поиск общий для обоих адресов — не завязан на KUNZA).
+    private array $accountsByWarehouse;
 
     public function __construct(array $config = [])
     {
@@ -39,6 +48,7 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
         $this->vbeln      = (string)($config['VBELN'] ?? '');
         $this->program    = (string)($config['PROGRAM'] ?? '');
         $this->timeout    = (int)($config['TIMEOUT'] ?? 10);
+        $this->accountsByWarehouse = $config['ACCOUNTS_BY_WAREHOUSE'] ?? [];
     }
 
     public function getCode(): string           { return 'armtek'; }
@@ -332,12 +342,22 @@ class ArmtekConnector implements SupplierInterface, SupplierOrderable, SupplierO
 
     public function placeOrder(array $items, bool $test = false): array
     {
+        // Склад/адрес заказа общий на все позиции (order_create_handler.php
+        // проставляет warehouse_code каждой строке из выбранного в форме
+        // адреса) — берём у первой позиции, где он есть.
+        $warehouseCode = '';
+        foreach ($items as $item) {
+            if (!empty($item['warehouse_code'])) { $warehouseCode = (string)$item['warehouse_code']; break; }
+        }
+        $account = ($warehouseCode !== '') ? ($this->accountsByWarehouse[$warehouseCode] ?? null) : null;
+        $kunza   = $account['KUNZA'] ?? $this->kunza;
+
         $fields = [
             'VKORG' => $this->vkorg,
             'KUNRG' => $this->kunrg,
         ];
         if ($this->kunwe !== '')     $fields['KUNWE']     = $this->kunwe;
-        if ($this->kunza !== '')     $fields['KUNZA']     = $this->kunza;
+        if ($kunza !== '')           $fields['KUNZA']     = $kunza;
         if ($this->incoterms !== '') $fields['INCOTERMS'] = $this->incoterms;
         if ($this->vbeln !== '')     $fields['VBELN']     = $this->vbeln;
 

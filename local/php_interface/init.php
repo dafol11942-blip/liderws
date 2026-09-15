@@ -438,6 +438,18 @@ function getSupplierFactory(): \Lider\Supplier\SupplierFactory
             'KUNWE' => '43039417',
             'KUNZA' => '48022996',
             'VBELN' => '40359920',
+            // Второй адрес — Баки Урманче — ТОТ ЖЕ аккаунт/покупатель/договор
+            // (проверено через getUserInfo/STRUCTURE=1: под тем же KUNRG=43039417
+            // в ZA_TAB есть второй KUNNR=48104498 — "...Елабуга, ул. Урманче,
+            // 17А"), меняется только KUNZA. Второй VBELN из DOGOVOR_TAB
+            // (40359921) для этого адреса не подошёл ("По запросу ничего не
+            // найдено" на живом createTestOrder) — используется тот же VBELN,
+            // что и у дефолтного адреса (см. ArmtekConnector::placeOrder()).
+            'ACCOUNTS_BY_WAREHOUSE' => [
+                'baki_urmanche' => [
+                    'KUNZA' => '48104498',
+                ],
+            ],
         ]));
         $factory->register(new \Lider\Supplier\ShateMConnector([
             'API_KEY' => 'aa290d6a-2e79-4f2c-858e-c9cf5c9899f3',
