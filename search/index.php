@@ -786,7 +786,8 @@ function renderResults(d){
         h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title"><svg class="icon"><use href="#icon-refresh"></use></svg> Аналоги ('+analogsVisible.length+')</span></div>';
         analogsVisible.forEach(function(a){
             var groupHasMore=a.suppliers.length>2;
-            h+='<div class="ft-group"><div class="ft-ghead"'+(groupHasMore?' data-ft-toggle':'')+'><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span>'+renderAnalogCrossBlock(analogCrossInfo[a.key])+'</div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery_offer?dRange(a.best_delivery_offer):'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty_label+'</span>'+(groupHasMore?'<button type="button" class="ft-gtoggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div></div>';
+            h+='<div class="ft-group"><div class="ft-ghead"'+(groupHasMore?' data-ft-toggle':'')+'><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span>'+renderAnalogCrossIcon(analogCrossInfo[a.key])+'</div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery_offer?dRange(a.best_delivery_offer):'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty_label+'</span>'+(groupHasMore?'<button type="button" class="ft-gtoggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div></div>';
+            h+=renderAnalogCrossDetails(analogCrossInfo[a.key]);
             h+='<div class="ft-gbody">'+supplierTable(a.suppliers,'analog',a.brand,a.article,a.key)+'</div>';
             h+='</div>';
         });
@@ -918,43 +919,52 @@ function loadAnalogCrossInfo(analogs){
     }).catch(function(){});
 }
 
-// Компактная карточка UMAPI в шапке группы аналога: значок-ссылка на фото, наименование,
-// и — если есть характеристики/OEM/замены — раскрываемый блок (нативный <details>, без
-// доп. JS на раскрытие). Если полезных данных нет вовсе, data ещё не пришли или пришёл
-// success:false — блок не рисуется совсем.
-function renderAnalogCrossBlock(data){
+// Значок-ссылка на фото + наименование из UMAPI — рисуется ПРЯМО в шапке группы (.ft-ghead),
+// поэтому остаётся компактным инлайновым элементом. Раскрываемые параметры (see
+// renderAnalogCrossDetails ниже) намеренно НЕ здесь: .ft-ghead — флекс с переносом строк и
+// собственным click-toggle (раскрытие списка складов), и раскрытие параметров внутри него
+// раздувало строку и сдвигало стрелку toggle вниз. Если данных нет — ничего не рисуется.
+function renderAnalogCrossIcon(data){
     if(!data || !data.success) return '';
-    var h='<div class="ft-gcross">';
+    var h='';
     if(data.img){
         h+='<button type="button" class="ft-gcross-icon" title="Смотреть фото" onclick="event.stopPropagation();openImageZoom(this.querySelector(\'img\').src)"><img src="'+esc(data.img)+'" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest(\'.ft-gcross-icon\').style.display=\'none\'"></button>';
     }
     if(data.title){
         h+='<span class="ft-gcross-title">'+esc(data.title)+'</span>';
     }
+    return h ? '<span class="ft-gcross">'+h+'</span>' : '';
+}
+
+// Раскрываемый блок характеристик/OEM/замен — отдельной строкой МЕЖДУ .ft-ghead и таблицей
+// складов (.ft-gbody), а не внутри шапки: так раскрытие/сворачивание не задевает layout
+// шапки (брэнд/артикул/стрелка toggle остаются на месте) и не пересекается с её собственным
+// click-обработчиком раскрытия складов. Нативный <details> — сворачивание работает само,
+// без доп. JS. Если раскрывать нечего (нет характеристик/OEM/замен) — блока нет вовсе.
+function renderAnalogCrossDetails(data){
+    if(!data || !data.success) return '';
     var hasExtra=(data.criterias&&data.criterias.length)||(data.oem&&data.oem.length)||(data.superseded&&((data.superseded.new&&data.superseded.new.length)||(data.superseded.old&&data.superseded.old.length)));
-    if(hasExtra){
-        h+='<details class="ft-gcross-dt" onclick="event.stopPropagation()"><summary class="ft-gcross-sum">Параметры</summary><div class="ft-gcross-body">';
-        if(data.criterias&&data.criterias.length){
-            h+='<div class="phead-specs">';
-            data.criterias.forEach(function(c){
-                h+='<span class="phead-spec"><span class="phead-spec-label">'+esc(c.label)+':</span> '+esc(c.value)+'</span>';
-            });
-            h+='</div>';
-        }
-        if(data.oem&&data.oem.length){
-            h+='<div class="phead-oem"><span class="phead-oem-label">OEM:</span> '+data.oem.map(esc).join(', ')+'</div>';
-        }
-        if(data.superseded){
-            if(data.superseded.new&&data.superseded.new.length){
-                h+='<div class="phead-superseded">Заменён на: '+data.superseded.new.map(esc).join(', ')+'</div>';
-            }
-            if(data.superseded.old&&data.superseded.old.length){
-                h+='<div class="phead-superseded">Заменяет: '+data.superseded.old.map(esc).join(', ')+'</div>';
-            }
-        }
-        h+='</div></details>';
+    if(!hasExtra) return '';
+    var h='<details class="ft-gcross-details"><summary class="ft-gcross-sum">Параметры</summary><div class="ft-gcross-body">';
+    if(data.criterias&&data.criterias.length){
+        h+='<div class="phead-specs">';
+        data.criterias.forEach(function(c){
+            h+='<span class="phead-spec"><span class="phead-spec-label">'+esc(c.label)+':</span> '+esc(c.value)+'</span>';
+        });
+        h+='</div>';
     }
-    h+='</div>';
+    if(data.oem&&data.oem.length){
+        h+='<div class="phead-oem"><span class="phead-oem-label">OEM:</span> '+data.oem.map(esc).join(', ')+'</div>';
+    }
+    if(data.superseded){
+        if(data.superseded.new&&data.superseded.new.length){
+            h+='<div class="phead-superseded">Заменён на: '+data.superseded.new.map(esc).join(', ')+'</div>';
+        }
+        if(data.superseded.old&&data.superseded.old.length){
+            h+='<div class="phead-superseded">Заменяет: '+data.superseded.old.map(esc).join(', ')+'</div>';
+        }
+    }
+    h+='</div></details>';
     return h;
 }
 
