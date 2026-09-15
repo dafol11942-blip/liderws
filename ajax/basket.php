@@ -18,12 +18,23 @@ if (!in_array($action, ['update', 'delete', 'clear', 'select', 'selectAll', 'sta
     exit;
 }
 
-if ($action === 'update' && $qty > 0 && $qty <= 999) {
-    CSaleBasket::Update($id, ['QUANTITY' => $qty]);
-}
-
-if ($action === 'delete') {
-    CSaleBasket::Delete($id);
+// update/delete раньше действовали на $id без проверки владельца — CSaleBasket::
+// Update()/Delete() (старый D6 API) сами такую проверку не делают, поэтому
+// любой посетитель мог менять/удалять чужие позиции в корзине, зная её ID
+// (см. security review). Как и в action=select/stashUnselected/clear ниже —
+// сначала грузим корзину ТЕКУЩЕГО fuser'а и действуем только на найденном в
+// ней элементе.
+if (($action === 'update' && $qty > 0 && $qty <= 999) || $action === 'delete') {
+    $ownBasket = \Bitrix\Sale\Basket::loadItemsForFUser(CSaleBasket::GetBasketUserID(), SITE_ID);
+    $ownItem = $ownBasket->getItemById($id);
+    if ($ownItem) {
+        if ($action === 'update') {
+            $ownItem->setField('QUANTITY', $qty);
+        } else {
+            $ownItem->delete();
+        }
+        $ownBasket->save();
+    }
 }
 
 // Чекбокс позиции в корзине хранится как свойство CART_SELECTED ('Y'/'N').

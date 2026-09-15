@@ -19,8 +19,25 @@ if ($orderId <= 0) {
     return;
 }
 
+// NOT_CHECK_PERMISSIONS отключает только модульные проверки Bitrix, поэтому
+// владельца заказа нужно проверить самим — раньше ORDER_ID из запроса шёл в
+// SQL без вообще какой-либо авторизации, и статус ЛЮБОГО заказа можно было
+// узнать простым перебором ID (см. security review).
+global $USER;
+if (!$USER->IsAuthorized()) {
+    echo json_encode(['status' => 'unknown']);
+    return;
+}
+
 try {
     $db = \Bitrix\Main\Application::getConnection();
+
+    $owner = $db->query("SELECT USER_ID FROM b_sale_order WHERE ID = {$orderId}")->fetch();
+    if (!$owner || (int)$owner['USER_ID'] !== (int)$USER->GetID()) {
+        echo json_encode(['status' => 'unknown']);
+        return;
+    }
+
     $hold = $db->query(
         "SELECT DISPATCHED, CANCELED FROM b_supplier_order_payment_hold WHERE ORDER_ID = {$orderId}"
     )->fetch();

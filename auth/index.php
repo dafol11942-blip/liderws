@@ -3,8 +3,14 @@ require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 
 global $USER;
 
+// Разрешаем редирект только на относительный путь этого же сайта. Раньше
+// проверялся только первый символ ('/'), из-за чего "//evil.example/x"
+// (тоже начинается с '/') проходило как валидный backurl — браузер трактует
+// протокол-относительный URL как переход на ДРУГОЙ домен: window.location.href
+// ниже и LocalRedirect() увели бы пользователя на сторонний сайт сразу после
+// настоящей SMS-верификации — классическая фишинг-схема (см. security review).
 $backurl = (string)($_REQUEST['backurl'] ?? '/personal/');
-if ($backurl === '' || $backurl[0] !== '/') {
+if (!preg_match('~^/[^/\\\\]~', $backurl) || parse_url($backurl, PHP_URL_HOST) !== null) {
     $backurl = '/personal/';
 }
 

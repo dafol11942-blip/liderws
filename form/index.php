@@ -7,6 +7,27 @@ define('STOP_STATISTICS', true);
 require_once($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/include/prolog_before.php');
 $GLOBALS['APPLICATION']->RestartBuffer();
 
+// Защита от спам-ботов (см. security review): раньше сюда мог отправить
+// запрос кто угодно без проверки источника — ни CSRF-токена, ни honeypot-поля
+// не было, а каждая отправка создаёт элемент инфоблока и шлёт письмо в отдел
+// продаж (CEvent::Send ниже). Сейчас на сайте нет действующей формы, которая
+// сюда отправляет данные без sessid (актуальный шаблон lider_modern к этому
+// эндпоинту не обращается), поэтому требование валидного bitrix_sessid ничего
+// не ломает и полностью закрывает "слепые" POST-запросы ботов; honeypot —
+// дополнительный слой на случай новой формы, которая сюда подключится позже.
+if (!check_bitrix_sessid()) {
+    http_response_code(403);
+    echo json_encode(['Error' => 'Y', 'Text' => 'Проверка безопасности не пройдена, обновите страницу']);
+    exit;
+}
+if (trim((string)($_REQUEST['website'] ?? '')) !== '') {
+    // Honeypot-поле "website" — скрыто CSS для людей, но простые боты,
+    // заполняющие все поля формы подряд, в него попадаются. Отвечаем так,
+    // будто всё прошло успешно, но заявку не сохраняем и письмо не шлём.
+    echo json_encode(['Error' => 'N', 'Text' => 'Спасибо!']);
+    exit;
+}
+
 ?>
 <?
 CModule::IncludeModule("iblock");

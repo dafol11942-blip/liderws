@@ -8,8 +8,11 @@ if (!$USER->IsAuthorized()) {
     die();
 }
 
+// См. ту же проверку и её обоснование в auth/index.php — только один
+// ведущий '/' и без host-компонента, иначе "//evil.example/x" уводит на
+// сторонний домен (открытый редирект/фишинг).
 $backurl = (string)($_REQUEST['backurl'] ?? '/personal/');
-if ($backurl === '' || $backurl[0] !== '/') {
+if (!preg_match('~^/[^/\\\\]~', $backurl) || parse_url($backurl, PHP_URL_HOST) !== null) {
     $backurl = '/personal/';
 }
 
