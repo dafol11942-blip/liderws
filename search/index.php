@@ -39,6 +39,14 @@ if ($searchQueryRaw !== '' && empty($_REQUEST['brand'])) {
     }
 }
 
+// Подключаем свою вёрстку страницы поиска через штатный SetAdditionalCSS —
+// раньше здесь после require(header.php) шёл собственный <!DOCTYPE html>
+// <html><head>...</head><body>, что давало ВЛОЖЕННЫЙ документ поверх уже
+// открытого шаблоном сайта (два <html>/<head>/<body>, два viewport-meta).
+// Браузеры это «прощают» через HTML5-парсер, но разметка невалидна —
+// подключаем CSS правильно, одним общим <head> сайта.
+$APPLICATION->SetAdditionalCSS('/search/style.css');
+
 require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 CModule::IncludeModule('iblock');
 CModule::IncludeModule('catalog');
@@ -53,24 +61,17 @@ $q      = trim($_REQUEST['q'] ?? '');
 $brand  = trim($_REQUEST['brand'] ?? '');
 $number = trim($_REQUEST['number'] ?? '');
 
-// Заголовок вкладки браузера — страница верстает свой <head> вручную (не через шаблон
-// сайта), но title.php шаблона (см. header.php) выводит <title>$APPLICATION->ShowTitle()</title>
-// ПЕРВЫМ в документе; без SetPageProperty тут ShowTitle() отдаёт дефолтный "Title",
-// и браузер берёт именно его, а не второй <title> ниже по странице.
+// Заголовок вкладки браузера: title.php шаблона (см. header.php) выводит
+// <title><?=$APPLICATION->ShowTitle()?></title> ПЕРВЫМ в документе — уже во
+// время require(bitrix/header.php) выше, до этой строки. SetPageProperty
+// здесь фактически на title не влияет (используется другим кодом шаблона/SEO).
 $searchTitle = ($q ? ($brand . ' ' . $number ?: $q) : 'Поиск запчастей') . ' — liderws.ru';
 $APPLICATION->SetPageProperty('title', $searchTitle);
 
 function fmt($n) { return number_format((float)$n, 2, ',', ' '); }
 function esc($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
-?><!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="stylesheet" href="/search/style.css">
-</head>
-<body>
-
+?>
 <div class="container srch-box">
 
 <?php if (!$q): ?>
@@ -1150,5 +1151,4 @@ document.addEventListener('DOMContentLoaded',function(){loadResults();loadCrossI
 </script>
 <?php endif; ?>
 
-</body></html>
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/footer.php"); ?>

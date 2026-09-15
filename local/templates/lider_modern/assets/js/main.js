@@ -74,6 +74,61 @@ function updateBasketItem(id, quantity) {
     }
 })();
 
+// Панель магазина в верхней полосе (адрес/график/телефоны) — на десктопе
+// открывается по :hover (CSS), но на тач-экранах hover не срабатывает,
+// поэтому дублируем открытие/закрытие по тапу через класс is-open.
+(function() {
+    var stores = document.querySelectorAll('.top-bar__store');
+    if (!stores.length) return;
+
+    stores.forEach(function(store) {
+        var toggle = store.querySelector('.top-bar__store-toggle');
+        if (!toggle) return;
+        toggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var wasOpen = store.classList.contains('is-open');
+            stores.forEach(function(s) { s.classList.remove('is-open'); });
+            if (!wasOpen) store.classList.add('is-open');
+        });
+    });
+
+    document.addEventListener('click', function(e) {
+        stores.forEach(function(store) {
+            if (!store.contains(e.target)) store.classList.remove('is-open');
+        });
+    });
+})();
+
+// Подменю разделов шапки (Масла/Фильтры/Тормозные колодки/Автосервис) —
+// на десктопе раскрываются по :hover (CSS), но на тач-экранах первый тап
+// по ссылке должен раскрыть список подпунктов, а не сразу уводить со
+// страницы (второй тап по уже открытому пункту идёт по ссылке как обычно).
+(function() {
+    var wrappers = document.querySelectorAll('.nav-dropdown-wrapper');
+    if (!wrappers.length) return;
+
+    wrappers.forEach(function(wrapper) {
+        var link = wrapper.querySelector(':scope > a');
+        if (!link) return;
+        link.addEventListener('click', function(e) {
+            if (window.innerWidth > 1024) return;
+            if (!wrapper.classList.contains('open')) {
+                e.preventDefault();
+                wrappers.forEach(function(w) {
+                    if (w !== wrapper) w.classList.remove('open');
+                });
+                wrapper.classList.add('open');
+            }
+        });
+    });
+
+    document.addEventListener('click', function(e) {
+        wrappers.forEach(function(w) {
+            if (!w.contains(e.target)) w.classList.remove('open');
+        });
+    });
+})();
+
 // Кнопка «Наверх»
 (function() {
     var btn = document.getElementById('backToTop');
@@ -125,6 +180,22 @@ function updateBasketItem(id, quantity) {
     var mainPanel = document.getElementById('catalogMain');
     if (!filterPanel || !mainPanel) return;
 
+    // Мобильный/планшетный доступ к фильтру (≤1024px, см. style.css):
+    // сайдбар прячется за экран и выезжает панелью по кнопке.
+    var layout = document.querySelector('.catalog-layout');
+    var filterToggleBtn = document.getElementById('catalogFilterToggle');
+    var filterBackdrop = document.getElementById('catalogFilterBackdrop');
+    function openMobileFilter() {
+        if (layout) layout.classList.add('filter-open');
+        document.body.classList.add('catalog-filter-locked');
+    }
+    function closeMobileFilter() {
+        if (layout) layout.classList.remove('filter-open');
+        document.body.classList.remove('catalog-filter-locked');
+    }
+    if (filterToggleBtn) filterToggleBtn.addEventListener('click', openMobileFilter);
+    if (filterBackdrop) filterBackdrop.addEventListener('click', closeMobileFilter);
+
     var currentAbort = null;
     var debounceTimer = null;
 
@@ -173,6 +244,7 @@ function updateBasketItem(id, quantity) {
                 mainPanel.innerHTML = data.results;
                 history.pushState(null, '', url);
                 initSliders();
+                closeMobileFilter();
             })
             .catch(function(e) {
                 if (e.name !== 'AbortError') window.location.href = url;
@@ -242,6 +314,11 @@ function updateBasketItem(id, quantity) {
     });
 
     filterPanel.addEventListener('click', function(e) {
+        if (e.target.closest('#catalogFilterClose')) {
+            closeMobileFilter();
+            return;
+        }
+
         var treeToggle = e.target.closest('.filter__tree-toggle');
         if (treeToggle) {
             e.preventDefault();

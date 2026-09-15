@@ -227,9 +227,15 @@ if ($sectionId > 0) {
 ?>
 <?php if (!$isElement): ?>
 <div class="catalog-layout">
+    <button type="button" class="catalog-filter-toggle" id="catalogFilterToggle">
+        <svg class="icon"><use href="#icon-filter"></use></svg> Фильтр
+    </button>
+    <div class="catalog-filter-backdrop" id="catalogFilterBackdrop"></div>
     <aside class="catalog-sidebar" id="catalogFilterPanel">
     <?php ob_start(); ?>
-        <h3><svg class="icon"><use href="#icon-filter"></use></svg> Фильтр</h3>
+        <h3><svg class="icon"><use href="#icon-filter"></use></svg> Фильтр
+            <button type="button" class="catalog-filter-close" id="catalogFilterClose" aria-label="Закрыть фильтр">&times;</button>
+        </h3>
 
         <div class="filter__box">
             <div class="filter__title" onclick="this.parentElement.classList.toggle('closed')">
