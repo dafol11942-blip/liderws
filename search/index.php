@@ -65,10 +65,10 @@ $q      = trim($_REQUEST['q'] ?? '');
 $brand  = trim($_REQUEST['brand'] ?? '');
 $number = trim($_REQUEST['number'] ?? '');
 
-// Заголовок вкладки браузера: title.php шаблона (см. header.php) выводит
-// <title><?=$APPLICATION->ShowTitle()?></title> ПЕРВЫМ в документе — уже во
-// время require(bitrix/header.php) выше, до этой строки. SetPageProperty
-// здесь фактически на title не влияет (используется другим кодом шаблона/SEO).
+// Заголовок вкладки браузера: title.php шаблона (см. header.php) выводит тег
+// title через ShowTitle() ПЕРВЫМ в документе — уже во время require(header.php)
+// выше, до этой строки. SetPageProperty здесь фактически на title не влияет
+// (используется другим кодом шаблона/SEO).
 $searchTitle = ($q ? ($brand . ' ' . $number ?: $q) : 'Поиск запчастей') . ' — liderws.ru';
 $APPLICATION->SetPageProperty('title', $searchTitle);
 
