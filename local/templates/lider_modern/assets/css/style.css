@@ -290,8 +290,8 @@ ul, ol { list-style: none; }
 .header__icon { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; font-size: 18px; background: var(--bg); border-radius: var(--radius); text-decoration: none !important; transition: all var(--transition); box-shadow: var(--shadow-sm); position: relative; }
 .header__icon:hover { background: #e0e0e0; box-shadow: var(--shadow); }
 .header__icon .badge {
-    position: absolute; top: -2px; right: -2px; background: var(--red); color: #fff;
-    font-size: 10px; font-weight: 700; width: 18px; height: 18px; border-radius: 50%;
+    position: absolute; top: 3px; right: 3px; background: var(--red); color: #fff;
+    font-size: 10px; font-weight: 700; width: 16px; height: 16px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     box-shadow: 0 0 0 2px var(--white);
 }
@@ -1234,7 +1234,7 @@ body.catalog-filter-locked { overflow: hidden; }
     .catalog-btn__burger::before { top: -4px; }
     .catalog-btn__burger::after  { top:  4px; }
     .header__icon { width: 36px; height: 36px; font-size: 16px; }
-    .header__icon .badge { width: 15px; height: 15px; font-size: 9px; top: -2px; right: -2px; }
+    .header__icon .badge { width: 14px; height: 14px; font-size: 9px; top: 2px; right: 2px; }
     .search-form input { padding: 9px 10px; font-size: 13px; }
     .search-form button { padding: 9px 12px; font-size: 14px; }
     .header-nav__menu a { padding: 8px 10px; font-size: 11px; gap: 4px; }
