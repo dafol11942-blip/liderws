@@ -60,7 +60,7 @@ class BrandNormalizer
 
     private static array $partials = [
         'SANGSIN'=>['hi-q','hi q','hiq','sangsin','sang sin'],
-        'MANN-FILTER'=>['mann-filter','mann filter','mannfilter','mann'],
+        'MANN-FILTER'=>['mann-filter','mann filter','mannfilter'],
         'LYNXauto'=>['lynxauto','lynx auto','lynx'],
         'JAPANPARTS'=>['japanparts','japan parts'],
         'NIPPARTS'=>['nipparts','nip parts'],
