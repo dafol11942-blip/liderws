@@ -65,7 +65,7 @@ $favCatalogIds = $USER->IsAuthorized()
                     </div>
                 </div>
                 <?php if ($inStock): ?>
-                <div style="display:flex;align-items:center;gap:6px;">
+                <div class="product-card__actions">
                     <div class="qty-box">
                         <button type="button" onclick="qtyDown(this)">−</button>
                         <input type="number" value="1" min="1" max="99" class="qty-input" style="width:40px;">

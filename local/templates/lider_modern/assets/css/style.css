@@ -225,7 +225,14 @@ ul, ol { list-style: none; }
     border-radius: 0 0 var(--radius) var(--radius);
     z-index: 200; min-width: 760px; max-width: 920px;
 }
-.catalog-dropdown-wrapper:hover .catalog-dropdown { display: flex; }
+/* Раскрытие по :hover — только там, где JS реально ждёт наведения (см. main.js:
+   клик переключает .open лишь при window.innerWidth <= 768). Без этого ограничения
+   :hover на тач-экранах может "залипнуть" после тапа и открыть десктопное меню
+   (min-width 760-920px) на узком экране — сайт выглядит как несмасштабированная
+   десктопная версия вместо адаптивной. */
+@media (min-width: 769px) {
+    .catalog-dropdown-wrapper:hover .catalog-dropdown { display: flex; }
+}
 
 .catalog-dropdown__nav {
     flex-shrink: 0;
@@ -435,6 +442,7 @@ ul, ol { list-style: none; }
 .product-card__price .currency { font-size: 12px; font-weight: 500; color: var(--gray); }
 .product-card__old-price { font-size: 13px; color: var(--gray-light); text-decoration: line-through; margin-bottom: 2px; }
 .product-card .btn { padding: 8px 14px; font-size: 12px; }
+.product-card__actions { display: flex; align-items: center; gap: 6px; }
 
 /* =============================================
    КАТАЛОГ (страница)
@@ -1141,6 +1149,13 @@ body.catalog-filter-locked { overflow: hidden; }
     .catalog-section .product-item-title { font-size: 11px !important; }
     .catalog-section .product-item-price-current { font-size: 15px !important; }
     .catalog-section .product-item-info-container { padding: 10px 12px 14px; }
+    /* На 2-колоночной сетке карточке не хватает ширины для рядов "количество + В корзину"
+       в один ряд — надпись обрезалась/наезжала на цену (см. баг-репорт). Переносим блок
+       действий на всю ширину карточки и укладываем количество и кнопку друг под другом. */
+    .product-card__footer { align-items: flex-start; }
+    .product-card__actions { flex-basis: 100%; flex-direction: column; align-items: stretch; gap: 6px; }
+    .product-card__actions .qty-box { width: 100%; justify-content: space-between; }
+    .product-card__actions .add-to-cart-link { width: 100%; }
     .basket-table thead { display: none; }
     .basket-table tr { display: block; margin-bottom: 12px; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
     .basket-table td { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
