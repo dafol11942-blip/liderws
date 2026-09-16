@@ -392,7 +392,21 @@
        на Android Chrome при рабочей вёрстке в iOS Safari. --- */
     .ft-tbl { display: block; width: 100%; border-collapse: separate; }
     .ft-td--act .actl { justify-content: flex-start; }
-    .ft-tbl thead { display: none; }
+    /* thead целиком скрывать нельзя — там же живёт единственный интерактивный
+       элемент таблицы, сортировка по цене (th.ft-th--sort, cyclePriceSort()).
+       Прячем остальные заголовки (они и так дублируются подписями data-label
+       у каждой карточки склада), а сортировку показываем отдельной кнопкой-
+       чипом над таблицей — то же самое действие, что и на десктопе. */
+    .ft-tbl thead { display: block; margin-bottom: 8px; }
+    .ft-tbl thead tr { display: flex; justify-content: flex-end; }
+    .ft-tbl thead th { display: none; }
+    .ft-tbl thead th.ft-th--sort {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 6px 12px; font-size: 12px; font-weight: 700; text-transform: none;
+        letter-spacing: normal; color: var(--black); background: var(--white);
+        border: 1px solid var(--border); border-radius: 999px; cursor: pointer;
+    }
+    .ft-tbl thead th.ft-th--sort-active { border-color: var(--blue); color: var(--blue); background: rgba(102,139,234,.08); }
     .ft-tbl tbody { display: block; }
     /* Каждый склад — отдельная карточка с явной границей (внутренние поля
        иначе сливались друг с другом и с соседней позицией сплошным текстом). */
