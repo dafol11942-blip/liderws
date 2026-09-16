@@ -8,9 +8,12 @@ header('Content-Type: application/json; charset=utf-8');
 
 global $USER;
 
+error_log('DEBUG mobileid_siteverify: start, IsAuthorized=' . ($USER->IsAuthorized() ? 'Y' : 'N') . ', PHPSESSID=' . ($_COOKIE['PHPSESSID'] ?? 'none'));
+
 // Уже авторизован (например, повторный вызов события verified) — не создаём
 // второй аккаунт и не переавторизуем сессию, просто подтверждаем текущее состояние.
 if ($USER->IsAuthorized()) {
+    error_log('DEBUG mobileid_siteverify: EARLY RETURN — уже авторизован, Authorize() не вызывается');
     $arCurrentUser = \CUser::GetByID($USER->GetID())->Fetch();
     echo json_encode([
         'success'    => true,
@@ -66,6 +69,8 @@ try {
 }
 
 $USER->Authorize($userId, true);
+
+error_log('DEBUG mobileid_siteverify: после Authorize(), IsAuthorized=' . ($USER->IsAuthorized() ? 'Y' : 'N') . ', GetID=' . $USER->GetID() . ', headers_sent=' . (headers_sent() ? 'Y' : 'N'));
 
 echo json_encode([
     'success'    => true,
