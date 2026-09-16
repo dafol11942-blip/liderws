@@ -4,24 +4,32 @@ require_once($_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_be
 use Lider\Auth\PhoneNumberNormalizer;
 use Lider\Auth\PhoneUserService;
 
+// Скрипт не подключает epilog/header.php, поэтому куки и заголовки, поставленные
+// через $USER->Authorize() (Bitrix\Main\HttpResponse), никогда не долетали бы до
+// браузера без явного Application::end() — оборачиваем весь вывод в буфер и всегда
+// завершаемся через него вместо голого exit.
+ob_start();
+
 header('Content-Type: application/json; charset=utf-8');
 
 global $USER;
 
-error_log('DEBUG mobileid_siteverify: start, IsAuthorized=' . ($USER->IsAuthorized() ? 'Y' : 'N') . ', PHPSESSID=' . ($_COOKIE['PHPSESSID'] ?? 'none'));
+function mobileidRespond(array $data): void
+{
+    echo json_encode($data);
+    \Bitrix\Main\Application::getInstance()->end();
+}
 
 // Уже авторизован (например, повторный вызов события verified) — не создаём
 // второй аккаунт и не переавторизуем сессию, просто подтверждаем текущее состояние.
 if ($USER->IsAuthorized()) {
-    error_log('DEBUG mobileid_siteverify: EARLY RETURN — уже авторизован, Authorize() не вызывается');
     $arCurrentUser = \CUser::GetByID($USER->GetID())->Fetch();
-    echo json_encode([
+    mobileidRespond([
         'success'    => true,
         'phone'      => $arCurrentUser['PERSONAL_PHONE'] ?? '',
         'authorized' => true,
         'is_new'     => false,
     ]);
-    exit;
 }
 
 $input = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -30,8 +38,7 @@ $verifyToken = (string)($input['verify_token'] ?? '');
 
 if ($sessionId === '' || $verifyToken === '') {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'session_id и verify_token обязательны']);
-    exit;
+    mobileidRespond(['success' => false, 'message' => 'session_id и verify_token обязательны']);
 }
 
 // Согласие на обработку персональных данных (152-ФЗ) — форма на /auth/
@@ -39,24 +46,21 @@ if ($sessionId === '' || $verifyToken === '') {
 // проверке, дублируем на сервере.
 if (($input['agree_pd'] ?? '') !== 'Y') {
     http_response_code(200);
-    echo json_encode(['success' => false, 'message' => 'Подтвердите согласие на обработку персональных данных']);
-    exit;
+    mobileidRespond(['success' => false, 'message' => 'Подтвердите согласие на обработку персональных данных']);
 }
 
 [$status, $body] = getMobileIdClient()->siteVerify($sessionId, $verifyToken);
 
 if ($status !== 200 || empty($body['success']) || ($body['status'] ?? '') !== 'verified') {
     http_response_code(200);
-    echo json_encode(['success' => false, 'message' => 'Верификация не подтверждена']);
-    exit;
+    mobileidRespond(['success' => false, 'message' => 'Верификация не подтверждена']);
 }
 
 // Телефону из ответа MobileID (server-to-server) доверяем; клиентский phone игнорируем.
 $normalizedPhone = PhoneNumberNormalizer::normalize((string)($body['phone'] ?? ''));
 if ($normalizedPhone === null) {
     http_response_code(200);
-    echo json_encode(['success' => false, 'message' => 'Некорректный номер телефона от сервиса верификации']);
-    exit;
+    mobileidRespond(['success' => false, 'message' => 'Некорректный номер телефона от сервиса верификации']);
 }
 
 try {
@@ -64,15 +68,12 @@ try {
 } catch (\Throwable $e) {
     error_log('mobileid_siteverify: findOrCreateUserId упал: ' . $e->getMessage());
     http_response_code(200);
-    echo json_encode(['success' => false, 'message' => 'Не удалось создать пользователя']);
-    exit;
+    mobileidRespond(['success' => false, 'message' => 'Не удалось создать пользователя']);
 }
 
 $USER->Authorize($userId, true);
 
-error_log('DEBUG mobileid_siteverify: после Authorize(), IsAuthorized=' . ($USER->IsAuthorized() ? 'Y' : 'N') . ', GetID=' . $USER->GetID() . ', headers_sent=' . (headers_sent() ? 'Y' : 'N'));
-
-echo json_encode([
+mobileidRespond([
     'success'    => true,
     'phone'      => $normalizedPhone,
     'authorized' => true,
