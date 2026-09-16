@@ -746,7 +746,13 @@ function renderFilterBar(d){
 
     var isActive = isFilterActive();
 
-    var h = '<button type="button" class="filter-bar-toggle' + (filterBarOpen ? ' filter-bar-toggle--open' : '') + '" onclick="toggleFilterBarOpen()"><svg class="icon"><use href="#icon-filter"></use></svg> Фильтры' + (isActive ? '<span class="filter-bar-toggle-dot"></span>' : '') + '<span class="filter-bar-toggle-arrow">▾</span></button>';
+    // .filter-bar-wrap держит кнопку-тоггл и саму панель в одном sticky-блоке —
+    // иначе на мобильном (где тоггл прилипает к шапке при скролле, а панель как
+    // отдельный sticky-элемент остаётся в своей исходной позиции в документе)
+    // открытая панель разворачивалась там, где кнопка была ДО скролла, а не под
+    // тем местом, где она сейчас визуально прилипла — выглядело как "не раскрывается".
+    var h = '<div class="filter-bar-wrap">';
+    h += '<button type="button" class="filter-bar-toggle' + (filterBarOpen ? ' filter-bar-toggle--open' : '') + '" onclick="toggleFilterBarOpen()"><svg class="icon"><use href="#icon-filter"></use></svg> Фильтры' + (isActive ? '<span class="filter-bar-toggle-dot"></span>' : '') + '<span class="filter-bar-toggle-arrow">▾</span></button>';
     h += '<div class="filter-bar' + (filterBarOpen ? ' is-open' : '') + '">';
 
     if (IS_MANAGER) {
@@ -793,7 +799,8 @@ function renderFilterBar(d){
     h += '</div></details>';
 
     h += '<button type="button" class="filter-reset' + (isActive ? '' : ' filter-reset--idle') + '"' + (isActive ? '' : ' disabled') + ' onclick="resetFilters()">Сбросить фильтры</button>';
-    h += '</div>';
+    h += '</div>'; // .filter-bar
+    h += '</div>'; // .filter-bar-wrap
     return h;
 }
 

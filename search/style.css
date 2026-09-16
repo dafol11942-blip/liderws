@@ -321,11 +321,14 @@
 .toast::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #fff; margin-right: 10px; vertical-align: middle; opacity: 0.8; }
 
 /* ====== ФИЛЬТР (выпадающие списки) ====== */
+/* Тоггл и сама панель — в одном sticky-блоке (см. комментарий в renderFilterBar,
+   search/index.php): иначе на мобильном они "прилипают" к шапке независимо друг
+   от друга и открытая панель рисуется не под кнопкой. */
+.filter-bar-wrap { position: sticky; top: var(--search-header-h, 73px); z-index: 60; }
 .filter-bar {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
     padding: 10px 14px; margin-bottom: 16px; box-shadow: var(--shadow-sm);
-    position: sticky; top: var(--search-header-h, 73px); z-index: 60;
 }
 /* Кнопка-тоггл панели фильтров — только на мобильном (см. @media ниже),
    на десктопе фильтры всегда видны как есть. */
@@ -387,15 +390,26 @@
        раскладки родителя и по-разному (и криво) считается в разных
        браузерах — отсюда "скачущие" колонки и перенос текста по буквам
        на Android Chrome при рабочей вёрстке в iOS Safari. --- */
-    .ft-tbl { display: block; width: 100%; }
+    .ft-tbl { display: block; width: 100%; border-collapse: separate; }
     .ft-td--act .actl { justify-content: flex-start; }
     .ft-tbl thead { display: none; }
     .ft-tbl tbody { display: block; }
-    .ft-tbl tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+    /* Каждый склад — отдельная карточка с явной границей (внутренние поля
+       иначе сливались друг с другом и с соседней позицией сплошным текстом). */
+    .ft-tbl tbody tr {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; padding: 12px;
+        border: 1px solid var(--border); border-radius: var(--radius-sm);
+        margin-bottom: 8px; background: var(--white);
+    }
+    .ft-tbl tbody tr:last-child { margin-bottom: 0; }
+    .ft-tbl tbody tr:nth-child(even) { background: var(--bg); }
+    .ft-tbl tbody tr:hover { background: var(--bg); }
     .ft-tbl tbody td { display: block; text-align: left !important; padding: 0; white-space: normal; border-bottom: none; }
     .ft-tbl tbody td.ft-td--det,
     .ft-tbl tbody td.ft-td--act { grid-column: 1 / -1; }
-    .ft-tbl tbody td.ft-td--act { display: flex; justify-content: flex-start; flex-wrap: wrap; margin-top: 4px; }
+    /* Бейджи (достоверность/возврат/избранное) слева, количество+корзина — справа. */
+    .ft-tbl tbody td.ft-td--act { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
+    .ft-tbl tbody td.ft-td--act .actl { margin-left: auto; }
     /* .ft-more (позиции сверх лимита, свёрнутые по умолчанию — см. .ft-all-shown
        ниже) должен побеждать общее правило display:grid выше по специфичности,
        иначе на мобильном показывались сразу все склады без сворачивания. */
@@ -413,19 +427,19 @@
        список на всю ширину вместо рваного переноса разноразмерных кнопок. --- */
     .filter-bar-toggle {
         display: flex; align-items: center; gap: 8px; width: 100%;
-        padding: 10px 14px; margin-bottom: 12px;
+        padding: 10px 14px;
         background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
         font-weight: 700; font-size: 13px; color: var(--black); cursor: pointer;
-        box-shadow: var(--shadow-sm); position: sticky; top: var(--search-header-h, 73px); z-index: 60;
+        box-shadow: var(--shadow-sm);
     }
     .filter-bar-toggle .icon { width: 16px; height: 16px; color: var(--blue); flex-shrink: 0; }
     .filter-bar-toggle-arrow { margin-left: auto; font-size: 10px; color: var(--gray); transition: transform .15s; }
     .filter-bar-toggle--open .filter-bar-toggle-arrow { transform: rotate(180deg); }
     .filter-bar-toggle-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
-    .filter-bar { display: none; padding: 10px; }
+    .filter-bar { display: none; padding: 10px; margin: 8px 0 12px; }
     .filter-bar.is-open {
         display: flex; flex-direction: column; align-items: stretch; gap: 8px;
-        position: static; box-shadow: none;
+        max-height: calc(100vh - var(--search-header-h, 73px) - 60px); overflow-y: auto;
     }
     .filter-bar.is-open .filter-dd,
     .filter-bar.is-open .filter-opt,
