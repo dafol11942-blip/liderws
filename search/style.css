@@ -404,11 +404,12 @@
     .ft-tbl tbody tr:last-child { margin-bottom: 0; }
     .ft-tbl tbody tr:nth-child(even) { background: var(--bg); }
     .ft-tbl tbody tr:hover { background: var(--bg); }
-    .ft-tbl tbody td { display: block; text-align: left !important; padding: 0; white-space: normal; border-bottom: none; }
+    .ft-tbl tbody td { display: block; text-align: left !important; padding: 6px 0 0; white-space: normal; border-bottom: none; border-top: 1px solid var(--border); }
+    .ft-tbl tbody td.ft-td--det { border-top: none; padding-top: 0; }
     .ft-tbl tbody td.ft-td--det,
     .ft-tbl tbody td.ft-td--act { grid-column: 1 / -1; }
     /* Бейджи (достоверность/возврат/избранное) слева, количество+корзина — справа. */
-    .ft-tbl tbody td.ft-td--act { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
+    .ft-tbl tbody td.ft-td--act { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
     .ft-tbl tbody td.ft-td--act .actl { margin-left: auto; }
     /* .ft-more (позиции сверх лимита, свёрнутые по умолчанию — см. .ft-all-shown
        ниже) должен побеждать общее правило display:grid выше по специфичности,
@@ -436,10 +437,16 @@
     .filter-bar-toggle-arrow { margin-left: auto; font-size: 10px; color: var(--gray); transition: transform .15s; }
     .filter-bar-toggle--open .filter-bar-toggle-arrow { transform: rotate(180deg); }
     .filter-bar-toggle-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
+    /* max-height/overflow-y на самом .filter-bar (вместе со вложенным
+       нативным <details>, который то раскрывается, то схлопывается)
+       ломал раскладку в Chrome Android — список брендов открывался, а при
+       сворачивании панель фильтров оставалась пустой. Даём странице
+       скроллиться естественно; ограничиваем высотой только сам список
+       брендов (см. .filter-dd-panel ниже) — единственный потенциально
+       длинный список. */
     .filter-bar { display: none; padding: 10px; margin: 8px 0 12px; }
     .filter-bar.is-open {
         display: flex; flex-direction: column; align-items: stretch; gap: 8px;
-        max-height: calc(100vh - var(--search-header-h, 73px) - 60px); overflow-y: auto;
     }
     .filter-bar.is-open .filter-dd,
     .filter-bar.is-open .filter-opt,
@@ -449,7 +456,7 @@
     .filter-dd-panel { left: 0; right: 0; min-width: auto; }
     .filter-bar.is-open .filter-dd-panel {
         position: static; box-shadow: none; border: none; border-left: 2px solid var(--bg);
-        margin: 2px 0 0 10px; padding: 8px 0 4px 12px; min-width: 0; max-height: none; width: auto;
+        margin: 2px 0 0 10px; padding: 8px 0 4px 12px; min-width: 0; max-height: 260px; width: auto;
     }
     .filter-reset { width: 100%; margin-left: 0; order: 99; }
 }
