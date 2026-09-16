@@ -89,16 +89,11 @@ if ($vinFromSearch !== '' && !preg_match('/^[A-Z0-9-]{5,17}$/', $vinFromSearch))
     <?php endif; ?>
 
     <div class="vin-catalog-wrap">
-        <iframe id="acat-frame" src="https://liderws.acat.online" width="100%" height="600" scrolling="auto" frameborder="0" onload="scrollToAcatFrameBegin()" allow="clipboard-read; clipboard-write"></iframe>
+        <iframe id="acat-frame" src="https://liderws.acat.online" width="100%" height="600" scrolling="auto" frameborder="0" allow="clipboard-read; clipboard-write"></iframe>
     </div>
 </div>
 
 <script type="text/javascript">
-    function scrollToAcatFrameBegin() {
-        var frameTop = document.getElementById("acat-frame").offsetTop;
-        window.scrollTo({top: frameTop, behavior: "smooth"});
-    }
-
     // Виджет шлёт acatFrameHeight часто и мелкими шагами — например, пока построчно
     // догружаются логотипы марок, размер контейнера меняется на каждую картинку,
     // и страница вокруг «дёргается» от resize к resize. Копим сообщения и применяем
@@ -121,10 +116,6 @@ if ($vinFromSearch !== '' && !preg_match('/^[A-Z0-9-]{5,17}$/', $vinFromSearch))
             if (data && data.acatFrameHeight) {
                 clearTimeout(acatHeightTimer);
                 acatHeightTimer = setTimeout(function () { applyAcatHeight(data.acatFrameHeight); }, 150);
-            }
-            if (data && data.acatScrollTop) {
-                var frameTop = acatFrame.offsetTop;
-                window.scrollTo({top: frameTop + data.acatScrollTop, behavior: "smooth"});
             }
         } catch (e) {}
     }, false);
