@@ -302,8 +302,16 @@ function curlExec(array $requests, float $deadline = 15.0, int $maxPerHost = 0):
  * Как curlExec(), но RATE_SENSITIVE_SUPPLIERS уходят отдельным пулом с
  * limit=1 соединение на хост — общий залп им нельзя (см. константу выше).
  * $codeOf($key) должна вернуть код поставщика по ключу запроса.
+ *
+ * limit=1 на хост означает СТРОГО последовательные запросы к каждому из этих
+ * поставщиков (параллельно друг с другом, но не сами с собой) — при 30 парах
+ * аналогов (MAX_ANALOG_PAIRS) старый slowDeadline=20с успевал покрыть едва
+ * ли половину пар одного такого поставщика, остальные тихо терялись без
+ * ошибки (curlExec просто не успевал до них дойти). 35с — по-прежнему с
+ * запасом ниже клиентского таймаута докрутки (90с, см. search/index.php)
+ * и лимита PHP set_time_limit(120) с учётом discovery≤15с + fast≤25с.
  */
-function curlExecSplit(array $requests, callable $codeOf, float $fastDeadline = 25.0, float $slowDeadline = 20.0, int $fastPerHost = 3): array {
+function curlExecSplit(array $requests, callable $codeOf, float $fastDeadline = 25.0, float $slowDeadline = 35.0, int $fastPerHost = 3): array {
     $fast = [];
     $slow = [];
     foreach ($requests as $key => $req) {
