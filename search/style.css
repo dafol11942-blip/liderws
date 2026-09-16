@@ -180,7 +180,7 @@
 .hl-actl { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 
 /* Бейджи */
-.badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius); font-size: 12px; font-weight: 700; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius); font-size: 12px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 .badge--green { background: rgba(77,205,113,.12); color: #3a9d4f; }
 .badge--yellow { background: #FFF3CD; color: #856404; }
 
@@ -418,7 +418,17 @@
     .ft-all-shown .ft-tbl tbody tr.ft-more { display: grid; }
     .ft-deliv-label { white-space: normal; }
     .ft-tbl tbody td[data-label]::before { content: attr(data-label); font-weight: 700; font-size: 10px; color: var(--gray); text-transform: uppercase; display: block; margin-bottom: 2px; }
-    .ft-ghead { flex-direction: column; align-items: flex-start; }
+    /* Раньше бренд/артикул/описание/фото-из-UMAPI перетекали одной flex-wrap
+       строкой — из-за разной длины бренда и того, есть ли фото (оно есть не
+       у всех аналогов, см. renderAnalogCrossIcon), перенос "гулял" от карточки
+       к карточке: где-то описание оставалось на строке бренда, где-то уходило
+       вниз вместе с фото. Разбиваем на предсказуемые ряды: бренд+артикул —
+       всегда вместе, описание и фото — всегда каждое на своей отдельной
+       полноширинной строке, независимо от их длины и наличия фото. */
+    .ft-ghead { flex-direction: column; align-items: stretch; }
+    .ft-ginfo { width: 100%; }
+    .ft-gdesc,
+    .ft-gcross { flex: 0 0 100%; margin-top: 2px; }
     .hl-cards { flex-direction: column; }
     .hl-card { min-width: auto; }
     .ft-sec,.phead { padding: 14px 16px; }
