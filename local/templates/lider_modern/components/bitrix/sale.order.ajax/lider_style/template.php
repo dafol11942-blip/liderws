@@ -381,10 +381,22 @@ if ($paymentHoldDeadlineTs <= 0) {
                             foreach ($pickupDeliveries as $del) {
                                 if (($del['CHECKED'] ?? '') === 'Y') { $pickupChecked = true; break; }
                             }
-                            // Если ни одна служба самовывоза не отмечена явно, но курьер
-                            // тоже не отмечен (первый заход в форму) — по умолчанию
-                            // открываем самовывоз, если он вообще есть.
-                            $activeMethod = $pickupChecked ? 'pickup' : ($hasCourier ? 'courier' : 'pickup');
+                            $courierChecked = false;
+                            foreach ($courierDeliveries as $del) {
+                                if (($del['CHECKED'] ?? '') === 'Y') { $courierChecked = true; break; }
+                            }
+                            // По умолчанию (первый заход в форму, ни одна служба явно не
+                            // отмечена) открываем самовывоз — раньше код падал на курьера,
+                            // как только курьер вообще был доступен как служба доставки,
+                            // хотя явно отмеченным он не был. Курьер по умолчанию — только
+                            // если Bitrix сам его отметил (CHECKED), либо самовывоза нет.
+                            $activeMethod = ($courierChecked || !$hasPickup) ? 'courier' : 'pickup';
+                            // Из точек самовывоза по умолчанию выбираем магазин на
+                            // Нефтяников, если ни одна точка не отмечена явно.
+                            $defaultPickupId = null;
+                            foreach ($pickupDeliveries as $did => $del) {
+                                if (mb_stripos($del['NAME'], 'Нефтяников') !== false) { $defaultPickupId = $did; break; }
+                            }
                             $yandexMapsApiKey = function_exists('getYandexMapsApiKey') ? getYandexMapsApiKey() : '';
                             // Для геокодинга и ссылки на карту нужен чистый адрес, а не
                             // служебное имя вида "Самовывоз с Магазина (Елабуга, ...)" —
@@ -431,11 +443,14 @@ if ($paymentHoldDeadlineTs <= 0) {
                         <?php if ($hasPickup): ?>
                         <div class="receipt-method-panel" id="receipt-panel-pickup" <?= ($hasCourier && $activeMethod !== 'pickup') ? 'style="display:none;"' : '' ?>>
                             <div class="option-list">
-                                <?php foreach ($pickupDeliveries as $did => $del): $pickupShop = findShopByAddress($extractPickupAddress($del)); ?>
-                                <label class="option-card <?= ($del['CHECKED'] ?? '') === 'Y' ? 'option-card--active' : '' ?>">
+                                <?php foreach ($pickupDeliveries as $did => $del):
+                                    $pickupShop = findShopByAddress($extractPickupAddress($del));
+                                    $isPickupChecked = ($del['CHECKED'] ?? '') === 'Y' || (!$pickupChecked && $did === $defaultPickupId);
+                                ?>
+                                <label class="option-card <?= $isPickupChecked ? 'option-card--active' : '' ?>">
                                     <input type="radio" name="DELIVERY_ID" value="<?= $del['ID'] ?>"
                                            data-pickup-address="<?= htmlspecialchars($extractPickupAddress($del)) ?>"
-                                           <?= ($del['CHECKED'] ?? '') === 'Y' ? 'checked' : '' ?>>
+                                           <?= $isPickupChecked ? 'checked' : '' ?>>
                                     <div class="option-card__box">
                                         <div class="option-card__icon"><svg class="icon"><use href="#icon-pin"></use></svg></div>
                                         <div class="option-card__info">

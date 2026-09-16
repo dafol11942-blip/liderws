@@ -313,7 +313,7 @@ if (!empty($items) && !$hasSupplierItem) {
 .cart-item:hover { box-shadow: var(--shadow); }
 
 .cart-item__info { flex: 1; min-width: 0; }
-.cart-item__name { font-size: 14px; font-weight: 700; color: var(--black); text-decoration: none; display: block; line-height: 1.4; }
+.cart-item__name { font-size: 14px; font-weight: 700; color: var(--black); text-decoration: none; display: block; line-height: 1.4; overflow-wrap: break-word; }
 .cart-item__name:hover { color: var(--blue); }
 .cart-item__article { font-size: 12px; color: var(--gray); margin-top: 4px; }
 .cart-item__price-unit { font-size: 12px; color: var(--gray-light); margin-top: 4px; }
@@ -407,6 +407,27 @@ if (!empty($items) && !$hasSupplierItem) {
 .btn--outline:hover { border-color: var(--blue); color: var(--blue-dark); }
 .btn--lg { padding: 14px 32px; font-size: 16px; }
 .btn--block { display: flex; width: 100%; }
+
+/* На узких экранах строке .cart-item не хватало ширины: чекбокс + фикс. блок
+   количества (114px) + фикс. блок суммы (110px) + кнопка удаления теснили
+   название товара почти до нуля, и текст вылезал за карточку. Раскладываем
+   карточку в 2 ряда: [чекбокс] [название] [удалить] / [количество] [сумма]. */
+@media (max-width: 640px) {
+    .cart-item {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        grid-template-areas:
+            "select info remove"
+            "qty    qty  price";
+        gap: 10px 12px;
+        padding: 14px 16px;
+    }
+    .cart-item__select { grid-area: select; align-self: start; }
+    .cart-item__info { grid-area: info; min-width: 0; }
+    .cart-item__remove { grid-area: remove; align-self: start; }
+    .cart-item__qty { grid-area: qty; justify-self: start; }
+    .cart-item__price { grid-area: price; justify-self: end; text-align: right; min-width: 0; }
+}
 </style>
 
 <script>

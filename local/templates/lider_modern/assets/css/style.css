@@ -1127,8 +1127,30 @@ body.catalog-filter-locked { overflow: hidden; }
     .catalog-btn { padding: 10px 16px; font-size: 13px; }
     .header__search { order: 3; flex-basis: 100%; }
     .header__actions { order: 2; margin-left: auto; }
-    .header-nav__menu a { padding: 10px 14px; font-size: 12px; }
+    /* Мобильная навигация разделов: вместо переноса ссылок в несколько
+       "нагромождённых" строк — одна горизонтально прокручиваемая лента
+       чипов (тот же приём, что уже используется для .catalog-dropdown__nav). */
+    .header-nav .container { padding: 0; }
+    .header-nav__menu {
+        flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+        scrollbar-width: none; gap: 8px; padding: 10px 16px;
+    }
+    .header-nav__menu::-webkit-scrollbar { display: none; }
+    .header-nav__menu a {
+        flex-shrink: 0; white-space: nowrap;
+        padding: 8px 14px; font-size: 12px;
+        background: var(--bg); border-radius: 999px; border-bottom: none;
+    }
     .header-nav__menu a.header-nav__cta { margin-left: 0; }
+    .nav-dropdown-wrapper { flex-shrink: 0; }
+    /* Флайаут подменю на мобильном якорим к низу экрана на всю ширину —
+       иначе горизонтальный скролл родителя обрезает его по вертикали
+       (тот же класс проблем, что и с .catalog-dropdown, см. выше). */
+    .nav-dropdown-wrapper:hover .nav-dropdown,
+    .nav-dropdown-wrapper.open .nav-dropdown {
+        position: fixed; top: auto; left: 10px; right: 10px; bottom: 10px;
+        min-width: 0; max-width: none; max-height: 70vh; overflow-y: auto;
+    }
     .hero__content { padding: 20px 16px; }
     .hero__title { font-size: 20px; }
     .hero__subtitle { font-size: 14px; }
@@ -1212,7 +1234,6 @@ body.catalog-filter-locked { overflow: hidden; }
     .search-form button { padding: 9px 12px; font-size: 14px; }
     .header-nav__menu a { padding: 8px 10px; font-size: 11px; gap: 4px; }
     .header-nav__menu a .icon { width: 14px; height: 14px; }
-    .nav-dropdown { position: fixed; left: 10px; right: 10px; top: auto; min-width: 0; max-height: 70vh; overflow-y: auto; }
     .hero { border-radius: 0; border-left: none; border-right: none; }
     .hero__content { padding: 16px 12px; }
     .hero__title { font-size: 18px; }
