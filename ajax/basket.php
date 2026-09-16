@@ -12,8 +12,8 @@ $action = $_GET['action'] ?? '';
 $id = (int)($_GET['id'] ?? 0);
 $qty = (int)($_GET['quantity'] ?? 0);
 
-$noIdActions = ['clear', 'selectAll', 'stashUnselected'];
-if (!in_array($action, ['update', 'delete', 'clear', 'select', 'selectAll', 'stashUnselected']) || (!$id && !in_array($action, $noIdActions))) {
+$noIdActions = ['clear', 'selectAll'];
+if (!in_array($action, ['update', 'delete', 'clear', 'select', 'selectAll']) || (!$id && !in_array($action, $noIdActions))) {
     echo json_encode(['status' => 'error', 'message' => 'bad request']);
     exit;
 }
@@ -21,7 +21,7 @@ if (!in_array($action, ['update', 'delete', 'clear', 'select', 'selectAll', 'sta
 // update/delete раньше действовали на $id без проверки владельца — CSaleBasket::
 // Update()/Delete() (старый D6 API) сами такую проверку не делают, поэтому
 // любой посетитель мог менять/удалять чужие позиции в корзине, зная её ID
-// (см. security review). Как и в action=select/stashUnselected/clear ниже —
+// (см. security review). Как и в action=select/clear ниже —
 // сначала грузим корзину ТЕКУЩЕГО fuser'а и действуем только на найденном в
 // ней элементе.
 if (($action === 'update' && $qty > 0 && $qty <= 999) || $action === 'delete') {
@@ -83,66 +83,15 @@ if ($action === 'select' || $action === 'selectAll') {
     }
 }
 
-// «Перейти к оформлению»: на этом проекте sale.order.ajax берёт в заказ все
-// строки корзины без исключений (нет рабочего штатного механизма фильтрации
-// вроде DELAY_BUY, см. выше) — поэтому неотмеченные чекбоксом позиции перед
-// переходом на /order/ временно удаляются из корзины (со снимком данных в
-// сессии) и возвращаются обратно при следующем заходе на /cart/, см.
-// restoreStashedCartItems() в local/php_interface/init.php и cart/index.php.
-if ($action === 'stashUnselected') {
-    try {
-        $basket = \Bitrix\Sale\Basket::loadItemsForFUser(CSaleBasket::GetBasketUserID(), SITE_ID);
-        $stashed = [];
-        $toDelete = [];
-
-        foreach ($basket as $basketItem) {
-            $itemProps = [];
-            foreach ($basketItem->getPropertyCollection() as $p) {
-                $itemProps[] = [
-                    'NAME'  => $p->getField('NAME'),
-                    'CODE'  => $p->getField('CODE'),
-                    'VALUE' => $p->getField('VALUE'),
-                ];
-            }
-
-            $isSelectedItem = true;
-            $isSupplierItem = false;
-            foreach ($itemProps as $pr) {
-                if ($pr['CODE'] === 'CART_SELECTED') $isSelectedItem = ($pr['VALUE'] !== 'N');
-                if ($pr['CODE'] === 'SUPPLIER_NAME' && $pr['VALUE'] !== '') $isSupplierItem = true;
-            }
-            if ($isSelectedItem) continue;
-
-            $bid = $basketItem->getId();
-            $stashed[] = [
-                'PRODUCT_ID'  => $basketItem->getProductId(),
-                'QUANTITY'    => $basketItem->getQuantity(),
-                'PRICE'       => $basketItem->getPrice(),
-                'CURRENCY'    => $basketItem->getCurrency(),
-                'NAME'        => $basketItem->getField('NAME'),
-                'IS_SUPPLIER' => $isSupplierItem,
-                'PROPS'       => $itemProps,
-                'ORDER_META'  => $isSupplierItem ? loadSupplierBasketOrderMeta($bid) : [],
-            ];
-            $toDelete[] = $bid;
-        }
-
-        foreach ($toDelete as $bid) {
-            CSaleBasket::Delete($bid);
-        }
-
-        if (!empty($stashed)) {
-            $existing = $_SESSION['CART_STASHED_ITEMS'] ?? [];
-            $_SESSION['CART_STASHED_ITEMS'] = array_merge($existing, $stashed);
-        }
-
-        echo json_encode(['status' => 'ok', 'stashedCount' => count($stashed)]);
-        exit;
-    } catch (\Throwable $e) {
-        echo json_encode(['status' => 'error', 'message' => get_class($e) . ': ' . $e->getMessage()]);
-        exit;
-    }
-}
+// Раньше здесь было action=stashUnselected: неотмеченные чекбоксом позиции
+// перед переходом на /order/ физически удалялись из корзины (со снимком в
+// $_SESSION) и возвращались обратно при заходе на /cart/. Убрано — снимок в
+// PHP-сессии не связан с аккаунтом и «воскрешал» давно снятые с продажи
+// позиции при следующем оформлении (в т.ч. на другом устройстве товар пропадал
+// вовсе, т.к. сессия per-браузер). Теперь выбор чекбоксом влияет только на то,
+// какие позиции попадут в заказ (фильтр по CART_SELECTED — см.
+// order_create_handler.php и sale.order.ajax/lider_style/template.php), сама
+// корзина при переходе к оформлению не трогается.
 
 if ($action === 'clear') {
     $clearRes = CSaleBasket::GetList(

@@ -119,9 +119,9 @@ while ($b = $bRes->Fetch()) {
     $b['IS_STALE'] = $addedAt > 0 && (time() - $addedAt) > CART_TTL_SECONDS;
 
     // Чекбокс позиции — своё свойство CART_SELECTED ('Y'/'N', см.
-    // ajax/basket.php, action=select). Неотмеченные позиции при переходе к
-    // оформлению временно убираются из корзины (action=stashUnselected) —
-    // штатного DELAY_BUY на этом проекте нет, см. комментарий в ajax/basket.php.
+    // ajax/basket.php, action=select) — штатного DELAY_BUY на этом проекте
+    // нет. Неотмеченные позиции остаются в корзине как есть, просто не
+    // попадают в заказ (фильтр в order_create_handler.php).
     $b['SELECTED'] = ($props['CART_SELECTED'] ?? 'Y') !== 'N';
 
     $totalQtyAll += $b['QTY'];
@@ -698,36 +698,15 @@ if (checkoutLink) {
             return;
         }
 
-        // Неотмеченные позиции нужно временно убрать из корзины до перехода —
-        // sale.order.ajax на этом проекте берёт в заказ все строки корзины без
-        // исключений (см. ajax/basket.php, action=stashUnselected). Они
-        // вернутся обратно при следующем заходе на /cart/.
-        var hasUnselected = document.querySelectorAll('.cart-item-cb:not(:checked)').length > 0;
-        if (!hasUnselected) {
-            window.location.href = checkoutLink.getAttribute('href');
-            return;
-        }
-
-        var originalText = checkoutLink.textContent;
-        checkoutLink.textContent = 'Переходим к оформлению...';
-        checkoutLink.style.pointerEvents = 'none';
-
-        fetch('/ajax/basket.php?action=stashUnselected')
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                if (d.status === 'ok') {
-                    window.location.href = checkoutLink.getAttribute('href');
-                    return;
-                }
-                checkoutLink.textContent = originalText;
-                checkoutLink.style.pointerEvents = '';
-                showToast('Ошибка: ' + (d.message || 'не удалось перейти к оформлению'));
-            })
-            .catch(function(err) {
-                checkoutLink.textContent = originalText;
-                checkoutLink.style.pointerEvents = '';
-                showToast('Ошибка запроса: ' + err);
-            });
+        // Неотмеченные чекбоксом позиции в заказ не попадут — фильтр по
+        // CART_SELECTED применяется на странице /order/ и при создании заказа
+        // (см. order_create_handler.php, sale.order.ajax/lider_style/template.php).
+        // Сама корзина при переходе к оформлению больше не трогается — раньше
+        // такие позиции временно удалялись и снимок хранился в PHP-сессии
+        // (action=stashUnselected), из-за чего давно снятые с продажи позиции
+        // могли неожиданно вернуться в корзину при следующем заходе на /cart/,
+        // и корзина расходилась между устройствами (сессия per-браузер).
+        window.location.href = checkoutLink.getAttribute('href');
     });
 }
 

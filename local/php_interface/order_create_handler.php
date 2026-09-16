@@ -29,6 +29,92 @@ if (!function_exists('logSupplierOrderDispatch')) {
     }
 }
 
+// Чекбоксы в корзине (см. CART_SELECTED в ajax/basket.php) определяют, какие
+// позиции уходят в ЭТОТ заказ — снятые чекбоксом должны остаться в реальной
+// корзине покупателя нетронутыми (видны на любом устройстве), а не исчезать
+// из неё. Раньше это делалось физическим удалением неотмеченных позиций из
+// корзины перед переходом на /order/ со снимком в $_SESSION и восстановлением
+// при следующем заходе на /cart/ (action=stashUnselected) — снимок в сессии
+// браузера не связан с аккаунтом, из-за чего давно снятые с продажи позиции
+// могли неожиданно "воскреснуть" в корзине при следующем оформлении, причём
+// по-разному на разных устройствах.
+//
+// Вместо этого для заказа собирается СОВСЕМ ОТДЕЛЬНЫЙ объект корзины
+// (Basket::create(), а не Basket::loadItemsForFUser()) с копиями отмеченных
+// позиций — тем же проверенным способом, каким уже создаются строки корзины
+// при обычном добавлении (ajax/add_to_basket.php, order_from_supplier.php) и
+// при восстановлении снимка (restoreStashedCartItems() ниже в этом файле).
+// Раз эта корзина никогда не была загружена из персистентных строк fuser'а,
+// $order->save() физически не может задеть ни одну строку исходной корзины —
+// ни выбранные, ни (тем более) невыбранные позиции. Выбранные строки исходной
+// корзины удаляются ЯВНО и только при успешном сохранении заказа (см. ниже,
+// после $result->isSuccess()) — невыбранные не упоминаются вовсе.
+if (!function_exists('buildOrderBasketFromSelected')) {
+    /** @return array{0: \Bitrix\Sale\Basket, 1: int[], 2: array} [корзина заказа, ID исходных строк корзины (для удаления после успеха), позиции с order_meta поставщика (для переноса после save())] */
+    function buildOrderBasketFromSelected(\Bitrix\Sale\Basket $fullBasket, string $siteId): array
+    {
+        $orderBasket = \Bitrix\Sale\Basket::create($siteId);
+        $sourceIds = [];
+        $pendingSupplierMeta = [];
+
+        foreach ($fullBasket as $sourceItem) {
+            $isSelected = true;
+            $isSupplierItem = false;
+            $sourceProps = [];
+            foreach ($sourceItem->getPropertyCollection() as $p) {
+                $code = $p->getField('CODE');
+                $sourceProps[] = ['NAME' => $p->getField('NAME'), 'CODE' => $code, 'VALUE' => $p->getField('VALUE')];
+                if ($code === 'CART_SELECTED' && $p->getField('VALUE') === 'N') $isSelected = false;
+                if ($code === 'SUPPLIER_NAME' && (string)$p->getField('VALUE') !== '') $isSupplierItem = true;
+            }
+            if (!$isSelected) continue;
+
+            $newItem = $orderBasket->createItem('catalog', $sourceItem->getProductId());
+            if ($isSupplierItem) {
+                // Заказная позиция от поставщика — цена зафиксирована на момент
+                // добавления в корзину, копируем как есть (см. order_from_supplier.php).
+                $newItem->setFields([
+                    'QUANTITY'     => $sourceItem->getQuantity(),
+                    'CURRENCY'     => $sourceItem->getCurrency(),
+                    'LID'          => $siteId,
+                    'PRICE'        => $sourceItem->getPrice(),
+                    'CUSTOM_PRICE' => 'Y',
+                    'NAME'         => $sourceItem->getField('NAME'),
+                ]);
+            } else {
+                // Товар своего склада — как при обычном добавлении в корзину
+                // (ajax/add_to_basket.php): цену/остаток на момент оформления
+                // посчитает и провалидирует сам Bitrix через провайдер каталога.
+                $newItem->setFields([
+                    'QUANTITY'               => $sourceItem->getQuantity(),
+                    'CURRENCY'               => $sourceItem->getCurrency(),
+                    'LID'                    => $siteId,
+                    'PRODUCT_PROVIDER_CLASS' => '\Bitrix\Catalog\Product\CatalogProvider',
+                ]);
+            }
+
+            $newProps = $newItem->getPropertyCollection();
+            foreach ($sourceProps as $pr) {
+                // CART_SELECTED — служебное для корзины, в заказе не нужно.
+                if ($pr['CODE'] === '' || $pr['CODE'] === 'CART_SELECTED') continue;
+                $p = $newProps->createItem();
+                $p->setFields(['NAME' => $pr['NAME'] ?: $pr['CODE'], 'CODE' => $pr['CODE'], 'VALUE' => $pr['VALUE'] ?? '']);
+            }
+
+            if ($isSupplierItem && function_exists('loadSupplierBasketOrderMeta')) {
+                $meta = loadSupplierBasketOrderMeta($sourceItem->getId());
+                if (!empty($meta)) {
+                    $pendingSupplierMeta[] = [$newItem, $meta];
+                }
+            }
+
+            $sourceIds[] = $sourceItem->getId();
+        }
+
+        return [$orderBasket, $sourceIds, $pendingSupplierMeta];
+    }
+}
+
 // Есть ли в корзине хоть одна позиция "под заказ" у поставщика (свойство
 // SUPPLIER_NAME) — та же проверка, что в начале dispatchSupplierOrders(),
 // но без реальной отправки: нужна ДО решения, отправлять заказ сразу или
@@ -423,8 +509,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
     $order = \Bitrix\Sale\Order::create($siteId, $userId, 'RUB');
     $order->setPersonTypeId(1);
 
-    // Товары из корзины
-    $basket = \Bitrix\Sale\Basket::loadItemsForFUser(\CSaleBasket::GetBasketUserID(), $siteId);
+    // Товары из корзины — только отмеченные чекбоксом (см.
+    // buildOrderBasketFromSelected() выше); неотмеченные остаются в реальной
+    // корзине покупателя как есть.
+    $fullBasket = \Bitrix\Sale\Basket::loadItemsForFUser(\CSaleBasket::GetBasketUserID(), $siteId);
+    if ($fullBasket->count() == 0) {
+        return;
+    }
+    [$basket, $orderedSourceBasketIds, $pendingSupplierMeta] = buildOrderBasketFromSelected($fullBasket, $siteId);
     if ($basket->count() == 0) {
         return;
     }
@@ -497,12 +589,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
     if ($result->isSuccess()) {
         $orderId = $result->getId();
 
-        // Корзина целиком ушла в заказ ($order->setBasket($basket) выше) —
-        // без этого счётчик в шапке (см. header.php) остаётся висеть со старым
-        // значением до следующей точки изменения корзины, хотя сама корзина
-        // уже пуста (все точки изменения корзины сами пишут актуальное значение
-        // в CART_QTY, но оформление заказа таким местом почему-то не было).
-        $_SESSION['CART_QTY'] = 0;
+        // Заказ построен на ОТДЕЛЬНОЙ копии корзины (см. buildOrderBasketFromSelected())
+        // — исходные строки персистентной корзины покупателя сам $order->save()
+        // не трогает. Заказанные позиции теперь явно покидают корзину, невыбранные
+        // остаются как были.
+        foreach ($orderedSourceBasketIds as $sourceBasketId) {
+            \CSaleBasket::Delete($sourceBasketId);
+        }
+
+        // basket_item_id позиций заказа известен только после $order->save() —
+        // тот же приём, что и в restoreStashedCartItems() (init.php).
+        foreach ($pendingSupplierMeta as [$newSupplierItem, $supplierMeta]) {
+            saveSupplierBasketOrderMeta($newSupplierItem->getId(), $supplierMeta);
+        }
+
+        // Счётчик в шапке (см. header.php) — пересчитываем по тому, что реально
+        // осталось в корзине. Раньше оформление всегда забирало корзину целиком,
+        // поэтому счётчик просто обнулялся; теперь в заказ уходят только
+        // отмеченные чекбоксом позиции, невыбранные остаются в корзине.
+        $remainingQty = 0;
+        $remainingRes = \CSaleBasket::GetList(
+            [],
+            ['FUSER_ID' => \CSaleBasket::GetBasketUserID(), 'ORDER_ID' => 'NULL', 'LID' => SITE_ID],
+            false, false, ['QUANTITY']
+        );
+        while ($remainingRow = $remainingRes->Fetch()) {
+            $remainingQty += (int)$remainingRow['QUANTITY'];
+        }
+        $_SESSION['CART_QTY'] = $remainingQty;
 
         // Больше нигде в этом запросе не пишем/не читаем $_SESSION — закрываем
         // сессию ЗДЕСЬ, до dispatchSupplierOrders(). PHP держит файл сессии

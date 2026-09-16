@@ -37,6 +37,11 @@ while ($b = $bRes->Fetch()) {
         $props[$pr['CODE']] = $pr['VALUE'];
     }
 
+    // Чекбоксом в корзине сняты — в оформление не попадают (та же логика, что
+    // и в order_create_handler.php при создании заказа): показываем в
+    // чекауте ровно то, что реально уйдёт в заказ.
+    if (($props['CART_SELECTED'] ?? 'Y') === 'N') continue;
+
     $b['RETURNABLE'] = ($props['SUPPLIER_RETURNABLE'] ?? 'Y') !== 'N';
     if (!$b['RETURNABLE']) $hasNonReturnableItem = true;
 
