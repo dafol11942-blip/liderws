@@ -807,7 +807,7 @@ if ($paymentHoldDeadlineTs <= 0) {
 }
 .option-card__icon { font-size: 22px; flex-shrink: 0; }
 .option-card__info { flex: 1; min-width: 0; }
-.option-card__title { font-weight: 700; font-size: 14px; color: var(--black); }
+.option-card__title { font-weight: 700; font-size: 14px; color: var(--black); overflow-wrap: break-word; }
 .option-card__desc { font-size: 12px; color: var(--gray); margin-top: 2px; }
 .option-card__price { font-weight: 800; font-size: 15px; flex-shrink: 0; color: var(--black); }
 .checkout-hint { color: var(--gray); font-size: 13px; }
@@ -879,6 +879,11 @@ if ($paymentHoldDeadlineTs <= 0) {
     .option-card__box { flex-wrap: wrap; }
     .option-card__price { flex-basis: 100%; text-align: right; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
     .option-card__phones { flex-direction: column; align-items: flex-start; gap: 6px; }
+    /* Переключатель "Самовывоз/Курьер": в узкой колонке 2-колоночной сетки
+       иконка + подпись в ряд не помещались, и слово "Самовывоз" вылезало
+       за границы кнопки. Ставим иконку над подписью и центрируем. */
+    .receipt-method-list .option-card__box { flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 16px 10px; }
+    .receipt-method-list .option-card__info { flex: none; width: 100%; }
 }
 .pickup-map { width: 100%; height: 260px; border-radius: var(--radius); overflow: hidden; margin-top: 12px; border: 1px solid var(--border); }
 .pickup-map-fallback { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
