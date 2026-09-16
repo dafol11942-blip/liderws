@@ -1,25 +1,32 @@
 <?php
 // search/index.php — поиск liderws.ru (AJAX, топ-5 в аналогах)
 
-// Если в строку поиска введён VIN или номер кузова, а не артикул — это не наш
-// поиск по складам, а задача каталога/подбора по VIN (виджет АвтоКаталог Онлайн,
-// см. /podbor-po-vin/). Проверяем и уводим туда ДО подключения bitrix/header.php,
-// чтобы редирект ушёл раньше первого байта вывода. Срабатывает только на первом
-// шаге (есть q, ещё нет brand) — второй шаг (brand+number) это уже выбор из
-// таблицы производителей по артикулу, VIN там появиться не может.
+// Если в строку поиска введён VIN, а не артикул — это не наш поиск по складам,
+// а задача каталога/подбора по VIN (виджет АвтоКаталог Онлайн, см. /podbor-po-vin/).
+// Проверяем и уводим туда ДО подключения bitrix/header.php, чтобы редирект ушёл
+// раньше первого байта вывода. Срабатывает только на первом шаге (есть q, ещё нет
+// brand) — второй шаг (brand+number) это уже выбор из таблицы производителей по
+// артикулу, VIN там появиться не может.
+//
+// Номер кузова (буквы+цифры-дефис-цифры, напр. JZX90-0012345) сюда намеренно НЕ
+// редиректим превентивно: тот же формат массово используют настоящие OEM-артикулы
+// разных марок (напр. Exeed F4J16-3707010) — редирект до попытки поиска отправлял
+// бы мимо кассы живой артикул. Вместо этого форма запроса лишь передаётся ниже как
+// подсказка и предлагается на экране "ничего не найдено", если поиск по артикулу
+// действительно не дал результата (см. LOOKS_LIKE_FRAME в JS).
 $searchQueryRaw = trim($_REQUEST['q'] ?? '');
 $vinLengthHint = null;
+$looksLikeFrameShape = false;
 if ($searchQueryRaw !== '' && empty($_REQUEST['brand'])) {
     $searchQueryNorm = preg_replace('/\s+/', '', mb_strtoupper($searchQueryRaw, 'UTF-8'));
     // VIN: ровно 17 символов, без I/O/Q (ISO 3779)
     $looksLikeVin = (bool)preg_match('/^[A-HJ-NPR-Z0-9]{17}$/', $searchQueryNorm);
-    // Номер кузова: код модели из букв и цифр (обязательно с буквой) — дефис — серийный номер,
-    // напр. JZX90-0012345, AE100-1234567. Отличает от чисто цифровых OEM-номеров вида 90080-51125.
-    $looksLikeFrame = !$looksLikeVin && (bool)preg_match('/^(?=.*[A-Z])[A-Z0-9]{2,7}-\d{4,7}$/', $searchQueryNorm);
-    if ($looksLikeVin || $looksLikeFrame) {
+    if ($looksLikeVin) {
         header('Location: /podbor-po-vin/?vin=' . urlencode($searchQueryNorm));
         exit;
     }
+
+    $looksLikeFrameShape = (bool)preg_match('/^(?=.*[A-Z])[A-Z0-9]{2,7}-\d{4,7}$/', $searchQueryNorm);
 
     // Похоже на VIN, но не прошёл строгую проверку — длина не 17 символов или
     // встречаются буквы I/O/Q (в реальных VIN их не бывает, при ручном вводе их
@@ -197,6 +204,11 @@ $localCardParams = [
 <script>
 (function(){
 var API='/search/ajax.php',Q=<?=json_encode($q)?>;
+// Форма запроса похожа на номер кузова (буквы+цифры-дефис-цифры), и на своём
+// складе ничего по нему нет — но это ещё может оказаться настоящий OEM-артикул
+// (см. F4J16-3707010 у Exeed), поэтому обычный поиск по артикулу всегда идёт
+// первым; подсказка про VIN/кузов появляется только если он ничего не нашёл.
+var LOOKS_LIKE_FRAME=<?=json_encode($looksLikeFrameShape && $localCount === 0)?>;
 function qs(s,el){return(el||document).querySelector(s)}
 function hide(id){qs('#'+id).classList.add('hidden')}
 function show(id){qs('#'+id).classList.remove('hidden')}
@@ -210,7 +222,14 @@ async function loadBrands(article){
         var d=await r.json();
         hide('loader');
         if(d.error){showError(d.error);return}
-        if(!d.brands||!d.brands.length){showError('По артикулу «'+esc(article)+'» ничего не найдено');return}
+        if(!d.brands||!d.brands.length){
+            if(LOOKS_LIKE_FRAME){
+                showErrorHtml('По артикулу «'+esc(article)+'» ничего не найдено. Похоже на номер кузова — попробуйте <a href="/podbor-po-vin/?vin='+encodeURIComponent(article)+'">каталог и подбор по VIN →</a>');
+            }else{
+                showError('По артикулу «'+esc(article)+'» ничего не найдено');
+            }
+            return;
+        }
         var exact=d.brands.filter(function(b){return b.type==='exact'});
         var analogs=d.brands.filter(function(b){return b.type==='analog'});
         var h='';
@@ -233,7 +252,8 @@ async function loadBrands(article){
         show('brandStep');qs('#brandStep').innerHTML=h;
     }catch(e){hide('loader');showError('Ошибка: '+e.message)}
 }
-function showError(msg){hide('brandStep');show('emptyMsg');qs('#emptyMsg').innerHTML='<div class="hero-icon"><svg class="icon"><use href="#icon-alert"></use></svg></div><p>'+esc(msg)+'</p><form class="hero-frm" method="get"><input type="text" name="q" class="hero-inp" placeholder="Попробуйте другой артикул" autofocus><button class="hero-btn">Найти</button></form>'}
+function showError(msg){showErrorHtml(esc(msg))}
+function showErrorHtml(html){hide('brandStep');show('emptyMsg');qs('#emptyMsg').innerHTML='<div class="hero-icon"><svg class="icon"><use href="#icon-alert"></use></svg></div><p>'+html+'</p><form class="hero-frm" method="get"><input type="text" name="q" class="hero-inp" placeholder="Попробуйте другой артикул" autofocus><button class="hero-btn">Найти</button></form>'}
 
 document.addEventListener('DOMContentLoaded',function(){loadBrands(Q)});
 })();
