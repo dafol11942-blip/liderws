@@ -867,8 +867,10 @@ function renderResults(d){
     h+='<div class="full-tbl">';
 
     if(exactVisible.length){
-        var exactHasMore=exactVisible.length>5;
-        h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head"'+(exactHasMore?' data-ft-toggle':'')+'><span class="ft-sec-title"><svg class="icon"><use href="#icon-check-circle"></use></svg> Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+' — '+exactVisible.length+' складов</span>'+(exactHasMore?'<button type="button" class="ft-gtoggle ft-sec-toggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div>';
+        // data-ft-toggle и стрелка — всегда, даже если складов ≤5: на мобильном
+        // (см. @media в search/style.css) группа свёрнута целиком по умолчанию, и
+        // раскрыть её можно только через этот тоггл, даже если складов немного.
+        h+='<div class="ft-sec ft-sec--exact"><div class="ft-sec-head" data-ft-toggle><span class="ft-sec-title"><svg class="icon"><use href="#icon-check-circle"></use></svg> Искомый номер</span><span class="ft-sec-sub">'+esc(B)+' / '+esc(N)+' — '+exactVisible.length+' складов</span><button type="button" class="ft-gtoggle ft-sec-toggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button></div>';
         h+='<div class="ft-secbody">'+supplierTable(exactVisible,'exact',B,N,'exact')+'</div>';
         h+='</div>';
     }
@@ -876,8 +878,9 @@ function renderResults(d){
     if(analogsVisible.length){
         h+='<div class="ft-sec ft-sec--analog"><div class="ft-sec-head"><span class="ft-sec-title"><svg class="icon"><use href="#icon-refresh"></use></svg> Аналоги ('+analogsVisible.length+')</span></div>';
         analogsVisible.forEach(function(a){
-            var groupHasMore=a.suppliers.length>2;
-            h+='<div class="ft-group"><div class="ft-ghead"'+(groupHasMore?' data-ft-toggle':'')+'><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span>'+renderAnalogCrossIcon(analogCrossInfo[a.key])+'</div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery_offer?dRange(a.best_delivery_offer):'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty_label+'</span>'+(groupHasMore?'<button type="button" class="ft-gtoggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>':'')+'</div></div>';
+            // Аналогично: data-ft-toggle и стрелка всегда, даже если складов ≤2
+            // (см. комментарий у "Искомый номер" выше).
+            h+='<div class="ft-group"><div class="ft-ghead" data-ft-toggle><div class="ft-ginfo"><strong class="ft-gbrand">'+esc(a.brand)+'</strong><code class="ft-gart">'+esc(a.article)+'</code><span class="ft-gdesc">'+esc(a.description||'')+'</span>'+renderAnalogCrossIcon(analogCrossInfo[a.key])+'</div><div class="ft-gmeta"><span class="ft-gbest">Лучшая: <b>'+fmt(a.best_price)+' р.</b> / '+(a.best_delivery_offer?dRange(a.best_delivery_offer):'—')+'</span><span class="badge '+(a.has_instock?'badge--green':'badge--yellow')+'">'+a.total_qty_label+'</span><button type="button" class="ft-gtoggle" aria-expanded="false" title="Показать/свернуть все склады"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button></div></div>';
             h+=renderAnalogCrossDetails(analogCrossInfo[a.key]);
             h+='<div class="ft-gbody">'+supplierTable(a.suppliers,'analog',a.brand,a.article,a.key)+'</div>';
             h+='</div>';
