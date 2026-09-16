@@ -626,6 +626,13 @@ function showToast(msg, kind) {
 
 var lastData = null;
 var filterState = { brands: null, suppliers: null, maxDelivery: null, minQty: null, excludeNonReturnable: false }; // null = не ограничено
+// Панель фильтров на мобильном свёрнута по умолчанию (см. renderFilterBar) —
+// иначе она занимает половину экрана ещё до того, как видны результаты.
+var filterBarOpen = false;
+window.toggleFilterBarOpen = function(){
+    filterBarOpen = !filterBarOpen;
+    if (lastData) renderResults(lastData);
+};
 function isFilterActive(){
     return !!filterState.brands || !!filterState.suppliers || filterState.maxDelivery != null || filterState.minQty != null || filterState.excludeNonReturnable;
 }
@@ -732,7 +739,8 @@ function renderFilterBar(d){
 
     var isActive = isFilterActive();
 
-    var h = '<div class="filter-bar">';
+    var h = '<button type="button" class="filter-bar-toggle' + (filterBarOpen ? ' filter-bar-toggle--open' : '') + '" onclick="toggleFilterBarOpen()"><svg class="icon"><use href="#icon-filter"></use></svg> Фильтры' + (isActive ? '<span class="filter-bar-toggle-dot"></span>' : '') + '<span class="filter-bar-toggle-arrow">▾</span></button>';
+    h += '<div class="filter-bar' + (filterBarOpen ? ' is-open' : '') + '">';
 
     if (IS_MANAGER) {
         h += '<label class="filter-opt filter-opt--toggle"><input type="checkbox"' + (hideBasePrice?' checked':'') + ' onchange="toggleHideBasePrice(this.checked)"> Скрыть закупочную цену</label>';
