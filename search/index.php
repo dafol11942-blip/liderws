@@ -629,9 +629,16 @@ var filterState = { brands: null, suppliers: null, maxDelivery: null, minQty: nu
 // Панель фильтров на мобильном свёрнута по умолчанию (см. renderFilterBar) —
 // иначе она занимает половину экрана ещё до того, как видны результаты.
 var filterBarOpen = false;
+// Просто переключаем классы на уже существующих узлах, а не гоняем
+// renderResults() (полная пересборка #resultContent) — иначе на каждый тап
+// по "Фильтры" всю страницу результатов перерисовывало заново и страницу
+// дёргало/бросало к началу списка.
 window.toggleFilterBarOpen = function(){
     filterBarOpen = !filterBarOpen;
-    if (lastData) renderResults(lastData);
+    var bar = qs('.filter-bar');
+    var toggle = qs('.filter-bar-toggle');
+    if (bar) bar.classList.toggle('is-open', filterBarOpen);
+    if (toggle) toggle.classList.toggle('filter-bar-toggle--open', filterBarOpen);
 };
 function isFilterActive(){
     return !!filterState.brands || !!filterState.suppliers || filterState.maxDelivery != null || filterState.minQty != null || filterState.excludeNonReturnable;

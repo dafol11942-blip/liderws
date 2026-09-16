@@ -381,15 +381,26 @@
 
     /* --- Таблица складов в раскрытой карточке: подпись+значение в две
        колонки вместо полноширинных блоков — карточка с десятками складов
-       перестаёт растягиваться на весь экран. --- */
-    .ft-tbl { table-layout: auto; }
+       перестаёт растягиваться на весь экран.
+       Важно: <table>/<tbody> тоже переведены в display:block — иначе
+       display:grid только на <tr> конфликтует с табличным алгоритмом
+       раскладки родителя и по-разному (и криво) считается в разных
+       браузерах — отсюда "скачущие" колонки и перенос текста по буквам
+       на Android Chrome при рабочей вёрстке в iOS Safari. --- */
+    .ft-tbl { display: block; width: 100%; }
     .ft-td--act .actl { justify-content: flex-start; }
     .ft-tbl thead { display: none; }
+    .ft-tbl tbody { display: block; }
     .ft-tbl tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
     .ft-tbl tbody td { display: block; text-align: left !important; padding: 0; white-space: normal; border-bottom: none; }
     .ft-tbl tbody td.ft-td--det,
     .ft-tbl tbody td.ft-td--act { grid-column: 1 / -1; }
     .ft-tbl tbody td.ft-td--act { display: flex; justify-content: flex-start; flex-wrap: wrap; margin-top: 4px; }
+    /* .ft-more (позиции сверх лимита, свёрнутые по умолчанию — см. .ft-all-shown
+       ниже) должен побеждать общее правило display:grid выше по специфичности,
+       иначе на мобильном показывались сразу все склады без сворачивания. */
+    .ft-tbl tbody tr.ft-more { display: none; }
+    .ft-all-shown .ft-tbl tbody tr.ft-more { display: grid; }
     .ft-deliv-label { white-space: normal; }
     .ft-tbl tbody td[data-label]::before { content: attr(data-label); font-weight: 700; font-size: 10px; color: var(--gray); text-transform: uppercase; display: block; margin-bottom: 2px; }
     .ft-ghead { flex-direction: column; align-items: flex-start; }
