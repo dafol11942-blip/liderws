@@ -387,9 +387,13 @@ async function loadResults(){
         });
 
         try {
+            // 60000 здесь раньше гонялся вничью с серверным бюджетом crossload (до 60с
+            // ТОЛЬКО на сетевые фазы: discovery≤15с + fast≤25с + slow≤20с, см. search/ajax.php),
+            // не считая парсинг/сортировку/кэш сотен ответов сверху — запрос почти всегда
+            // не укладывался и обрывался по AbortError, показывая ложную ошибку докрутки.
             var r2 = await fetchWithTimeout(API + '?action=crossload&task=' + encodeURIComponent(taskId)
                 + '&brand=' + encodeURIComponent(B) + '&number=' + encodeURIComponent(N)
-                + '&crossPairs=' + encodeURIComponent(JSON.stringify(d1.crossPairs)), 60000);
+                + '&crossPairs=' + encodeURIComponent(JSON.stringify(d1.crossPairs)), 90000);
             if (!r2.ok) {
                 console.error('crossload HTTP error', r2.status, await r2.text());
                 showToast('Не удалось доподбрать часть предложений у поставщиков', 'warn');
