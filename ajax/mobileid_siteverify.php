@@ -65,7 +65,7 @@ try {
     exit;
 }
 
-$USER->Authorize($userId);
+$USER->Authorize($userId, true);
 
 echo json_encode([
     'success'    => true,
