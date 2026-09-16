@@ -464,7 +464,7 @@ if ($paymentHoldDeadlineTs <= 0) {
                                                 <span class="option-card__hours"><svg class="icon"><use href="#icon-clock"></use></svg> <?= htmlspecialchars($pickupShop['hours']) ?></span>
                                                 <?php endif; ?>
                                                 <?php foreach ($pickupShop['phones'] as $phone): ?>
-                                                <a href="tel:<?= htmlspecialchars($phone['tel']) ?>"><svg class="icon"><use href="#icon-phone"></use></svg> <?= htmlspecialchars($phone['display']) ?> <span><?= htmlspecialchars($phone['label']) ?></span></a>
+                                                <a href="tel:<?= htmlspecialchars($phone['tel']) ?>"><svg class="icon"><use href="#icon-phone"></use></svg> <span class="option-card__phone-number"><?= htmlspecialchars($phone['display']) ?></span> <span><?= htmlspecialchars($phone['label']) ?></span></a>
                                                 <?php endforeach; ?>
                                             </div>
                                             <?php endif; ?>
@@ -863,10 +863,23 @@ if ($paymentHoldDeadlineTs <= 0) {
 .receipt-method-panel { margin-top: 4px; }
 .option-card__phones { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; }
 .option-card__hours { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--gray); }
-.option-card__phones a { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--black); font-weight: 700; }
+.option-card__phones a { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 12px; color: var(--black); font-weight: 700; }
 .option-card__phones a:hover { color: var(--blue); }
 .option-card__phones a span { color: var(--gray); font-weight: 400; }
 .option-card__phones .icon, .option-card__hours .icon { width: 13px; height: 13px; flex-shrink: 0; color: var(--blue); }
+/* Номер телефона — неразрывная строка: раньше при нехватке ширины он
+   переносился по каждому пробелу ("+7" / "(85557)" / "99-3-99" на разных
+   строках) — нечитаемо. Переносится теперь только доп. метка после номера. */
+.option-card__phone-number { white-space: nowrap; color: var(--black); }
+
+/* На узких экранах фикс. ширины иконки+цены в один ряд с телефонами почти
+   не оставляли места под номер. Переносим цену на отдельную строку и
+   укладываем телефоны в столбец — see bug-report со скриншотом. */
+@media (max-width: 640px) {
+    .option-card__box { flex-wrap: wrap; }
+    .option-card__price { flex-basis: 100%; text-align: right; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+    .option-card__phones { flex-direction: column; align-items: flex-start; gap: 6px; }
+}
 .pickup-map { width: 100%; height: 260px; border-radius: var(--radius); overflow: hidden; margin-top: 12px; border: 1px solid var(--border); }
 .pickup-map-fallback { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .pickup-map-fallback__link {
