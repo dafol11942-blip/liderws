@@ -664,14 +664,22 @@ if ($action === 'brands') {
     // ВАЖНО: LOGIC=>OR должен остаться ВЛОЖЕННЫМ подмассивом, а не слитым в один
     // уровень с IBLOCK_ID/ACTIVE через array_merge — иначе весь фильтр становится
     // "IBLOCK_ID=42 ИЛИ ACTIVE=Y ИЛИ ..." и возвращает почти весь каталог.
+    $localOrBlock = ['LOGIC' => 'OR',
+        ['%NAME' => $article], ['PROPERTY_CML2_ARTICLE' => $article],
+        ['%PROPERTY_CML2_ARTICLE' => $article], ['%DETAIL_TEXT' => $article],
+        ['PROPERTY_CML2_MANUFACTURER' => $article], ['%PROPERTY_CML2_MANUFACTURER' => $article],
+    ];
+    // CML2_ARTICLE на своём складе хранится слитно ("273012B010"), запрос с
+    // разделителями ("27301-2B010") иначе не находил его на складе — см. тот же
+    // фикс в search/index.php.
+    if ($normArt !== '' && $normArt !== mb_strtolower($article)) {
+        $localOrBlock[] = ['PROPERTY_CML2_ARTICLE' => $normArt];
+        $localOrBlock[] = ['%PROPERTY_CML2_ARTICLE' => $normArt];
+    }
     $localFilter = [
         'IBLOCK_ID' => 42,
         'ACTIVE'    => 'Y',
-        ['LOGIC' => 'OR',
-            ['%NAME' => $article], ['PROPERTY_CML2_ARTICLE' => $article],
-            ['%PROPERTY_CML2_ARTICLE' => $article], ['%DETAIL_TEXT' => $article],
-            ['PROPERTY_CML2_MANUFACTURER' => $article], ['%PROPERTY_CML2_MANUFACTURER' => $article],
-        ],
+        $localOrBlock,
     ];
     $localRes   = CIBlockElement::GetList([], $localFilter, false, false, ['ID']);
     $localCount = $localRes->SelectedRowsCount();

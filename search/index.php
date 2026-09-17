@@ -121,14 +121,22 @@ function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
 // Собственный склад — рендерим сразу серверно (как parts-search/), без AJAX-заглушки
 // с мёртвой ссылкой "Показать →". LOGIC=>OR должен быть ВЛОЖЕННЫМ подмассивом —
 // слитый на один уровень с IBLOCK_ID/ACTIVE превращает фильтр в "IBLOCK_ID=42 ИЛИ ACTIVE=Y ИЛИ ...".
+// Делим найденное на своём складе на "искомый артикул" (точное совпадение по артикулу)
+// и "аналоги" — по аналогии с делением exact/analogs у заказного товара (search/ajax.php).
+$normQ = BrandNormalizer::normalizeArticle($q);
 $localOrBlock = ['LOGIC' => 'OR',
     ['%NAME' => $q], ['PROPERTY_CML2_ARTICLE' => $q],
     ['%PROPERTY_CML2_ARTICLE' => $q], ['%DETAIL_TEXT' => $q],
     ['PROPERTY_CML2_MANUFACTURER' => $q], ['%PROPERTY_CML2_MANUFACTURER' => $q],
 ];
-// Делим найденное на своём складе на "искомый артикул" (точное совпадение по артикулу)
-// и "аналоги" — по аналогии с делением exact/analogs у заказного товара (search/ajax.php).
-$normQ = BrandNormalizer::normalizeArticle($q);
+// CML2_ARTICLE на своём складе хранится слитно ("273012B010"), а пользователь часто
+// вводит артикул с разделителями, как в документации на деталь ("27301-2B010").
+// Без нормализованного варианта LIKE-фильтр по "сырому" $q не находил такую позицию
+// на складе вовсе, и страница показывала только предложения поставщиков.
+if ($normQ !== '' && $normQ !== mb_strtolower($q)) {
+    $localOrBlock[] = ['PROPERTY_CML2_ARTICLE' => $normQ];
+    $localOrBlock[] = ['%PROPERTY_CML2_ARTICLE' => $normQ];
+}
 $localExactIds = [];
 $localAnalogIds = [];
 $localIdsRes = CIBlockElement::GetList([], [
