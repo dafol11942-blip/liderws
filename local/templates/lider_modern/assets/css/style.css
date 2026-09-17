@@ -1244,6 +1244,11 @@ body.catalog-filter-locked { overflow: hidden; }
     .hero__content { padding: 16px 12px; }
     .hero__title { font-size: 18px; }
     .hero__buttons .btn { width: 100%; }
+    /* Телефон + "Онлайн-запись" на страницах услуг (шиномонтаж, автосервис):
+       без этого на части ширин экрана обе кнопки помещались в один ряд и
+       вторая ("записаться") заметно съезжала вправо вместо обычной для
+       сайта на мобильном раскладки "кнопка под кнопкой на всю ширину". */
+    .service-detail__cta .btn { width: 100%; }
     .auto-finder { border-radius: 0; border-left: none; border-right: none; }
     .categories-grid, .to-brands-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
     .products-grid { gap: 6px; }
