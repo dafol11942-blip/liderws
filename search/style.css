@@ -497,17 +497,28 @@
     .filter-reset { width: 100%; margin-left: 0; order: 99; }
 }
 
-/* Инлайн-спиннер для Phase 2 */
-.cross-loading {
-    background: #eef4ff; border: 1px solid #d6e4ff; border-radius: var(--radius);
-    padding: 4px 16px; margin-bottom: 16px;
+/* Ориентир по времени под прогресс-баром Phase 1 (полноэкранный .loader) */
+.progress-eta { font-size: 12px; color: var(--gray); margin-top: 6px; }
+
+/* Плавающий индикатор докрутки аналогов (Phase 2) — position:fixed, а не часть
+   потока #resultContent, поэтому виден при любом скролле страницы результатов,
+   а не только пока пользователь не проскроллил мимо шапки блока. */
+.cross-float {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+    z-index: 500; display: flex; align-items: flex-start; gap: 12px;
+    background: var(--white); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow); padding: 12px 18px; width: 360px; max-width: calc(100% - 32px);
 }
-.loader-inline {
-    display: flex; align-items: center; gap: 8px;
-    padding: 10px 0; color: #4a5b7a; font-size: 14px;
+.cross-float-spinner {
+    flex: 0 0 auto; width: 20px; height: 20px; margin-top: 2px;
+    border: 2px solid var(--border); border-top-color: var(--blue, #668BEA);
+    border-radius: 50%; animation: spin 0.7s linear infinite;
 }
-.spinner-inline {
-    display: inline-block; width: 16px; height: 16px;
-    border: 2px solid #e0e0e0; border-top-color: var(--blue, #668BEA);
-    border-radius: 50%; animation: spin 0.6s linear infinite;
+.cross-float-body { flex: 1; min-width: 0; }
+.cross-float-text { font-size: 13px; font-weight: 600; color: var(--black); margin-bottom: 6px; }
+.cross-float-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
+.cross-float-fill { height: 100%; background: var(--blue); border-radius: 2px; transition: width .4s ease; }
+.cross-float-eta { font-size: 11px; color: var(--gray); }
+@media (max-width: 480px) {
+    .cross-float { width: auto; left: 12px; right: 12px; bottom: 12px; transform: none; padding: 10px 14px; }
 }

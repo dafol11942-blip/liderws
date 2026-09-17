@@ -345,13 +345,49 @@ function pickCheapestOffer(offers){
     return best;
 }
 
-function showProgress(pct, msg) {
+function showProgress(pct, msg, elapsedSec) {
+    var eta = 'Обычно занимает 10–20 секунд' + (elapsedSec != null ? ' · прошло ' + elapsedSec + ' с' : '');
     qs('#resultContent').innerHTML =
         '<div class="loader">' +
         '<div class="spinner"></div>' +
         '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
         '<div class="progress-text">' + pct + '% — ' + esc(msg) + '</div>' +
+        '<div class="progress-eta">' + eta + '</div>' +
         '</div>';
+}
+
+// Плавающий индикатор докрутки аналогов (Phase 2) — вешается на <body>, а не
+// вставляется первым потомком #resultContent (как раньше), поэтому остаётся
+// на экране, даже когда пользователь проскроллил результаты вниз, к самим
+// карточкам аналогов — раньше индикатор был виден только пока страница не
+// прокручена от самого верха.
+function showCrossFloat(initialText){
+    hideCrossFloat();
+    var el = document.createElement('div');
+    el.id = 'cross-float';
+    el.className = 'cross-float';
+    el.innerHTML =
+        '<span class="cross-float-spinner"></span>' +
+        '<div class="cross-float-body">' +
+            '<div class="cross-float-text">' + esc(initialText) + '</div>' +
+            '<div class="cross-float-bar"><div class="cross-float-fill" style="width:0%"></div></div>' +
+            '<div class="cross-float-eta">Обычно занимает 15–40 секунд</div>' +
+        '</div>';
+    document.body.appendChild(el);
+}
+function updateCrossFloat(pct, msg, elapsedSec){
+    var el = qs('#cross-float');
+    if (!el) return;
+    var textEl = el.querySelector('.cross-float-text');
+    var fillEl = el.querySelector('.cross-float-fill');
+    var etaEl  = el.querySelector('.cross-float-eta');
+    if (textEl) textEl.textContent = (msg || 'Докручиваем аналоги') + ' — ' + pct + '%';
+    if (fillEl) fillEl.style.width = pct + '%';
+    if (etaEl) etaEl.textContent = 'Обычно занимает 15–40 секунд' + (elapsedSec != null ? ' · прошло ' + elapsedSec + ' с' : '');
+}
+function hideCrossFloat(){
+    var el = qs('#cross-float');
+    if (el) el.remove();
 }
 
 // Хостинг заблокировал IP посетителя за превышение частоты запросов именно к
@@ -382,9 +418,12 @@ function pollProgress(taskId, onTick, maxMs) {
 
 async function loadResults(){
     var taskId = 'srch_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    var phase1Start = Date.now();
 
-    showProgress(0, 'Запуск поиска...');
-    var stopP1 = pollProgress(taskId, function(pct, msg){ showProgress(pct, msg); });
+    showProgress(0, 'Запуск поиска...', 0);
+    var stopP1 = pollProgress(taskId, function(pct, msg){
+        showProgress(pct, msg, Math.round((Date.now() - phase1Start) / 1000));
+    });
 
     // ═══ PHASE 1 ═══
     var d1;
@@ -408,15 +447,11 @@ async function loadResults(){
 
     // ═══ PHASE 2: добор в фоне ═══
     if (d1.phase === 1 && d1.cross_count > 0 && d1.crossPairs) {
-        var resultEl = qs('#resultContent');
-        var loadDiv = document.createElement('div');
-        loadDiv.className = 'cross-loading';
-        loadDiv.innerHTML = '<div class="loader-inline"><span class="spinner-inline"></span> <span class="cross-loading-text">Подбираем цены для ' + d1.cross_count + ' аналогов у всех поставщиков...</span></div>';
-        resultEl.insertBefore(loadDiv, resultEl.firstChild);
-        var textEl = loadDiv.querySelector('.cross-loading-text');
+        var phase2Start = Date.now();
+        showCrossFloat('Подбираем цены для ' + d1.cross_count + ' аналогов у всех поставщиков...');
 
         var stopP2 = pollProgress(taskId, function(pct, msg){
-            if (textEl) textEl.textContent = (msg || 'Докручиваем аналоги') + ' (' + pct + '%)';
+            updateCrossFloat(pct, msg, Math.round((Date.now() - phase2Start) / 1000));
         });
 
         try {
@@ -450,8 +485,7 @@ async function loadResults(){
             showToast('Не удалось доподбрать часть предложений у поставщиков', 'warn');
         }
         stopP2();
-        var liveDiv = qs('.cross-loading');
-        if (liveDiv) liveDiv.remove();
+        hideCrossFloat();
     }
 
     // Карточки UMAPI для аналогов (фото/наименование/параметры) — намеренно ПОСЛЕ фазы 2,
