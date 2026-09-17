@@ -499,7 +499,7 @@ if ($action === 'crossload') {
         exit;
     }
 
-    progWrite($taskId, 1, 'Начинаем докрутку аналогов...');
+    progWrite($taskId, 1, 'Начинаем поиск аналогов...');
 
     $crossJson = trim($_REQUEST['crossPairs'] ?? '');
     $crossPairs = $crossJson !== '' ? json_decode($crossJson, true) : null;
@@ -557,7 +557,7 @@ if ($action === 'crossload') {
     }
 
     if (empty($crossPairs)) {
-        progWrite($taskId, 100, 'Докрутка завершена');
+        progWrite($taskId, 100, 'Поиск завершён');
         $out = json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta], JSON_UNESCAPED_UNICODE);
         saveTaskResult('crossload', $taskId, $out);
         releaseTaskLock($crosslockFp);
@@ -592,7 +592,7 @@ if ($action === 'crossload') {
     }
 
     $t0 = microtime(true);
-    progWrite($taskId, 10, "Докручиваем аналоги: опрашиваем " . count($allReqs) . " предложений...");
+    progWrite($taskId, 10, "Ищем аналоги: опрашиваем " . count($allReqs) . " предложений...");
     // Один параллельный пул вместо ручных "волн" — curl сам держит лимит соединений
     // на хост и тут же подхватывает следующий запрос, не дожидаясь остальных хостов.
     // RATE_SENSITIVE_SUPPLIERS — отдельно, см. curlExecSplit().
@@ -652,7 +652,7 @@ if ($action === 'crossload') {
 
     OfferTokenStore::save($taskId, $OFFER_TOKENS);
 
-    progWrite($taskId, 100, 'Докрутка завершена');
+    progWrite($taskId, 100, 'Поиск завершён');
     $out = json_encode(['done' => true, 'analog_offers' => $analogOffers, 'new_analogs' => $newAnalogsMeta], JSON_UNESCAPED_UNICODE);
     saveTaskResult('crossload', $taskId, $out);
     releaseTaskLock($crosslockFp);

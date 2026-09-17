@@ -369,7 +369,7 @@ function showCrossFloat(initialText, exactFound){
     // Статичная строка "искомый артикул уже найден" — не обновляется по тику
     // (в отличие от .cross-float-text), просто снимает у пользователя вопрос
     // "а сам товар точно нашёлся, пока идёт докрутка аналогов?".
-    var foundLine = exactFound ? '<div class="cross-float-found">✓ Искомый артикул уже найден, докручиваем аналоги</div>' : '';
+    var foundLine = exactFound ? '<div class="cross-float-found">✓ Искомый артикул уже найден, ищем аналоги</div>' : '';
     el.innerHTML =
         '<span class="cross-float-spinner"></span>' +
         '<div class="cross-float-body">' +
@@ -386,7 +386,7 @@ function updateCrossFloat(pct, msg, elapsedSec){
     var textEl = el.querySelector('.cross-float-text');
     var fillEl = el.querySelector('.cross-float-fill');
     var etaEl  = el.querySelector('.cross-float-eta');
-    if (textEl) textEl.textContent = (msg || 'Докручиваем аналоги') + ' — ' + pct + '%';
+    if (textEl) textEl.textContent = (msg || 'Ищем аналоги') + ' — ' + pct + '%';
     if (fillEl) fillEl.style.width = pct + '%';
     if (etaEl) etaEl.textContent = 'Обычно занимает 15–40 секунд' + (elapsedSec != null ? ' · прошло ' + elapsedSec + ' с' : '');
 }
