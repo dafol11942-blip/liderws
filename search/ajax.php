@@ -878,6 +878,13 @@ if ($action === 'brands') {
 
     $crossPairs = array_slice($crossPairs, 0, MAX_ANALOG_PAIRS, true);
     $crossCount = count($crossPairs);
+    // $analogGroups ключи совпадают 1:1 с $crossPairs (оба заполняются в одном цикле
+    // выше), но БЕЗ этого фильтра $analogGroups остаётся полным, а $crossPairs — обрезан
+    // до MAX_ANALOG_PAIRS. Аналог, отброшенный из crossPairs, но оставшийся в analogGroups,
+    // показывался пользователю с предложениями только того ОДНОГО поставщика, чей ответ его
+    // принёс в Phase 1 — Phase 2 (докрутка по всем остальным поставщикам) его уже не видит,
+    // потому что crossPairs не пришлёт его во фронтенд для докрутки. Обрезаем оба одинаково.
+    $analogGroups = array_intersect_key($analogGroups, $crossPairs);
 
     progWrite($taskId, 100, 'Готово');
 
