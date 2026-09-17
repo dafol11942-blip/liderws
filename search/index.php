@@ -361,14 +361,19 @@ function showProgress(pct, msg, elapsedSec) {
 // на экране, даже когда пользователь проскроллил результаты вниз, к самим
 // карточкам аналогов — раньше индикатор был виден только пока страница не
 // прокручена от самого верха.
-function showCrossFloat(initialText){
+function showCrossFloat(initialText, exactFound){
     hideCrossFloat();
     var el = document.createElement('div');
     el.id = 'cross-float';
     el.className = 'cross-float';
+    // Статичная строка "искомый артикул уже найден" — не обновляется по тику
+    // (в отличие от .cross-float-text), просто снимает у пользователя вопрос
+    // "а сам товар точно нашёлся, пока идёт докрутка аналогов?".
+    var foundLine = exactFound ? '<div class="cross-float-found">✓ Искомый артикул уже найден, докручиваем аналоги</div>' : '';
     el.innerHTML =
         '<span class="cross-float-spinner"></span>' +
         '<div class="cross-float-body">' +
+            foundLine +
             '<div class="cross-float-text">' + esc(initialText) + '</div>' +
             '<div class="cross-float-bar"><div class="cross-float-fill" style="width:0%"></div></div>' +
             '<div class="cross-float-eta">Обычно занимает 15–40 секунд</div>' +
@@ -448,7 +453,7 @@ async function loadResults(){
     // ═══ PHASE 2: добор в фоне ═══
     if (d1.phase === 1 && d1.cross_count > 0 && d1.crossPairs) {
         var phase2Start = Date.now();
-        showCrossFloat('Подбираем цены для ' + d1.cross_count + ' аналогов у всех поставщиков...');
+        showCrossFloat('Подбираем цены для ' + d1.cross_count + ' аналогов у всех поставщиков...', !!d1.exact);
 
         var stopP2 = pollProgress(taskId, function(pct, msg){
             updateCrossFloat(pct, msg, Math.round((Date.now() - phase2Start) / 1000));

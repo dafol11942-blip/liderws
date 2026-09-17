@@ -515,6 +515,7 @@
     border-radius: 50%; animation: spin 0.7s linear infinite;
 }
 .cross-float-body { flex: 1; min-width: 0; }
+.cross-float-found { font-size: 12px; font-weight: 600; color: #059669; margin-bottom: 6px; }
 .cross-float-text { font-size: 13px; font-weight: 600; color: var(--black); margin-bottom: 6px; }
 .cross-float-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
 .cross-float-fill { height: 100%; background: var(--blue); border-radius: 2px; transition: width .4s ease; }
