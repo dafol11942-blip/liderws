@@ -129,13 +129,18 @@ $localOrBlock = ['LOGIC' => 'OR',
     ['%PROPERTY_CML2_ARTICLE' => $q], ['%DETAIL_TEXT' => $q],
     ['PROPERTY_CML2_MANUFACTURER' => $q], ['%PROPERTY_CML2_MANUFACTURER' => $q],
 ];
-// CML2_ARTICLE на своём складе хранится слитно ("273012B010"), а пользователь часто
-// вводит артикул с разделителями, как в документации на деталь ("27301-2B010").
-// Без нормализованного варианта LIKE-фильтр по "сырому" $q не находил такую позицию
-// на складе вовсе, и страница показывала только предложения поставщиков.
+// Артикулы на своём складе (и кросс-номера в DETAIL_TEXT аналогов) хранятся слитно
+// ("273012B010"), а пользователь часто вводит их с разделителями, как в документации
+// на деталь ("27301-2B010"). Без нормализованного варианта по всем тем же полям
+// LIKE-фильтр по "сырому" $q не находил ни сам товар, ни его аналоги на складе,
+// и страница показывала только предложения поставщиков.
 if ($normQ !== '' && $normQ !== mb_strtolower($q)) {
+    $localOrBlock[] = ['%NAME' => $normQ];
     $localOrBlock[] = ['PROPERTY_CML2_ARTICLE' => $normQ];
     $localOrBlock[] = ['%PROPERTY_CML2_ARTICLE' => $normQ];
+    $localOrBlock[] = ['%DETAIL_TEXT' => $normQ];
+    $localOrBlock[] = ['PROPERTY_CML2_MANUFACTURER' => $normQ];
+    $localOrBlock[] = ['%PROPERTY_CML2_MANUFACTURER' => $normQ];
 }
 $localExactIds = [];
 $localAnalogIds = [];
