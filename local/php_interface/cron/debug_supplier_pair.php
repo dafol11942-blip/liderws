@@ -8,6 +8,11 @@
  * Пример: php debug_supplier_pair.php partkom "Renault" "77 00 274 177"
  */
 
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('CLI only');
+}
+
 if ($argc < 4) {
     fwrite(STDERR, "Использование: php debug_supplier_pair.php <supplier_code> \"<brand>\" \"<article>\"\n");
     exit(1);

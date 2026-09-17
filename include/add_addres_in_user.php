@@ -4,14 +4,14 @@ require_once($_SERVER['DOCUMENT_ROOT'].'/bitrix/modules/main/include/prolog_befo
 $GLOBALS['APPLICATION']->RestartBuffer();
 
 
-$addres = $_REQUEST['city_addres_name'];
+$addres = (string)($_REQUEST['city_addres_name'] ?? '');
 
 
 // debug($_REQUEST);
 
 global $DB;
 
-$location_id_qr = $DB->Query("SELECT `LOCATION_ID` FROM `b_sale_loc_name` WHERE `NAME` LIKE '%" . $addres . "' LIMIT 1 ");
+$location_id_qr = $DB->Query("SELECT `LOCATION_ID` FROM `b_sale_loc_name` WHERE `NAME` LIKE '%" . $DB->ForSql($addres) . "' LIMIT 1 ");
 
 
 while ($rows = $location_id_qr->Fetch()) {
@@ -22,7 +22,7 @@ while ($rows = $location_id_qr->Fetch()) {
 
 // CODE
 
-$location_code_qr = $DB->Query("SELECT `CODE` FROM `b_sale_location` WHERE `id` = " . $location_id . " LIMIT 1");
+$location_code_qr = $DB->Query("SELECT `CODE` FROM `b_sale_location` WHERE `id` = " . (int)$location_id . " LIMIT 1");
 
 while ($rows = $location_code_qr->Fetch()) {
 
@@ -123,4 +123,5 @@ $_SESSION['pvzItemVar'] = $_REQUEST['pvzItemVar'];
 // debug($location_code);
 // debug($_REQUEST);
 
-echo json_encode($_REQUEST, 1);
+header('Content-Type: application/json; charset=utf-8');
+echo json_encode($_REQUEST, JSON_PRETTY_PRINT | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);

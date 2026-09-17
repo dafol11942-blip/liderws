@@ -120,7 +120,7 @@ if ($IlcatsInjections = file_exists('IlcatsInjections.php')) {
 }
 if (empty($_GET['brand'])) $_GET['brand'] = '';
 echo $HtmlTags['HeadEnd'];
-echo "<body class='" . $_GET['brand'] . "'>";
+echo "<body class='" . htmlspecialchars($_GET['brand'], ENT_QUOTES, 'UTF-8') . "'>";
 if ($IlcatsInjections) {
 	$IlcatsInjection = 'Counters';
 	include('IlcatsInjections.php');

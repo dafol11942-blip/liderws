@@ -203,7 +203,7 @@ $localCardParams = [
 
 <script>
 (function(){
-var API='/search/ajax.php',Q=<?=json_encode($q)?>;
+var API='/search/ajax.php',Q=<?=json_encode($q, JSON_HEX_TAG | JSON_HEX_AMP)?>;
 // Форма запроса похожа на номер кузова (буквы+цифры-дефис-цифры), и на своём
 // складе ничего по нему нет — но это ещё может оказаться настоящий OEM-артикул
 // (см. F4J16-3707010 у Exeed), поэтому обычный поиск по артикулу всегда идёт
@@ -275,7 +275,7 @@ document.addEventListener('DOMContentLoaded',function(){loadBrands(Q)});
 <script>
 (function(){
 var API='/search/ajax.php';
-var Q=<?=json_encode($q)?>,B=<?=json_encode($brand)?>,N=<?=json_encode($number)?>;
+var Q=<?=json_encode($q, JSON_HEX_TAG | JSON_HEX_AMP)?>,B=<?=json_encode($brand, JSON_HEX_TAG | JSON_HEX_AMP)?>,N=<?=json_encode($number, JSON_HEX_TAG | JSON_HEX_AMP)?>;
 var IS_MANAGER=<?=json_encode($isManager)?>;
 var FAV_SUPPLIER_KEYS=<?=json_encode($favSupplierKeys)?>;
 function isFavSupplier(brand,article,supplier){ return FAV_SUPPLIER_KEYS.indexOf((brand||'')+'|'+(article||'')+'|'+(supplier||'')) !== -1; }
