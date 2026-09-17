@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/lib/autoload.php';
+require_once __DIR__ . '/events/order_location_handler.php';
 
 AddEventHandler("catalog", "OnProductUpdate", "syncInStockProperty");
 AddEventHandler("catalog", "OnProductAdd", "syncInStockProperty");

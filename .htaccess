@@ -1,15 +1,31 @@
-Options -Indexes 
+Options -Indexes
 ErrorDocument 404 /404.php
 
 <IfModule mod_rewrite.c>
 	Options +FollowSymLinks
 	RewriteEngine On
+
+	# Запрет доступа к директориям систем контроля версий (.git, .svn, .hg)
+	RewriteRule (^|/)\.(git|svn|hg)(/|$) - [F,L]
+
 	RewriteCond %{REQUEST_FILENAME} !-f
 	RewriteCond %{REQUEST_FILENAME} !-l
 	RewriteCond %{REQUEST_FILENAME} !-d
 	RewriteCond %{REQUEST_FILENAME} !/bitrix/urlrewrite.php$
 	RewriteRule ^(.*)$ /bitrix/urlrewrite.php [L]
 	RewriteRule .* - [E=REMOTE_USER:%{HTTP:Authorization}]
+</IfModule>
+
+<IfModule mod_headers.c>
+	# Запрет отображения сайта во фрейме со стороннего домена (Clickjacking)
+	Header always set X-Frame-Options "SAMEORIGIN"
+	# Отключение MIME-сниффинга браузером
+	Header always set X-Content-Type-Options "nosniff"
+	# HSTS: принудительный https для уже работающих по https посетителей.
+	# max-age задан умеренно (30 дней) и без includeSubDomains/preload —
+	# чтобы не блокировать доступ, если у какого-то поддомена ещё нет TLS.
+	# Увеличивайте max-age постепенно, только убедившись, что https стабилен везде.
+	Header always set Strict-Transport-Security "max-age=2592000"
 </IfModule>
 
 <IfModule mod_dir.c>
