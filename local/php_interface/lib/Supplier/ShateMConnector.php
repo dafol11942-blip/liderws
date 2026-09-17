@@ -161,6 +161,12 @@ class ShateMConnector implements SupplierInterface, SupplierOrderable, SupplierO
     public function parseSearchResponse(string $responseBody, string $brand, string $article): array
     {
         $results = [];
+        // Защита от OOM: огромные cross-ответы
+        $len = strlen($responseBody);
+        if ($len > 2500000) {
+            $this->log("parseSearchResponse: body too large ({$len} bytes), skip");
+            return $results;
+        }
         $token = $this->ensureToken();
         if (!$token) return $results;
 

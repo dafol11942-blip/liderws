@@ -146,6 +146,12 @@ class IxoraConnector implements SupplierInterface, SupplierOrderable, SupplierOr
     public function parseSearchResponse(string $responseBody, string $brand, string $article): array
     {
         $results = [];
+        // Защита от OOM: огромные cross-ответы
+        $len = strlen($responseBody);
+        if ($len > 2500000) {
+            $this->log("parseSearchResponse: body too large ({$len} bytes), skip");
+            return $results;
+        }
         $xml = @simplexml_load_string($responseBody);
         if ($xml === false || $xml === null) {
             $this->log('parseSearchResponse: bad XML');

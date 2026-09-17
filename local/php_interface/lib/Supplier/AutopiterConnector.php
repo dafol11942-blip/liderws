@@ -268,6 +268,13 @@ class AutopiterConnector implements SupplierInterface, SupplierOrderable, Suppli
         $own = [];    // StoreType 0,2 — на складе Автопитера
         $other = [];  // StoreType 1,3,4,9 — чужие
 
+        // Защита от OOM: огромные cross-ответы
+        $len = strlen($responseBody);
+        if ($len > 2500000) {
+            $this->log("parseSearchResponse: body too large ({$len} bytes), skip");
+            return [];
+        }
+
         if (!preg_match_all('/<PriceSearchModel>(.*?)<\/PriceSearchModel>/s', $responseBody, $matches)) {
             return [];
         }

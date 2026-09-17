@@ -128,6 +128,12 @@ class PartKomConnector implements SupplierInterface, SupplierOrderable, Supplier
     public function parseSearchResponse(string $body, string $brand, string $article): array
     {
         $results = [];
+        // Защита от OOM: огромные cross-ответы
+        $len = strlen($body);
+        if ($len > 2500000) {
+            $this->log("parseSearchResponse: body too large ({$len} bytes), skip");
+            return $results;
+        }
         $data    = json_decode($body, true);
         if (!is_array($data)) return $results;
 

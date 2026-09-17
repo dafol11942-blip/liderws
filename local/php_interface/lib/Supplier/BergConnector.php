@@ -133,6 +133,12 @@ class BergConnector implements SupplierInterface, SupplierOrderable, SupplierOrd
     {
         $own = [];    // type=1,2 — свои склады БЕРГ
         $other = [];  // type=3 — чужие
+        // Защита от OOM: огромные cross-ответы
+        $len = strlen($responseBody);
+        if ($len > 2500000) {
+            $this->log("parseSearchResponse: body too large ({$len} bytes), skip");
+            return [];
+        }
         $data = json_decode($responseBody, true);
         if (empty($data['resources'])) return [];
 

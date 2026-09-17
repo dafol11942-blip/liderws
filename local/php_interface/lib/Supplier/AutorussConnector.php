@@ -154,6 +154,12 @@ class AutorussConnector implements SupplierInterface, SupplierOrderable, Supplie
     public function parseSearchResponse(string $responseBody, string $brand, string $article): array
     {
         $results = [];
+        // Защита от OOM: огромные cross-ответы
+        $len = strlen($responseBody);
+        if ($len > 2500000) {
+            $this->log("parseSearchResponse: body too large ({$len} bytes), skip");
+            return $results;
+        }
         $data = json_decode($responseBody, true);
         if (!is_array($data)) return $results;
 
