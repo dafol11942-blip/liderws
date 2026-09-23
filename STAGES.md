@@ -1,6 +1,6 @@
 ﻿# STAGES — журнал проекта liderws.ru
 ## Инфраструктура
-Сервер: server17.reg.ru | SSH: ssh u3564357@31.31.198.55 -p 22 | Корень: /var/www/u3564357/data/www/liderws.ru/ | PHP: /usr/bin/php
+Сервер: server17.reg.ru | SSH: ssh u3564357@31.31.197.107 -p 22 | Домен: liderws.ru | Корень: /var/www/u3564357/data/www/liderws.ru/ | PHP: /usr/bin/php
 БД: u3564357_liderws_db / u3564357_liderws / S)'uAp]3.$@wWd- | mysql -u u3564357_liderws -p"S)'uAp]3.\$@wWd-" u3564357_liderws_db
 Репозиторий: https://github.com/dafol11942-blip/liderws | Локально: C:\Users\user\Documents\GitHub\liderws | Ветка: fix/cache-pipeline-bugs
 Платформа: 1С-Битрикс «Малый бизнес» | Поставщики (10): moskvorechie, rossko, berg, autoeuro, partkom, ixora, shatem, tatparts, autoruss, autopiter
