@@ -1,7 +1,6 @@
 <?php
 require_once($_SERVER['DOCUMENT_ROOT'] . '/bitrix/modules/main/include/prolog_before.php');
 
-use Lider\Auth\PhoneAuthCodeService;
 use Lider\Auth\PhoneNumberNormalizer;
 use Lider\Auth\PhoneUserService;
 
@@ -23,18 +22,25 @@ if (!hash_equals(bitrix_sessid(), (string)($input['sessid'] ?? ''))) {
     exit;
 }
 
-$normalizedPhone = PhoneNumberNormalizer::normalize((string)($input['phone'] ?? ''));
-$code = trim((string)($input['code'] ?? ''));
+$sessionId = (string)($input['session_id'] ?? '');
+$verifyToken = (string)($input['verify_token'] ?? '');
 
-if ($normalizedPhone === null || $code === '') {
+if ($sessionId === '' || $verifyToken === '') {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Телефон и код обязательны']);
+    echo json_encode(['success' => false, 'message' => 'session_id и verify_token обязательны']);
     exit;
 }
 
-$verifyResult = PhoneAuthCodeService::verifyCode($normalizedPhone, $code);
-if ($verifyResult !== true) {
-    echo json_encode(['success' => false, 'message' => $verifyResult]);
+[$status, $body] = getMobileIdClient()->siteVerify($sessionId, $verifyToken);
+
+if ($status !== 200 || empty($body['success']) || ($body['status'] ?? '') !== 'verified') {
+    echo json_encode(['success' => false, 'message' => 'Верификация не подтверждена']);
+    exit;
+}
+
+$normalizedPhone = PhoneNumberNormalizer::normalize((string)($body['phone'] ?? ''));
+if ($normalizedPhone === null) {
+    echo json_encode(['success' => false, 'message' => 'Некорректный номер телефона от сервиса верификации']);
     exit;
 }
 
