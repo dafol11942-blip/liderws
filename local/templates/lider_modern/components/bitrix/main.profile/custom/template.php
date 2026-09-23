@@ -48,17 +48,44 @@
     <button type="submit" class="btn btn--primary"><svg class="icon"><use href="#icon-save"></use></svg> Сохранить изменения</button>
 </form>
 
-<div id="lk-change-phone-widget" style="display:none;margin-top:16px;max-width:420px;"></div>
+<div id="lk-change-phone-widget" style="display:none;margin-top:16px;max-width:420px;">
+    <div id="lk-change-phone-input-step">
+        <div class="form-field">
+            <label for="lk-new-phone-input">Новый номер телефона</label>
+            <input type="tel" id="lk-new-phone-input" placeholder="+7 (___) ___-__-__" autocomplete="tel">
+        </div>
+        <button type="button" id="lk-send-code-btn" class="btn btn--primary">Получить код</button>
+    </div>
+    <div id="lk-change-phone-code-step" style="display:none;margin-top:12px;">
+        <div class="form-field">
+            <label for="lk-new-phone-code-input">Код из SMS</label>
+            <input type="text" id="lk-new-phone-code-input" inputmode="numeric" maxlength="4" placeholder="• • • •" autocomplete="one-time-code">
+        </div>
+        <button type="button" id="lk-verify-code-btn" class="btn btn--primary">Подтвердить</button>
+        <button type="button" id="lk-resend-code-btn" class="btn btn--secondary" disabled>Отправить код повторно (<span id="lk-resend-timer">60</span>)</button>
+    </div>
+</div>
 <div id="lk-change-phone-message" style="display:none;margin-top:12px;padding:12px 16px;border-radius:8px;"></div>
 
-<script src="<?= SITE_TEMPLATE_PATH ?>/assets/js/mobileid-widget.min.js"></script>
 <script>
 (function () {
+    var RESEND_COOLDOWN = 60;
+
     var btn = document.getElementById('lk-change-phone-btn');
     var container = document.getElementById('lk-change-phone-widget');
     var msgBox = document.getElementById('lk-change-phone-message');
     var phoneDisplay = document.getElementById('lk-phone-display');
-    var mounted = false;
+
+    var phoneStep = document.getElementById('lk-change-phone-input-step');
+    var codeStep = document.getElementById('lk-change-phone-code-step');
+    var phoneInput = document.getElementById('lk-new-phone-input');
+    var codeInput = document.getElementById('lk-new-phone-code-input');
+    var sendBtn = document.getElementById('lk-send-code-btn');
+    var verifyBtn = document.getElementById('lk-verify-code-btn');
+    var resendBtn = document.getElementById('lk-resend-code-btn');
+    var resendTimerEl = document.getElementById('lk-resend-timer');
+
+    var resendTimer = null;
 
     function showMessage(text, isError) {
         msgBox.textContent = text;
@@ -68,65 +95,97 @@
         msgBox.style.color = isError ? '#721c24' : '#155724';
     }
 
+    function startResendCooldown() {
+        var secondsLeft = RESEND_COOLDOWN;
+        resendBtn.disabled = true;
+        resendTimerEl.textContent = secondsLeft;
+        if (resendTimer) clearInterval(resendTimer);
+        resendTimer = setInterval(function () {
+            secondsLeft--;
+            if (secondsLeft <= 0) {
+                clearInterval(resendTimer);
+                resendBtn.disabled = false;
+                resendBtn.textContent = 'Отправить код повторно';
+                return;
+            }
+            resendTimerEl.textContent = secondsLeft;
+        }, 1000);
+    }
+
+    function sendCode() {
+        var phone = phoneInput.value.trim();
+        if (phone === '') {
+            showMessage('Введите номер телефона', true);
+            return;
+        }
+        sendBtn.disabled = true;
+        fetch('/ajax/smsru_send_code.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: phone })
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (result) {
+                sendBtn.disabled = false;
+                if (result.success) {
+                    phoneStep.style.display = 'none';
+                    codeStep.style.display = 'block';
+                    codeInput.value = '';
+                    codeInput.focus();
+                    startResendCooldown();
+                } else {
+                    showMessage(result.message || 'Не удалось отправить код', true);
+                }
+            })
+            .catch(function () {
+                sendBtn.disabled = false;
+                showMessage('Ошибка соединения с сервером', true);
+            });
+    }
+
     btn.addEventListener('click', function () {
         container.style.display = 'block';
         btn.style.display = 'none';
-        if (mounted) return;
-        mounted = true;
+    });
 
-        var widget = new MobileIDWidget({
-            tokenUrl: '/ajax/mobileid_token.php',
-            resultView: 'text',
-            allowChangePhone: true,
-            texts: {
-                phoneLabel: 'Новый номер телефона',
-                phonePlaceholder: '+7 (___) ___-__-__',
-                submitPhone: 'Получить код',
-                otpLabel: 'Введите код из SMS',
-                submitOtp: 'Подтвердить'
-            },
-            theme: {
-                primaryColor: '#668BEA',
-                primaryHover: '#465B91',
-                primaryText: '#ffffff',
-                inputBorder: '#E2E2E2',
-                inputBorderFocus: '#668BEA',
-                borderRadius: '10px',
-                fontFamily: 'Nunito, sans-serif',
-                fontSize: '14px'
-            },
-            onVerified: function (data) {
-                fetch('/ajax/mobileid_change_phone.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        session_id: data.session_id,
-                        verify_token: data.verify_token,
-                        sessid: BX.bitrix_sessid()
-                    })
-                })
-                    .then(function (res) { return res.json(); })
-                    .then(function (result) {
-                        if (result.success) {
-                            phoneDisplay.value = result.phone;
-                            container.style.display = 'none';
-                            showMessage('Номер телефона успешно изменён', false);
-                        } else {
-                            showMessage(result.message || 'Не удалось изменить номер', true);
-                        }
-                    })
-                    .catch(function () {
-                        showMessage('Ошибка соединения с сервером', true);
-                    });
-            },
-            onRejected: function () {
-                showMessage('Верификация отклонена', true);
-            },
-            onError: function (err) {
-                showMessage((err && err.message) || 'Ошибка виджета', true);
-            }
-        });
-        widget.mount('#lk-change-phone-widget');
+    sendBtn.addEventListener('click', sendCode);
+    resendBtn.addEventListener('click', function () {
+        if (resendBtn.disabled) return;
+        sendCode();
+    });
+
+    verifyBtn.addEventListener('click', function () {
+        var code = codeInput.value.trim();
+        if (code === '') {
+            showMessage('Введите код из SMS', true);
+            return;
+        }
+        verifyBtn.disabled = true;
+        fetch('/ajax/smsru_change_phone.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                phone: phoneInput.value.trim(),
+                code: code,
+                sessid: BX.bitrix_sessid()
+            })
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (result) {
+                verifyBtn.disabled = false;
+                if (result.success) {
+                    phoneDisplay.value = result.phone;
+                    container.style.display = 'none';
+                    if (resendTimer) clearInterval(resendTimer);
+                    showMessage('Номер телефона успешно изменён', false);
+                } else {
+                    showMessage(result.message || 'Не удалось изменить номер', true);
+                }
+            })
+            .catch(function () {
+                verifyBtn.disabled = false;
+                showMessage('Ошибка соединения с сервером', true);
+            });
     });
 })();
 </script>

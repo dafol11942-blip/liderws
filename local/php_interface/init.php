@@ -267,16 +267,13 @@ function getYandexMapsApiKey(): string
     return $key;
 }
 
-function getMobileIdClient(): \Lider\Auth\MobileIdClient
+function getSmsRuClient(): \Lider\Sms\SmsRuClient
 {
     static $client = null;
     if ($client === null) {
-        $configFile = __DIR__ . '/config/mobileid_config.php';
+        $configFile = __DIR__ . '/config/smsru_config.php';
         $config = is_file($configFile) ? require $configFile : [];
-        $client = new \Lider\Auth\MobileIdClient(
-            (string)($config['CLIENT_ID'] ?? ''),
-            (string)($config['API_SECRET'] ?? '')
-        );
+        $client = new \Lider\Sms\SmsRuClient((string)($config['API_ID'] ?? ''));
     }
     return $client;
 }
