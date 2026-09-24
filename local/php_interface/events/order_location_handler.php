@@ -64,7 +64,7 @@ function getDefaultShopLocationCode(): string
         return $cached;
     }
 
-    $cache = new \Bitrix\Main\Data\Cache();
+    $cache = \Bitrix\Main\Data\Cache::createInstance();
     $cacheId = 'default_shop_location_code_elabuga_v1';
     $cachePath = '/lider/order_location';
 
