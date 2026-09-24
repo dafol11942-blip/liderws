@@ -214,11 +214,14 @@ logger('Товаров ACTIVE=Y: ' . $total);
 foreach ($rows as $i => $el) {
     $productId = (int)$el['ID'];
 
-    // "В наличии" — та же сумма по складам, что уже используется на странице товара
-    // и в корзине (см. catalog.element/lider_style/template.php, cart template).
+    // "В наличии" — тот же плоский QUANTITY, что уже используется на странице
+    // товара (см. catalog.element/lider_style/template.php): лицензия "Малый
+    // бизнес" не поддерживает учёт по складам, разбивка остатков в 1С отключена.
     $totalAmount = 0;
-    $dbStore = CCatalogStoreProduct::GetList([], ['PRODUCT_ID' => $productId], false, false, ['AMOUNT']);
-    while ($arStore = $dbStore->Fetch()) $totalAmount += (int)$arStore['AMOUNT'];
+    $rsCatalogProduct = CCatalogProduct::GetList([], ['ID' => $productId], false, false, ['QUANTITY']);
+    if ($arCatalogProduct = $rsCatalogProduct->Fetch()) {
+        $totalAmount = (int)$arCatalogProduct['QUANTITY'];
+    }
     if ($totalAmount <= 0) {
         $stats['skipped_not_in_stock']++;
         continue;

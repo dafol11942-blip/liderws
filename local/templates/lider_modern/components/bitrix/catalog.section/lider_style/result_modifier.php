@@ -3,18 +3,23 @@ if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true) die();
 
 if (empty($arResult['ITEMS'])) return;
 
-// CATALOG_QUANTITY/CATALOG_CAN_BUY_ZERO у этого каталога не совпадают с
-// реальным остатком по складам (как на карточке товара — см. её же
-// CCatalogStoreProduct::GetList), поэтому наличие считаем так же, как там.
+// Лицензия "Малый бизнес" не поддерживает учёт по складам, разбивка остатков
+// в 1С отключена — 1С пишет только плоский QUANTITY, его и берём (как на
+// карточке товара — см. её же CCatalogProduct::GetList).
 CModule::IncludeModule('catalog');
+
+$ids = array_column($arResult['ITEMS'], 'ID');
+$qtyById = [];
+if (!empty($ids)) {
+    $rsCatalogProduct = CCatalogProduct::GetList([], ['ID' => $ids], false, false, ['ID', 'QUANTITY']);
+    while ($arCatalogProduct = $rsCatalogProduct->Fetch()) {
+        $qtyById[(int)$arCatalogProduct['ID']] = (int)$arCatalogProduct['QUANTITY'];
+    }
+}
 
 $removedCount = 0;
 foreach ($arResult['ITEMS'] as $key => $item) {
-    $totalAmount = 0;
-    $dbStore = CCatalogStoreProduct::GetList([], ['PRODUCT_ID' => $item['ID']], false, false, ['AMOUNT']);
-    while ($arStore = $dbStore->Fetch()) {
-        $totalAmount += (int)$arStore['AMOUNT'];
-    }
+    $totalAmount = $qtyById[(int)$item['ID']] ?? 0;
 
     if ($totalAmount <= 0) {
         unset($arResult['ITEMS'][$key]);

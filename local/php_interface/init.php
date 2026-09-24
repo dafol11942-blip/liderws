@@ -43,9 +43,13 @@ function syncInStockProperty($productId)
     $propCode = 'IN_STOCK';
     $dbProps = CIBlockProperty::GetList([], ['IBLOCK_ID' => $iblockId, 'CODE' => $propCode]);
     if (!$arProp = $dbProps->Fetch()) return;
+    // Лицензия "Малый бизнес" не поддерживает учёт по складам, разбивка
+    // остатков в 1С отключена — 1С пишет только плоский QUANTITY, его и берём.
     $totalAmount = 0;
-    $dbStore = CCatalogStoreProduct::GetList([], ['PRODUCT_ID' => $productId], false, false, ['AMOUNT']);
-    while ($arStore = $dbStore->Fetch()) $totalAmount += (int)$arStore['AMOUNT'];
+    $rsCatalogProduct = CCatalogProduct::GetList([], ['ID' => $productId], false, false, ['QUANTITY']);
+    if ($arCatalogProduct = $rsCatalogProduct->Fetch()) {
+        $totalAmount = (int)$arCatalogProduct['QUANTITY'];
+    }
     $isYes = $totalAmount > 0;
     if ($arProp['PROPERTY_TYPE'] === 'L') {
         $targetValue = $isYes ? 'Да' : 'Нет';

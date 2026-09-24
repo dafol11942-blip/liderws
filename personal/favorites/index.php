@@ -46,8 +46,10 @@ foreach ($catRows as $row) {
     $price = getDisplayPrice($basePrice);
 
     $totalAmount = 0;
-    $dbStore = CCatalogStoreProduct::GetList([], ['PRODUCT_ID' => $productId], false, false, ['AMOUNT']);
-    while ($arStore = $dbStore->Fetch()) $totalAmount += (int)$arStore['AMOUNT'];
+    $rsCatalogProduct = CCatalogProduct::GetList([], ['ID' => $productId], false, false, ['QUANTITY']);
+    if ($arCatalogProduct = $rsCatalogProduct->Fetch()) {
+        $totalAmount = (int)$arCatalogProduct['QUANTITY'];
+    }
 
     $catalogItems[] = [
         'ID'       => $productId,
