@@ -26,7 +26,7 @@ foreach ($catRows as $row) {
     if (!$fields) continue; // товар удалён/снят с публикации — тихо пропускаем
 
     $img = SITE_TEMPLATE_PATH . '/assets/images/no-photo.png';
-    $previewId = $fields['PREVIEW_PICTURE'] ?: $fields['DETAIL_PICTURE'];
+    $previewId = $fields['DETAIL_PICTURE'] ?: $fields['PREVIEW_PICTURE'];
     if ($previewId) {
         $imgPath = CFile::GetPath($previewId);
         if ($imgPath) $img = $imgPath;

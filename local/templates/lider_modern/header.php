@@ -139,9 +139,22 @@ function pickCatalogNavIcon(string $name): string {
         <?php
         CModule::IncludeModule('iblock');
         $iblockId = 42;
+        // 1С-обмен иногда оборачивает весь каталог в один технический раздел
+        // верхнего уровня (напр. "Каталог товаров <GUID>") — его пропускаем и
+        // сразу берём его подразделы (ВАЗ/Иномарки/Масла и т.п.). Признак
+        // обёртки: она единственная на верхнем уровне (см. catalog/index.php).
+        $catalogNavRootId = 0;
+        $rsCatalogNavTop = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => 0, 'ACTIVE' => 'Y'], false, ['ID']);
+        $catalogNavTopIds = [];
+        while ($rowNavTop = $rsCatalogNavTop->GetNext()) {
+            $catalogNavTopIds[] = (int)$rowNavTop['ID'];
+        }
+        if (count($catalogNavTopIds) === 1) {
+            $catalogNavRootId = $catalogNavTopIds[0];
+        }
         $topSections = CIBlockSection::GetList(
             ['SORT' => 'ASC'],
-            ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => 0, 'ACTIVE' => 'Y'],
+            ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => $catalogNavRootId, 'ACTIVE' => 'Y'],
             false,
             ['ID', 'NAME', 'CODE', 'PICTURE']
         );

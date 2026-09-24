@@ -16,6 +16,27 @@ $APPLICATION->SetTitle("Каталог автозапчастей");
 
 $iblockId = 42;
 
+// 1С-обмен иногда добавляет технический единственный раздел-обёртку на
+// верхнем уровне (например, "Каталог товаров <GUID>"), под которым лежат
+// настоящие разделы (ВАЗ/Иномарки/Масла и т.п.). Такую обёртку показывать
+// не нужно — каталог должен раскрываться сразу с них. Признак обёртки: она
+// ровно одна на верхнем уровне (у настоящего каталога разделов верхнего
+// уровня всегда несколько), поэтому эта проверка срабатывает и если в
+// следующий раз 1С назовёт обёртку иначе.
+function resolveEffectiveRootId($iblockId) {
+    static $cache = [];
+    if (array_key_exists($iblockId, $cache)) {
+        return $cache[$iblockId];
+    }
+    $topIds = [];
+    $res = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => 0, 'ACTIVE' => 'Y'], false, ['ID']);
+    while ($row = $res->GetNext()) {
+        $topIds[] = (int)$row['ID'];
+    }
+    return $cache[$iblockId] = (count($topIds) === 1) ? $topIds[0] : 0;
+}
+$effectiveRootId = resolveEffectiveRootId($iblockId);
+
 // --- Парсим URL ---
 $requestUri = $_SERVER['REQUEST_URI'];
 $requestUri = strtok($requestUri, '?');
@@ -124,7 +145,7 @@ function renderCategoryTreeNode($section, $sectionsByParent, $activePath, $curre
 }
 
 $sidebarCategoryTreeHtml = '';
-foreach (($sidebarSectionsByParent[0] ?? []) as $topSection) {
+foreach (($sidebarSectionsByParent[$effectiveRootId] ?? []) as $topSection) {
     $sidebarCategoryTreeHtml .= renderCategoryTreeNode($topSection, $sidebarSectionsByParent, $sidebarActivePath, $sectionId);
 }
 ?>
@@ -159,6 +180,9 @@ if ($isElement && $elementCode) {
 if ($chainSectionId > 0) {
     $rsChain = CIBlockSection::GetNavChain($iblockId, $chainSectionId, ['ID', 'NAME', 'CODE']);
     while ($arSec = $rsChain->GetNext()) {
+        if ($effectiveRootId > 0 && (int)$arSec['ID'] === $effectiveRootId) {
+            continue; // скрытая техническая обёртка — см. resolveEffectiveRootId()
+        }
         $breadcrumbs[] = ['NAME' => $arSec['NAME'], 'LINK' => '/catalog/' . $arSec['CODE'] . '/'];
     }
 }
@@ -404,7 +428,7 @@ if ($sectionId > 0) {
             <?php
             $topSections = CIBlockSection::GetList(
                 ['SORT' => 'ASC'],
-                ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => 0, 'ACTIVE' => 'Y'],
+                ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => $effectiveRootId, 'ACTIVE' => 'Y'],
                 false,
                 ['ID', 'NAME', 'CODE', 'PICTURE']
             );

@@ -9,10 +9,10 @@ if (empty($arResult['ITEMS'])) {
 <div class="products-grid">
     <?php foreach ($arResult['ITEMS'] as $item):
         $img = SITE_TEMPLATE_PATH . '/assets/images/no-photo.png';
-        if (!empty($item['PREVIEW_PICTURE']['SRC'])) {
-            $img = $item['PREVIEW_PICTURE']['SRC'];
-        } elseif (!empty($item['DETAIL_PICTURE']['SRC'])) {
+        if (!empty($item['DETAIL_PICTURE']['SRC'])) {
             $img = $item['DETAIL_PICTURE']['SRC'];
+        } elseif (!empty($item['PREVIEW_PICTURE']['SRC'])) {
+            $img = $item['PREVIEW_PICTURE']['SRC'];
         }
 
         $price = $item['ITEM_PRICES'][0]['PRICE'] ?? 0;
