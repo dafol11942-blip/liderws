@@ -75,7 +75,7 @@ $isFav = $USER->IsAuthorized() && !empty(getFavoritedCatalogIds($USER->GetID(), 
             <?php if ($inStock): ?>
                 <div class="qty-box" style="height:44px;">
                     <button type="button" onclick="qtyDown(this)">−</button>
-                    <input type="number" id="detail-qty" value="1" min="1" max="99" style="width:50px;font-size:16px;">
+                    <input type="number" id="detail-qty" value="1" min="1" max="<?= $totalAmount ?>" style="width:50px;font-size:16px;">
                     <button type="button" onclick="qtyUp(this)">+</button>
                 </div>
                 <button class="btn btn--primary btn--lg"
@@ -154,11 +154,13 @@ function qtyDown(btn) {
 function qtyUp(btn) {
     var input = btn.parentElement.querySelector('input');
     var val = parseInt(input.value) || 0;
-    if (val < 99) input.value = val + 1;
+    var max = parseInt(input.max) || 99;
+    if (val < max) input.value = val + 1;
 }
 function addToCartDetail(id) {
     var qtyInput = document.getElementById('detail-qty');
     var qty = qtyInput ? parseInt(qtyInput.value) || 1 : 1;
+    if (qtyInput && qtyInput.max) qty = Math.min(qty, parseInt(qtyInput.max) || qty);
     var btn = document.querySelector('.product-detail__actions .btn--primary');
     if (btn) { btn.textContent = '...'; btn.style.opacity = '0.6'; }
     var xhr = new XMLHttpRequest();
@@ -169,8 +171,10 @@ function addToCartDetail(id) {
             if (resp.status === 'ok') {
                 if (btn) { btn.textContent = '✓ В корзине'; btn.style.background = '#4DCD71'; btn.style.opacity = '1'; btn.style.pointerEvents = 'none'; }
                 if (window.updateCartBadge && resp.cart_qty !== undefined) window.updateCartBadge(resp.cart_qty);
+                if (resp.clamped) alert(resp.message);
             } else {
                 if (btn) { btn.innerHTML = '<svg class="icon"><use href="#icon-cart"></use></svg> В корзину'; btn.style.opacity = '1'; }
+                if (resp.message) alert(resp.message);
             }
         } catch(e) { window.location.href = '/cart/?action=ADD2BASKET&id=' + id; }
     };

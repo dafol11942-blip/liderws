@@ -17,6 +17,16 @@ if ($quantity <= 0) {
 }
 
 try {
+    CModule::IncludeModule('catalog');
+    $availableQty = 0;
+    $rsCatalogProduct = \CCatalogProduct::GetList([], ['ID' => $productId], false, false, ['QUANTITY']);
+    if ($arCatalogProduct = $rsCatalogProduct->Fetch()) {
+        $availableQty = (int)$arCatalogProduct['QUANTITY'];
+    }
+    if ($availableQty <= 0) {
+        die(json_encode(['status' => 'error', 'message' => 'Товара нет в наличии']));
+    }
+
     $basket = \Bitrix\Sale\Basket::loadItemsForFUser(
         \Bitrix\Sale\Fuser::getId(),
         \Bitrix\Main\Context::getCurrent()->getSite()
@@ -31,10 +41,23 @@ try {
         }
     }
 
+    // Нельзя положить в корзину больше, чем реально есть на складе — ни
+    // разово, ни суммарно с тем, что там уже лежит (иначе через несколько
+    // добавлений можно превысить остаток, даже если каждый запрос по
+    // отдельности укладывался в лимит).
+    $clamped = false;
     if ($existItem) {
-        // Увеличиваем количество
-        $existItem->setField('QUANTITY', $existItem->getQuantity() + $quantity);
+        $newQuantity = $existItem->getQuantity() + $quantity;
+        if ($newQuantity > $availableQty) {
+            $newQuantity = $availableQty;
+            $clamped = true;
+        }
+        $existItem->setField('QUANTITY', $newQuantity);
     } else {
+        if ($quantity > $availableQty) {
+            $quantity = $availableQty;
+            $clamped = true;
+        }
         // Добавляем новый товар
         $item = $basket->createItem('catalog', $productId);
         $item->setFields([
@@ -55,7 +78,8 @@ try {
 
     echo json_encode([
         'status'   => 'ok',
-        'message'  => 'Товар добавлен в корзину!',
+        'message'  => $clamped ? "В наличии только {$availableQty} шт. — добавлено максимум" : 'Товар добавлен в корзину!',
+        'clamped'  => $clamped,
         'count'    => count($basket->getBasketItems()),
         'cart_qty' => $cartQty,
         'cart_url' => '/cart/',

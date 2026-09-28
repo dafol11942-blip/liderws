@@ -29,6 +29,16 @@ if (($action === 'update' && $qty > 0 && $qty <= 999) || $action === 'delete') {
     $ownItem = $ownBasket->getItemById($id);
     if ($ownItem) {
         if ($action === 'update') {
+            // Товар со своего склада (не заказная позиция у поставщика,
+            // для которой своего QUANTITY нет) — нельзя выставить больше,
+            // чем реально есть в наличии (см. тот же лимит в
+            // ajax/add_to_basket.php).
+            CModule::IncludeModule('catalog');
+            $rsCatalogProduct = \CCatalogProduct::GetList([], ['ID' => $ownItem->getProductId()], false, false, ['QUANTITY']);
+            if ($arCatalogProduct = $rsCatalogProduct->Fetch()) {
+                $qty = min($qty, (int)$arCatalogProduct['QUANTITY']);
+                if ($qty <= 0) $qty = 1;
+            }
             $ownItem->setField('QUANTITY', $qty);
         } else {
             $ownItem->delete();
