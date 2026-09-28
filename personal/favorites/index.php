@@ -12,18 +12,22 @@ $userId = (int)$USER->GetID();
 $isMgr  = isManager();
 $db     = \Bitrix\Main\Application::getConnection();
 
-// ===== Товары своего склада (IBLOCK_ID 42) — цена/остаток всегда живые, без TTL =====
+// ===== Товары своего склада (инфоблоки 55/56/57, старые из 42 — тоже
+// показываем, если ещё не деактивированы) — цена/остаток всегда живые, без TTL =====
 $catalogItems = [];
 $catRows = $db->query("SELECT ID, PRODUCT_ID FROM b_user_favorites WHERE USER_ID = {$userId} AND TYPE = 'catalog' ORDER BY CREATED_AT DESC")->fetchAll();
 foreach ($catRows as $row) {
     $productId = (int)$row['PRODUCT_ID'];
 
+    // Без фильтра по IBLOCK_ID — ID элемента уникален по всей базе, значит
+    // работает и для новых товаров (55/56/57), и для старых из 42.
     $res = CIBlockElement::GetList(
-        [], ['IBLOCK_ID' => 42, 'ID' => $productId, 'ACTIVE' => 'Y'], false, false,
-        ['ID', 'NAME', 'DETAIL_PAGE_URL', 'PREVIEW_PICTURE', 'DETAIL_PICTURE']
+        [], ['ID' => $productId, 'ACTIVE' => 'Y'], false, false,
+        ['ID', 'IBLOCK_ID', 'NAME', 'DETAIL_PAGE_URL', 'PREVIEW_PICTURE', 'DETAIL_PICTURE']
     );
     $fields = $res->GetNext();
     if (!$fields) continue; // товар удалён/снят с публикации — тихо пропускаем
+    $productIblockId = (int)$fields['IBLOCK_ID'];
 
     $img = SITE_TEMPLATE_PATH . '/assets/images/no-photo.png';
     $previewId = $fields['DETAIL_PICTURE'] ?: $fields['PREVIEW_PICTURE'];
@@ -33,11 +37,11 @@ foreach ($catRows as $row) {
     }
 
     $article = '';
-    $artRes = CIBlockElement::GetProperty(42, $productId, [], ['CODE' => 'CML2_ARTICLE']);
+    $artRes = CIBlockElement::GetProperty($productIblockId, $productId, [], ['CODE' => 'CML2_ARTICLE']);
     if ($artRow = $artRes->Fetch()) $article = (string)($artRow['VALUE'] ?? '');
 
     $brand = '';
-    $brandRes = CIBlockElement::GetProperty(42, $productId, [], ['CODE' => 'CML2_MANUFACTURER']);
+    $brandRes = CIBlockElement::GetProperty($productIblockId, $productId, [], ['CODE' => 'CML2_MANUFACTURER']);
     if ($brandRow = $brandRes->Fetch()) $brand = (string)($brandRow['VALUE_ENUM'] ?? $brandRow['VALUE'] ?? '');
 
     $basePrice = 0;

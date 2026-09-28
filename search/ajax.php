@@ -667,7 +667,7 @@ if ($action === 'brands') {
 
     // ВАЖНО: LOGIC=>OR должен остаться ВЛОЖЕННЫМ подмассивом, а не слитым в один
     // уровень с IBLOCK_ID/ACTIVE через array_merge — иначе весь фильтр становится
-    // "IBLOCK_ID=42 ИЛИ ACTIVE=Y ИЛИ ..." и возвращает почти весь каталог.
+    // "IBLOCK_ID=55 ИЛИ ACTIVE=Y ИЛИ ..." и возвращает почти весь каталог.
     $localOrBlock = ['LOGIC' => 'OR',
         ['%NAME' => $article], ['PROPERTY_CML2_ARTICLE' => $article],
         ['%PROPERTY_CML2_ARTICLE' => $article], ['%DETAIL_TEXT' => $article],
@@ -685,7 +685,7 @@ if ($action === 'brands') {
         $localOrBlock[] = ['%PROPERTY_CML2_MANUFACTURER' => $normArt];
     }
     $localFilter = [
-        'IBLOCK_ID' => 42,
+        'IBLOCK_ID' => [55, 56, 57],
         'ACTIVE'    => 'Y',
         $localOrBlock,
     ];

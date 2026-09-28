@@ -69,14 +69,17 @@ while ($b = $bRes->Fetch()) {
     // артикула/бренда в свойствах корзины нет, берём их прямо с элемента каталога.
     // GetProperty() не умеет массив значений в фильтре CODE (падает при попытке
     // экранировать его как строку) — поэтому два отдельных вызова, а не один с IN.
-    if ($b['ARTICLE'] === '' && $b['PRODUCT_ID'] > 0) {
-        $artRes = CIBlockElement::GetProperty(42, $b['PRODUCT_ID'], [], ['CODE' => 'CML2_ARTICLE']);
+    if (($b['ARTICLE'] === '' || $b['BRAND'] === '') && $b['PRODUCT_ID'] > 0) {
+        $bProductIblockId = resolveProductIblockId($b['PRODUCT_ID']);
+    }
+    if ($b['ARTICLE'] === '' && $b['PRODUCT_ID'] > 0 && $bProductIblockId > 0) {
+        $artRes = CIBlockElement::GetProperty($bProductIblockId, $b['PRODUCT_ID'], [], ['CODE' => 'CML2_ARTICLE']);
         if ($artRow = $artRes->Fetch()) {
             $b['ARTICLE'] = (string)($artRow['VALUE'] ?? '');
         }
     }
-    if ($b['BRAND'] === '' && $b['PRODUCT_ID'] > 0) {
-        $brandRes = CIBlockElement::GetProperty(42, $b['PRODUCT_ID'], [], ['CODE' => 'CML2_MANUFACTURER']);
+    if ($b['BRAND'] === '' && $b['PRODUCT_ID'] > 0 && $bProductIblockId > 0) {
+        $brandRes = CIBlockElement::GetProperty($bProductIblockId, $b['PRODUCT_ID'], [], ['CODE' => 'CML2_MANUFACTURER']);
         if ($brandRow = $brandRes->Fetch()) {
             // Список (тип L) — читаемое значение в VALUE_ENUM, VALUE у него ID enum'а.
             $b['BRAND'] = (string)($brandRow['VALUE_ENUM'] ?? $brandRow['VALUE'] ?? '');

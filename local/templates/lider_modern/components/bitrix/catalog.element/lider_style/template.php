@@ -93,27 +93,22 @@ $isFav = $USER->IsAuthorized() && !empty(getFavoritedCatalogIds($USER->GetID(), 
             </button>
         </div>
 
+        <?php if ($inStock):
+            CModule::IncludeModule('catalog');
+            $dbStoreInfo = CCatalogStore::GetList([], ['ACTIVE' => 'Y'], false, false, ['ID', 'TITLE', 'ADDRESS']);
+            $arStoreInfo = $dbStoreInfo->Fetch();
+        ?>
         <div class="product-detail__stores">
             <h3><svg class="icon"><use href="#icon-box"></use></svg> Наличие на складах</h3>
-            <?php $APPLICATION->IncludeComponent(
-                "bitrix:catalog.store.amount",
-                "lider_style",
-                array(
-                    "ELEMENT_ID"      => $item['ID'],
-                    "STORE_PATH"      => "/contacts/",
-                    "CACHE_TYPE"      => "A",
-                    "CACHE_TIME"      => "36000",
-                    "SHOW_EMPTY_STORE" => "N",
-                    "SHOW_GENERAL_STORE_INFORMATION" => "N",
-                    "FIELDS"          => array("TITLE", "ADDRESS", "PHONE", "SCHEDULE"),
-                    "USE_MIN_AMOUNT"  => "Y",
-                    "MIN_AMOUNT"      => "1",
-                    "STORES"          => array(),
-                    "MAIN_TITLE"      => "",
-                ),
-                false
-            ); ?>
+            <div class="store-amount-row">
+                <span class="store-amount-row__title">
+                    <?= htmlspecialchars($arStoreInfo['TITLE'] ?? '') ?>
+                    <?php if (!empty($arStoreInfo['ADDRESS'])): ?> (<?= htmlspecialchars($arStoreInfo['ADDRESS']) ?>)<?php endif; ?>
+                </span>
+                <span class="store-amount-row__amount">в наличии (<?= $totalAmount ?> шт.)</span>
+            </div>
         </div>
+        <?php endif; ?>
 
 
         <?php

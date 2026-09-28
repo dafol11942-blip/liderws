@@ -14,15 +14,17 @@ global $arrFilter;
 
 $APPLICATION->SetTitle("Каталог автозапчастей");
 
-$iblockId = 42;
+// CATALOG_BRANCHES (какой slug URL ведёт в какой инфоблок) определён в
+// local/php_interface/init.php — общий для этого файла и header.php.
 
 // 1С-обмен иногда добавляет технический единственный раздел-обёртку на
 // верхнем уровне (например, "Каталог товаров <GUID>"), под которым лежат
-// настоящие разделы (ВАЗ/Иномарки/Масла и т.п.). Такую обёртку показывать
-// не нужно — каталог должен раскрываться сразу с них. Признак обёртки: она
-// ровно одна на верхнем уровне (у настоящего каталога разделов верхнего
-// уровня всегда несколько), поэтому эта проверка срабатывает и если в
-// следующий раз 1С назовёт обёртку иначе.
+// настоящие разделы. Такую обёртку показывать не нужно — каталог должен
+// раскрываться сразу с них. Признак обёртки: она ровно одна на верхнем
+// уровне (у настоящего каталога разделов верхнего уровня всегда несколько
+// либо ни одного — как у ВАЗ/Иномарки, где категорий нет вовсе), поэтому
+// эта проверка срабатывает и если в следующий раз 1С назовёт обёртку иначе,
+// и безопасно не срабатывает там, где обёртки нет.
 function resolveEffectiveRootId($iblockId) {
     static $cache = [];
     if (array_key_exists($iblockId, $cache)) {
@@ -35,16 +37,28 @@ function resolveEffectiveRootId($iblockId) {
     }
     return $cache[$iblockId] = (count($topIds) === 1) ? $topIds[0] : 0;
 }
-$effectiveRootId = resolveEffectiveRootId($iblockId);
 
-// --- Парсим URL ---
+// --- Парсим URL: первый сегмент — ветка каталога ---
 $requestUri = $_SERVER['REQUEST_URI'];
 $requestUri = strtok($requestUri, '?');
 $path = trim($requestUri, '/');
 if (strpos($path, 'catalog/') === 0) {
     $path = substr($path, 8);
 }
-$segments = $path ? explode('/', $path) : [];
+$allSegments = $path ? explode('/', $path) : [];
+
+$branch = $allSegments[0] ?? '';
+if ($branch === '' || !isset(CATALOG_BRANCHES[$branch])) {
+    require __DIR__ . '/branches.php';
+    require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/footer.php");
+    return;
+}
+$iblockId = CATALOG_BRANCHES[$branch]['id'];
+$branchName = CATALOG_BRANCHES[$branch]['name'];
+$catalogPrefix = '/catalog/' . $branch . '/';
+$effectiveRootId = resolveEffectiveRootId($iblockId);
+
+$segments = array_slice($allSegments, 1);
 
 $elementCode = null;
 $sectionCode = null;
@@ -120,7 +134,7 @@ if ($sectionId > 0) {
 // странице раздела, а сайдбар ограничен основными уровнями структуры.
 const SIDEBAR_TREE_MAX_DEPTH = 2;
 
-function renderCategoryTreeNode($section, $sectionsByParent, $activePath, $currentSectionId, $depth = 1) {
+function renderCategoryTreeNode($section, $sectionsByParent, $activePath, $currentSectionId, $catalogPrefix, $depth = 1) {
     $id = (int)$section['ID'];
     $children = $depth < SIDEBAR_TREE_MAX_DEPTH ? ($sectionsByParent[$id] ?? []) : [];
     $isOpen = in_array($id, $activePath, true);
@@ -131,12 +145,12 @@ function renderCategoryTreeNode($section, $sectionsByParent, $activePath, $curre
     $html .= $children
         ? '<button type="button" class="filter__tree-toggle" aria-label="Развернуть"></button>'
         : '<span class="filter__tree-spacer"></span>';
-    $html .= '<a href="/catalog/' . $section['CODE'] . '/" class="filter__cat-link' . ($isActive ? ' active' : '') . '">' . htmlspecialchars($section['NAME']) . '</a>';
+    $html .= '<a href="' . $catalogPrefix . $section['CODE'] . '/" class="filter__cat-link' . ($isActive ? ' active' : '') . '">' . htmlspecialchars($section['NAME']) . '</a>';
     $html .= '</div>';
     if ($children) {
         $html .= '<div class="filter__tree-children">';
         foreach ($children as $child) {
-            $html .= renderCategoryTreeNode($child, $sectionsByParent, $activePath, $currentSectionId, $depth + 1);
+            $html .= renderCategoryTreeNode($child, $sectionsByParent, $activePath, $currentSectionId, $catalogPrefix, $depth + 1);
         }
         $html .= '</div>';
     }
@@ -146,7 +160,7 @@ function renderCategoryTreeNode($section, $sectionsByParent, $activePath, $curre
 
 $sidebarCategoryTreeHtml = '';
 foreach (($sidebarSectionsByParent[$effectiveRootId] ?? []) as $topSection) {
-    $sidebarCategoryTreeHtml .= renderCategoryTreeNode($topSection, $sidebarSectionsByParent, $sidebarActivePath, $sectionId);
+    $sidebarCategoryTreeHtml .= renderCategoryTreeNode($topSection, $sidebarSectionsByParent, $sidebarActivePath, $sectionId, $catalogPrefix);
 }
 ?>
 
@@ -155,6 +169,7 @@ foreach (($sidebarSectionsByParent[$effectiveRootId] ?? []) as $topSection) {
 $breadcrumbs = [];
 $breadcrumbs[] = ['NAME' => 'Главная', 'LINK' => '/'];
 $breadcrumbs[] = ['NAME' => 'Каталог автозапчастей', 'LINK' => '/catalog/'];
+$breadcrumbs[] = ['NAME' => $branchName, 'LINK' => $catalogPrefix];
 
 // Определяем ID раздела для построения цепочки
 $chainSectionId = 0;
@@ -183,7 +198,7 @@ if ($chainSectionId > 0) {
         if ($effectiveRootId > 0 && (int)$arSec['ID'] === $effectiveRootId) {
             continue; // скрытая техническая обёртка — см. resolveEffectiveRootId()
         }
-        $breadcrumbs[] = ['NAME' => $arSec['NAME'], 'LINK' => '/catalog/' . $arSec['CODE'] . '/'];
+        $breadcrumbs[] = ['NAME' => $arSec['NAME'], 'LINK' => $catalogPrefix . $arSec['CODE'] . '/'];
     }
 }
 
@@ -267,7 +282,7 @@ if ($sectionId > 0) {
                 <span class="filter__arrow">▾</span>
             </div>
             <div class="filter__body">
-                <a href="/catalog/" class="filter__cat-link filter__cat-link--all<?= $sectionId == 0 ? ' active' : '' ?>">Все товары</a>
+                <a href="<?= $catalogPrefix ?>" class="filter__cat-link filter__cat-link--all<?= $sectionId == 0 ? ' active' : '' ?>">Все товары</a>
                 <div class="filter__tree"><?= $sidebarCategoryTreeHtml ?></div>
             </div>
         </div>
@@ -359,7 +374,7 @@ if ($sectionId > 0) {
             
             while ($sub = $subSections->GetNext()) {
                 $hasSubSections = true;
-                $subUrl = '/catalog/' . ($sectionCode ? $sectionCode . '/' : '') . $sub['CODE'] . '/';
+                $subUrl = $catalogPrefix . ($sectionCode ? $sectionCode . '/' : '') . $sub['CODE'] . '/';
                 $imgTag = '';
                 if (!empty($sub['PICTURE'])) {
                     $imgPath = CFile::GetPath($sub['PICTURE']);
@@ -434,7 +449,7 @@ if ($sectionId > 0) {
             );
             $topHtml = '';
             while ($top = $topSections->GetNext()) {
-                $topUrl = '/catalog/' . $top['CODE'] . '/';
+                $topUrl = $catalogPrefix . $top['CODE'] . '/';
                 $imgTag = '';
                 if (!empty($top['PICTURE'])) {
                     $imgPath = CFile::GetPath($top['PICTURE']);

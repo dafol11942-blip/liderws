@@ -61,6 +61,24 @@ function syncInStockProperty($productId)
     CIBlockElement::SetPropertyValuesEx($productId, $iblockId, [$propCode => $newValue]);
 }
 
+// Инфоблок 42 ("Лидер Нефтяников") больше не пополняется из 1С — новый канал
+// обмена умеет заводить только отдельные инфоблоки под группы номенклатуры.
+// Три группы — три параллельных каталога-инфоблока без общего дерева
+// разделов, поэтому URL каталога явно разводится по первому сегменту:
+// /catalog/{branch}/... . Общее место (не только для catalog/index.php,
+// но и для header.php — тот рендерится на каждой странице сайта, а не
+// только каталожных, значит грузиться должно тут, а не в catalog/index.php).
+const CATALOG_BRANCHES = [
+    'vaz'      => ['id' => 55, 'name' => 'ВАЗ'],
+    'inomarki' => ['id' => 56, 'name' => 'Иномарки'],
+    'maslo'    => ['id' => 57, 'name' => 'Масла и технические жидкости'],
+];
+
+// Инфоблок для служебных товаров-заглушек заказов у поставщиков (см.
+// local/ajax/order_from_supplier.php) — не связан с 1С-обменом, чтобы
+// синхронизация каталога не деактивировала/не удаляла эти элементы.
+const SERVICE_PRODUCTS_IBLOCK_ID = 58;
+
 // Свойство "Бренд" в iblock 42 (1c_catalog) заведено вручную, без CML2_-кода
 // (в отличие от CML2_MANUFACTURER, который у части товаров пуст) — ищем его
 // код по имени, а не хардкодим, т.к. в разных инфоблоках он может отличаться.
@@ -74,6 +92,20 @@ function getBrandPropertyCode(int $iblockId): string
         if ($arProp = $dbProps->Fetch()) $code = $arProp['CODE'];
     }
     return $cache[$iblockId] = $code;
+}
+
+// Товар в корзине/заказе может быть из любого каталожного инфоблока —
+// текущего (55/56/57) или старого 42 (исторические заказы, оформленные до
+// переезда с 42, будут указывать на него бессрочно). CIBlockElement::GetProperty()
+// принимает один конкретный IBLOCK_ID, поэтому сначала выясняем, из какого
+// инфоблока элемент, вместо того чтобы перебирать варианты.
+function resolveProductIblockId(int $productId): int
+{
+    static $cache = [];
+    if (array_key_exists($productId, $cache)) return $cache[$productId];
+    global $DB;
+    $row = $DB->Query("SELECT IBLOCK_ID FROM b_iblock_element WHERE ID = " . (int)$productId)->Fetch();
+    return $cache[$productId] = (int)($row['IBLOCK_ID'] ?? 0);
 }
 
 // Запасной путь на случай, если PROPERTY_CODE компонента почему-то не подтянул

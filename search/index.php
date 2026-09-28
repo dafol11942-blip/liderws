@@ -120,7 +120,7 @@ function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
 <?php
 // Собственный склад — рендерим сразу серверно (как parts-search/), без AJAX-заглушки
 // с мёртвой ссылкой "Показать →". LOGIC=>OR должен быть ВЛОЖЕННЫМ подмассивом —
-// слитый на один уровень с IBLOCK_ID/ACTIVE превращает фильтр в "IBLOCK_ID=42 ИЛИ ACTIVE=Y ИЛИ ...".
+// слитый на один уровень с IBLOCK_ID/ACTIVE превращает фильтр в "IBLOCK_ID=55 ИЛИ ACTIVE=Y ИЛИ ...".
 // Делим найденное на своём складе на "искомый артикул" (точное совпадение по артикулу)
 // и "аналоги" — по аналогии с делением exact/analogs у заказного товара (search/ajax.php).
 $normQ = BrandNormalizer::normalizeArticle($q);
@@ -142,37 +142,52 @@ if ($normQ !== '' && $normQ !== mb_strtolower($q)) {
     $localOrBlock[] = ['PROPERTY_CML2_MANUFACTURER' => $normQ];
     $localOrBlock[] = ['%PROPERTY_CML2_MANUFACTURER' => $normQ];
 }
-$localExactIds = [];
-$localAnalogIds = [];
+// Ищем по всем трём каталожным инфоблокам сразу — bitrix:catalog.section
+// принимает только один IBLOCK_ID за раз, поэтому ID группируем по
+// принадлежности к инфоблоку и ниже рендерим компонент по одному разу на
+// каждый инфоблок, где что-то нашлось (см. renderLocalCards()).
+$localExactIdsByIblock = [];
+$localAnalogIdsByIblock = [];
 $localIdsRes = CIBlockElement::GetList([], [
-    'IBLOCK_ID' => 42,
+    'IBLOCK_ID' => [55, 56, 57],
     'ACTIVE'    => 'Y',
     'CATALOG_AVAILABLE' => 'Y', // держим в паре с HIDE_NOT_AVAILABLE=>Y у catalog.section ниже, иначе счётчик считает и то, что компонент скроет
     $localOrBlock,
-], false, false, ['ID', 'PROPERTY_CML2_ARTICLE']);
+], false, false, ['ID', 'IBLOCK_ID', 'PROPERTY_CML2_ARTICLE']);
 while ($row = $localIdsRes->Fetch()) {
     $isExact = $normQ !== '' && BrandNormalizer::normalizeArticle($row['PROPERTY_CML2_ARTICLE_VALUE'] ?? '') === $normQ;
-    if ($isExact) { $localExactIds[] = $row['ID']; } else { $localAnalogIds[] = $row['ID']; }
+    $bucket = $isExact ? 'localExactIdsByIblock' : 'localAnalogIdsByIblock';
+    ${$bucket}[(int)$row['IBLOCK_ID']][] = $row['ID'];
 }
+$localExactIds = array_merge(...array_values($localExactIdsByIblock ?: [[]]));
+$localAnalogIds = array_merge(...array_values($localAnalogIdsByIblock ?: [[]]));
 $localCount = count($localExactIds) + count($localAnalogIds);
-$localBrandPropCode = getBrandPropertyCode(42);
-$localCardParams = [
-    "IBLOCK_TYPE"          => "1c_catalog",
-    "IBLOCK_ID"            => 42,
-    "INCLUDE_SUBSECTIONS"  => "Y",
-    "SHOW_ALL_WO_SECTION"  => "Y",
-    "ELEMENT_SORT_FIELD"   => "sort",
-    "ELEMENT_SORT_ORDER"   => "asc",
-    "FILTER_NAME"          => "arrFilter",
-    "PRICE_CODE"           => ["Ручная розничная цена"],
-    "PROPERTY_CODE"        => array_values(array_filter(["CML2_ARTICLE", "CML2_MANUFACTURER", $localBrandPropCode, "IN_STOCK"])),
-    "PAGE_ELEMENT_COUNT"   => "12",
-    "HIDE_NOT_AVAILABLE"   => "Y",
-    "BASKET_URL"           => "/personal/cart/",
-    "CACHE_TYPE"           => "A",
-    "CACHE_TIME"           => "300",
-    "SET_TITLE"            => "N",
-];
+
+function renderLocalCards(array $idsByIblock): void {
+    global $arrFilter, $APPLICATION;
+    foreach ($idsByIblock as $iblockId => $ids) {
+        if (!$ids) continue;
+        $brandPropCode = getBrandPropertyCode($iblockId);
+        $arrFilter = [['ID' => $ids]];
+        $APPLICATION->IncludeComponent("bitrix:catalog.section", "lider_style", [
+            "IBLOCK_TYPE"          => "1c_catalog",
+            "IBLOCK_ID"            => $iblockId,
+            "INCLUDE_SUBSECTIONS"  => "Y",
+            "SHOW_ALL_WO_SECTION"  => "Y",
+            "ELEMENT_SORT_FIELD"   => "sort",
+            "ELEMENT_SORT_ORDER"   => "asc",
+            "FILTER_NAME"          => "arrFilter",
+            "PRICE_CODE"           => ["Ручная розничная цена"],
+            "PROPERTY_CODE"        => array_values(array_filter(["CML2_ARTICLE", "CML2_MANUFACTURER", $brandPropCode, "IN_STOCK"])),
+            "PAGE_ELEMENT_COUNT"   => "12",
+            "HIDE_NOT_AVAILABLE"   => "Y",
+            "BASKET_URL"           => "/personal/cart/",
+            "CACHE_TYPE"           => "A",
+            "CACHE_TIME"           => "300",
+            "SET_TITLE"            => "N",
+        ], false);
+    }
+}
 ?>
 <?php if ($localCount > 0): ?>
 <h2 class="sec-h sec-h--local"><svg class="icon"><use href="#icon-check-circle"></use></svg> На нашем складе <span class="topbar-info">(<?=$localCount?>)</span></h2>
@@ -184,11 +199,7 @@ $localCardParams = [
         <span class="ft-sec-sub"><?=esc($q)?> — <?=count($localExactIds)?> шт.</span>
     </div>
     <div class="ft-secbody">
-    <?php
-    global $arrFilter;
-    $arrFilter = [['ID' => $localExactIds]];
-    $APPLICATION->IncludeComponent("bitrix:catalog.section", "lider_style", $localCardParams, false);
-    ?>
+    <?php renderLocalCards($localExactIdsByIblock); ?>
     </div>
 </div>
 <?php endif; ?>
@@ -200,11 +211,7 @@ $localCardParams = [
         <span class="ft-sec-sub"><?=count($localAnalogIds)?> шт.</span>
     </div>
     <div class="ft-secbody">
-    <?php
-    global $arrFilter;
-    $arrFilter = [['ID' => $localAnalogIds]];
-    $APPLICATION->IncludeComponent("bitrix:catalog.section", "lider_style", $localCardParams, false);
-    ?>
+    <?php renderLocalCards($localAnalogIdsByIblock); ?>
     </div>
 </div>
 <?php endif; ?>

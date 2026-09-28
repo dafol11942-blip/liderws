@@ -113,15 +113,18 @@ try {
     require_once($_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/init_pricing.php');
     $price = getDisplayPrice($basePrice);
 
-    // Служебный товар
+    // Служебный товар — отдельный локальный инфоблок (ID 58, "Служебные
+    // позиции"), не связанный с 1С-обменом: каталожные инфоблоки (55/56/57)
+    // полностью управляются синхронизацией из 1С, писать в них свои элементы
+    // нельзя — 1С может деактивировать/удалить как "отсутствующее в файле".
     $xmlId = 'SUPPLIER_ORDER_' . $supplier;
-    $exist = CIBlockElement::GetList([], ['IBLOCK_ID' => 42, 'XML_ID' => $xmlId, 'ACTIVE' => 'Y'], false, ['nTopCount' => 1], ['ID']);
+    $exist = CIBlockElement::GetList([], ['IBLOCK_ID' => SERVICE_PRODUCTS_IBLOCK_ID, 'XML_ID' => $xmlId, 'ACTIVE' => 'Y'], false, ['nTopCount' => 1], ['ID']);
     $productId = ($el = $exist->Fetch()) ? $el['ID'] : 0;
 
     if (!$productId) {
         $el = new CIBlockElement;
         $productId = $el->Add([
-            'IBLOCK_ID' => 42, 'NAME' => 'Заказная позиция (' . $connector->getName() . ')',
+            'IBLOCK_ID' => SERVICE_PRODUCTS_IBLOCK_ID, 'NAME' => 'Заказная позиция (' . $connector->getName() . ')',
             'XML_ID' => $xmlId, 'ACTIVE' => 'Y',
         ]);
     }

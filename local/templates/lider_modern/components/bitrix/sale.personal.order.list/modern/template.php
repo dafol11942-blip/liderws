@@ -60,8 +60,11 @@ if (!empty($arResult['ORDERS'])) {
 }
 
 // Артикул своих (не поставщика) позиций хранится не в отдельной таблице, а в
-// свойстве CML2_ARTICLE карточки товара (инфоблок 42) — тянем одним batch-запросом
-// по всем товарам страницы, чтобы поиск по артикулу не плодил запрос на позицию.
+// свойстве CML2_ARTICLE карточки товара — тянем одним batch-запросом по всем
+// товарам страницы, чтобы поиск по артикулу не плодил запрос на позицию.
+// Без фильтра по IBLOCK_ID: заказы могут ссылаться на товары как из текущих
+// каталожных инфоблоков (55/56/57), так и на старые из 42 (исторические
+// заказы) — ID элемента уникален по всей базе, фильтр по нему достаточен.
 $productArticleById = [];
 if (!empty($arResult['ORDERS']) && CModule::IncludeModule('iblock')) {
     $productIds = [];
@@ -75,7 +78,7 @@ if (!empty($arResult['ORDERS']) && CModule::IncludeModule('iblock')) {
         try {
             $res = CIBlockElement::GetList(
                 [],
-                ['IBLOCK_ID' => 42, 'ID' => array_keys($productIds)],
+                ['ID' => array_keys($productIds)],
                 false,
                 false,
                 ['ID', 'PROPERTY_CML2_ARTICLE']

@@ -138,31 +138,17 @@ function pickCatalogNavIcon(string $name): string {
     <div class="catalog-dropdown" id="catalogDropdown">
         <?php
         CModule::IncludeModule('iblock');
-        $iblockId = 42;
-        // 1С-обмен иногда оборачивает весь каталог в один технический раздел
-        // верхнего уровня (напр. "Каталог товаров <GUID>") — его пропускаем и
-        // сразу берём его подразделы (ВАЗ/Иномарки/Масла и т.п.). Признак
-        // обёртки: она единственная на верхнем уровне (см. catalog/index.php).
-        $catalogNavRootId = 0;
-        $rsCatalogNavTop = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => 0, 'ACTIVE' => 'Y'], false, ['ID']);
-        $catalogNavTopIds = [];
-        while ($rowNavTop = $rsCatalogNavTop->GetNext()) {
-            $catalogNavTopIds[] = (int)$rowNavTop['ID'];
-        }
-        if (count($catalogNavTopIds) === 1) {
-            $catalogNavRootId = $catalogNavTopIds[0];
-        }
-        $topSections = CIBlockSection::GetList(
-            ['SORT' => 'ASC'],
-            ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => $catalogNavRootId, 'ACTIVE' => 'Y'],
-            false,
-            ['ID', 'NAME', 'CODE', 'PICTURE']
-        );
+        // Три группы номенклатуры — три отдельных инфоблока без общего
+        // дерева разделов (см. CATALOG_BRANCHES в local/php_interface/init.php
+        // и разбор в catalog/index.php) — поэтому здесь каждая ветка сама
+        // становится одним пунктом верхнего меню, а её реальные подразделы
+        // (если есть — как у "Масла", либо нет вовсе — как у ВАЗ/Иномарки)
+        // идут в панель под ней.
         $catalogNavSections = [];
-        while ($top = $topSections->GetNext()) {
+        foreach (CATALOG_BRANCHES as $branchSlug => $branchInfo) {
             $subRes = CIBlockSection::GetList(
                 ['SORT' => 'ASC'],
-                ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => $top['ID'], 'ACTIVE' => 'Y'],
+                ['IBLOCK_ID' => $branchInfo['id'], 'SECTION_ID' => 0, 'ACTIVE' => 'Y'],
                 false,
                 ['ID', 'NAME', 'CODE', 'PICTURE']
             );
@@ -170,18 +156,17 @@ function pickCatalogNavIcon(string $name): string {
             while ($sub = $subRes->GetNext()) {
                 $subs[] = $sub;
             }
-            $top['SUBS'] = $subs;
-            $catalogNavSections[] = $top;
+            $catalogNavSections[] = [
+                'SLUG' => $branchSlug,
+                'NAME' => $branchInfo['name'],
+                'SUBS' => $subs,
+            ];
         }
         ?>
         <div class="catalog-dropdown__nav">
             <?php foreach ($catalogNavSections as $i => $top): ?>
-                <a href="/catalog/<?= $top['CODE'] ?>/" class="catalog-dropdown__nav-item<?= $i === 0 ? ' active' : '' ?>" data-panel="catalogNavPanel<?= $top['ID'] ?>">
-                    <?php if (!empty($top['PICTURE'])): ?>
-                        <img src="<?= CFile::GetPath($top['PICTURE']) ?>" alt="">
-                    <?php else: ?>
-                        <svg class="icon"><use href="#<?= pickCatalogNavIcon($top['NAME']) ?>"></use></svg>
-                    <?php endif; ?>
+                <a href="/catalog/<?= $top['SLUG'] ?>/" class="catalog-dropdown__nav-item<?= $i === 0 ? ' active' : '' ?>" data-panel="catalogNavPanel<?= $top['SLUG'] ?>">
+                    <svg class="icon"><use href="#<?= pickCatalogNavIcon($top['NAME']) ?>"></use></svg>
                     <span><?= htmlspecialchars($top['NAME']) ?></span>
                     <span class="catalog-dropdown__nav-arrow">›</span>
                 </a>
@@ -189,11 +174,10 @@ function pickCatalogNavIcon(string $name): string {
         </div>
         <div class="catalog-dropdown__panels">
             <?php foreach ($catalogNavSections as $i => $top): ?>
-                <div class="catalog-dropdown__panel<?= $i === 0 ? ' active' : '' ?>" id="catalogNavPanel<?= $top['ID'] ?>">
-                    <?php if (!empty($top['SUBS'])): ?>
+                <div class="catalog-dropdown__panel<?= $i === 0 ? ' active' : '' ?>" id="catalogNavPanel<?= $top['SLUG'] ?>">
                     <div class="catalog-dropdown__tiles">
                         <?php foreach ($top['SUBS'] as $sub): ?>
-                            <a href="/catalog/<?= $top['CODE'] ?>/<?= $sub['CODE'] ?>/" class="catalog-dropdown__tile">
+                            <a href="/catalog/<?= $top['SLUG'] ?>/<?= $sub['CODE'] ?>/" class="catalog-dropdown__tile">
                                 <span class="catalog-dropdown__tile-icon">
                                     <?php if (!empty($sub['PICTURE'])): ?>
                                         <img src="<?= CFile::GetPath($sub['PICTURE']) ?>" alt="">
@@ -204,12 +188,11 @@ function pickCatalogNavIcon(string $name): string {
                                 <span class="catalog-dropdown__tile-name"><?= htmlspecialchars($sub['NAME']) ?></span>
                             </a>
                         <?php endforeach; ?>
-                        <a href="/catalog/<?= $top['CODE'] ?>/" class="catalog-dropdown__tile catalog-dropdown__tile--all">
+                        <a href="/catalog/<?= $top['SLUG'] ?>/" class="catalog-dropdown__tile catalog-dropdown__tile--all">
                             <span class="catalog-dropdown__tile-icon"><svg class="icon"><use href="#icon-list"></use></svg></span>
                             <span class="catalog-dropdown__tile-name">Все товары раздела</span>
                         </a>
                     </div>
-                    <?php endif; ?>
                 </div>
             <?php endforeach; ?>
         </div>

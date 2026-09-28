@@ -88,12 +88,15 @@ if ($basket) {
 
         // Товар со своего склада — своих артикула/бренда в свойствах нет,
         // берём с элемента каталога (тот же приём, что в /cart/).
-        if ($article === '' && $productId > 0) {
-            $artRes = CIBlockElement::GetProperty(42, $productId, [], ['CODE' => 'CML2_ARTICLE']);
+        if (($article === '' || $brand === '') && $productId > 0) {
+            $productIblockId = resolveProductIblockId($productId);
+        }
+        if ($article === '' && $productId > 0 && $productIblockId > 0) {
+            $artRes = CIBlockElement::GetProperty($productIblockId, $productId, [], ['CODE' => 'CML2_ARTICLE']);
             if ($row = $artRes->Fetch()) $article = (string)($row['VALUE'] ?? '');
         }
-        if ($brand === '' && $productId > 0) {
-            $brandRes = CIBlockElement::GetProperty(42, $productId, [], ['CODE' => 'CML2_MANUFACTURER']);
+        if ($brand === '' && $productId > 0 && $productIblockId > 0) {
+            $brandRes = CIBlockElement::GetProperty($productIblockId, $productId, [], ['CODE' => 'CML2_MANUFACTURER']);
             if ($row = $brandRes->Fetch()) $brand = (string)($row['VALUE_ENUM'] ?? $row['VALUE'] ?? '');
         }
 
