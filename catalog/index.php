@@ -64,9 +64,13 @@ $elementCode = null;
 $sectionCode = null;
 $isElement  = false;
 
-if (count($segments) >= 2) {
+// Проверяем последний сегмент на совпадение с кодом товара при ЛЮБОМ
+// количестве сегментов (было только >=2) — у ВАЗ/Иномарки разделов нет
+// вовсе, значит URL товара это ровно один сегмент после ветки
+// (/catalog/vaz/{код}/), и раньше такой URL всегда трактовался как раздел.
+if (count($segments) >= 1) {
     $lastSegment = end($segments);
-    
+
     $elRes = CIBlockElement::GetList(
         [],
         ['IBLOCK_ID' => $iblockId, 'CODE' => $lastSegment, 'ACTIVE' => 'Y'],
@@ -82,8 +86,6 @@ if (count($segments) >= 2) {
     } else {
         $sectionCode = implode('/', $segments);
     }
-} elseif (count($segments) === 1) {
-    $sectionCode = $segments[0];
 } else {
     $sectionCode = '';
 }
