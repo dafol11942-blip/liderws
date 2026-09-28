@@ -100,12 +100,16 @@ $isFav = $USER->IsAuthorized() && !empty(getFavoritedCatalogIds($USER->GetID(), 
         ?>
         <div class="product-detail__stores">
             <h3><svg class="icon"><use href="#icon-box"></use></svg> Наличие на складах</h3>
-            <div class="store-amount-row">
-                <span class="store-amount-row__title">
-                    <?= htmlspecialchars($arStoreInfo['TITLE'] ?? '') ?>
-                    <?php if (!empty($arStoreInfo['ADDRESS'])): ?> (<?= htmlspecialchars($arStoreInfo['ADDRESS']) ?>)<?php endif; ?>
-                </span>
-                <span class="store-amount-row__amount">в наличии (<?= $totalAmount ?> шт.)</span>
+            <div class="stores-list">
+                <div class="stores-item">
+                    <div class="stores-item__header">
+                        <span class="stores-item__name"><svg class="icon"><use href="#icon-pin"></use></svg> <?= htmlspecialchars($arStoreInfo['TITLE'] ?? '') ?></span>
+                        <span class="stores-item__badge stores-item__badge--yes"><?= $totalAmount ?> шт.</span>
+                    </div>
+                    <?php if (!empty($arStoreInfo['ADDRESS'])): ?>
+                        <div class="stores-item__address"><?= htmlspecialchars($arStoreInfo['ADDRESS']) ?></div>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
         <?php endif; ?>
