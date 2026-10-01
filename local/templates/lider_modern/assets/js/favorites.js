@@ -28,6 +28,11 @@ window.updateFavBadge = function (qty) {
     qty = Math.max(0, parseInt(qty, 10) || 0);
     badge.textContent = qty;
     badge.style.display = qty > 0 ? '' : 'none';
+    // Дубль счётчика в мобильной нижней панели (.tabbar в header.php)
+    document.querySelectorAll('[data-badge="fav"]').forEach(function (b) {
+        b.textContent = qty;
+        b.style.display = qty > 0 ? '' : 'none';
+    });
     bumpFavBadge();
 };
 

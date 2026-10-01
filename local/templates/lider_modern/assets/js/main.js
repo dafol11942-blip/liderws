@@ -41,6 +41,19 @@ function updateBasketItem(id, quantity) {
             // На десктопе просто переходим по ссылке /catalog/
         });
 
+        // "Каталог" в мобильной нижней панели (.tabbar) — открывает тот же
+        // флайаут шторкой снизу. stopPropagation — иначе обработчик ниже
+        // ("клик вне меню") сразу же закроет только что открытое меню.
+        var tabbarCatalog = document.getElementById('tabbarCatalog');
+        if (tabbarCatalog) {
+            tabbarCatalog.addEventListener('click', function(e) {
+                if (window.innerWidth > 768) return;
+                e.preventDefault();
+                e.stopPropagation();
+                wrapper.classList.toggle('open');
+            });
+        }
+
         // Закрытие по клику вне меню
         document.addEventListener('click', function(e) {
             if (!wrapper.contains(e.target)) {

@@ -207,16 +207,29 @@ function pickCatalogNavIcon(string $name): string {
                 </form>
             </div>
 
+            <?php
+            $userLink  = $USER->IsAuthorized() ? '/personal/' : '/auth/';
+            $userLabel = $USER->IsAuthorized() ? 'Кабинет' : 'Войти';
+            ?>
             <div class="header__actions">
+                <a href="<?= $userLink ?>" class="header__icon" title="<?= $USER->IsAuthorized() ? 'Личный кабинет' : 'Войти' ?>">
+                    <span class="header__icon-box"><svg class="icon"><use href="#icon-user"></use></svg></span>
+                    <span class="header__icon-label"><?= $userLabel ?></span>
+                </a>
                 <a href="/personal/favorites/" class="header__icon" id="favIcon" title="Избранное">
-                    <svg class="icon"><use href="#icon-heart"></use></svg>
-                    <span class="badge" id="favBadge"<?= $favQty > 0 ? '' : ' style="display:none;"' ?>><?= $favQty ?></span>
+                    <span class="header__icon-box">
+                        <svg class="icon"><use href="#icon-heart"></use></svg>
+                        <span class="badge" id="favBadge"<?= $favQty > 0 ? '' : ' style="display:none;"' ?>><?= $favQty ?></span>
+                    </span>
+                    <span class="header__icon-label">Избранное</span>
                 </a>
                 <a href="/cart/" class="header__icon" id="cartIcon" title="Корзина">
-                    <svg class="icon"><use href="#icon-cart"></use></svg>
-                    <span class="badge" id="cartBadge"<?= $cartQty > 0 ? '' : ' style="display:none;"' ?>><?= $cartQty ?></span>
+                    <span class="header__icon-box">
+                        <svg class="icon"><use href="#icon-cart"></use></svg>
+                        <span class="badge" id="cartBadge"<?= $cartQty > 0 ? '' : ' style="display:none;"' ?>><?= $cartQty ?></span>
+                    </span>
+                    <span class="header__icon-label">Корзина</span>
                 </a>
-                <a href="<?= $USER->IsAuthorized() ? '/personal/' : '/auth/' ?>" class="header__icon" title="<?= $USER->IsAuthorized() ? 'Личный кабинет' : 'Войти' ?>"><svg class="icon"><use href="#icon-user"></use></svg></a>
             </div>
         </div>
     </header>
@@ -231,6 +244,11 @@ function pickCatalogNavIcon(string $name): string {
         qty = Math.max(0, parseInt(qty, 10) || 0);
         badge.textContent = qty;
         badge.style.display = qty > 0 ? '' : 'none';
+        // Дубль счётчика в мобильной нижней панели (.tabbar в конце шапки)
+        document.querySelectorAll('[data-badge="cart"]').forEach(function (b) {
+            b.textContent = qty;
+            b.style.display = qty > 0 ? '' : 'none';
+        });
         if (icon) {
             icon.classList.remove('header__icon--bump');
             void icon.offsetWidth; // перезапуск CSS-анимации при повторном добавлении подряд
@@ -243,8 +261,8 @@ function pickCatalogNavIcon(string $name): string {
     <div class="header-nav">
         <div class="container">
             <nav class="header-nav__menu">
-<a href="/podbor-po-vin/" style="color:var(--blue);"><svg class="icon"><use href="#icon-car"></use></svg> Подбор по VIN</a>
-<a href="/service-parts/" style="color:var(--blue);"><svg class="icon"><use href="#icon-wrench"></use></svg> Запчасти для ТО</a>
+                <a href="/podbor-po-vin/" class="header-nav__accent"><svg class="icon"><use href="#icon-car"></use></svg> Подбор по VIN</a>
+                <a href="/service-parts/" class="header-nav__accent"><svg class="icon"><use href="#icon-wrench"></use></svg> Запчасти для ТО</a>
                 <div class="nav-dropdown-wrapper">
                     <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/">Масла</a>
                     <div class="nav-dropdown">
@@ -294,9 +312,38 @@ function pickCatalogNavIcon(string $name): string {
                         <a href="/autoservice/" class="nav-dropdown__all">Все услуги автосервиса →</a>
                     </div>
                 </div>
-                <a href="/shinomontazh/" class="header-nav__cta">Запись на шиномонтаж</a>
+                <a href="/shinomontazh/" class="header-nav__cta">Запись на шиномонтаж <span class="header-nav__cta-arrow"><svg class="icon"><use href="#icon-arrow-up-right"></use></svg></span></a>
             </nav>
         </div>
     </div>
+
+    <!-- Мобильная нижняя панель (≤768px, см. .tabbar в style.css): основные
+         действия под большим пальцем, шапка при этом сжимается до логотипа и
+         поиска. "Каталог" открывает тот же флайаут, что и кнопка в шапке
+         (main.js), — без JS это обычная ссылка на /catalog/. -->
+    <?php $curPage = $APPLICATION->GetCurPage(false); ?>
+    <nav class="tabbar" aria-label="Быстрое меню">
+        <a href="/" class="tabbar__item<?= $curPage === '/' ? ' is-active' : '' ?>">
+            <svg class="icon"><use href="#icon-home"></use></svg><span>Главная</span>
+        </a>
+        <a href="/catalog/" class="tabbar__item<?= strpos($curPage, '/catalog/') === 0 ? ' is-active' : '' ?>" id="tabbarCatalog">
+            <svg class="icon"><use href="#icon-grid"></use></svg><span>Каталог</span>
+        </a>
+        <a href="/personal/favorites/" class="tabbar__item<?= strpos($curPage, '/personal/favorites/') === 0 ? ' is-active' : '' ?>">
+            <span class="tabbar__icon">
+                <svg class="icon"><use href="#icon-heart"></use></svg>
+                <span class="tabbar__badge" data-badge="fav"<?= $favQty > 0 ? '' : ' style="display:none;"' ?>><?= $favQty ?></span>
+            </span><span>Избранное</span>
+        </a>
+        <a href="/cart/" class="tabbar__item<?= strpos($curPage, '/cart/') === 0 ? ' is-active' : '' ?>">
+            <span class="tabbar__icon">
+                <svg class="icon"><use href="#icon-cart"></use></svg>
+                <span class="tabbar__badge" data-badge="cart"<?= $cartQty > 0 ? '' : ' style="display:none;"' ?>><?= $cartQty ?></span>
+            </span><span>Корзина</span>
+        </a>
+        <a href="<?= $userLink ?>" class="tabbar__item<?= (strpos($curPage, '/personal/') === 0 && strpos($curPage, '/personal/favorites/') !== 0) || strpos($curPage, '/auth/') === 0 ? ' is-active' : '' ?>">
+            <svg class="icon"><use href="#icon-user"></use></svg><span><?= $userLabel ?></span>
+        </a>
+    </nav>
 
     <main class="main">

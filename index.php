@@ -2,6 +2,7 @@
 $APPLICATION->SetPageProperty("title", "ЛИДЕР — автозапчасти для иномарок и ВАЗ в Елабуге | Елабуга");
 $APPLICATION->SetPageProperty("description", "Магазин автозапчастей ЛИДЕР в Елабуге: детали для иномарок и ВАЗ, масла, фильтры, тормозные колодки, шины и диски. Собственный автосервис и шиномонтаж.");
 $APPLICATION->SetTitle("ЛИДЕР — автозапчасти для иномарок и ВАЗ в Елабуге"); ?>
+<div class="container">
 
 <!-- HERO -->
 <div class="hero">
@@ -39,5 +40,6 @@ $APPLICATION->SetTitle("ЛИДЕР — автозапчасти для ином�
     </div>
     <div class="hero__image hero__image--bg" style="background-image:url('<?= SITE_TEMPLATE_PATH ?>/assets/images/autoservice-shop.webp');" role="img" aria-label="Автосервис и шиномонтаж ЛИДЕР в Елабуге"></div>
 </div>
+</div><!-- /.container -->
 
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/footer.php"); ?>

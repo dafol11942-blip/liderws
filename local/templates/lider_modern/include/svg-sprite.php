@@ -170,4 +170,18 @@
     <symbol id="icon-chevron-down" viewBox="0 0 24 24">
         <polyline points="6 9 12 15 18 9"/>
     </symbol>
+    <symbol id="icon-arrow-up-right" viewBox="0 0 24 24">
+        <line x1="7" y1="17" x2="17" y2="7"/>
+        <polyline points="8 7 17 7 17 16"/>
+    </symbol>
+    <symbol id="icon-home" viewBox="0 0 24 24">
+        <path d="M3 10.5 12 3l9 7.5"/>
+        <path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/>
+    </symbol>
+    <symbol id="icon-grid" viewBox="0 0 24 24">
+        <rect x="3.5" y="3.5" width="7" height="7" rx="2"/>
+        <rect x="13.5" y="3.5" width="7" height="7" rx="2"/>
+        <rect x="3.5" y="13.5" width="7" height="7" rx="2"/>
+        <rect x="13.5" y="13.5" width="7" height="7" rx="2"/>
+    </symbol>
 </svg>
