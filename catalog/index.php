@@ -17,25 +17,39 @@ $APPLICATION->SetTitle("Каталог автозапчастей");
 // CATALOG_BRANCHES (какой slug URL ведёт в какой инфоблок) определён в
 // local/php_interface/init.php — общий для этого файла и header.php.
 
-// 1С-обмен иногда добавляет технический единственный раздел-обёртку на
-// верхнем уровне (например, "Каталог товаров <GUID>"), под которым лежат
-// настоящие разделы. Такую обёртку показывать не нужно — каталог должен
-// раскрываться сразу с них. Признак обёртки: она ровно одна на верхнем
-// уровне (у настоящего каталога разделов верхнего уровня всегда несколько
-// либо ни одного — как у ВАЗ/Иномарки, где категорий нет вовсе), поэтому
-// эта проверка срабатывает и если в следующий раз 1С назовёт обёртку иначе,
-// и безопасно не срабатывает там, где обёртки нет.
-function resolveEffectiveRootId($iblockId) {
+// 1С-обмен иногда добавляет технические разделы-обёртки на верхнем уровне
+// (например, "Каталог товаров <GUID>", "Товарный запас"), под которыми лежат
+// настоящие разделы — причём обёрток может быть НЕСКОЛЬКО подряд (у ВАЗ,
+// например, "Товарный запас" → "ВАЗ", и только внутри "ВАЗ" начинаются
+// реальные категории с товарами). Такие обёртки показывать не нужно —
+// каталог должен раскрываться сразу с настоящих категорий. Признак обёртки:
+// на своём уровне она единственная (у настоящего уровня категорий всегда
+// несколько либо ни одной — как у ВАЗ/Иномарки до 1С-правки, где категорий
+// не было вовсе), поэтому спускаемся по цепочке таких единственных разделов,
+// пока не упрёмся в уровень с 0 или 2+ разделами. Возвращаем и финальный
+// "эффективный корень" (его дети — то, что показываем как верхний уровень),
+// и список ID всех пройденных по дороге обёрток — их нужно также скрывать
+// из хлебных крошек на детальных страницах/страницах разделов.
+function resolveEffectiveRoot($iblockId) {
     static $cache = [];
     if (array_key_exists($iblockId, $cache)) {
         return $cache[$iblockId];
     }
-    $topIds = [];
-    $res = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => 0, 'ACTIVE' => 'Y'], false, ['ID']);
-    while ($row = $res->GetNext()) {
-        $topIds[] = (int)$row['ID'];
+    $skippedIds = [];
+    $currentParent = 0;
+    while (true) {
+        $children = [];
+        $res = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => $currentParent, 'ACTIVE' => 'Y'], false, ['ID']);
+        while ($row = $res->GetNext()) {
+            $children[] = (int)$row['ID'];
+        }
+        if (count($children) !== 1) {
+            break;
+        }
+        $currentParent = $children[0];
+        $skippedIds[] = $currentParent;
     }
-    return $cache[$iblockId] = (count($topIds) === 1) ? $topIds[0] : 0;
+    return $cache[$iblockId] = ['rootId' => $currentParent, 'skippedIds' => $skippedIds];
 }
 
 // --- Парсим URL: первый сегмент — ветка каталога ---
@@ -56,7 +70,9 @@ if ($branch === '' || !isset(CATALOG_BRANCHES[$branch])) {
 $iblockId = CATALOG_BRANCHES[$branch]['id'];
 $branchName = CATALOG_BRANCHES[$branch]['name'];
 $catalogPrefix = '/catalog/' . $branch . '/';
-$effectiveRootId = resolveEffectiveRootId($iblockId);
+$effectiveRoot = resolveEffectiveRoot($iblockId);
+$effectiveRootId = $effectiveRoot['rootId'];
+$effectiveRootSkippedIds = $effectiveRoot['skippedIds'];
 
 $segments = array_slice($allSegments, 1);
 
@@ -197,8 +213,8 @@ if ($isElement && $elementCode) {
 if ($chainSectionId > 0) {
     $rsChain = CIBlockSection::GetNavChain($iblockId, $chainSectionId, ['ID', 'NAME', 'CODE']);
     while ($arSec = $rsChain->GetNext()) {
-        if ($effectiveRootId > 0 && (int)$arSec['ID'] === $effectiveRootId) {
-            continue; // скрытая техническая обёртка — см. resolveEffectiveRootId()
+        if (in_array((int)$arSec['ID'], $effectiveRootSkippedIds, true)) {
+            continue; // скрытая техническая обёртка (может быть несколько подряд) — см. resolveEffectiveRoot()
         }
         $breadcrumbs[] = ['NAME' => $arSec['NAME'], 'LINK' => $catalogPrefix . $arSec['CODE'] . '/'];
     }
