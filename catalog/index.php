@@ -14,43 +14,8 @@ global $arrFilter;
 
 $APPLICATION->SetTitle("Каталог автозапчастей");
 
-// CATALOG_BRANCHES (какой slug URL ведёт в какой инфоблок) определён в
-// local/php_interface/init.php — общий для этого файла и header.php.
-
-// 1С-обмен иногда добавляет технические разделы-обёртки на верхнем уровне
-// (например, "Каталог товаров <GUID>", "Товарный запас"), под которыми лежат
-// настоящие разделы — причём обёрток может быть НЕСКОЛЬКО подряд (у ВАЗ,
-// например, "Товарный запас" → "ВАЗ", и только внутри "ВАЗ" начинаются
-// реальные категории с товарами). Такие обёртки показывать не нужно —
-// каталог должен раскрываться сразу с настоящих категорий. Признак обёртки:
-// на своём уровне она единственная (у настоящего уровня категорий всегда
-// несколько либо ни одной — как у ВАЗ/Иномарки до 1С-правки, где категорий
-// не было вовсе), поэтому спускаемся по цепочке таких единственных разделов,
-// пока не упрёмся в уровень с 0 или 2+ разделами. Возвращаем и финальный
-// "эффективный корень" (его дети — то, что показываем как верхний уровень),
-// и список ID всех пройденных по дороге обёрток — их нужно также скрывать
-// из хлебных крошек на детальных страницах/страницах разделов.
-function resolveEffectiveRoot($iblockId) {
-    static $cache = [];
-    if (array_key_exists($iblockId, $cache)) {
-        return $cache[$iblockId];
-    }
-    $skippedIds = [];
-    $currentParent = 0;
-    while (true) {
-        $children = [];
-        $res = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => $currentParent, 'ACTIVE' => 'Y'], false, ['ID']);
-        while ($row = $res->GetNext()) {
-            $children[] = (int)$row['ID'];
-        }
-        if (count($children) !== 1) {
-            break;
-        }
-        $currentParent = $children[0];
-        $skippedIds[] = $currentParent;
-    }
-    return $cache[$iblockId] = ['rootId' => $currentParent, 'skippedIds' => $skippedIds];
-}
+// CATALOG_BRANCHES и resolveEffectiveRoot() определены в
+// local/php_interface/init.php — общие для этого файла и header.php.
 
 // --- Парсим URL: первый сегмент — ветка каталога ---
 $requestUri = $_SERVER['REQUEST_URI'];

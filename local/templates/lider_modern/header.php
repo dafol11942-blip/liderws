@@ -146,9 +146,10 @@ function pickCatalogNavIcon(string $name): string {
         // идут в панель под ней.
         $catalogNavSections = [];
         foreach (CATALOG_BRANCHES as $branchSlug => $branchInfo) {
+            $branchRoot = resolveEffectiveRoot($branchInfo['id']);
             $subRes = CIBlockSection::GetList(
                 ['SORT' => 'ASC'],
-                ['IBLOCK_ID' => $branchInfo['id'], 'SECTION_ID' => 0, 'ACTIVE' => 'Y'],
+                ['IBLOCK_ID' => $branchInfo['id'], 'SECTION_ID' => $branchRoot['rootId'], 'ACTIVE' => 'Y'],
                 false,
                 ['ID', 'NAME', 'CODE', 'PICTURE']
             );
