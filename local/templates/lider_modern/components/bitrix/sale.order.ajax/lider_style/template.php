@@ -26,8 +26,8 @@ while ($b = $bRes->Fetch()) {
     $b['PRICE_NUM'] = (float)$b['PRICE'];
     $b['QTY'] = (int)$b['QUANTITY'];
     $b['SUM_NUM'] = $b['PRICE_NUM'] * $b['QTY'];
-    $b['PRICE_FMT'] = number_format($b['PRICE_NUM'], 0, ',', ' ') . ' ₽';
-    $b['SUM_FMT'] = number_format($b['SUM_NUM'], 0, ',', ' ') . ' ₽';
+    $b['PRICE_FMT'] = formatRub($b['PRICE_NUM']);
+    $b['SUM_FMT'] = formatRub($b['SUM_NUM']);
 
     // Свойства позиции — артикул/бренд/поставщик/склад/срок доставки, тот же
     // источник, что и в корзине (sale.basket.basket/lider_style/template.php).
@@ -99,7 +99,7 @@ while ($b = $bRes->Fetch()) {
     $totalBasketQty += $b['QTY'];
     $basketItems[] = $b;
 }
-$totalBasketFmt = number_format($totalBasket, 0, ',', ' ') . ' ₽';
+$totalBasketFmt = formatRub($totalBasket);
 if (!empty($basketItems) && !$hasSupplierItem) {
     $checkoutDeliveryFmt = 'Доступен к самовывозу сегодня';
 } elseif ($cartMaxDeliveryText !== '') {

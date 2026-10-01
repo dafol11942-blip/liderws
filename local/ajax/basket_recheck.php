@@ -186,9 +186,9 @@ try {
     echo json_encode([
         'status'    => 'ok',
         'price'     => $newPrice,
-        'price_fmt' => number_format($newPrice, 0, ',', ' ') . ' ₽',
+        'price_fmt' => formatRub($newPrice),
         'quantity'  => $finalQty,
-        'sum_fmt'   => number_format($newPrice * $finalQty, 0, ',', ' ') . ' ₽',
+        'sum_fmt'   => formatRub($newPrice * $finalQty),
         'delivery_days'  => $newDeliveryDays,
         'delivery_label' => $newDeliveryLabel,
         'delivery_time'  => $newDeliveryTime,

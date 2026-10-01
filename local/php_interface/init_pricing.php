@@ -65,6 +65,20 @@ if (!function_exists('getDisplayPrice')) {
     }
 }
 
+if (!function_exists('formatRub')) {
+    /**
+     * Сумма в рублях для вывода: копейки показываем, только если они есть
+     * (закупочные цены поставщиков приходят с копейками — 369,03 ₽, а
+     * клиентские округлены наценкой до целых — 750 ₽).
+     */
+    function formatRub(float $amount): string
+    {
+        $amount = round($amount, 2);
+        $decimals = (abs($amount - round($amount)) >= 0.005) ? 2 : 0;
+        return number_format($amount, $decimals, ',', ' ') . ' ₽';
+    }
+}
+
 if (!function_exists('isManager')) {
     function isManager(): bool
     {

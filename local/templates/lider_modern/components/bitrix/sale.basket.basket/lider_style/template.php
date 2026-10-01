@@ -27,8 +27,8 @@ while ($b = $bRes->Fetch()) {
     $b['PRICE_NUM'] = (float)$b['PRICE'];
     $b['QTY'] = (int)$b['QUANTITY'];
     $b['SUM_NUM'] = $b['PRICE_NUM'] * $b['QTY'];
-    $b['PRICE_FMT'] = number_format($b['PRICE_NUM'], 0, ',', ' ') . ' ₽';
-    $b['SUM_FMT'] = number_format($b['SUM_NUM'], 0, ',', ' ') . ' ₽';
+    $b['PRICE_FMT'] = formatRub($b['PRICE_NUM']);
+    $b['SUM_FMT'] = formatRub($b['SUM_NUM']);
     $b['URL'] = $b['DETAIL_PAGE_URL'] ?? '#';
 
     // Свойства позиции, положенные order_from_supplier.php / basket_recheck.php —
@@ -55,8 +55,8 @@ while ($b = $bRes->Fetch()) {
     if ($isMgr && $supplierCode !== '' && isset($props['SUPPLIER_PRICE_BASE'])) {
         $b['CLIENT_PRICE_NUM'] = getClientPrice((float)$props['SUPPLIER_PRICE_BASE']);
         $b['CLIENT_SUM_NUM']   = $b['CLIENT_PRICE_NUM'] * $b['QTY'];
-        $b['CLIENT_PRICE_FMT'] = number_format($b['CLIENT_PRICE_NUM'], 0, ',', ' ') . ' ₽';
-        $b['CLIENT_SUM_FMT']   = number_format($b['CLIENT_SUM_NUM'], 0, ',', ' ') . ' ₽';
+        $b['CLIENT_PRICE_FMT'] = formatRub($b['CLIENT_PRICE_NUM']);
+        $b['CLIENT_SUM_FMT']   = formatRub($b['CLIENT_SUM_NUM']);
     }
 
     // Возможность возврата — только у заказных позиций от поставщика (напр.
@@ -139,8 +139,8 @@ while ($b = $bRes->Fetch()) {
     $items[] = $b;
 }
 
-$totalFmt = number_format($totalSum, 0, ',', ' ') . ' ₽';
-$totalClientFmt = number_format($totalClientSum, 0, ',', ' ') . ' ₽';
+$totalFmt = formatRub($totalSum);
+$totalClientFmt = formatRub($totalClientSum);
 // Страница корзины и так уже посчитала реальное количество товаров —
 // заодно подравниваем кэш счётчика в шапке (header.php), если он разошёлся
 // с БД (несколько вкладок/устройств, изменения в админке и т.п.). В шапке
@@ -434,6 +434,12 @@ if (!empty($items) && !$hasSupplierItem) {
 </style>
 
 <script>
+// Как formatRub() в init_pricing.php: копейки — только если они есть.
+function rubFmt(v) {
+    v = Math.round(parseFloat(v) * 100) / 100;
+    var dec = (Math.abs(v - Math.round(v)) >= 0.005) ? 2 : 0;
+    return v.toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ₽';
+}
 function basketChange(id, delta) {
     var input = document.getElementById('qty-' + id);
     var val = parseInt(input.value) || 1;
@@ -642,7 +648,7 @@ function recheckItem(id, mode, triggerBtn) {
             var prev = d.previous, cur = d.current;
             var lines = '';
             if (Math.abs((cur.price||0) - (prev.price||0)) > 0.01) {
-                lines += '<div class="rr-diff">Цена: было ' + Math.round(prev.price) + ' ₽ → стало ' + Math.round(cur.price) + ' ₽</div>';
+                lines += '<div class="rr-diff">Цена: было ' + rubFmt(prev.price) + ' → стало ' + rubFmt(cur.price) + '</div>';
             }
             if (cur.delivery_days !== prev.delivery_days) {
                 lines += '<div class="rr-diff">Доставка: было ' + esc(fmtDelivery(prev.delivery_label, prev.delivery_time)) + ' → стало ' + esc(fmtDelivery(cur.delivery_label, cur.delivery_time)) + '</div>';

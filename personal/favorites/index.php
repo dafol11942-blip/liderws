@@ -62,7 +62,7 @@ foreach ($catRows as $row) {
         'IMG'      => $img,
         'ARTICLE'  => $article,
         'BRAND'    => $brand,
-        'PRICE_FMT'=> number_format($price, 0, ',', ' ') . ' ₽',
+        'PRICE_FMT'=> formatRub($price),
         'IN_STOCK' => $totalAmount > 0,
     ];
 }
@@ -266,6 +266,12 @@ $isEmpty = empty($catalogItems) && empty($supplierItems);
 </style>
 
 <script>
+// Как formatRub() в init_pricing.php: копейки — только если они есть.
+function rubFmt(v) {
+    v = Math.round(parseFloat(v) * 100) / 100;
+    var dec = (Math.abs(v - Math.round(v)) >= 0.005) ? 2 : 0;
+    return v.toLocaleString('ru-RU', {minimumFractionDigits: dec, maximumFractionDigits: dec}) + ' ₽';
+}
 // На этой странице каждая карточка/строка — сама запись избранного, поэтому снятие с
 // избранного (сердечко гаснет) должно убирать её целиком, а не просто гасить иконку
 // (как на карточке каталога/в поиске, где карточка остаётся товаром сама по себе).
@@ -376,7 +382,7 @@ function favRecheckItem(id, mode, triggerBtn) {
             var prev = d.previous, cur = d.current;
             var lines = '';
             if (Math.abs((cur.price || 0) - (prev.price || 0)) > 0.01) {
-                lines += '<div class="rr-diff">Цена: было ' + Math.round(prev.price) + ' ₽ → стало ' + Math.round(cur.price) + ' ₽</div>';
+                lines += '<div class="rr-diff">Цена: было ' + rubFmt(prev.price) + ' → стало ' + rubFmt(cur.price) + '</div>';
             }
             if (cur.delivery_days !== prev.delivery_days) {
                 lines += '<div class="rr-diff">Доставка: было ' + favEsc(favFmtDelivery(prev.delivery_label, prev.delivery_time)) + ' → стало ' + favEsc(favFmtDelivery(cur.delivery_label, cur.delivery_time)) + '</div>';

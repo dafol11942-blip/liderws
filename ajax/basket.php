@@ -168,10 +168,10 @@ $_SESSION['CART_QTY'] = $totalQtyAll; // держим счётчик в шапк
 
 echo json_encode([
     'status' => 'ok',
-    'itemSum' => number_format($itemSum, 0, ',', ' ') . ' ₽',
-    'itemClientSum' => $itemClientSum !== null ? number_format($itemClientSum, 0, ',', ' ') . ' ₽' : null,
-    'totalSum' => number_format($totalSum, 0, ',', ' ') . ' ₽',
-    'totalClientSum' => $isMgr ? (number_format($totalClientSum, 0, ',', ' ') . ' ₽') : null,
+    'itemSum' => formatRub($itemSum),
+    'itemClientSum' => $itemClientSum !== null ? formatRub($itemClientSum) : null,
+    'totalSum' => formatRub($totalSum),
+    'totalClientSum' => $isMgr ? formatRub($totalClientSum) : null,
     'totalQty' => $totalQty,
     'totalQtyAll' => $totalQtyAll,
 ]);

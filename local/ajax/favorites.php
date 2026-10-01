@@ -220,7 +220,7 @@ try {
 
         echo json_encode([
             'status'       => 'ok',
-            'price_fmt'    => number_format($newPriceDisplay, 0, ',', ' ') . ' ₽',
+            'price_fmt'    => formatRub($newPriceDisplay),
             'delivery_days'  => $newDeliveryDays,
             'delivery_label' => $newDeliveryLabel,
             'delivery_time'  => $newDeliveryTime,

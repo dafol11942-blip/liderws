@@ -192,7 +192,7 @@ foreach ($order->getPropertyCollection() as $property) {
     ];
 }
 
-$totalFmt = number_format((float)$order->getPrice(), 0, ',', ' ') . ' ₽';
+$totalFmt = formatRub((float)$order->getPrice());
 
 $isCanceled = $order->getField('CANCELED') === 'Y';
 $statusName = $isCanceled ? 'Отменён' : $statusName;
@@ -246,11 +246,11 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
                         <?php if ($item['article'] !== ''): ?>Артикул: <b><?= htmlspecialchars($item['article']) ?></b><?php endif; ?>
                     </div>
                     <?php endif; ?>
-                    <div class="cart-item__price-unit"><?= number_format($item['price'], 0, ',', ' ') ?> ₽ / шт.</div>
+                    <div class="cart-item__price-unit"><?= formatRub($item['price']) ?> / шт.</div>
                     <?php if ($item['supplier_code'] !== ''): ?>
                     <div class="cart-item__meta">
                         <?php if ($isMgr): ?>
-                            Поставщик: <?= htmlspecialchars($item['supplier_label']) ?><?php if ($item['warehouse'] !== ''): ?> · Склад: <?= htmlspecialchars($item['warehouse']) ?><?php endif; ?><?php if ($item['delivery_text'] !== ''): ?> · Доставка: <?= htmlspecialchars($item['delivery_text']) ?><?php endif; ?><?php if ($item['price_base'] > 0): ?> · Закупка: <?= number_format($item['price_base'], 0, ',', ' ') ?> ₽<?php endif; ?>
+                            Поставщик: <?= htmlspecialchars($item['supplier_label']) ?><?php if ($item['warehouse'] !== ''): ?> · Склад: <?= htmlspecialchars($item['warehouse']) ?><?php endif; ?><?php if ($item['delivery_text'] !== ''): ?> · Доставка: <?= htmlspecialchars($item['delivery_text']) ?><?php endif; ?><?php if ($item['price_base'] > 0): ?> · Закупка: <?= formatRub($item['price_base']) ?><?php endif; ?>
                         <?php elseif ($item['delivery_text'] !== ''): ?>
                             Доставка: <?= htmlspecialchars($item['delivery_text']) ?>
                         <?php endif; ?>
@@ -271,7 +271,7 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
                 </div>
                 <div class="cart-item__price">
                     <div class="cart-item__qty-label"><?= $item['qty'] ?> шт.</div>
-                    <div class="cart-item__sum"><?= number_format($item['sum'], 0, ',', ' ') ?> ₽</div>
+                    <div class="cart-item__sum"><?= formatRub($item['sum']) ?></div>
                 </div>
             </div>
             <?php endforeach; ?>
