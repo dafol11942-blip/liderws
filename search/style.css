@@ -11,24 +11,28 @@
 }
 
 /* ====== ПУСТОЙ ПОИСК / СООБЩЕНИЯ (пустой результат, ошибка, фильтр без совпадений) ====== */
-.hero { text-align: center; padding: 60px 20px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.hero { text-align: center; padding: 60px 20px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg, 24px); }
+/* У шаблона сайта свой .hero (баннер-сетка в две колонки, см. style.css) —
+   здесь он подключается раньше и иначе превращал сообщение в две колонки. */
+.srch-box .hero { display: block; box-shadow: none; overflow: visible; margin-bottom: 0; }
 .hero h1 { font-size: 26px; font-weight: 800; margin-bottom: 8px; }
 .hero-icon { font-size: 44px; margin-bottom: 16px; opacity: 0.6; }
 .hero p { font-size: 15px; color: var(--gray); margin-bottom: 24px; }
-.hero-frm { display: flex; gap: 0; max-width: 480px; margin: 0 auto; box-shadow: var(--shadow-sm); border-radius: var(--radius); overflow: hidden; }
-.hero-inp { flex: 1; padding: 12px 16px; font-size: 15px; font-family: var(--font); border: 1px solid var(--border); border-right: none; border-radius: var(--radius) 0 0 var(--radius); outline: none; }
-.hero-inp:focus { border-color: var(--blue); }
-.hero-btn { padding: 0 26px; background: var(--blue); color: #fff; border: none; border-radius: 0 var(--radius) var(--radius) 0; font-size: 14px; font-weight: 700; cursor: pointer; font-family: var(--font); white-space: nowrap; }
+/* Поле поиска — пилюля как в шапке: светлая подложка, кнопка внутри */
+.hero-frm { display: flex; align-items: center; gap: 4px; max-width: 520px; margin: 0 auto; padding: 4px; background: var(--bg); border: 1.5px solid transparent; border-radius: 999px; transition: border-color .2s, background .2s, box-shadow .2s; }
+.hero-frm:focus-within { border-color: var(--blue); background: #fff; box-shadow: 0 0 0 4px rgba(102,139,234,.12); }
+.hero-inp { flex: 1; min-width: 0; align-self: stretch; padding: 0 16px; font-size: 16px; font-family: var(--font); border: none; background: transparent; outline: none; }
+.hero-btn { height: 44px; padding: 0 24px; background: var(--blue); color: #fff; border: none; border-radius: 999px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: var(--font); white-space: nowrap; }
 .hero-btn:hover { background: var(--blue-dark); }
 .hero-back { display: inline-block; color: var(--blue); text-decoration: none; font-size: 14px; font-weight: 700; }
 .hero-back:hover { text-decoration: underline; }
 
 /* ====== ТОПБАР (поиск на странице брендов/результатов) ====== */
-.topbar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; box-shadow: var(--shadow-sm); flex-wrap: wrap; }
-.topbar-frm { display: flex; gap: 0; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
-.topbar-inp { padding: 8px 12px; font-size: 13px; font-family: var(--font); border: 1px solid var(--border); border-right: none; border-radius: var(--radius) 0 0 var(--radius); outline: none; width: 180px; }
-.topbar-inp:focus { border-color: var(--blue); }
-.topbar-btn { padding: 8px 14px; background: var(--blue); color: #fff; border: none; border-radius: 0 var(--radius) var(--radius) 0; cursor: pointer; font-size: 14px; font-family: var(--font); line-height: 1; }
+.topbar { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--white); border: 1px solid var(--border); border-radius: 20px; margin-bottom: 16px; flex-wrap: wrap; }
+.topbar-frm { display: flex; align-items: center; gap: 2px; padding: 3px; background: var(--bg); border: 1.5px solid transparent; border-radius: 999px; transition: border-color .2s, background .2s, box-shadow .2s; }
+.topbar-frm:focus-within { border-color: var(--blue); background: #fff; box-shadow: 0 0 0 4px rgba(102,139,234,.12); }
+.topbar-inp { padding: 6px 12px; font-size: 14px; font-family: var(--font); border: none; background: transparent; outline: none; width: 200px; }
+.topbar-btn { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; background: var(--blue); color: #fff; border: none; border-radius: 50%; cursor: pointer; font-size: 14px; font-family: var(--font); line-height: 1; }
 .topbar-btn:hover { background: var(--blue-dark); }
 .topbar-info { font-size: 13px; color: var(--gray); }
 .topbar-info strong { color: var(--black); }
@@ -39,7 +43,7 @@
 .hidden { display: none !important; }
 
 /* ====== ЗАГРУЗКА ====== */
-.loader { text-align: center; padding: 80px 20px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.loader { text-align: center; padding: 80px 20px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg, 24px); }
 .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 14px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .loader-text { font-size: 15px; color: var(--gray); }
@@ -48,19 +52,19 @@
 .progress-text { font-size: 13px; color: var(--gray); margin-top: 6px; }
 
 /* ====== ЛОКАЛЬНЫЙ СКЛАД ====== */
-.local-box { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm); }
+.local-box { background: var(--white); border: 1px solid var(--border); border-radius: 20px; padding: 16px 20px; margin-bottom: 20px; }
 .local-txt { color: #3a9d4f; font-size: 14px; }
 .local-txt a { color: var(--green); font-weight: 700; }
 
 /* ====== ЗАГОЛОВКИ ====== */
-.sec-h { font-size: 19px; font-weight: 800; margin-bottom: 12px; }
+.sec-h { display: flex; align-items: center; gap: 8px; font-size: 22px; font-weight: 800; margin-bottom: 14px; letter-spacing: -0.01em; }
 .sec-h--local { color: var(--green); }
 .sec-h--brand { color: #d97706; }
 .sec-p { color: var(--gray); font-size: 14px; margin-bottom: 18px; line-height: 1.5; }
 
 /* ====== ТАБЛИЦА БРЕНДОВ (колонка источников убрана — описание занимает освободившееся место) ====== */
-.bt { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 20px; overflow: hidden; }
-.bt-head { display: flex; padding: 10px 16px; background: var(--bg); font-size: 11px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); }
+.bt { background: var(--white); border: 1px solid var(--border); border-radius: 20px; margin-bottom: 20px; overflow: hidden; }
+.bt-head { display: flex; padding: 12px 16px; background: var(--bg); font-size: 12px; font-weight: 700; color: var(--gray); border-bottom: 1px solid var(--border); }
 .bt-row { display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f0f0f0; transition: background .12s; }
 .bt-row:last-child { border-bottom: none; }
 .bt-row:hover { background: #fafbfc; }
@@ -124,7 +128,7 @@
 .filter-opt--toggle { font-weight: 600; }
 
 /* ====== КНОПКИ ====== */
-.btn-sel { display: inline-block; padding: 7px 18px; background: var(--blue); color: #fff; border: none; border-radius: var(--radius); font-size: 13px; font-weight: 700; cursor: pointer; text-decoration: none !important; white-space: nowrap; font-family: var(--font); box-shadow: 0 1px 3px rgba(102,139,234,.3); transition: background .15s; }
+.btn-sel { display: inline-block; padding: 8px 18px; background: var(--blue); color: #fff; border: none; border-radius: 999px; font-size: 13px; font-weight: 700; cursor: pointer; text-decoration: none !important; white-space: nowrap; font-family: var(--font); transition: background .15s; }
 .btn-sel:hover { background: var(--blue-dark); color: #fff; text-decoration: none; }
 .btn-sel--sm { padding: 5px 12px; font-size: 12px; }
 
@@ -136,15 +140,15 @@
 /* ====== РЕЗУЛЬТАТЫ ====== */
 
 /* Заголовок */
-.phead { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px; box-shadow: var(--shadow); }
-.phead-title { font-size: 22px; font-weight: 800; }
+.phead { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg, 24px); padding: 24px 28px; margin-bottom: 16px; }
+.phead-title { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
 .phead-sub { font-size: 14px; color: var(--gray); margin-top: 6px; }
 
 /* Карточка товара из UMAPI getCrossInfo (см. loadCrossInfo()/renderCrossInfoCard() в
    index.php) — добивается в конец .phead асинхронно, если данные пришли и это не пустой
    ответ; при недоступности UMAPI .phead остаётся как выше (заголовок + "Найдено..."). */
 .phead-body { display: flex; gap: 18px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
-.phead-img { flex-shrink: 0; width: 90px; height: 90px; display: flex; align-items: center; justify-content: center; background: #fafafa; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; cursor: zoom-in; }
+.phead-img { flex-shrink: 0; width: 96px; height: 96px; display: flex; align-items: center; justify-content: center; background: #fff; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; cursor: zoom-in; }
 .phead-img img { max-width: 100%; max-height: 100%; object-fit: contain; }
 
 /* Увеличение фото товара по клику (openImageZoom() в index.php) */
@@ -156,7 +160,7 @@
 .phead-info { flex: 1; min-width: 0; }
 .phead-desc { font-size: 14px; color: var(--black); margin-bottom: 10px; }
 .phead-specs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.phead-spec { display: inline-block; font-size: 12px; background: var(--bg); border-radius: var(--radius); padding: 3px 10px; color: var(--black); }
+.phead-spec { display: inline-block; font-size: 12px; background: var(--bg); border-radius: 999px; padding: 3px 10px; color: var(--black); }
 .phead-spec-label { color: var(--gray); }
 .phead-oem, .phead-superseded { font-size: 12px; color: var(--gray); margin-top: 4px; }
 .phead-oem-label { font-weight: 700; color: var(--black); }
@@ -164,14 +168,14 @@
 
 /* Хайлайты */
 .hl-cards { display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
-.hl-card { flex: 1; min-width: 250px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); border-left: 3px solid transparent; transition: box-shadow .15s; }
-.hl-card:hover { box-shadow: var(--shadow-lg); }
-.hl-card--best { border-left-color: var(--blue); }
-.hl-card--fast { border-left-color: var(--green); }
-.hl-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
-.hl-badge--price { color: var(--blue); }
-.hl-badge--delivery { color: var(--green); }
-.hl-type { font-size: 11px; color: var(--gray); text-transform: uppercase; font-weight: 700; letter-spacing: .03em; margin-bottom: 6px; }
+.hl-card { flex: 1; min-width: 250px; background: var(--white); border: 1px solid var(--border); border-radius: 20px; padding: 20px 22px; transition: box-shadow .2s, transform .2s; }
+.hl-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+.hl-card--best { border-color: rgba(102,139,234,.45); }
+.hl-card--fast { border-color: rgba(77,205,113,.55); }
+.hl-badge { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; margin-bottom: 10px; }
+.hl-badge--price { color: var(--blue); background: rgba(102,139,234,.10); }
+.hl-badge--delivery { color: #2f8a44; background: rgba(77,205,113,.14); }
+.hl-type { font-size: 12px; color: var(--gray); font-weight: 700; margin-bottom: 4px; }
 .hl-name { font-size: 15px; font-weight: 700; margin-bottom: 4px; line-height: 1.3; }
 .hl-desc { font-size: 12px; color: var(--gray); margin-bottom: 8px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .hl-price { font-size: 24px; font-weight: 800; }
@@ -180,22 +184,23 @@
 .hl-actl { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 
 /* Бейджи */
-.badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius); font-size: 12px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 .badge--green { background: rgba(77,205,113,.12); color: #3a9d4f; }
 .badge--yellow { background: #FFF3CD; color: #856404; }
 
 /* Секции */
-.ft-sec { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px; box-shadow: var(--shadow); }
-.ft-sec--exact { border-left: 3px solid var(--blue); }
-.ft-sec--analog { border-left: 3px solid var(--green); }
+.ft-sec { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg, 24px); padding: 22px 26px; margin-bottom: 16px; }
+/* Тип секции — цветом иконки заголовка вместо полосы слева */
+.ft-sec--exact .ft-sec-title .icon { color: var(--blue); }
+.ft-sec--analog .ft-sec-title .icon { color: var(--green); }
 .ft-sec-head { padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .ft-sec-head[data-ft-toggle] { cursor: pointer; user-select: none; }
-.ft-sec-title { font-size: 16px; font-weight: 700; }
+.ft-sec-title { display: inline-flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; }
 .ft-sec-sub { font-size: 13px; color: var(--gray); }
 .ft-sec-toggle { margin-left: auto; }
 
 /* Группа аналога */
-.ft-group { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }
+.ft-group { border: 1px solid var(--border); border-radius: 16px; margin-bottom: 12px; overflow: hidden; }
 .ft-group:last-child { margin-bottom: 0; }
 /* flex-wrap: nowrap — .ft-gmeta (лучшая цена/срок/остаток/стрелка) всегда остаётся справа на
    той же строке; длинное содержимое .ft-ginfo (например наименование из UMAPI) переносится
@@ -249,7 +254,7 @@
 .ft-col--del { width: 15%; }
 .ft-col--prc { width: 16%; }
 .ft-col--act { width: 24%; }
-.ft-tbl thead th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); background: var(--bg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ft-tbl thead th { text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 700; color: var(--gray); border-bottom: 1px solid var(--border); background: var(--bg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ft-tbl tbody td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
 .ft-tbl tbody tr:last-child td { border-bottom: none; }
 .ft-tbl tbody tr:nth-child(even) { background: #fafbfc; }
@@ -298,11 +303,11 @@
 }
 .actl-btn:hover { background: var(--blue-dark); }
 .actl-btn .icon { width: 16px; height: 16px; }
-.actl-oos { font-size: 12px; font-weight: 700; color: #b91c1c; text-transform: uppercase; letter-spacing: .02em; }
+.actl-oos { font-size: 13px; font-weight: 700; color: #b91c1c; }
 
 /* На странице поиска сердечко в ряд с actl-btn — квадратная форма вместо круглой (см.
    базовый .fav-btn в общем style.css, используемый на карточке каталога/странице товара). */
-.fav-btn { border-radius: var(--radius); }
+.fav-btn { border-radius: 50%; }
 
 /* Показать ещё */
 .ft-showmore { display: block; width: 100%; padding: 10px; background: var(--bg); border: none; border-top: 1px solid var(--border); color: var(--blue); font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; }
@@ -327,8 +332,8 @@
 .filter-bar-wrap { position: sticky; top: var(--search-header-h, 73px); z-index: 60; }
 .filter-bar {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 10px 14px; margin-bottom: 16px; box-shadow: var(--shadow-sm);
+    background: var(--white); border: 1px solid var(--border); border-radius: 20px;
+    padding: 10px 12px; margin-bottom: 16px;
 }
 /* Кнопка-тоггл панели фильтров — только на мобильном (см. @media ниже),
    на десктопе фильтры всегда видны как есть. */
@@ -336,8 +341,8 @@
 .filter-dd { position: relative; }
 .filter-dd summary {
     list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
-    padding: 8px 14px; border: 1px solid var(--border); border-radius: var(--radius);
-    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+    padding: 8px 14px; border: 1px solid var(--border); border-radius: 999px;
+    font-size: 13px; font-weight: 700;
     color: var(--black); background: var(--bg); user-select: none; white-space: nowrap;
 }
 .filter-dd summary::-webkit-details-marker { display: none; }
@@ -347,8 +352,8 @@
 .filter-dd-arrow { font-size: 10px; color: var(--gray); }
 .filter-dd-panel {
     position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
-    background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
-    box-shadow: var(--shadow-lg); padding: 10px 14px; min-width: 200px; max-height: 280px;
+    background: var(--white); border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: var(--shadow-lg); padding: 12px 14px; min-width: 200px; max-height: 280px;
     overflow-y: auto; display: flex; flex-direction: column; gap: 9px;
 }
 .filter-opt { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--black); cursor: pointer; white-space: nowrap; }
@@ -361,8 +366,8 @@
 }
 .filter-search:focus { border-color: var(--blue); }
 .filter-reset {
-    margin-left: auto; background: var(--blue); color: #fff; border: none; border-radius: var(--radius);
-    padding: 9px 18px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+    margin-left: auto; background: var(--blue); color: #fff; border: none; border-radius: 999px;
+    padding: 9px 18px; font-size: 13px; font-weight: 700;
     cursor: pointer; font-family: var(--font);
 }
 .filter-reset:hover { background: var(--blue-dark); }
@@ -431,7 +436,7 @@
     .ft-tbl tbody tr.ft-more { display: none; }
     .ft-all-shown .ft-tbl tbody tr.ft-more { display: grid; }
     .ft-deliv-label { white-space: normal; }
-    .ft-tbl tbody td[data-label]::before { content: attr(data-label); font-weight: 700; font-size: 10px; color: var(--gray); text-transform: uppercase; display: block; margin-bottom: 2px; }
+    .ft-tbl tbody td[data-label]::before { content: attr(data-label); font-weight: 700; font-size: 11px; color: var(--gray); display: block; margin-bottom: 2px; }
     /* Раньше бренд/артикул/описание/фото-из-UMAPI перетекали одной flex-wrap
        строкой — из-за разной длины бренда и того, есть ли фото (оно есть не
        у всех аналогов, см. renderAnalogCrossIcon), перенос "гулял" от карточки

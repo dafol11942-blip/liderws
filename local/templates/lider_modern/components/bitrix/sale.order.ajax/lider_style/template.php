@@ -757,41 +757,43 @@ if ($paymentHoldDeadlineTs <= 0) {
 <style>
 .checkout-page, .checkout-page * { font-family: var(--font) !important; }
 .checkout-page { max-width: 1240px; margin: 0 auto; padding: 30px 20px; }
-.checkout-page__title { font-size: 28px; font-weight: 800; margin-bottom: 30px; color: var(--black); }
+.checkout-page__title { font-size: 32px; font-weight: 800; margin-bottom: 24px; color: var(--black); letter-spacing: -0.02em; }
+/* Форма оформления: блоки — самостоятельные карточки на фоне страницы,
+   без общей белой подложки (иначе карточка в карточке). Экран
+   "Заказ оформлен" без .checkout-layout остаётся на подложке. */
+.checkout-page:has(.checkout-layout) { background: transparent; border: none; padding: 0; }
 .checkout-layout { display: grid; grid-template-columns: 1fr 400px; gap: 20px; align-items: start; }
 @media (max-width: 900px) { .checkout-layout { grid-template-columns: 1fr; } }
 .checkout-block {
     background: var(--white); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 24px; margin-bottom: 12px;
-    box-shadow: var(--shadow-sm);
+    border-radius: 24px; padding: 26px 28px; margin-bottom: 14px;
 }
 .checkout-block__title {
-    font-size: 16px; font-weight: 700; color: var(--black);
-    text-transform: uppercase; letter-spacing: 0.03em;
-    margin-bottom: 16px; display: flex; align-items: center; gap: 10px;
+    font-size: 19px; font-weight: 800; color: var(--black);
+    margin-bottom: 18px; display: flex; align-items: center; gap: 10px;
 }
 .checkout-block__num {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 26px; height: 26px; background: var(--blue); color: #fff;
-    border-radius: var(--radius); font-size: 12px; font-weight: 700; flex-shrink: 0;
+    width: 28px; height: 28px; background: var(--blue); color: #fff;
+    border-radius: 50%; font-size: 13px; font-weight: 700; flex-shrink: 0;
 }
 .form-row { margin-bottom: 14px; }
 .form-row label {
-    display: block; font-weight: 700; font-size: 12px; color: var(--black);
-    text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 5px;
+    display: block; font-weight: 700; font-size: 13px; color: var(--gray);
+    margin-bottom: 6px;
 }
 .form-row input[type="text"],
 .form-row input[type="tel"],
 .form-row input[type="email"],
 .form-row textarea {
-    width: 100%; padding: 11px 14px; border: 2px solid var(--border);
-    border-radius: var(--radius); font-size: 14px;
-    box-shadow: var(--shadow-sm); transition: border-color var(--transition);
+    width: 100%; padding: 12px 16px; border: 1.5px solid var(--border);
+    border-radius: 14px; font-size: 15px;
+    transition: border-color var(--transition), box-shadow var(--transition);
     background: #fff; color: var(--black); box-sizing: border-box;
 }
 .form-row input:focus, .form-row textarea:focus {
     border-color: var(--blue); outline: none;
-    box-shadow: 0 0 0 3px rgba(102,139,234,0.08);
+    box-shadow: 0 0 0 4px rgba(102,139,234,0.12);
 }
 .form-row textarea { resize: vertical; min-height: 70px; }
 .form-row input[readonly] { background: var(--bg); color: var(--gray); cursor: not-allowed; }
@@ -803,15 +805,15 @@ if ($paymentHoldDeadlineTs <= 0) {
 .option-card input[type="radio"] { display: none; }
 .option-card__box {
     display: flex; align-items: center; gap: 12px; padding: 14px 16px;
-    border: 2px solid var(--border); border-radius: var(--radius);
-    background: var(--white); box-shadow: var(--shadow-sm);
+    border: 1.5px solid var(--border); border-radius: 16px;
+    background: var(--white);
     transition: all var(--transition);
 }
-.option-card__box:hover { border-color: #bbb; box-shadow: var(--shadow); }
+.option-card__box:hover { border-color: rgba(102,139,234,0.5); }
 .option-card--active .option-card__box,
 .option-card input:checked + .option-card__box {
-    border-color: var(--blue); background: rgba(102,139,234,0.04);
-    box-shadow: 0 0 0 2px rgba(102,139,234,0.12);
+    border-color: var(--blue); background: rgba(102,139,234,0.05);
+    box-shadow: 0 0 0 3px rgba(102,139,234,0.12);
 }
 .option-card__icon { font-size: 22px; flex-shrink: 0; }
 .option-card__info { flex: 1; min-width: 0; }
@@ -820,12 +822,12 @@ if ($paymentHoldDeadlineTs <= 0) {
 .option-card__price { font-weight: 800; font-size: 15px; flex-shrink: 0; color: var(--black); }
 .checkout-hint { color: var(--gray); font-size: 13px; }
 
-.checkout-sidebar { position: sticky; top: 20px; }
+.checkout-sidebar { position: sticky; top: calc(var(--header-h, 72px) + 16px); }
 .checkout-summary {
     background: var(--white); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow);
+    border-radius: 24px; padding: 26px; box-shadow: var(--shadow);
 }
-.checkout-summary__title { font-size: 18px; font-weight: 700; margin-bottom: 16px; color: var(--black); }
+.checkout-summary__title { font-size: 20px; font-weight: 800; margin-bottom: 16px; color: var(--black); }
 .checkout-basket { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; max-height: 320px; overflow-y: auto; }
 .checkout-basket__item { display: flex; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .checkout-basket__info { flex: 1; min-width: 0; }
@@ -893,7 +895,7 @@ if ($paymentHoldDeadlineTs <= 0) {
     .receipt-method-list .option-card__box { flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 16px 10px; }
     .receipt-method-list .option-card__info { flex: none; width: 100%; }
 }
-.pickup-map { width: 100%; height: 260px; border-radius: var(--radius); overflow: hidden; margin-top: 12px; border: 1px solid var(--border); }
+.pickup-map { width: 100%; height: 260px; border-radius: 16px; overflow: hidden; margin-top: 12px; border: 1px solid var(--border); }
 .pickup-map-fallback { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .pickup-map-fallback__link {
     display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--blue);
@@ -902,8 +904,8 @@ if ($paymentHoldDeadlineTs <= 0) {
 .pickup-map-fallback__link:hover { border-color: var(--blue); color: var(--blue-dark); }
 .pickup-map-fallback__link .icon { width: 16px; height: 16px; flex-shrink: 0; }
 
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; border-radius: var(--radius); cursor: pointer; text-decoration: none; border: 1px solid transparent; transition: all var(--transition); line-height: 1.2; }
-.btn--primary { background: var(--blue); color: #fff; border-color: var(--blue); box-shadow: 0 1px 3px rgba(102,139,234,0.3); padding: 14px 24px; font-size: 14px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; border-radius: 999px; cursor: pointer; text-decoration: none; border: 1px solid transparent; transition: all var(--transition); line-height: 1.2; }
+.btn--primary { background: var(--blue); color: #fff; border-color: var(--blue); box-shadow: 0 6px 16px rgba(102,139,234,0.28); padding: 14px 24px; font-size: 14px; }
 .btn--primary:hover { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
 .btn--lg { padding: 14px 32px; font-size: 16px; }
 .btn--block { display: flex; width: 100%; }

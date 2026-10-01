@@ -277,10 +277,10 @@ if (!empty($items) && !$hasSupplierItem) {
 <style>
 .cart-page { max-width: 1240px; margin: 0 auto; padding: 30px 20px; font-family: var(--font); }
 .cart-page__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
-.cart-page__title { font-size: 28px; font-weight: 800; color: var(--black); }
+.cart-page__title { font-size: 32px; font-weight: 800; color: var(--black); letter-spacing: -0.02em; }
 .cart-clear-btn {
     background: transparent; border: 1px solid var(--border); color: var(--gray);
-    border-radius: var(--radius); padding: 10px 16px; font-size: 13px; font-weight: 600;
+    border-radius: 999px; padding: 10px 18px; font-size: 13px; font-weight: 700;
     cursor: pointer; transition: all var(--transition);
 }
 .cart-clear-btn:hover { border-color: var(--red); color: var(--red); background: #fdecec; }
@@ -310,10 +310,10 @@ if (!empty($items) && !$hasSupplierItem) {
 .cart-item {
     display: flex; align-items: center; gap: 16px;
     background: var(--white); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 20px 24px;
-    box-shadow: var(--shadow-sm); transition: box-shadow var(--transition);
+    border-radius: 20px; padding: 20px 24px;
+    transition: box-shadow var(--transition), border-color var(--transition);
 }
-.cart-item:hover { box-shadow: var(--shadow); }
+.cart-item:hover { box-shadow: var(--shadow); border-color: rgba(102,139,234,0.35); }
 
 .cart-item__info { flex: 1; min-width: 0; }
 .cart-item__name { font-size: 14px; font-weight: 700; color: var(--black); text-decoration: none; display: block; line-height: 1.4; overflow-wrap: break-word; }
@@ -365,13 +365,13 @@ if (!empty($items) && !$hasSupplierItem) {
     font-size: 16px; font-weight: 700; cursor: pointer; transition: background var(--transition);
     display: flex; align-items: center; justify-content: center; user-select: none; color: var(--black);
 }
-.cart-qty-btn:first-child { border-radius: var(--radius) 0 0 var(--radius); }
-.cart-qty-btn:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
-.cart-qty-btn:hover { background: #ddd; }
+.cart-qty-btn:first-child { border-radius: 999px 0 0 999px; }
+.cart-qty-btn:last-child { border-radius: 0 999px 999px 0; }
+.cart-qty-btn:hover { background: var(--bg-dark); }
 .cart-qty-input {
     width: 46px; height: 34px; border: 1px solid var(--border); border-left: none; border-right: none;
     text-align: center; font-size: 14px; font-weight: 700; padding: 6px; font-family: var(--font);
-    -moz-appearance: textfield; box-shadow: var(--shadow-sm);
+    -moz-appearance: textfield;
 }
 .cart-qty-input::-webkit-outer-spin-button,
 .cart-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -379,7 +379,7 @@ if (!empty($items) && !$hasSupplierItem) {
 .cart-item__price { text-align: right; flex-shrink: 0; min-width: 110px; }
 .cart-item__sum { font-size: 17px; font-weight: 800; color: var(--black); }
 .cart-item__sum--client { font-size: 14px; font-weight: 700; color: var(--gray); margin-top: 6px; }
-.cart-item__sum-label { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: var(--gray-light); }
+.cart-item__sum-label { font-size: 11px; color: var(--gray-light); }
 .cart-item__sum-label:first-of-type { margin-top: 2px; }
 
 .cart-item__remove {
@@ -389,25 +389,25 @@ if (!empty($items) && !$hasSupplierItem) {
 }
 .cart-item__remove:hover { color: var(--red); }
 
-.cart-sidebar { position: sticky; top: 20px; }
+.cart-sidebar { position: sticky; top: calc(var(--header-h, 72px) + 16px); }
 .cart-summary {
     background: var(--white); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow);
+    border-radius: 24px; padding: 26px; box-shadow: var(--shadow);
 }
-.cart-summary__title { font-size: 18px; font-weight: 700; margin-bottom: 20px; color: var(--black); }
+.cart-summary__title { font-size: 20px; font-weight: 800; margin-bottom: 20px; color: var(--black); }
 .cart-summary__rows { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
 .cart-summary__row { display: flex; justify-content: space-between; font-size: 14px; color: var(--gray); }
 .cart-summary__row--client { color: var(--blue); font-weight: 700; margin: -10px 0 20px; }
 .cart-summary__total {
     display: flex; justify-content: space-between; font-size: 18px; font-weight: 800;
-    padding-top: 16px; border-top: 2px solid var(--border); margin-bottom: 20px; color: var(--black);
+    padding-top: 16px; border-top: 1px solid var(--border); margin-bottom: 20px; color: var(--black);
 }
 
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; border-radius: var(--radius); cursor: pointer; text-decoration: none; border: 1px solid transparent; transition: all var(--transition); font-family: var(--font); line-height: 1.2; font-size: 14px; }
-.btn--primary { background: var(--blue); color: #fff; border-color: var(--blue); box-shadow: 0 1px 3px rgba(102,139,234,0.3); padding: 14px 24px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; border-radius: 999px; cursor: pointer; text-decoration: none; border: 1px solid transparent; transition: all var(--transition); font-family: var(--font); line-height: 1.2; font-size: 14px; }
+.btn--primary { background: var(--blue); color: #fff; border-color: var(--blue); box-shadow: 0 6px 16px rgba(102,139,234,0.28); padding: 14px 24px; }
 .btn--primary:hover { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
-.btn--outline { background: transparent; color: var(--blue); border: 2px solid var(--border); box-shadow: var(--shadow-sm); padding: 12px 24px; }
-.btn--outline:hover { border-color: var(--blue); color: var(--blue-dark); }
+.btn--outline { background: transparent; color: var(--blue); border: 1.5px solid var(--border); padding: 12px 24px; }
+.btn--outline:hover { border-color: var(--blue); color: var(--blue-dark); background: rgba(102,139,234,0.08); }
 .btn--lg { padding: 14px 32px; font-size: 16px; }
 .btn--block { display: flex; width: 100%; }
 

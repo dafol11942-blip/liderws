@@ -410,12 +410,12 @@ if ($hasFilters) {
 .orders-filter {
     background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
     box-shadow: var(--shadow-sm); padding: 16px 20px; margin-bottom: 16px;
-    position: sticky; top: 64px; z-index: 50;
+    position: sticky; top: calc(var(--header-h, 72px) + 12px); z-index: 50;
 }
 .orders-filter__row { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; width: 100%; }
 .orders-filter__field { display: flex; flex-direction: column; gap: 4px; flex: 1 1 0; min-width: 140px; }
 .orders-filter__field--search { flex: 1.6 1 0; }
-.orders-filter__field label { font-size: 11px; color: var(--gray-light); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; }
+.orders-filter__field label { font-size: 12px; color: var(--gray); font-weight: 700; }
 .orders-filter__field input, .orders-filter__field select {
     width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius);
     font-size: 13px; color: var(--black); background: #fff; height: 36px; box-sizing: border-box;
@@ -442,7 +442,7 @@ if ($hasFilters) {
 .order-card__date { font-size: 13px; color: var(--gray); }
 .order-card__count { font-size: 13px; color: var(--gray-light); }
 .order-card__price { font-weight: 800; font-size: 16px; white-space: nowrap; }
-.order-card__badge { padding: 3px 10px; border-radius: var(--radius); font-size: 12px; font-weight: 700; }
+.order-card__badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
 .order-card__badge--paid { background: rgba(77,205,113,0.12); color: #3a9d4f; }
 .order-card__badge--unpaid { background: rgba(230,76,70,0.1); color: var(--red); }
 .order-card__arrow { font-size: 14px; color: var(--gray); transition: transform 0.2s; }
@@ -463,7 +463,7 @@ if ($hasFilters) {
 .order-card__product-price { font-weight: 700; font-size: 14px; white-space: nowrap; flex-shrink: 0; }
 .order-card__info { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; padding: 12px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; }
 .order-card__info-item { display: flex; flex-direction: column; gap: 2px; }
-.order-card__info-label { font-size: 11px; color: var(--gray-light); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; }
+.order-card__info-label { font-size: 12px; color: var(--gray-light); font-weight: 700; }
 .order-card__info-value { font-size: 13px; font-weight: 600; color: var(--black); }
 .order-card__actions { display: flex; gap: 8px; padding-top: 12px; flex-wrap: wrap; }
 @media (max-width: 600px) {

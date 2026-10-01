@@ -352,7 +352,7 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
 .cart-item__qty-label { font-size: 12px; color: var(--gray-light); }
 .cart-item__sum { font-size: 16px; font-weight: 800; color: var(--black); margin-top: 2px; }
 
-.order-detail-sidebar { position: sticky; top: 20px; }
+.order-detail-sidebar { position: sticky; top: calc(var(--header-h, 72px) + 16px); }
 .order-detail-summary { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); }
 .order-detail-summary__title { font-size: 16px; font-weight: 700; margin: 0 0 16px; color: var(--black); }
 .order-detail-summary__title:not(:first-child) { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
