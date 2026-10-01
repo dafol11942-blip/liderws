@@ -8,7 +8,9 @@ $APPLICATION->SetPageProperty('title', 'Каталог автозапчасте�
 // Фоновые картинки плиток — по slug ветки. Без картинки плитка остаётся
 // просто крупной карточкой с иконкой (как было, только шире).
 $branchImages = [
-    'vaz' => SITE_TEMPLATE_PATH . '/assets/images/catalog-vaz.jpg',
+    'vaz'      => SITE_TEMPLATE_PATH . '/assets/images/catalog-vaz.jpg',
+    'inomarki' => SITE_TEMPLATE_PATH . '/assets/images/catalog-inomarki.jpg',
+    'maslo'    => SITE_TEMPLATE_PATH . '/assets/images/catalog-maslo.jpg',
 ];
 
 $branchesHtml = '';
