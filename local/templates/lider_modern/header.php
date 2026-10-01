@@ -34,6 +34,9 @@ $favQty = $USER->IsAuthorized() ? getFavoritesCount($USER->GetID()) : 0;
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title><?php $APPLICATION->ShowTitle(); ?></title>
     <?php $APPLICATION->ShowHead(); ?>
+    <?php // Основные наборы шрифта (кириллица + латиница) — сразу, без ожидания разбора CSS ?>
+    <link rel="preload" href="<?= SITE_TEMPLATE_PATH ?>/assets/fonts/manrope-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="<?= SITE_TEMPLATE_PATH ?>/assets/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
     <?php $styleCssPath = $_SERVER['DOCUMENT_ROOT'] . SITE_TEMPLATE_PATH . '/assets/css/style.css'; ?>
     <link rel="stylesheet" href="<?= SITE_TEMPLATE_PATH ?>/assets/css/style.css?v=<?= @filemtime($styleCssPath) ?: '1' ?>">
 </head>
