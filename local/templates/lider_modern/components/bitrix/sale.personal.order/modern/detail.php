@@ -110,12 +110,19 @@ if ($basket) {
             $deliveryText = $deliveryDays . ' дн.';
         }
 
+        // GetList (не GetByID) — нужен DETAIL_PAGE_URL, который Bitrix считает
+        // по настройкам ЧПУ инфоблока сам; раньше здесь строили ссылку вручную
+        // как "/catalog/{id}/" — у этого инфоблока такой путь не существует
+        // (ЧПУ собрано из раздела+кода элемента), ссылка вела в никуда.
         $img = SITE_TEMPLATE_PATH . '/assets/images/no-photo.png';
+        $productUrl = '#';
         if ($productId > 0) {
-            $el = CIBlockElement::GetByID($productId)->GetNextElement();
-            if ($el) {
-                $fields = $el->GetFields();
-                $preview = $fields['PREVIEW_PICTURE'] ?? $fields['DETAIL_PICTURE'];
+            $elRes = CIBlockElement::GetList([], ['ID' => $productId], false, false, ['ID', 'DETAIL_PAGE_URL', 'PREVIEW_PICTURE', 'DETAIL_PICTURE']);
+            if ($el = $elRes->GetNext()) {
+                if (!empty($el['DETAIL_PAGE_URL'])) {
+                    $productUrl = $el['DETAIL_PAGE_URL'];
+                }
+                $preview = $el['PREVIEW_PICTURE'] ?: $el['DETAIL_PICTURE'];
                 if ($preview) {
                     $imgPath = CFile::GetPath($preview);
                     if ($imgPath) $img = $imgPath;
@@ -136,7 +143,7 @@ if ($basket) {
 
         $items[] = [
             'name'          => (string)$basketItem->getField('NAME'),
-            'url'           => $productId ? '/catalog/' . $productId . '/' : '#',
+            'url'           => $productUrl,
             'img'           => $img,
             'article'       => $article,
             'brand'         => $brand,
