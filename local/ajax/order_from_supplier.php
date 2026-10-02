@@ -117,16 +117,32 @@ try {
     // позиции"), не связанный с 1С-обменом: каталожные инфоблоки (55/56/57)
     // полностью управляются синхронизацией из 1С, писать в них свои элементы
     // нельзя — 1С может деактивировать/удалить как "отсутствующее в файле".
-    $xmlId = 'SUPPLIER_ORDER_' . $supplier;
+    //
+    // Один элемент на КАЖДЫЙ реальный товар (поставщик+артикул), а не один
+    // общий элемент-заглушка на всего поставщика (как было раньше) — иначе
+    // при выгрузке заказа в 1С все заказные позиции ссылались на одну и ту
+    // же безликую "Заказную позицию (...)" без артикула/бренда, и 1С
+    // не могла создать по ним осмысленную номенклатуру (см. разбор в
+    // разговоре с владельцем сайта — заказ на Masuma MFA296 ушёл в 1С
+    // как пустая карточка без артикула и производителя).
+    $xmlId = 'SUPPLIER_' . $supplier . '_' . preg_replace('/[^A-Za-z0-9]/', '', $article);
     $exist = CIBlockElement::GetList([], ['IBLOCK_ID' => SERVICE_PRODUCTS_IBLOCK_ID, 'XML_ID' => $xmlId, 'ACTIVE' => 'Y'], false, ['nTopCount' => 1], ['ID']);
     $productId = ($el = $exist->Fetch()) ? $el['ID'] : 0;
 
     if (!$productId) {
         $el = new CIBlockElement;
         $productId = $el->Add([
-            'IBLOCK_ID' => SERVICE_PRODUCTS_IBLOCK_ID, 'NAME' => 'Заказная позиция (' . $connector->getName() . ')',
+            'IBLOCK_ID' => SERVICE_PRODUCTS_IBLOCK_ID,
+            'NAME' => $itemName !== '' ? $itemName : ('Заказная позиция (' . $connector->getName() . ')'),
             'XML_ID' => $xmlId, 'ACTIVE' => 'Y',
         ]);
+        if ($productId) {
+            CIBlockElement::SetPropertyValuesEx($productId, SERVICE_PRODUCTS_IBLOCK_ID, [
+                'CML2_ARTICLE'      => $article,
+                'CML2_MANUFACTURER' => $brand,
+                'SUPPLIER_CODE'     => $supplier,
+            ]);
+        }
     }
     if (!$productId) die(json_encode(['success' => false, 'message' => 'Ошибка создания товара']));
 
