@@ -17,6 +17,31 @@ AddEventHandler("catalog", "OnProductSetAvailableUpdate", "syncInStockProperty")
 // равно подхватит оплаченный заказ в течение минуты, это лишь ускоритель.
 AddEventHandler("sale", "OnSaleOrderPaid", "dispatchHeldOrderOnPaymentEvent");
 
+// Письма, которые реально шлёт bxmail() (tools.php), оказались без заголовка
+// Message-ID (один из классических сигналов спам-фильтров, Gmail особенно
+// строг — Mail.ru такие письма пропускал, Gmail молча дропал) и с
+// задвоенным To: (Bitrix кладёт получателя и в $additional_headers, и
+// отдельным параметром в mail()). Чинить bxmail() в ядре нельзя — у Bitrix
+// специально есть событие OnBeforePhpMail именно для правки аргументов
+// перед вызовом mail(), это и есть штатная точка расширения для такого
+// случая (это D7-событие, поэтому регистрируется через EventManager, а не
+// через AddEventHandler/GetModuleEvents).
+\Bitrix\Main\EventManager::getInstance()->addEventHandler('main', 'OnBeforePhpMail', 'fixOutgoingMailHeaders');
+
+function fixOutgoingMailHeaders(\Bitrix\Main\Event $event)
+{
+    $args = $event->getParameter('arguments');
+    if (!$args) return;
+
+    $args->additional_headers = preg_replace('/^To:.*\r?\n/mi', '', (string)$args->additional_headers);
+
+    if (stripos((string)$args->additional_headers, 'Message-ID:') === false) {
+        $domain = $_SERVER['SERVER_NAME'] ?? 'liderws.ru';
+        $messageId = '<' . bin2hex(random_bytes(16)) . '@' . $domain . '>';
+        $args->additional_headers = rtrim((string)$args->additional_headers, "\r\n") . "\r\nMessage-ID: {$messageId}\r\n";
+    }
+}
+
 function dispatchHeldOrderOnPaymentEvent($orderId)
 {
     try {
