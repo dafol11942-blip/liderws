@@ -382,8 +382,8 @@ if ($hasFilters) {
                     <?php if (!$isCanceled && $o['PAYED'] !== 'Y' && !empty($payment['PSA_ACTION_FILE'])): ?>
                         <a href="<?= htmlspecialcharsbx($payment['PSA_ACTION_FILE']) ?>" class="btn btn--primary btn--sm"><svg class="icon"><use href="#icon-card"></use></svg> Оплатить</a>
                     <?php endif; ?>
-                    <?php if (!empty($o['URL_TO_DETAIL'])): ?>
-                        <a href="<?= htmlspecialcharsbx($o['URL_TO_DETAIL']) ?>" class="btn btn--white btn--sm"><svg class="icon"><use href="#icon-list"></use></svg> Подробнее</a>
+                    <?php if ($orderId > 0): ?>
+                        <a href="/personal/orders/?ID=<?= $orderId ?>" class="btn btn--white btn--sm"><svg class="icon"><use href="#icon-list"></use></svg> Подробнее</a>
                     <?php endif; ?>
                 </div>
             </div>

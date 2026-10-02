@@ -1,5 +1,36 @@
 <?php require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 require($_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/include/require_phone_auth.php");
+
+// Прямая ссылка на один заказ (?ID=123, из письма о статусе заказа или кнопки
+// "Подробнее" в списке) — рендерим detail.php сами, в обход SEF-диспетчера
+// компонента (CComponentEngine::parseComponentPath в class.php компонента
+// матчит ТОЛЬКО путь URL, не query-string, а путь вида /detail/#ID#/ на этом
+// хостинге не доходит до этого файла — веб-сервер отдаёт вместо него /personal/
+// целиком, похоже, нет доступа поправить правила rewrite). ?ID= — обычный
+// query-параметр на уже существующем URL, доходит без всякого rewrite.
+$detailOrderId = (int)($_GET['ID'] ?? 0);
+
+if ($detailOrderId > 0) {
+    $APPLICATION->SetPageProperty("title", "Заказ №{$detailOrderId} — личный кабинет ЛИДЕР");
+    $APPLICATION->SetTitle("Заказ №{$detailOrderId}");
+    ?>
+    <div class="lk-layout">
+        <?php $lkNavActive = 'orders'; require $_SERVER["DOCUMENT_ROOT"] . "/local/templates/lider_modern/include/lk-sidebar.php"; ?>
+        <div class="lk-content">
+            <?php
+            $arResult = [
+                'VARIABLES' => ['ID' => $detailOrderId],
+                'PATH_TO_LIST' => '/personal/orders/',
+            ];
+            require $_SERVER["DOCUMENT_ROOT"] . "/local/templates/lider_modern/components/bitrix/sale.personal.order/modern/detail.php";
+            ?>
+        </div>
+    </div>
+    <?php
+    require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/footer.php");
+    return;
+}
+
 $APPLICATION->SetPageProperty("title", "История заказов — личный кабинет ЛИДЕР");
 $APPLICATION->SetTitle("История заказов");
 
@@ -20,19 +51,6 @@ $_REQUEST['show_all'] = 'Y';
             "bitrix:sale.personal.order",
             "modern",
             array(
-                // SEF включён только ради прямых ссылок на конкретный заказ
-                // (detail.php уже умел рендерить по $arResult["VARIABLES"]["ID"],
-                // но раньше эта страница URL не парсила — ссылка "Посмотреть заказ"
-                // в письмах вела просто на список). Формат "detail/#ID#" —
-                // ровно как дефолт ядра в class.php компонента
-                // (CComponentEngine::parseComponentPath матчит ПУТЬ, а не
-                // query-string — поэтому вариант index.php?ID= не работал).
-                "SEF_MODE" => "Y",
-                "SEF_FOLDER" => "/personal/orders/",
-                "SEF_URL_TEMPLATES" => array(
-                    "detail" => "detail/#ID#",
-                    "list" => "index.php",
-                ),
                 // Постраничной навигации в шаблоне нет (шапка со списком заказов
                 // рендерится целиком, без "показать ещё"), поэтому грузим сразу
                 // всю историю — иначе фильтр и списки "Способ доставки"/"Поставщик"
