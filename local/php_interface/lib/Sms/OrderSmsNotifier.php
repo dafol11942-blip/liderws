@@ -19,9 +19,9 @@ class OrderSmsNotifier
     public static function notify(int $orderId, string $event, array $context = []): void
     {
         try {
-            $client = function_exists('getSmsAeroClient') ? getSmsAeroClient() : null;
+            $client = function_exists('getSmsClient') ? getSmsClient() : null;
             if (!$client || !$client->isConfigured()) {
-                self::log("Заказ №{$orderId}: SMS '{$event}' не отправлено — smsaero_config.php отсутствует/не заполнен");
+                self::log("Заказ №{$orderId}: SMS '{$event}' не отправлено — smsru_config.php отсутствует/не заполнен");
                 return;
             }
 
