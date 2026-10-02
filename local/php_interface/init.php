@@ -364,6 +364,21 @@ function getYandexMapsApiKey(): string
     return $key;
 }
 
+function getSmsAeroClient(): \Lider\Sms\SmsAeroClient
+{
+    static $client = null;
+    if ($client === null) {
+        $configFile = __DIR__ . '/config/smsaero_config.php';
+        $config = is_file($configFile) ? require $configFile : [];
+        $client = new \Lider\Sms\SmsAeroClient(
+            (string)($config['EMAIL'] ?? ''),
+            (string)($config['API_KEY'] ?? ''),
+            (string)($config['SIGN'] ?? '')
+        );
+    }
+    return $client;
+}
+
 function getMobileIdClient(): \Lider\Auth\MobileIdClient
 {
     static $client = null;

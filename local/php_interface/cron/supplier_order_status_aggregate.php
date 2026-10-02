@@ -147,6 +147,16 @@ foreach ($orderRows as $orderRow) {
             if ($needsStatusChange) $what[] = "{$currentStatus} → {$newStatus}";
             if ($needsCancel) $what[] = 'CANCELED=Y';
             clog("Заказ №{$orderId}: " . implode(', ', $what) . " (агрегат позиций: {$aggregateStage})");
+
+            if (class_exists('\Lider\Sms\OrderSmsNotifier')) {
+                if ($needsCancel) {
+                    \Lider\Sms\OrderSmsNotifier::notify($orderId, \Lider\Sms\OrderSmsNotifier::EVENT_CANCELLED);
+                } elseif ($needsStatusChange && $newStatus === 'ST') {
+                    \Lider\Sms\OrderSmsNotifier::notify($orderId, \Lider\Sms\OrderSmsNotifier::EVENT_IN_TRANSIT);
+                } elseif ($needsStatusChange && $newStatus === 'SR') {
+                    \Lider\Sms\OrderSmsNotifier::notify($orderId, \Lider\Sms\OrderSmsNotifier::EVENT_READY);
+                }
+            }
         } else {
             clog("Заказ №{$orderId}: не удалось сохранить — " . implode('; ', $saveResult->getErrorMessages()));
         }

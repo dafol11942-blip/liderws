@@ -655,6 +655,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
             FILE_APPEND
         );
 
+        if (class_exists('\Lider\Sms\OrderSmsNotifier')) {
+            \Lider\Sms\OrderSmsNotifier::notify($orderId, \Lider\Sms\OrderSmsNotifier::EVENT_CREATED, [
+                'sum' => number_format((float)$order->getPrice(), 0, ',', ' '),
+            ]);
+        }
+
         // ФИО покупателя — в комментарий поставщику (менеджеру на площадке
         // поставщика нужно видеть, для кого заказ, не только номер заказа).
         // getPayerName() читает свойство, помеченное "плательщик" в настройках
