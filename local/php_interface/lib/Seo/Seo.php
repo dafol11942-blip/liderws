@@ -10,7 +10,7 @@ namespace Lider\Seo;
  * renderHead() через AddBufferContent — то есть теги собираются в самом конце
  * хита, когда страница уже задала title/description и добавила свои сущности
  * (товар, хлебные крошки, услугу, FAQ). Страницам достаточно вызвать нужный
- * add*/set*-метод в любом месте до footer.php.
+ * метод add…() или set…() в любом месте до footer.php.
  */
 final class Seo
 {
