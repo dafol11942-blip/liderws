@@ -27,6 +27,7 @@
                 <a href="/delivery/">Доставка и оплата</a>
                 <a href="/returns/">Возврат товара</a>
                 <a href="/soglasie/">Обработка персональных данных</a>
+                <a href="/rekvizity/">Юридическая информация</a>
             </div>
             <div class="footer__col">
                 <h4>Услуги</h4>
@@ -60,7 +61,10 @@
         <div class="footer__bottom">
             <div class="container footer__bottom-inner">
                 <p>© <?= date('Y') ?> Лидер — магазин автозапчастей в Елабуге. Все права защищены.</p>
-                <a href="/soglasie/" class="footer__legal-link">Согласие на обработку персональных данных</a>
+                <div class="footer__legal-links">
+                    <a href="/rekvizity/" class="footer__legal-link">Юридическая информация</a>
+                    <a href="/soglasie/" class="footer__legal-link">Согласие на обработку персональных данных</a>
+                </div>
             </div>
         </div>
     </footer>

@@ -746,6 +746,7 @@ body.catalog-filter-locked { overflow: hidden; }
 .footer__bottom-inner { display: flex; justify-content: space-between; align-items: center; gap: 6px 20px; flex-wrap: wrap; }
 .footer__legal-link { color: rgba(255,255,255,0.55); font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px; }
 .footer__legal-link:hover { color: #fff; }
+.footer__legal-links { display: flex; flex-wrap: wrap; gap: 6px 20px; }
 
 /* =============================================
    ПАГИНАЦИЯ
@@ -2004,6 +2005,14 @@ body.catalog-filter-locked { overflow: hidden; }
 .legal-text h3 { font-size: 16px; font-weight: 700; margin: 26px 0 10px; }
 .legal-text h3:first-child { margin-top: 0; }
 .legal-text a { color: var(--blue); text-decoration: underline; }
+.legal-requisites { width: 100%; border-collapse: collapse; }
+.legal-requisites th, .legal-requisites td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.legal-requisites th { width: 38%; font-weight: 600; color: var(--gray); }
+.legal-requisites td { word-break: break-word; }
+@media (max-width: 600px) {
+    .legal-requisites th, .legal-requisites td { display: block; width: auto; padding: 0 0 4px; border: 0; }
+    .legal-requisites td { padding-bottom: 12px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+}
 
 /* =============================================
    ОТСТУПЫ ПЛАВАЮЩИХ ЭЛЕМЕНТОВ НАД НИЖНЕЙ ПАНЕЛЬЮ (.tabbar, ≤768px)
