@@ -3,12 +3,7 @@ require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
 $APPLICATION->SetPageProperty("description", "Юридическая информация и реквизиты ИП Винокуров Сергей Владимирович — магазин автозапчастей «Лидер», Елабуга");
 $APPLICATION->SetPageProperty("title", "Юридическая информация и реквизиты");
 $APPLICATION->SetTitle("Юридическая информация");
-?><div class="breadcrumbs container">
-	<ul>
-		<li><a href="/">Главная</a></li>
-		<li>Юридическая информация</li>
-	</ul>
-</div>
+?><?= \Lider\Seo\Seo::breadcrumbs([['NAME' => 'Главная', 'LINK' => '/'], ['NAME' => 'Юридическая информация', 'LINK' => '']]) ?>
 <div class="container">
 	<h1 style="font-size:26px;font-weight:800;margin:8px 0 20px;">Юридическая информация</h1>
 </div>

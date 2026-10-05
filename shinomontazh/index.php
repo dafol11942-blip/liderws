@@ -3,6 +3,16 @@ require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 $APPLICATION->SetPageProperty("description", "Шиномонтаж в Елабуге от «Колёса Даром»: легковой и мотошиномонтаж, шиномонтаж на лёгких грузовиках, сезонное хранение, ремонт шин и дисков, балансировка, ошиповка.");
 $APPLICATION->SetPageProperty("title", "Шиномонтаж в Елабуге — «Колёса Даром» | ЛИДЕР");
 $APPLICATION->SetTitle("Шиномонтаж");
+\Lider\Seo\Seo::addNode([
+    '@type' => 'Service',
+    'name' => 'Шиномонтаж в Елабуге',
+    'serviceType' => 'Шиномонтаж',
+    'description' => 'Легковой и мотошиномонтаж, шиномонтаж лёгких грузовиков, балансировка, ремонт шин и дисков, ошиповка, сезонное хранение шин.',
+    'url' => \Lider\Seo\Seo::SITE_URL . '/shinomontazh/',
+    'provider' => ['@type' => 'TireShop', 'name' => 'Колёса Даром — Елабуга', 'telephone' => '+7 (987) 238-51-11', 'url' => 'https://elabuga.kolesa-darom.ru/'],
+    'areaServed' => ['@type' => 'City', 'name' => 'Елабуга'],
+]);
+\Lider\Seo\Seo::setOgImage(SITE_TEMPLATE_PATH . '/assets/images/shinomontazh/shinomontazh-1.jpg');
 
 $stoPhone = ['tel' => '+79872385111', 'display' => '+7 (987) 238-51-11'];
 $bookingUrl = 'https://elabuga.kolesa-darom.ru/service/shinomontazh/?utm_referrer=https%3A%2F%2Fwww.kolesa-darom.ru%2F';
@@ -17,12 +27,7 @@ $galleryPhotos = [
     ['file' => 'shinomontazh-6.jpg', 'caption' => 'Стойка приёма клиентов'],
 ];
 ?>
-<div class="breadcrumbs container">
-    <ul>
-        <li><a href="/">Главная</a></li>
-        <li>Шиномонтаж</li>
-    </ul>
-</div>
+<?= \Lider\Seo\Seo::breadcrumbs([['NAME' => 'Главная', 'LINK' => '/'], ['NAME' => 'Шиномонтаж', 'LINK' => '']]) ?>
 
 <div class="container">
     <div class="hero" style="margin-bottom:24px;">

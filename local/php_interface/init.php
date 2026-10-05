@@ -99,6 +99,23 @@ const CATALOG_BRANCHES = [
     'maslo'    => ['id' => 57, 'name' => 'Масла и технические жидкости'],
 ];
 
+// Канонический адрес товара каталога. Роутер catalog/index.php узнаёт товар
+// по последнему сегменту URL, поэтому годится и DETAIL_PAGE_URL из настроек
+// инфоблока, и короткий /catalog/{ветка}/{код}/. Берём DETAIL_PAGE_URL — по
+// нему ведут ссылки из листингов, — если он лежит внутри своей ветки и
+// заканчивается кодом товара; иначе короткий вариант. Общая для canonical
+// на детальной и для генератора sitemap (cron/sitemap_generate.php).
+function catalogElementUrl(string $branch, array $element): string
+{
+    $prefix = '/catalog/' . $branch . '/';
+    $url = (string)($element['~DETAIL_PAGE_URL'] ?? $element['DETAIL_PAGE_URL'] ?? '');
+    $code = (string)($element['~CODE'] ?? $element['CODE'] ?? '');
+    if ($url !== '' && strpos($url, $prefix) === 0 && substr(rtrim($url, '/'), -strlen($code) - 1) === '/' . $code) {
+        return rtrim($url, '/') . '/';
+    }
+    return $prefix . $code . '/';
+}
+
 // Инфоблок для служебных товаров-заглушек заказов у поставщиков (см.
 // local/ajax/order_from_supplier.php) — не связан с 1С-обменом, чтобы
 // синхронизация каталога не деактивировала/не удаляла эти элементы.

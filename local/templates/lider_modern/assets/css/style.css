@@ -2023,3 +2023,27 @@ body.catalog-filter-locked { overflow: hidden; }
     .catalog-filter-toggle { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 14px); }
     .cookie-consent { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 10px); }
 }
+
+/* ===== SEO-блоки: H1 каталога, текст раздела, FAQ, факты о магазине ===== */
+.catalog-h1 { font-size: 26px; margin: 0 0 16px; }
+.catalog-seo-text { margin: 32px 0 8px; padding: 24px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); color: var(--gray); line-height: 1.6; }
+.catalog-seo-text h2, .catalog-seo-text h3 { color: var(--text); margin: 0 0 12px; }
+.faq { margin: 32px 0; }
+.faq .section-title { margin-bottom: 16px; }
+.faq__item { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 10px; }
+.faq__q { cursor: pointer; padding: 16px 20px; font-weight: 700; list-style: none; position: relative; padding-right: 48px; }
+.faq__q::-webkit-details-marker { display: none; }
+.faq__q::after { content: "+"; position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 22px; color: var(--blue); transition: transform var(--transition); }
+.faq__item[open] .faq__q::after { transform: translateY(-50%) rotate(45deg); }
+.faq__a { padding: 0 20px 16px; color: var(--gray); line-height: 1.6; }
+.faq__a a { color: var(--blue); }
+.facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 32px 0; }
+.facts__item { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.facts__num { font-size: 28px; font-weight: 800; color: var(--blue); line-height: 1.1; }
+.facts__label { margin-top: 6px; color: var(--gray); font-size: 14px; line-height: 1.4; }
+.home-about { margin: 32px 0; color: var(--gray); line-height: 1.7; }
+.home-about h2 { color: var(--text); }
+@media (max-width: 768px) {
+    .catalog-h1 { font-size: 22px; }
+    .facts { grid-template-columns: repeat(2, 1fr); }
+}

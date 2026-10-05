@@ -1,8 +1,8 @@
 <?
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
-$APPLICATION->SetPageProperty("description", "Технический осмотр в Елабуге, получить диагностическую карту, официально");
+$APPLICATION->SetPageProperty("description", "Технический осмотр в Елабуге: официальная диагностическая карта — автотехцентр ЛИДЕР.");
 $APPLICATION->SetPageProperty("title", "Технический осмотр в Елабуге, диагностическая карта");
-$APPLICATION->SetTitle("Технический осмтор");
+$APPLICATION->SetTitle("Технический осмотр");
 // $APPLICATION->SetPageProperty("NOT_SHOW_NAV_CHAIN", "Y");
 // $APPLICATION->AddChainItem("Технический осмотр", "tekhnicheskiy-osmtor.php");
 ?><section>

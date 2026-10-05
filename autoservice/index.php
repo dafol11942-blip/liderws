@@ -3,6 +3,7 @@ require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 $APPLICATION->SetPageProperty("description", "Автосервис в Елабуге: диагностика и ремонт подвески, замена масла, ТО, ремонт тормозной системы, замена ГРМ и фильтров. Автотехцентр ЛИДЕР.");
 $APPLICATION->SetPageProperty("title", "Автосервис в Елабуге — ремонт и обслуживание автомобилей | ЛИДЕР");
 $APPLICATION->SetTitle("Автосервис");
+\Lider\Seo\Seo::addShops();
 
 require_once $_SERVER["DOCUMENT_ROOT"] . '/local/php_interface/include/shop_locations.php';
 $stoPhones = getAutoservicePhones();
@@ -52,12 +53,7 @@ $services = [
     ],
 ];
 ?>
-<div class="breadcrumbs container">
-    <ul>
-        <li><a href="/">Главная</a></li>
-        <li>Автосервис</li>
-    </ul>
-</div>
+<?= \Lider\Seo\Seo::breadcrumbs([['NAME' => 'Главная', 'LINK' => '/'], ['NAME' => 'Автосервис', 'LINK' => '']]) ?>
 
 <div class="container">
     <div class="hero" style="margin-bottom:24px;">

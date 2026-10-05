@@ -3,6 +3,8 @@ require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
 $APPLICATION->SetPageProperty("description", "Контакты автотехцентра ЛИДЕР в Елабуге: адреса, телефоны отделов ВАЗ и Иномарки, график работы магазинов и карта проезда.");
 $APPLICATION->SetPageProperty("title", "Контакты — автотехцентр ЛИДЕР в Елабуге");
 $APPLICATION->SetTitle("Контакты");
+\Lider\Seo\Seo::addShops();
+\Lider\Seo\Seo::addNode(['@type' => 'ContactPage', 'url' => \Lider\Seo\Seo::SITE_URL . '/contacts/', 'about' => ['@id' => \Lider\Seo\Seo::SITE_URL . '/#organization']]);
 
 require_once $_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/include/shop_locations.php";
 $shops = getShopLocations();
@@ -17,12 +19,7 @@ foreach ($shops as $shop) {
     ];
 }
 ?>
-<div class="breadcrumbs container">
-    <ul>
-        <li><a href="/">Главная</a></li>
-        <li>Контакты</li>
-    </ul>
-</div>
+<?= \Lider\Seo\Seo::breadcrumbs([['NAME' => 'Главная', 'LINK' => '/'], ['NAME' => 'Контакты', 'LINK' => '']]) ?>
 
 <div class="container">
     <div class="section-header">

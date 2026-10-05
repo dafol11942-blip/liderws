@@ -33,7 +33,14 @@ $favQty = $USER->IsAuthorized() ? getFavoritesCount($USER->GetID()) : 0;
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title><?php $APPLICATION->ShowTitle(); ?></title>
+    <?php \Lider\Seo\Seo::applyDefaults(); ?>
     <?php $APPLICATION->ShowHead(); ?>
+    <?php // canonical, Open Graph и JSON-LD — отложенно, после того как страница задаст свои данные (см. lib/Seo/Seo.php) ?>
+    <?php $APPLICATION->AddBufferContent([\Lider\Seo\Seo::class, 'renderHead']); ?>
+    <meta name="theme-color" content="#668BEA">
+    <meta name="format-detection" content="telephone=no">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="apple-touch-icon" href="<?= SITE_TEMPLATE_PATH ?>/assets/images/logo.png">
     <?php // Основные наборы шрифта (кириллица + латиница) — сразу, без ожидания разбора CSS ?>
     <link rel="preload" href="<?= SITE_TEMPLATE_PATH ?>/assets/fonts/manrope-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="<?= SITE_TEMPLATE_PATH ?>/assets/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -267,25 +274,25 @@ function pickCatalogNavIcon(string $name): string {
                 <a href="/podbor-po-vin/" class="header-nav__accent"><svg class="icon"><use href="#icon-car"></use></svg> Подбор по VIN</a>
                 <a href="/service-parts/" class="header-nav__accent"><svg class="icon"><use href="#icon-wrench"></use></svg> Запчасти для ТО</a>
                 <div class="nav-dropdown-wrapper">
-                    <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/">Масла</a>
+                    <a href="/catalog/maslo/">Масла</a>
                     <div class="nav-dropdown">
-                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/maslo_motornoe/">Масло моторное</a>
-                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/maslo_transmissionnoe/">Масло трансмиссионное</a>
-                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/tormoznaya_zhidkost/">Тормозная жидкость</a>
-                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/okhlazhdayushchaya_zhidkost/">Охлаждающая жидкость</a>
-                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/zhidkost_gur/">Жидкость ГУР</a>
-                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/stekloomyvayushchaya_zhidkost/">Стеклоомывающая жидкость</a>
-                        <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/" class="nav-dropdown__all">Все масла и жидкости →</a>
+                        <a href="/catalog/maslo/maslo_motornoe/">Масло моторное</a>
+                        <a href="/catalog/maslo/maslo_transmissionnoe/">Масло трансмиссионное</a>
+                        <a href="/catalog/maslo/tormoznaya_zhidkost/">Тормозная жидкость</a>
+                        <a href="/catalog/maslo/okhlazhdayushchaya_zhidkost/">Охлаждающая жидкость</a>
+                        <a href="/catalog/maslo/zhidkost_gur/">Жидкость ГУР</a>
+                        <a href="/catalog/maslo/stekloomyvayushchaya_zhidkost/">Стеклоомывающая жидкость</a>
+                        <a href="/catalog/maslo/" class="nav-dropdown__all">Все масла и жидкости →</a>
                     </div>
                 </div>
                 <div class="nav-dropdown-wrapper">
                     <a href="/catalog/inomarki/filtry/">Фильтры</a>
                     <div class="nav-dropdown">
-                        <a href="/catalog/inomarki/filtry/maslyanye_filtry/">Масляные фильтры</a>
-                        <a href="/catalog/inomarki/filtry/vozdushnye_filtry/">Воздушные фильтры</a>
-                        <a href="/catalog/inomarki/filtry/toplivnye_filtry/">Топливные фильтры</a>
-                        <a href="/catalog/inomarki/filtry/salonnye_filtry/">Салонные фильтры</a>
-                        <a href="/catalog/inomarki/filtry/akpp_filtry/">Фильтры АКПП</a>
+                        <a href="/catalog/inomarki/maslyanye_filtry/">Масляные фильтры</a>
+                        <a href="/catalog/inomarki/vozdushnye_filtry/">Воздушные фильтры</a>
+                        <a href="/catalog/inomarki/toplivnye_filtry/">Топливные фильтры</a>
+                        <a href="/catalog/inomarki/salonnye_filtry/">Салонные фильтры</a>
+                        <a href="/catalog/inomarki/akpp_filtry/">Фильтры АКПП</a>
                         <a href="/catalog/vaz/filtry_vaz/">Фильтры ВАЗ</a>
                         <a href="/catalog/inomarki/filtry/" class="nav-dropdown__all">Все фильтры →</a>
                     </div>
@@ -293,15 +300,15 @@ function pickCatalogNavIcon(string $name): string {
                 <div class="nav-dropdown-wrapper">
                     <a href="/catalog/inomarki/tormoznaya_sistema/">Тормозные колодки</a>
                     <div class="nav-dropdown">
-                        <a href="/catalog/inomarki/tormoznaya_sistema/perednie_kolodki/">Передние колодки</a>
-                        <a href="/catalog/inomarki/tormoznaya_sistema/zadnie_kolodki/">Задние колодки</a>
-                        <a href="/catalog/inomarki/tormoznaya_sistema/kolodki_ruchnika/">Колодки ручника</a>
-                        <a href="/catalog/inomarki/tormoznaya_sistema/diski_tormoznye/">Тормозные диски</a>
+                        <a href="/catalog/inomarki/perednie_kolodki/">Передние колодки</a>
+                        <a href="/catalog/inomarki/zadnie_kolodki/">Задние колодки</a>
+                        <a href="/catalog/inomarki/kolodki_ruchnika/">Колодки ручника</a>
+                        <a href="/catalog/inomarki/diski_tormoznye/">Тормозные диски</a>
                         <a href="/catalog/vaz/tormoznaya_sistema_vaz/">Тормозная система ВАЗ</a>
                         <a href="/catalog/inomarki/tormoznaya_sistema/" class="nav-dropdown__all">Вся тормозная система →</a>
                     </div>
                 </div>
-                <a href="/catalog/vaz/elektrika_vaz/akb/">Аккумуляторы</a>
+                <a href="/catalog/vaz/akb/">Аккумуляторы</a>
                 <div class="nav-dropdown-wrapper">
                     <a href="/autoservice/">Автосервис</a>
                     <div class="nav-dropdown">

@@ -1,14 +1,9 @@
 <?
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
-$APPLICATION->SetPageProperty("description", "Политика в отношении обработки персональных данных");
+$APPLICATION->SetPageProperty("description", "Политика ИП Винокуров С. В. (магазин автозапчастей ЛИДЕР, Елабуга) в отношении обработки персональных данных посетителей сайта liderws.ru.");
 $APPLICATION->SetPageProperty("title", "Политика в отношении обработки персональных данных");
 $APPLICATION->SetTitle("Согласие на обработку персональных данных");
-?><div class="breadcrumbs container">
-	<ul>
-		<li><a href="/">Главная</a></li>
-		<li>Согласие на обработку персональных данных</li>
-	</ul>
-</div>
+?><?= \Lider\Seo\Seo::breadcrumbs([['NAME' => 'Главная', 'LINK' => '/'], ['NAME' => 'Согласие на обработку персональных данных', 'LINK' => '']]) ?>
 <div class="container">
 	<h1 style="font-size:26px;font-weight:800;margin:8px 0 20px;">Политика в отношении обработки персональных данных</h1>
 </div>

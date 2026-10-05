@@ -1,7 +1,7 @@
 <?
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
-$APPLICATION->SetPageProperty("description", "Гарантия и возврат товара");
-$APPLICATION->SetPageProperty("title", "Правила возврата товара");
+$APPLICATION->SetPageProperty("description", "Условия гарантии и возврата автозапчастей в магазине ЛИДЕР в Елабуге: возврат товара надлежащего качества в течение 30 дней.");
+$APPLICATION->SetPageProperty("title", "Гарантия и возврат товара — автозапчасти ЛИДЕР");
 $APPLICATION->SetTitle("Гарантия и возврат");
 ?><?$APPLICATION->IncludeComponent(
 	"bitrix:menu",

@@ -3,6 +3,8 @@ require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 $APPLICATION->SetPageProperty("description", "Магазин автозапчастей «ЛИДЕР» в Елабуге: более 30 000 наименований деталей для ВАЗ и иномарок, автосервис, продажа шин и дисков «Колёса даром», шиномонтаж.");
 $APPLICATION->SetPageProperty("title", "О магазине автозапчастей ЛИДЕР в Елабуге");
 $APPLICATION->SetTitle("О магазине");
+\Lider\Seo\Seo::addShops();
+\Lider\Seo\Seo::addNode(['@type' => 'AboutPage', 'url' => \Lider\Seo\Seo::SITE_URL . '/about/', 'about' => ['@id' => \Lider\Seo\Seo::SITE_URL . '/#organization']]);
 
 require_once $_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/include/shop_locations.php";
 $shops = getShopLocations();
@@ -46,12 +48,7 @@ $galleryPhotos = [
     // ['file' => 'about-1.jpg', 'caption' => 'Торговый зал магазина «ЛИДЕР»'],
 ];
 ?>
-<div class="breadcrumbs container">
-    <ul>
-        <li><a href="/">Главная</a></li>
-        <li>О магазине</li>
-    </ul>
-</div>
+<?= \Lider\Seo\Seo::breadcrumbs([['NAME' => 'Главная', 'LINK' => '/'], ['NAME' => 'О магазине', 'LINK' => '']]) ?>
 
 <div class="container">
     <div class="hero" style="margin-bottom:24px;">

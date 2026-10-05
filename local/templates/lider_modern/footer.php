@@ -16,16 +16,20 @@
         <div class="container footer__grid">
             <div class="footer__col">
                 <h4>Каталог</h4>
-                <a href="/catalog/masla_i_tekhnicheskie_zhidkosti/">Масла и жидкости</a>
-                <a href="/catalog/filtry/">Фильтры</a>
+                <a href="/catalog/vaz/">Запчасти ВАЗ</a>
+                <a href="/catalog/inomarki/">Запчасти для иномарок</a>
+                <a href="/catalog/maslo/">Масла и жидкости</a>
+                <a href="/catalog/inomarki/filtry/">Фильтры</a>
                 <a href="/catalog/inomarki/tormoznaya_sistema/">Тормозные колодки</a>
-                <a href="/catalog/vaz/elektrika_vaz/akb/">Аккумуляторы</a>
+                <a href="/catalog/vaz/akb/">Аккумуляторы</a>
             </div>
             <div class="footer__col">
                 <h4>Покупателям</h4>
                 <a href="/about/">О компании</a>
-                <a href="/delivery/">Доставка и оплата</a>
-                <a href="/returns/">Возврат товара</a>
+                <a href="/klientam/delivery/">Доставка</a>
+                <a href="/klientam/oplata/">Оплата</a>
+                <a href="/klientam/garantiya-i-vozvrat/">Гарантия и возврат</a>
+                <a href="/podbor-po-vin/">Подбор по VIN</a>
                 <a href="/soglasie/">Обработка персональных данных</a>
                 <a href="/rekvizity/">Юридическая информация</a>
             </div>
@@ -54,7 +58,7 @@
             <?php endforeach; ?>
             <div class="footer__col">
                 <h4>Контакты</h4>
-                <p><svg class="icon"><use href="#icon-mail"></use></svg> lider-16@bk.ru</p>
+                <p><svg class="icon"><use href="#icon-mail"></use></svg> <a href="mailto:lider-16@bk.ru" style="color:inherit;">lider-16@bk.ru</a></p>
                 <p><a href="/contacts/" style="color:#fff;font-weight:700;">Все контакты и карта →</a></p>
             </div>
         </div>

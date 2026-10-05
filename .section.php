@@ -1,9 +1,9 @@
 <?
-$sSectionName = 'Главная';
+$sSectionName = "Главная";
 $arDirProperties = array(
-	'title' => 'Title',
-	'description' => 'Description',
-	'keywords' => 'Keywords',
-	'robots' => 'index, follow'
+	"title" => "ЛИДЕР — магазин автозапчастей в Елабуге",
+	"description" => "Магазин автозапчастей ЛИДЕР в Елабуге: запчасти для ВАЗ (LADA) и иномарок, масла, фильтры, аккумуляторы, шины и диски. Два магазина, подбор по VIN, автосервис и шиномонтаж.",
+	"keywords" => "",
+	"robots" => "index, follow"
 );
 ?>

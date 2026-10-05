@@ -1,6 +1,6 @@
 <?
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
-$APPLICATION->SetPageProperty("description", "Образцы документов для клиентов");
+$APPLICATION->SetPageProperty("description", "Образцы документов для клиентов магазина автозапчастей ЛИДЕР: заявление на возврат, гарантийные документы.");
 $APPLICATION->SetPageProperty("title", "Образцы документов для клиентов");
 $APPLICATION->SetTitle("Образцы документов");
 ?><?$APPLICATION->IncludeComponent(

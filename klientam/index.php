@@ -1,6 +1,7 @@
 <?
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
-$APPLICATION->SetPageProperty("title", "Автотехцнтр ЛИДЕР / Информация для клиентов");
+$APPLICATION->SetPageProperty("title", "Информация для покупателей — автозапчасти ЛИДЕР в Елабуге");
+$APPLICATION->SetPageProperty("description", "Информация для покупателей магазина автозапчастей ЛИДЕР: доставка, оплата, гарантия и возврат, условия для оптовых клиентов и поставщиков.");
 $APPLICATION->SetTitle("Клиентам");
 ?>
 <?$APPLICATION->IncludeComponent(

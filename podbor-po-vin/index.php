@@ -16,12 +16,7 @@ if ($vinFromSearch !== '' && !preg_match('/^[A-Z0-9-]{5,17}$/', $vinFromSearch))
     $vinFromSearch = '';
 }
 ?>
-<div class="breadcrumbs container">
-    <ul>
-        <li><a href="/">Главная</a></li>
-        <li>Каталог и подбор по VIN</li>
-    </ul>
-</div>
+<?= \Lider\Seo\Seo::breadcrumbs([['NAME' => 'Главная', 'LINK' => '/'], ['NAME' => 'Каталог и подбор по VIN', 'LINK' => '']]) ?>
 
 <div class="container">
     <div class="section-header">

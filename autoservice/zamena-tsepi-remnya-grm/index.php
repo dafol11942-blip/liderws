@@ -3,6 +3,7 @@ require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 $APPLICATION->SetPageProperty("description", "Замена цепи и ремня ГРМ в Елабуге — автосервис ЛИДЕР.");
 $APPLICATION->SetPageProperty("title", "Замена цепи/ремня ГРМ в Елабуге | ЛИДЕР");
 $APPLICATION->SetTitle("Замена цепи/ремня ГРМ");
+\Lider\Seo\Seo::autoservicePage("Замена цепи/ремня ГРМ", "/autoservice/zamena-tsepi-remnya-grm/");
 require_once $_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/include/shop_locations.php";
 $stoPhones = getAutoservicePhones();
 ?>

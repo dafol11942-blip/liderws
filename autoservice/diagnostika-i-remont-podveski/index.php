@@ -3,6 +3,7 @@ require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 $APPLICATION->SetPageProperty("description", "Диагностика и ремонт подвески (ходовой части) в Елабуге — автосервис ЛИДЕР.");
 $APPLICATION->SetPageProperty("title", "Диагностика и ремонт подвески в Елабуге | ЛИДЕР");
 $APPLICATION->SetTitle("Диагностика и ремонт подвески");
+\Lider\Seo\Seo::autoservicePage("Диагностика и ремонт подвески", "/autoservice/diagnostika-i-remont-podveski/");
 require_once $_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/include/shop_locations.php";
 $stoPhones = getAutoservicePhones();
 ?>

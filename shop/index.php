@@ -15,16 +15,12 @@ foreach (getShopLocations() as $s) {
 }
 
 if (!$shop) {
+    CHTTP::SetStatus('404 Not Found');
+    \Lider\Seo\Seo::noindex();
     $APPLICATION->SetPageProperty("title", "Магазин не найден | ЛИДЕР");
     $APPLICATION->SetTitle("Магазин не найден");
     ?>
-    <div class="breadcrumbs container">
-        <ul>
-            <li><a href="/">Главная</a></li>
-            <li><a href="/contacts/">Контакты</a></li>
-            <li>Магазин не найден</li>
-        </ul>
-    </div>
+    <?= \Lider\Seo\Seo::breadcrumbs([['NAME' => 'Главная', 'LINK' => '/'], ['NAME' => 'Контакты', 'LINK' => '/contacts/'], ['NAME' => 'Магазин не найден', 'LINK' => '']]) ?>
     <div class="container" style="padding:40px 0 60px;text-align:center;">
         <h1>Такого магазина нет</h1>
         <p style="color:var(--gray);margin:12px 0 20px;">Возможно, ссылка устарела.</p>
@@ -38,16 +34,15 @@ if (!$shop) {
 $APPLICATION->SetPageProperty("description", "Магазин автозапчастей ЛИДЕР: " . $shop['address'] . ". Телефоны, график работы, схема проезда.");
 $APPLICATION->SetPageProperty("title", "Магазин " . $shop['short'] . " — автозапчасти ЛИДЕР Елабуга");
 $APPLICATION->SetTitle("Магазин: " . $shop['short']);
+\Lider\Seo\Seo::addShops();
+\Lider\Seo\Seo::setOgImage([
+    'neftyanikov'   => SITE_TEMPLATE_PATH . '/assets/images/store-neftyanikov.webp',
+    'baki-urmanche' => SITE_TEMPLATE_PATH . '/assets/images/store-urmanche.webp',
+][$shop['id']] ?? '');
 
 $yandexMapsApiKey = function_exists('getYandexMapsApiKey') ? getYandexMapsApiKey() : '';
 ?>
-<div class="breadcrumbs container">
-    <ul>
-        <li><a href="/">Главная</a></li>
-        <li><a href="/contacts/">Контакты</a></li>
-        <li><?= htmlspecialchars($shop['short']) ?></li>
-    </ul>
-</div>
+<?= \Lider\Seo\Seo::breadcrumbs([['NAME' => 'Главная', 'LINK' => '/'], ['NAME' => 'Контакты', 'LINK' => '/contacts/'], ['NAME' => $shop['short'], 'LINK' => '']]) ?>
 
 <div class="container">
     <div class="hero" style="margin-bottom:24px;">
@@ -124,7 +119,11 @@ $yandexMapsApiKey = function_exists('getYandexMapsApiKey') ? getYandexMapsApiKey
     <div class="service-detail">
         <h2 class="section-title" style="margin-bottom:16px;"><svg class="icon"><use href="#icon-list"></use></svg> О магазине</h2>
         <div class="service-detail__text">
+            <?php if (!empty($shop['about'])): ?>
+            <p><?= htmlspecialchars($shop['about']) ?></p>
+            <?php else: ?>
             <p style="color:var(--gray);">Описание магазина скоро появится здесь.</p>
+            <?php endif; ?>
         </div>
     </div>
 

@@ -3,6 +3,7 @@ require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/header.php");
 $APPLICATION->SetPageProperty("description", "Замена масла в АКПП и МКПП в Елабуге — автосервис ЛИДЕР.");
 $APPLICATION->SetPageProperty("title", "Замена масла в трансмиссии (АКПП/МКПП) в Елабуге | ЛИДЕР");
 $APPLICATION->SetTitle("Замена масла в автоматической и механической трансмиссиях");
+\Lider\Seo\Seo::autoservicePage("Замена масла в автоматической и механической трансмиссиях", "/autoservice/zamena-masla-v-transmissii/");
 require_once $_SERVER["DOCUMENT_ROOT"] . "/local/php_interface/include/shop_locations.php";
 $stoPhones = getAutoservicePhones();
 ?>

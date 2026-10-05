@@ -43,3 +43,7 @@
 Thumbs.db
 now.zip
 8dTpDU8*
+
+# Карта сайта — генерируется на сервере кроном local/php_interface/cron/sitemap_generate.php
+/sitemap*.xml
+/sitemap*.xml.tmp

@@ -1,7 +1,7 @@
 <?
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
 $APPLICATION->SetPageProperty("title", "Вакансии — автотехцентр ЛИДЕР в Елабуге");
-$APPLICATION->SetTitle("вакансии");
+$APPLICATION->SetTitle("Вакансии");
 ?><?$APPLICATION->IncludeComponent(
 	"bitrix:menu",
 	"Left_menu",

@@ -1,7 +1,7 @@
 <?
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
-$APPLICATION->SetPageProperty("title", "Автотехцнтр ЛИДЕР / Статьи");
-$APPLICATION->SetTitle("статьи");
+$APPLICATION->SetPageProperty("title", "Статьи об обслуживании автомобиля — автотехцентр ЛИДЕР");
+$APPLICATION->SetTitle("Статьи");
 ?>
 
 <? $page = $APPLICATION->GetCurPage(); 

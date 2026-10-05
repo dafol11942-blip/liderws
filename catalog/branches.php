@@ -3,7 +3,8 @@
 // три параллельных инфоблока-каталога без общего дерева разделов (см.
 // CATALOG_BRANCHES в init.php), поэтому корень каталога — просто ссылки
 // на три ветки, а не список товаров.
-$APPLICATION->SetPageProperty('title', 'Каталог автозапчастей в Елабуге — ЛИДЕР');
+$APPLICATION->SetPageProperty('title', 'Каталог автозапчастей в Елабуге — ВАЗ, иномарки, масла | ЛИДЕР');
+$APPLICATION->SetPageProperty('description', 'Каталог магазина автозапчастей ЛИДЕР в Елабуге: запчасти для ВАЗ (LADA) и иномарок, моторные масла и технические жидкости. Цены и наличие в двух магазинах, подбор по VIN.');
 
 // Фоновые картинки плиток — по slug ветки. Без картинки плитка остаётся
 // просто крупной карточкой с иконкой (как было, только шире).
@@ -85,12 +86,10 @@ $mainHtml = '
     color: #fff;
 }
 </style>
-<div class="breadcrumbs container">
-    <ul><li>Каталог автозапчастей</li></ul>
-</div>
+' . \Lider\Seo\Seo::breadcrumbs([['NAME' => 'Главная', 'LINK' => '/'], ['NAME' => 'Каталог автозапчастей', 'LINK' => '']]) . '
 <div class="container">
     <div class="section-header">
-        <h2 class="section-title"><svg class="icon"><use href="#icon-box"></use></svg> Каталог товаров</h2>
+        <h1 class="section-title"><svg class="icon"><use href="#icon-box"></use></svg> Каталог автозапчастей</h1>
     </div>
     <div class="catalog-branches-grid">' . $branchesHtml . '</div>
 </div>';

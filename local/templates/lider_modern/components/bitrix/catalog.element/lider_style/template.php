@@ -36,7 +36,52 @@ $inStock = $totalAmount > 0;
 
 global $USER;
 $isFav = $USER->IsAuthorized() && !empty(getFavoritedCatalogIds($USER->GetID(), [$item['ID']]));
+
+// schema.org Product — расширенный сниппет с ценой и наличием в Google/Яндексе
+// и структурированный источник для ИИ-ассистентов. Выводим тегом прямо в
+// шаблоне: шаблон кэшируется компонентом, и разметка кэшируется вместе с ним.
+$productBranch = '';
+foreach (CATALOG_BRANCHES as $branchSlug => $branchInfo) {
+    if ((int)$branchInfo['id'] === (int)$item['IBLOCK_ID']) { $productBranch = $branchSlug; break; }
+}
+$productUrl = \Lider\Seo\Seo::absUrl($productBranch !== '' ? catalogElementUrl($productBranch, $item) : $APPLICATION->GetCurPage(false));
+$productLd = [
+    '@type' => 'Product',
+    'name' => \Lider\Seo\Seo::text($item['NAME']),
+    'url' => $productUrl,
+    'category' => \Lider\Seo\Seo::text($item['SECTION']['NAME'] ?? ''),
+];
+if (strpos($img, 'no-photo') === false) {
+    $productLd['image'] = \Lider\Seo\Seo::absUrl($img);
+}
+if ($article !== '') {
+    $productLd['sku'] = \Lider\Seo\Seo::text($article);
+    $productLd['mpn'] = \Lider\Seo\Seo::text($article);
+}
+if ($brand !== '') {
+    $productLd['brand'] = ['@type' => 'Brand', 'name' => \Lider\Seo\Seo::text($brand)];
+}
+$productText = \Lider\Seo\Seo::text($item['~DETAIL_TEXT'] ?? '') ?: \Lider\Seo\Seo::text($item['~PREVIEW_TEXT'] ?? '');
+if ($productText !== '') {
+    $productLd['description'] = \Lider\Seo\Seo::truncate($productText, 500);
+}
+if ($price > 0) {
+    $productLd['offers'] = [
+        '@type' => 'Offer',
+        'url' => $productUrl,
+        'price' => round((float)$price, 2),
+        'priceCurrency' => 'RUB',
+        'availability' => $inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        'itemCondition' => 'https://schema.org/NewCondition',
+        'seller' => ['@id' => \Lider\Seo\Seo::SITE_URL . '/#organization'],
+        'availableAtOrFrom' => array_map(static function ($shop) {
+            return ['@id' => \Lider\Seo\Seo::SITE_URL . '/shop/' . $shop['id'] . '/#store'];
+        }, getShopLocations()),
+    ];
+}
+$productLd = array_filter($productLd, static function ($v) { return $v !== '' && $v !== []; });
 ?>
+<?= \Lider\Seo\Seo::jsonLdTag($productLd) ?>
 
 <div class="product-detail">
     <div class="product-detail__gallery">

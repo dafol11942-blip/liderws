@@ -26,8 +26,35 @@ if (strpos($path, 'catalog/') === 0) {
 }
 $allSegments = $path ? explode('/', $path) : [];
 
+// Последний сегмент URL не нашёлся в своей ветке — ищем такой раздел или товар
+// в любой ветке и уводим 301 на правильный адрес (старые ссылки вида
+// /catalog/masla_i_tekhnicheskie_zhidkosti/..., адреса из прежнего инфоблока),
+// иначе отдаём настоящий 404 вместо показа корня каталога с кодом 200
+// (мягкий 404 размножал в индексе одинаковые страницы).
+$redirectOrNotFound = function (string $code) {
+    if ($code !== '') {
+        foreach (CATALOG_BRANCHES as $slug => $info) {
+            $found = CIBlockSection::GetList([], ['IBLOCK_ID' => $info['id'], 'CODE' => $code, 'ACTIVE' => 'Y'], false, ['ID'])->Fetch()
+                ?: CIBlockElement::GetList([], ['IBLOCK_ID' => $info['id'], 'CODE' => $code, 'ACTIVE' => 'Y'], false, ['nTopCount' => 1], ['ID'])->Fetch();
+            if ($found) {
+                LocalRedirect('/catalog/' . $slug . '/' . $code . '/', false, '301 Moved Permanently');
+            }
+        }
+    }
+    \Bitrix\Iblock\Component\Tools::process404('', true, true, true);
+};
+
+// Прежние адреса веток (до разделения каталога на три инфоблока).
+const CATALOG_LEGACY_BRANCHES = ['masla_i_tekhnicheskie_zhidkosti' => 'maslo'];
+
 $branch = $allSegments[0] ?? '';
-if ($branch === '' || !isset(CATALOG_BRANCHES[$branch])) {
+if ($branch !== '' && !isset(CATALOG_BRANCHES[$branch])) {
+    if (count($allSegments) === 1 && isset(CATALOG_LEGACY_BRANCHES[$branch])) {
+        LocalRedirect('/catalog/' . CATALOG_LEGACY_BRANCHES[$branch] . '/', false, '301 Moved Permanently');
+    }
+    $redirectOrNotFound((string)end($allSegments));
+}
+if ($branch === '') {
     require __DIR__ . '/branches.php';
     require($_SERVER["DOCUMENT_ROOT"] . "/bitrix/footer.php");
     return;
@@ -57,7 +84,7 @@ if (count($segments) >= 1) {
         ['IBLOCK_ID' => $iblockId, 'CODE' => $lastSegment, 'ACTIVE' => 'Y'],
         false,
         ['nTopCount' => 1],
-        ['ID', 'NAME', 'CODE']
+        ['ID', 'IBLOCK_ID', 'NAME', 'CODE', 'IBLOCK_SECTION_ID', 'DETAIL_PAGE_URL', 'DETAIL_PICTURE', 'PREVIEW_PICTURE', 'PREVIEW_TEXT']
     );
     if ($elFound = $elRes->GetNext()) {
         $elementCode = $lastSegment;
@@ -73,10 +100,13 @@ if (count($segments) >= 1) {
 
 $sectionId = 0;
 if ($sectionCode) {
-    $res = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'CODE' => end($segments)], false, ['ID', 'NAME']);
+    $res = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'CODE' => end($segments)], false, ['ID', 'NAME', 'DESCRIPTION', 'PICTURE']);
     if ($arSection = $res->GetNext()) {
         $sectionId = $arSection['ID'];
     }
+}
+if (!$isElement && $sectionCode && !$sectionId) {
+    $redirectOrNotFound((string)end($segments));
 }
 
 // --- Сортировка (общая для раздела и корня каталога) ---
@@ -199,30 +229,92 @@ if ($isElement && $elementCode) {
     }
 }
 
-// Заголовок вкладки браузера/SEO — по названию товара, раздела или общий для корня каталога.
+// Заголовок вкладки браузера/SEO — по названию товара, раздела или общий для корня ветки.
 // Обязательно SetPageProperty (а не только SetTitle): title, заданный компонентами каталога
 // после require bitrix/header.php, до <title> в шаблоне не долетает — см. /index.php.
-$catalogPageName = end($breadcrumbs)['NAME'] ?? 'Каталог автозапчастей';
-if ($isElement) {
-    $APPLICATION->SetPageProperty('title', $catalogPageName . ' купить в Елабуге — цена, наличие | ЛИДЕР');
-} elseif ($sectionId > 0) {
-    $APPLICATION->SetPageProperty('title', $catalogPageName . ' в Елабуге — купить в интернет-магазине ЛИДЕР');
-} else {
-    $APPLICATION->SetPageProperty('title', 'Каталог автозапчастей в Елабуге — ЛИДЕР');
+
+// Тексты для корня каждой ветки: у всех трёх раньше был один и тот же
+// title и не было ни description, ни H1 — дубли для поисковиков.
+$branchSeo = [
+    'vaz' => [
+        'h1'          => 'Запчасти для ВАЗ (LADA)',
+        'suffix'      => 'для ВАЗ',
+        'title'       => 'Запчасти ВАЗ (LADA) в Елабуге — купить в магазине ЛИДЕР',
+        'description' => 'Автозапчасти для ВАЗ и LADA в Елабуге: более 20 000 наименований в наличии. Официальный субдилер «LADA-Деталь». Самовывоз из двух магазинов, подбор по VIN.',
+    ],
+    'inomarki' => [
+        'h1'          => 'Запчасти для иномарок',
+        'suffix'      => 'для иномарок',
+        'title'       => 'Запчасти для иномарок в Елабуге — в наличии и под заказ | ЛИДЕР',
+        'description' => 'Более 10 000 запчастей для иномарок в наличии в Елабуге, под заказ — от 4 часов. Фильтры, колодки, подвеска, ГРМ. Подбор по VIN по оригинальным каталогам.',
+    ],
+    'maslo' => [
+        'h1'          => 'Масла и технические жидкости',
+        'suffix'      => '',
+        'title'       => 'Моторные масла и технические жидкости в Елабуге | ЛИДЕР',
+        'description' => 'Моторные и трансмиссионные масла Shell, Mobil, Castrol, ZIC, G-Energy, Лукойл, Роснефть, Газпром, тормозные и охлаждающие жидкости. Сертифицированная точка продаж в Елабуге.',
+    ],
+][$branch] ?? ['h1' => $branchName, 'suffix' => '', 'title' => $branchName . ' — ЛИДЕР', 'description' => ''];
+
+$pageNum = 0;
+foreach ($_GET as $navKey => $navValue) {
+    if (preg_match('/^PAGEN_\d+$/', $navKey) && is_scalar($navValue)) {
+        $pageNum = max($pageNum, (int)$navValue);
+    }
 }
+$pageSuffix = $pageNum > 1 ? ' — страница ' . $pageNum : '';
+
+$catalogPageName = \Lider\Seo\Seo::text(end($breadcrumbs)['NAME'] ?? 'Каталог автозапчастей');
+$catalogH1 = $branchSeo['h1'];
+if ($isElement) {
+    // Артикул и бренд — в description: по ним ищут чаще, чем по названию.
+    $elementId = (int)$elFound['ID'];
+    $elementProps = [];
+    foreach (array_filter(['CML2_ARTICLE', 'CML2_MANUFACTURER', getBrandPropertyCode($iblockId)]) as $propCode) {
+        $propRes = CIBlockElement::GetProperty($iblockId, $elementId, [], ['CODE' => $propCode]);
+        // У свойств-списков VALUE — ID варианта, текст лежит в VALUE_ENUM.
+        $propRow = $propRes->Fetch();
+        $propValue = $propRow ? trim((string)(($propRow['PROPERTY_TYPE'] ?? '') === 'L' ? $propRow['VALUE_ENUM'] : $propRow['VALUE'])) : '';
+        if ($propValue !== '') {
+            $elementProps[$propCode] = $propValue;
+        }
+    }
+    $elementArticle = $elementProps['CML2_ARTICLE'] ?? '';
+    $elementBrand = $elementProps['CML2_MANUFACTURER'] ?? (array_values(array_diff_key($elementProps, ['CML2_ARTICLE' => 1]))[0] ?? '');
+
+    $APPLICATION->SetPageProperty('title', $catalogPageName . ' купить в Елабуге — цена, наличие | ЛИДЕР');
+    $APPLICATION->SetPageProperty('description', \Lider\Seo\Seo::truncate(
+        $catalogPageName
+        . ($elementArticle !== '' && mb_stripos($catalogPageName, $elementArticle) === false ? ', артикул ' . $elementArticle : '')
+        . ($elementBrand !== '' ? ', ' . $elementBrand : '')
+        . '. Купить в Елабуге в магазине автозапчастей ЛИДЕР: цена и наличие, самовывоз из двух магазинов, подбор аналогов.'
+    ));
+    \Lider\Seo\Seo::setCanonical(catalogElementUrl($branch, $elFound));
+    \Lider\Seo\Seo::setOgType('product');
+    \Lider\Seo\Seo::addShops(); // на них ссылается Offer.availableAtOrFrom в разметке товара
+    $elementPicture = (int)($elFound['DETAIL_PICTURE'] ?: $elFound['PREVIEW_PICTURE']);
+    if ($elementPicture > 0) {
+        \Lider\Seo\Seo::setOgImage((string)CFile::GetPath($elementPicture));
+    }
+} elseif ($sectionId > 0) {
+    $sectionSuffix = $branchSeo['suffix'];
+    if ($sectionSuffix !== '' && preg_match('/ваз|lada|лада|иномар/iu', $catalogPageName)) {
+        $sectionSuffix = '';
+    }
+    $catalogH1 = trim($catalogPageName . ' ' . $sectionSuffix);
+    $sectionText = \Lider\Seo\Seo::text($arSection['~DESCRIPTION'] ?? '');
+    $APPLICATION->SetPageProperty('title', $catalogH1 . ' — купить в Елабуге, цены и наличие | ЛИДЕР' . $pageSuffix);
+    $APPLICATION->SetPageProperty('description', \Lider\Seo\Seo::truncate($sectionText !== ''
+        ? $sectionText
+        : $catalogH1 . ' в наличии в магазине автозапчастей ЛИДЕР в Елабуге. Актуальные цены и остатки, самовывоз с пр-та Нефтяников, 4 и ул. Баки Урманче, 17а, подбор по VIN.'
+    ) . $pageSuffix);
+    \Lider\Seo\Seo::setCanonical($catalogPrefix . $segments[count($segments) - 1] . '/', true);
+} else {
+    $APPLICATION->SetPageProperty('title', $branchSeo['title'] . $pageSuffix);
+    $APPLICATION->SetPageProperty('description', $branchSeo['description'] . $pageSuffix);
+}
+echo \Lider\Seo\Seo::breadcrumbs($breadcrumbs);
 ?>
-<div class="breadcrumbs container">
-    <ul>
-        <?php $lastIdx = count($breadcrumbs) - 1;
-        foreach ($breadcrumbs as $i => $item):
-            if ($i < $lastIdx): ?>
-                <li><a href="<?= $item['LINK'] ?>"><?= htmlspecialchars($item['NAME']) ?></a></li>
-            <?php else: ?>
-                <li><?= htmlspecialchars($item['NAME']) ?></li>
-            <?php endif;
-        endforeach; ?>
-    </ul>
-</div>
 <?php // --- Конец хлебных крошек --- ?>
 <?php
 // Ручной фильтр по цене (до вызова умного фильтра)
@@ -313,6 +405,7 @@ $arrFilter['>=CATALOG_QUANTITY'] = 1;
     </aside>
     <div class="catalog-main" id="catalogMain">
     <?php ob_start(); ?>
+        <h1 class="section-title catalog-h1"><?= htmlspecialchars($catalogH1) ?></h1>
 <?php else: ?>
     <div class="container">
 <?php endif; ?>
@@ -358,7 +451,9 @@ $arrFilter['>=CATALOG_QUANTITY'] = 1;
             
             while ($sub = $subSections->GetNext()) {
                 $hasSubSections = true;
-                $subUrl = $catalogPrefix . ($sectionCode ? $sectionCode . '/' : '') . $sub['CODE'] . '/';
+                // Короткий адрес, как в сайдбаре и крошках: роутер ищет раздел по
+                // последнему сегменту, а один адрес на раздел — без дублей в индексе.
+                $subUrl = $catalogPrefix . $sub['CODE'] . '/';
                 $imgTag = '';
                 if (!empty($sub['PICTURE'])) {
                     $imgPath = CFile::GetPath($sub['PICTURE']);
@@ -421,6 +516,11 @@ $arrFilter['>=CATALOG_QUANTITY'] = 1;
                 ),
                 false
             ); ?>
+
+            <?php // Описание раздела из админки (поле «Описание» раздела инфоблока) — только на первой странице листинга. ?>
+            <?php if ($pageNum <= 1 && trim(strip_tags((string)($arSection['~DESCRIPTION'] ?? ''))) !== ''): ?>
+                <div class="catalog-seo-text"><?= $arSection['~DESCRIPTION'] ?></div>
+            <?php endif; ?>
 
         <?php else: ?>
             <!-- ===== КОРЕНЬ КАТАЛОГА ===== -->
