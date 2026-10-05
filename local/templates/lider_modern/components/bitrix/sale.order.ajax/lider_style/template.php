@@ -638,7 +638,7 @@ if ($paymentHoldDeadlineTs <= 0) {
                             <span class="checkout-block__num">3</span> Оплата
                         </div>
                         <?php if (!empty($payments)): ?>
-                        <div class="option-list">
+                        <div class="option-list payment-grid">
                             <?php foreach ($payments as $pay):
                                 // Логотип из настроек платёжной системы (PSA_LOGOTIP — массив файла
                                 // или ID), без него — общая иконка карты
@@ -830,6 +830,18 @@ if ($paymentHoldDeadlineTs <= 0) {
 .option-card__icon { font-size: 22px; flex-shrink: 0; }
 .option-card__icon--logo { width: 56px; height: 32px; display: flex; align-items: center; justify-content: center; }
 .option-card__icon--logo img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+/* Оплата — плитками: логотип сверху, название под ним */
+.payment-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.payment-grid .option-card { height: 100%; }
+.payment-grid .option-card__box {
+    height: 100%; box-sizing: border-box;
+    flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; gap: 10px; padding: 18px 12px;
+}
+.payment-grid .option-card__icon { font-size: 28px; }
+.payment-grid .option-card__icon--logo { width: 100%; max-width: 120px; height: 40px; }
+.payment-grid .option-card__info { flex: none; width: 100%; }
+.payment-grid .option-card__title { font-size: 13px; line-height: 1.3; }
 .option-card__info { flex: 1; min-width: 0; }
 .option-card__title { font-weight: 700; font-size: 14px; color: var(--black); overflow-wrap: break-word; }
 .option-card__desc { font-size: 12px; color: var(--gray); margin-top: 2px; }
@@ -908,6 +920,8 @@ if ($paymentHoldDeadlineTs <= 0) {
        за границы кнопки. Ставим иконку над подписью и центрируем. */
     .receipt-method-list .option-card__box { flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 16px 10px; }
     .receipt-method-list .option-card__info { flex: none; width: 100%; }
+    .payment-grid { grid-template-columns: 1fr 1fr; }
+    .payment-grid .option-card__box { flex-wrap: nowrap; padding: 14px 8px; }
 }
 .pickup-map { width: 100%; height: 260px; border-radius: 16px; overflow: hidden; margin-top: 12px; border: 1px solid var(--border); }
 .pickup-map-fallback { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
