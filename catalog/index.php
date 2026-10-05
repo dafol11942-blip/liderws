@@ -238,23 +238,20 @@ if ($isElement && $elementCode) {
 $branchSeo = [
     'vaz' => [
         'h1'          => 'Запчасти для ВАЗ (LADA)',
-        'suffix'      => 'для ВАЗ',
         'title'       => 'Запчасти ВАЗ (LADA) в Елабуге — купить в магазине ЛИДЕР',
         'description' => 'Автозапчасти для ВАЗ и LADA в Елабуге: более 20 000 наименований в наличии. Официальный субдилер «LADA-Деталь». Самовывоз из двух магазинов, подбор по VIN.',
     ],
     'inomarki' => [
         'h1'          => 'Запчасти для иномарок',
-        'suffix'      => 'для иномарок',
         'title'       => 'Запчасти для иномарок в Елабуге — в наличии и под заказ | ЛИДЕР',
         'description' => 'Более 10 000 запчастей для иномарок в наличии в Елабуге, под заказ — от 4 часов. Фильтры, колодки, подвеска, ГРМ. Подбор по VIN по оригинальным каталогам.',
     ],
     'maslo' => [
         'h1'          => 'Масла и технические жидкости',
-        'suffix'      => '',
         'title'       => 'Моторные масла и технические жидкости в Елабуге | ЛИДЕР',
         'description' => 'Моторные и трансмиссионные масла Shell, Mobil, Castrol, ZIC, G-Energy, Лукойл, Роснефть, Газпром, тормозные и охлаждающие жидкости. Сертифицированная точка продаж в Елабуге.',
     ],
-][$branch] ?? ['h1' => $branchName, 'suffix' => '', 'title' => $branchName . ' — ЛИДЕР', 'description' => ''];
+][$branch] ?? ['h1' => $branchName, 'title' => $branchName . ' — ЛИДЕР', 'description' => ''];
 
 $pageNum = 0;
 foreach ($_GET as $navKey => $navValue) {
@@ -297,11 +294,9 @@ if ($isElement) {
         \Lider\Seo\Seo::setOgImage((string)CFile::GetPath($elementPicture));
     }
 } elseif ($sectionId > 0) {
-    $sectionSuffix = $branchSeo['suffix'];
-    if ($sectionSuffix !== '' && preg_match('/ваз|lada|лада|иномар/iu', $catalogPageName)) {
-        $sectionSuffix = '';
-    }
-    $catalogH1 = trim($catalogPageName . ' ' . $sectionSuffix);
+    // H1 — ровно название раздела: суффикс по ветке ("для ВАЗ") был бы неверен,
+    // например, для аккумуляторов, которые подходят не только ВАЗ.
+    $catalogH1 = $catalogPageName;
     $sectionText = \Lider\Seo\Seo::text($arSection['~DESCRIPTION'] ?? '');
     $APPLICATION->SetPageProperty('title', $catalogH1 . ' — купить в Елабуге, цены и наличие | ЛИДЕР' . $pageSuffix);
     $APPLICATION->SetPageProperty('description', \Lider\Seo\Seo::truncate($sectionText !== ''
