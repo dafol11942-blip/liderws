@@ -639,12 +639,24 @@ if ($paymentHoldDeadlineTs <= 0) {
                         </div>
                         <?php if (!empty($payments)): ?>
                         <div class="option-list">
-                            <?php foreach ($payments as $pay): ?>
+                            <?php foreach ($payments as $pay):
+                                // Логотип из настроек платёжной системы (PSA_LOGOTIP — массив файла
+                                // или ID), без него — общая иконка карты
+                                $payLogo = $pay['PSA_LOGOTIP'] ?? ($pay['LOGOTIP'] ?? null);
+                                if ($payLogo && !is_array($payLogo)) {
+                                    $payLogo = CFile::GetFileArray((int)$payLogo);
+                                }
+                                $payLogoSrc = is_array($payLogo) ? ($payLogo['SRC'] ?? '') : '';
+                            ?>
                             <label class="option-card <?= ($pay['CHECKED'] ?? '') === 'Y' ? 'option-card--active' : '' ?>">
                                 <input type="radio" name="PAY_SYSTEM_ID" value="<?= $pay['ID'] ?>"
                                        <?= ($pay['CHECKED'] ?? '') === 'Y' ? 'checked' : '' ?>>
                                 <div class="option-card__box">
+                                    <?php if ($payLogoSrc !== ''): ?>
+                                    <div class="option-card__icon option-card__icon--logo"><img src="<?= htmlspecialcharsbx($payLogoSrc) ?>" alt="<?= htmlspecialcharsbx($pay['NAME']) ?>" loading="lazy"></div>
+                                    <?php else: ?>
                                     <div class="option-card__icon"><svg class="icon"><use href="#icon-card"></use></svg></div>
+                                    <?php endif; ?>
                                     <div class="option-card__info">
                                         <div class="option-card__title"><?= $pay['NAME'] ?></div>
                                     </div>
@@ -816,6 +828,8 @@ if ($paymentHoldDeadlineTs <= 0) {
     box-shadow: 0 0 0 3px rgba(102,139,234,0.12);
 }
 .option-card__icon { font-size: 22px; flex-shrink: 0; }
+.option-card__icon--logo { width: 56px; height: 32px; display: flex; align-items: center; justify-content: center; }
+.option-card__icon--logo img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
 .option-card__info { flex: 1; min-width: 0; }
 .option-card__title { font-weight: 700; font-size: 14px; color: var(--black); overflow-wrap: break-word; }
 .option-card__desc { font-size: 12px; color: var(--gray); margin-top: 2px; }
