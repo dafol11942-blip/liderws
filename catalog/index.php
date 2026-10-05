@@ -21,9 +21,9 @@ $APPLICATION->SetTitle("Каталог автозапчастей");
 $requestUri = $_SERVER['REQUEST_URI'];
 $requestUri = strtok($requestUri, '?');
 $path = trim($requestUri, '/');
-if (strpos($path, 'catalog/') === 0) {
-    $path = substr($path, 8);
-}
+// Срезаем и "catalog/", и голый "catalog" (сам /catalog/ после trim — это
+// "catalog" без слэша, иначе он принимался за неизвестную ветку и уходил в 404).
+$path = (string)preg_replace('#^catalog(/|$)#', '', $path);
 $allSegments = $path ? explode('/', $path) : [];
 
 // Последний сегмент URL не нашёлся в своей ветке — ищем такой раздел или товар
