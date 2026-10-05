@@ -27,6 +27,37 @@ foreach ($arResult['ITEMS'] as $key => $item) {
     }
 }
 
+// Артикул/бренд в $item['PROPERTIES'] бывают пустыми: у части товаров
+// (в т.ч. аналогов в поиске по своему складу) CML2_ARTICLE/CML2_MANUFACTURER
+// не заполнены, а данные лежат в свойствах "Артикул"/"Бренд", заведённых
+// вручную без CML2_-кода (их нет в PROPERTY_CODE компонента). Дочитываем
+// все свойства такого товара напрямую и подставляем найденное.
+$propNameAliases = ['CML2_ARTICLE' => 'артикул', 'CML2_MANUFACTURER' => 'бренд'];
+foreach ($arResult['ITEMS'] as $key => $item) {
+    $missing = [];
+    foreach ($propNameAliases as $code => $name) {
+        $value = $item['PROPERTIES'][$code]['VALUE'] ?? '';
+        if (is_array($value)) $value = reset($value);
+        if (trim((string)$value) === '') $missing[$code] = $name;
+    }
+    if (!$missing) continue;
+
+    $found = [];
+    $rsProps = CIBlockElement::GetProperty((int)$item['IBLOCK_ID'], (int)$item['ID'], ['sort' => 'asc'], ['EMPTY' => 'N']);
+    while ($prop = $rsProps->Fetch()) {
+        $value = trim((string)($prop['VALUE'] ?? ''));
+        if ($value === '') continue;
+        $propName = mb_strtolower(trim((string)$prop['NAME']));
+        foreach ($missing as $code => $name) {
+            if (isset($found[$code])) continue;
+            if ($prop['CODE'] === $code || $propName === $name) $found[$code] = $value;
+        }
+    }
+    foreach ($found as $code => $value) {
+        $arResult['ITEMS'][$key]['PROPERTIES'][$code]['VALUE'] = $value;
+    }
+}
+
 if ($removedCount > 0 && isset($arResult['NAV_RESULT'])) {
     $nav = &$arResult['NAV_RESULT'];
     $nav->NavRecordCount = max(0, (int)$nav->NavRecordCount - $removedCount);
