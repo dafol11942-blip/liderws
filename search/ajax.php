@@ -936,7 +936,9 @@ if ($action === 'brands') {
 
     OfferTokenStore::save($taskId, $OFFER_TOKENS);
 
-    $out = json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_NUMERIC_CHECK);
+    // Без JSON_NUMERIC_CHECK: он превращал строки вида "07.10" (дата доставки) в число 7.1,
+    // а артикулы с ведущими нулями — в числа. Числовые поля и так типизированы выше.
+    $out = json_encode($resp, JSON_UNESCAPED_UNICODE);
     saveTaskResult('search', $taskId, $out);
     releaseTaskLock($searchLockFp);
     echo $out;
