@@ -200,6 +200,31 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
     background: var(--blue); color: #fff; font-weight: 700; font-size: 15px; text-decoration: none;
 }
 .confirm-pay__error { color: var(--red); font-size: 14px; margin: 0; }
+/* Шаблон модуля rbs.payment (Альфа-Банк) приходит со своими стилями
+   (Arial, зелёная кнопка, серая рамка) — приводим к дизайну сайта.
+   Специфичность .confirm-pay .rbs__* выше, чем у body .rbs__* модуля. */
+.confirm-pay .rbs__wrapper, .confirm-pay .rbs__wrapper * { font-family: inherit; }
+.confirm-pay .rbs__wrapper { margin: 0; text-align: center; }
+.confirm-pay .rbs__content {
+    max-width: none; padding: 0; border: 0; margin: 0 0 12px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.confirm-pay .rbs__price-string { font-size: 14px; font-weight: 400; color: var(--gray); }
+.confirm-pay .rbs__price-string b { display: block; margin-top: 4px; font-size: 26px; font-weight: 800; color: var(--black); }
+.confirm-pay .rbs__payment-link {
+    display: block; width: 100%; max-width: 320px; margin: 4px 0 0; box-sizing: border-box;
+    padding: 14px 24px; border-radius: 14px;
+    background: var(--blue) !important; color: #fff !important;
+    font-size: 15px; font-weight: 700; line-height: 1.3;
+    box-shadow: 0 6px 18px rgba(102,139,234,0.35);
+    transition: transform var(--transition), box-shadow var(--transition), filter var(--transition);
+}
+.confirm-pay .rbs__payment-link:hover { filter: brightness(1.05); transform: translateY(-1px); box-shadow: 0 8px 22px rgba(102,139,234,0.45); }
+.confirm-pay .rbs__payment-description { font-size: 12px; color: var(--gray); }
+.confirm-pay .rbs__footer { padding-top: 12px; border-top: 1px dashed var(--border); }
+.confirm-pay .rbs__description { max-width: none; font-size: 12px; line-height: 1.45; color: var(--gray); text-align: center; }
+.confirm-pay .rbs__error-message { font-size: 14px; color: var(--black); }
+.confirm-pay .rbs__error-code { font-size: 16px; color: var(--red); }
 </style>
 
 <?php if ($orderConfirmed && $orderId > 0): ?>
