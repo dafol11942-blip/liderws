@@ -30,8 +30,8 @@ if ($searchQueryRaw !== '' && empty($_REQUEST['brand'])) {
 
     // Похоже на VIN, но не прошёл строгую проверку — длина не 17 символов или
     // встречаются буквы I/O/Q (в реальных VIN их не бывает, при ручном вводе их
-    // путают с 1/0). Такую строку у поставщиков по артикулу искать бессмысленно —
-    // вместо тихого "ничего не найдено" объясняем, в чём дело.
+    // путают с 1/0). Поиск по артикулу НЕ блокируем — та же форма бывает у живых
+    // артикулов (LECAR000016312); подсказка показывается, только если он пуст.
     if (preg_match('/^[A-Z0-9]+$/', $searchQueryNorm)) {
         $letters = preg_match_all('/[A-Z]/', $searchQueryNorm);
         $digits  = preg_match_all('/[0-9]/', $searchQueryNorm);
@@ -93,20 +93,6 @@ function dRange($d) { return $d >= 0 ? $d . ' дн.' : '—'; }
         <input type="text" name="q" class="hero-inp" placeholder="Например: W7008" autofocus autocomplete="off">
         <button type="submit" class="hero-btn">Найти</button>
     </form>
-</div>
-
-<?php elseif ($vinLengthHint): ?>
-<div class="topbar">
-    <form class="topbar-frm" method="get">
-        <input type="text" name="q" class="topbar-inp" value="<?=esc($q)?>">
-        <button type="submit" class="topbar-btn"><svg class="icon"><use href="#icon-search"></use></svg></button>
-    </form>
-    <span class="topbar-info">Поиск: <strong><?=esc($q)?></strong></span>
-</div>
-<div class="hero" style="margin-top:16px">
-    <div class="hero-icon"><svg class="icon"><use href="#icon-alert"></use></svg></div>
-    <p><?=esc($vinLengthHint)?></p>
-    <a href="/podbor-po-vin/" class="hero-back">Перейти к каталогу и подбору по VIN →</a>
 </div>
 
 <?php elseif ($q && !$brand): ?>
@@ -229,6 +215,9 @@ var API='/search/ajax.php',Q=<?=json_encode($q, JSON_HEX_TAG | JSON_HEX_AMP)?>;
 // (см. F4J16-3707010 у Exeed), поэтому обычный поиск по артикулу всегда идёт
 // первым; подсказка про VIN/кузов появляется только если он ничего не нашёл.
 var LOOKS_LIKE_FRAME=<?=json_encode($looksLikeFrameShape && $localCount === 0)?>;
+// То же для «почти VIN»: под эвристику попадают и живые артикулы (напр. LECAR000016312),
+// поэтому подсказка — только если поиск по артикулу ничего не дал.
+var VIN_HINT=<?=json_encode($localCount === 0 ? $vinLengthHint : null, JSON_HEX_TAG | JSON_HEX_AMP)?>;
 function qs(s,el){return(el||document).querySelector(s)}
 function hide(id){qs('#'+id).classList.add('hidden')}
 function show(id){qs('#'+id).classList.remove('hidden')}
@@ -243,7 +232,9 @@ async function loadBrands(article){
         hide('loader');
         if(d.error){showError(d.error);return}
         if(!d.brands||!d.brands.length){
-            if(LOOKS_LIKE_FRAME){
+            if(VIN_HINT){
+                showErrorHtml('По артикулу «'+esc(article)+'» ничего не найдено. '+esc(VIN_HINT)+' <a href="/podbor-po-vin/">Каталог и подбор по VIN →</a>');
+            }else if(LOOKS_LIKE_FRAME){
                 showErrorHtml('По артикулу «'+esc(article)+'» ничего не найдено. Похоже на номер кузова — попробуйте <a href="/podbor-po-vin/?vin='+encodeURIComponent(article)+'">каталог и подбор по VIN →</a>');
             }else{
                 showError('По артикулу «'+esc(article)+'» ничего не найдено');
