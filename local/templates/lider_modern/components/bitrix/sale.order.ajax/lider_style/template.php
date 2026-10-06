@@ -132,6 +132,76 @@ if ($paymentHoldDeadlineTs <= 0) {
 }
 ?>
 
+<?php
+// Онлайн-оплата на странице "Заказ оформлен": для каждой неоплаченной оплаты
+// с некэшевой платёжной системой (Альфа-Банк и т.п.) обработчик сам рисует
+// форму/кнопку оплаты — как confirm.php стандартного шаблона sale.order.ajax.
+// Заказ показываем только владельцу: авторизованному — по USER_ID, гостю —
+// если заказ оформлен в этой сессии (SALE_ORDER_ID, см. order_create_handler.php).
+$confirmPayHtml = [];
+if ($orderConfirmed && $orderId > 0) {
+    global $USER;
+    try {
+        $confirmOrder = \Bitrix\Sale\Order::load($orderId);
+    } catch (\Throwable $e) {
+        $confirmOrder = null;
+    }
+    $sessionOrderIds = array_map('intval', (array)($_SESSION['SALE_ORDER_ID'] ?? []));
+    $canPay = $confirmOrder
+        && $confirmOrder->getField('CANCELED') !== 'Y'
+        && (
+            ($USER->IsAuthorized() && (int)$confirmOrder->getUserId() === (int)$USER->GetID())
+            || in_array($orderId, $sessionOrderIds, true)
+        );
+    if ($canPay) {
+        foreach ($confirmOrder->getPaymentCollection() as $confirmPayment) {
+            if ($confirmPayment->isPaid() || $confirmPayment->isInner()) continue;
+            $paySvc = \Bitrix\Sale\PaySystem\Manager::getObjectById($confirmPayment->getPaymentSystemId());
+            if (!$paySvc || $paySvc->getField('IS_CASH') === 'Y' || $paySvc->getField('ACTION_FILE') === 'cash') continue;
+            try {
+                $initResult = $paySvc->initiatePay($confirmPayment, null, \Bitrix\Sale\PaySystem\BaseServiceHandler::STRING);
+                if ($initResult->isSuccess()) {
+                    $confirmPayHtml[] = [
+                        'name' => (string)$paySvc->getField('NAME'),
+                        'html' => (string)$initResult->getTemplate(),
+                        'error' => '',
+                    ];
+                } else {
+                    $confirmPayHtml[] = [
+                        'name' => (string)$paySvc->getField('NAME'),
+                        'html' => '',
+                        'error' => implode('; ', $initResult->getErrorMessages()),
+                    ];
+                }
+            } catch (\Throwable $e) {
+                $confirmPayHtml[] = ['name' => (string)$paySvc->getField('NAME'), 'html' => '', 'error' => $e->getMessage()];
+            }
+        }
+    }
+}
+$renderConfirmPay = function () use ($confirmPayHtml) {
+    foreach ($confirmPayHtml as $cp): ?>
+            <div class="confirm-pay">
+                <div class="confirm-pay__title">Оплата: <?= htmlspecialcharsbx($cp['name']) ?></div>
+                <?php if ($cp['html'] !== ''): ?>
+                <div class="confirm-pay__body"><?= $cp['html'] ?></div>
+                <?php else: ?>
+                <p class="confirm-pay__error">Не удалось подготовить оплату<?= $cp['error'] !== '' ? ': ' . htmlspecialcharsbx($cp['error']) : '' ?>. Свяжитесь с нами, и мы поможем оплатить заказ.</p>
+                <?php endif; ?>
+            </div>
+    <?php endforeach;
+};
+?>
+<style>
+.confirm-pay { max-width: 480px; margin: 0 auto 24px; padding: 20px; border: 1.5px solid var(--border); border-radius: 16px; text-align: center; }
+.confirm-pay__title { font-weight: 700; font-size: 15px; margin-bottom: 12px; }
+.confirm-pay__body input[type="submit"], .confirm-pay__body button, .confirm-pay__body .btn {
+    display: inline-block; padding: 12px 28px; border: 0; border-radius: 14px; cursor: pointer;
+    background: var(--blue); color: #fff; font-weight: 700; font-size: 15px; text-decoration: none;
+}
+.confirm-pay__error { color: var(--red); font-size: 14px; margin: 0; }
+</style>
+
 <?php if ($orderConfirmed && $orderId > 0): ?>
     <!-- Заказ создан -->
     <div class="checkout-page">
@@ -146,7 +216,11 @@ if ($paymentHoldDeadlineTs <= 0) {
                 <h2 style="font-size:20px;margin-bottom:8px;">Заказ создан, требуется оплата</h2>
                 <p style="color:var(--gray);margin-bottom:4px;max-width:480px;margin-left:auto;margin-right:auto;">В заказе есть позиции под заказ у поставщика — резерв действует ограниченное время.</p>
                 <p style="color:var(--gray);margin-bottom:24px;">Оплатите заказ в течение <strong id="paymentHoldTimer" style="color:var(--black);">--:--</strong>, иначе он будет автоматически отменён.</p>
+                <?php if (!empty($confirmPayHtml)): ?>
+                <?php $renderConfirmPay(); ?>
+                <?php else: ?>
                 <a href="/personal/orders/" class="btn btn--primary">Перейти к оплате</a>
+                <?php endif; ?>
             </div>
 
             <div id="paymentHoldStateChecking" style="display:none;">
@@ -235,7 +309,12 @@ if ($paymentHoldDeadlineTs <= 0) {
         <div class="checkout-block" style="text-align:center;padding:60px 20px;">
             <div style="font-size:48px;margin-bottom:16px;color:var(--green);"><svg class="icon"><use href="#icon-check-circle"></use></svg></div>
             <h2 style="font-size:20px;margin-bottom:8px;">Спасибо за заказ!</h2>
+            <?php if (!empty($confirmPayHtml)): ?>
+            <p style="color:var(--gray);margin-bottom:20px;">Оплатите заказ онлайн — после оплаты мы свяжемся с вами для подтверждения</p>
+            <?php $renderConfirmPay(); ?>
+            <?php else: ?>
             <p style="color:var(--gray);margin-bottom:20px;">Мы свяжемся с вами в ближайшее время для подтверждения</p>
+            <?php endif; ?>
             <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
                 <a href="/personal/orders/" class="btn btn--secondary">Мои заказы</a>
                 <a href="/catalog/" class="btn btn--primary">Продолжить покупки</a>

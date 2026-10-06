@@ -560,10 +560,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
 
     // Оплата
     $paymentId = (int)($_POST['PAY_SYSTEM_ID'] ?? 0);
+    $orderPayment = null;
     if ($paymentId > 0) {
-        $paymentCollection = $order->getPaymentCollection();
-        $payment = $paymentCollection->createItem();
-        $payment->setFields(['PAY_SYSTEM_ID' => $paymentId]);
+        $paySystemService = \Bitrix\Sale\PaySystem\Manager::getObjectById($paymentId);
+        $orderPayment = $order->getPaymentCollection()->createItem($paySystemService ?: null);
+        if (!$paySystemService) {
+            $orderPayment->setField('PAY_SYSTEM_ID', $paymentId);
+        }
     }
 
     // Свойства заказа
@@ -582,6 +585,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
 
     // Финальный расчёт (цены, суммы оплаты и т.д.)
     $order->doFinalAction(true);
+
+    // Сумма оплаты — после doFinalAction(), когда цена заказа (скидки,
+    // доставка) уже посчитана. Без неё оплата уходила с SUM = 0, и онлайн-
+    // эквайринг (Альфа-Банк, rbs.payment) не мог выставить счёт.
+    if ($orderPayment) {
+        $orderPayment->setField('SUM', $order->getPrice());
+    }
 
     // Сохраняем
     $result = $order->save();
@@ -617,6 +627,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
             $remainingQty += (int)$remainingRow['QUANTITY'];
         }
         $_SESSION['CART_QTY'] = $remainingQty;
+
+        // Как в стандартном sale.order.ajax: заказы, оформленные в этой сессии.
+        // По этому списку страница "Заказ оформлен" показывает форму оплаты и
+        // гостю (анонимному покупателю), не раскрывая чужие заказы по ?ORDER_ID=.
+        $_SESSION['SALE_ORDER_ID'][] = $orderId;
 
         // Больше нигде в этом запросе не пишем/не читаем $_SESSION — закрываем
         // сессию ЗДЕСЬ, до dispatchSupplierOrders(). PHP держит файл сессии
