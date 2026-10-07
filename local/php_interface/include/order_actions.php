@@ -46,6 +46,55 @@ if (!function_exists('isCashPaySystem')) {
     }
 }
 
+if (!function_exists('isOnlinePaySystem')) {
+    /** Онлайн-оплата на сайте: не наличные и не карта курьеру при получении (IS_CASH = 'A'). */
+    function isOnlinePaySystem(int $paySystemId): bool
+    {
+        if ($paySystemId <= 0) return false;
+        $ps = \Bitrix\Sale\PaySystem\Manager::getById($paySystemId);
+        if (!$ps) return false;
+        return !isCashPaySystem($paySystemId) && ($ps['IS_CASH'] ?? 'N') !== 'A';
+    }
+}
+
+if (!function_exists('isYandexExpressDelivery')) {
+    /**
+     * Служба модуля twinpx.yaexpress ("Экспресс-доставка от Яндекс Доставка").
+     * Модуль работает только с предоплатой на сайте и сам не проверяет оплату
+     * при оформлении через наш order_create_handler.php.
+     */
+    function isYandexExpressDelivery(int $deliveryId): bool
+    {
+        static $cache = [];
+        if ($deliveryId <= 0) return false;
+        if (!array_key_exists($deliveryId, $cache)) {
+            $d = \Bitrix\Sale\Delivery\Services\Manager::getById($deliveryId);
+            $class = mb_strtolower((string)($d['CLASS_NAME'] ?? ''));
+            $cache[$deliveryId] = $d && (
+                str_contains($class, 'twinpx') || str_contains($class, 'yaexpress')
+                || mb_stripos((string)($d['NAME'] ?? ''), 'Яндекс Доставка') !== false
+            );
+        }
+        return $cache[$deliveryId];
+    }
+}
+
+if (!function_exists('isCourierAddressPropName')) {
+    /** Свойство заказа с адресом для курьера — показывается на вкладке "Курьер", а не в контактах. */
+    function isCourierAddressPropName(string $name): bool
+    {
+        return (bool)preg_match('/адрес|улиц|^дом|квартир|подъезд|этаж|домофон|курьер/iu', trim($name));
+    }
+}
+
+if (!function_exists('isCourierAddressRequiredPropName')) {
+    /** Без этих полей курьер не найдёт адрес — обязательны для курьерской доставки. */
+    function isCourierAddressRequiredPropName(string $name): bool
+    {
+        return (bool)preg_match('/адрес|улиц|^дом/iu', trim($name));
+    }
+}
+
 if (!function_exists('getOrderCancelBlockReason')) {
     /**
      * null — покупатель может отменить заказ сам; иначе — почему нельзя

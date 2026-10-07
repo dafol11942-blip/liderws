@@ -545,6 +545,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
         return;
     }
 
+    // Яндекс Доставка (модуль twinpx.yaexpress) работает только с предоплатой
+    // на сайте, и курьеру нужен адрес — форма проверяет то же самое в JS.
+    $postedDeliveryId = (int)($_POST['DELIVERY_ID'] ?? 0);
+    if (isYandexExpressDelivery($postedDeliveryId)) {
+        if (!isOnlinePaySystem((int)($_POST['PAY_SYSTEM_ID'] ?? 0))) {
+            $GLOBALS['orderYandexCardOnlyError'] = true;
+            return;
+        }
+        foreach ($order->getPropertyCollection() as $property) {
+            if (isCourierAddressRequiredPropName((string)$property->getName())
+                && trim((string)($_POST['ORDER_PROP_' . $property->getPropertyId()] ?? '')) === '') {
+                $GLOBALS['orderCourierAddressError'] = true;
+                return;
+            }
+        }
+    }
+
     $order->setBasket($basket);
 
     // Доставка
@@ -584,6 +601,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
         $propId = $property->getPropertyId();
         if (isset($_POST['ORDER_PROP_' . $propId]) && $_POST['ORDER_PROP_' . $propId] !== '') {
             $property->setValue($_POST['ORDER_PROP_' . $propId]);
+        } elseif (($property->getProperty()['TYPE'] ?? '') === 'LOCATION' &&(string)$property->getValue() === '') {
+            // Город в форме не выбирается (магазин в одном городе, см.
+            // order_location_handler.php), но службы доставки — в т.ч. Яндекс —
+            // берут населённый пункт из этого свойства.
+            $defaultLocationCode = getDefaultShopLocationCode();
+            if ($defaultLocationCode !== '') {
+                $property->setValue($defaultLocationCode);
+            }
         }
     }
 

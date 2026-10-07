@@ -110,6 +110,20 @@ if (!empty($basketItems) && !$hasSupplierItem) {
 
 // Свойства
 $userProps = $arResult['ORDER_PROP']['USER_PROPS_Y'] ?? ($arResult['ORDER_PROP']['USER_PROPS_N'] ?? []);
+// Адрес для курьера (улица, дом, квартира…) — на вкладке "Курьер", а не в контактах.
+$courierAddressProps = [];
+foreach (array_merge($arResult['ORDER_PROP']['USER_PROPS_Y'] ?? [], $arResult['ORDER_PROP']['USER_PROPS_N'] ?? []) as $prop) {
+    if ($prop['TYPE'] !== 'LOCATION' && isCourierAddressPropName($prop['NAME'])) {
+        $courierAddressProps[$prop['ID']] = $prop;
+    }
+}
+// Логотип из настроек службы доставки / платёжной системы: массив файла или ID.
+$resolveLogoSrc = function ($logo): string {
+    if ($logo && !is_array($logo)) {
+        $logo = CFile::GetFileArray((int)$logo);
+    }
+    return is_array($logo) ? (string)($logo['SRC'] ?? '') : '';
+};
 $deliveries = $arResult['DELIVERY'] ?? [];
 $payments = $arResult['PAY_SYSTEM'] ?? [];
 // Товар под заказ у поставщика — только онлайн-оплата картой: наличные при
@@ -321,6 +335,18 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
             В заказе есть товары под заказ у поставщика — такой заказ можно оплатить только картой онлайн.
         </div>
         <?php endif; ?>
+        <?php if (!empty($GLOBALS['orderYandexCardOnlyError'])): ?>
+        <div class="checkout-error">
+            <svg class="icon"><use href="#icon-alert"></use></svg>
+            Доставка Яндекс доступна только при оплате картой на сайте — выберите другой способ оплаты.
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($GLOBALS['orderCourierAddressError'])): ?>
+        <div class="checkout-error">
+            <svg class="icon"><use href="#icon-alert"></use></svg>
+            Укажите адрес доставки для курьера.
+        </div>
+        <?php endif; ?>
         <?php if (!empty($orderPdConsentError)): ?>
         <div class="checkout-error">
             <svg class="icon"><use href="#icon-alert"></use></svg>
@@ -361,11 +387,8 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                         ?>
                         <?php foreach ($userProps as $prop):
                             if ($prop['TYPE'] === 'LOCATION') continue;
-                            // Способ получения (шаг 2) уже разделён на самовывоз/курьер —
-                            // отдельное поле адреса в контактных данных больше не нужно.
-                            // Полное имя свойства в админке — "Адрес доставки (улица, дом,
-                            // корпус, подъезд, квартира)", поэтому сравниваем по подстроке.
-                            if (mb_stripos($prop['NAME'], 'адрес доставки') !== false) continue;
+                            // Адрес — на вкладке "Курьер" способа получения (шаг 2).
+                            if (isset($courierAddressProps[$prop['ID']])) continue;
                             $rawVal = (string)($prop['VALUE'] ?? '');
                             // TYPE у этих свойств в админке не обязательно 'EMAIL'/'TEL'/'PHONE'
                             // (проверено: определение по TYPE не срабатывало) — определяем
@@ -672,16 +695,28 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                         <?php if ($hasCourier): ?>
                         <div class="receipt-method-panel" id="receipt-panel-courier" <?= ($hasPickup && $activeMethod !== 'courier') ? 'style="display:none;"' : '' ?>>
                             <div class="option-list">
-                                <?php foreach ($courierDeliveries as $did => $del): ?>
+                                <?php foreach ($courierDeliveries as $did => $del):
+                                    $delLogoSrc = $resolveLogoSrc($del['LOGOTIP'] ?? null);
+                                    $delCardOnly = isYandexExpressDelivery((int)$del['ID']);
+                                    $delDesc = trim(strip_tags((string)($del['DESCRIPTION'] ?? '')));
+                                ?>
                                 <label class="option-card <?= ($del['CHECKED'] ?? '') === 'Y' ? 'option-card--active' : '' ?>">
                                     <input type="radio" name="DELIVERY_ID" value="<?= $del['ID'] ?>"
+                                           data-card-only="<?= $delCardOnly ? 'Y' : 'N' ?>"
                                            <?= ($del['CHECKED'] ?? '') === 'Y' ? 'checked' : '' ?>>
                                     <div class="option-card__box">
+                                        <?php if ($delLogoSrc !== ''): ?>
+                                        <div class="option-card__icon option-card__icon--logo"><img src="<?= htmlspecialcharsbx($delLogoSrc) ?>" alt="<?= htmlspecialcharsbx($del['NAME']) ?>" loading="lazy"></div>
+                                        <?php else: ?>
                                         <div class="option-card__icon"><svg class="icon"><use href="#icon-truck"></use></svg></div>
+                                        <?php endif; ?>
                                         <div class="option-card__info">
                                             <div class="option-card__title"><?= $del['NAME'] ?></div>
-                                            <?php if (!empty($del['DESCRIPTION'])): ?>
+                                            <?php if ($delDesc !== '' && $delDesc !== trim(strip_tags((string)$del['NAME']))): ?>
                                             <div class="option-card__desc"><?= $del['DESCRIPTION'] ?></div>
+                                            <?php endif; ?>
+                                            <?php if ($delCardOnly): ?>
+                                            <div class="option-card__desc">Только при оплате картой на сайте</div>
                                             <?php endif; ?>
                                         </div>
                                         <div class="option-card__price">
@@ -691,6 +726,26 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                                 </label>
                                 <?php endforeach; ?>
                             </div>
+
+                            <?php if ($courierAddressProps): ?>
+                            <div class="courier-address">
+                                <div class="courier-address__title">Адрес доставки<span>г. Елабуга</span></div>
+                                <?php foreach ($courierAddressProps as $prop):
+                                    $addrReq = isCourierAddressRequiredPropName($prop['NAME']) || ($prop['REQUIED'] ?? '') === 'Y';
+                                ?>
+                                <div class="form-row">
+                                    <label><?= $prop['NAME'] ?><?= $addrReq ? ' *' : '' ?></label>
+                                    <?php if ($prop['TYPE'] === 'TEXTAREA'): ?>
+                                    <textarea name="ORDER_PROP_<?= $prop['ID'] ?>" class="courier-address__input" data-required="<?= $addrReq ? 'Y' : 'N' ?>"><?= htmlspecialchars((string)($prop['VALUE'] ?? '')) ?></textarea>
+                                    <?php else: ?>
+                                    <input type="text" name="ORDER_PROP_<?= $prop['ID'] ?>" class="courier-address__input" data-required="<?= $addrReq ? 'Y' : 'N' ?>"
+                                           value="<?= htmlspecialchars((string)($prop['VALUE'] ?? '')) ?>"
+                                           placeholder="<?= mb_stripos($prop['NAME'], 'адрес') !== false ? 'Улица, дом, подъезд, этаж, квартира' : htmlspecialchars($prop['NAME']) ?>">
+                                    <?php endif; ?>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php endif; ?>
                         </div>
                         <?php endif; ?>
 
@@ -707,19 +762,19 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                         <?php if ($cashHiddenForSupplier): ?>
                         <p class="checkout-hint" style="margin-bottom:10px;">В заказе есть товары под заказ у поставщика — мы заказываем их после оплаты, поэтому доступна только оплата картой онлайн.</p>
                         <?php endif; ?>
+                        <div class="checkout-error" id="cardOnlyDeliveryNotice" style="display:none;">
+                            <svg class="icon"><use href="#icon-alert"></use></svg>
+                            Доставка Яндекс доступна только при оплате картой на сайте — выберите другой способ оплаты.
+                        </div>
                         <?php if (!empty($payments)): ?>
                         <div class="option-list payment-grid">
                             <?php foreach ($payments as $pay):
-                                // Логотип из настроек платёжной системы (PSA_LOGOTIP — массив файла
-                                // или ID), без него — общая иконка карты
-                                $payLogo = $pay['PSA_LOGOTIP'] ?? ($pay['LOGOTIP'] ?? null);
-                                if ($payLogo && !is_array($payLogo)) {
-                                    $payLogo = CFile::GetFileArray((int)$payLogo);
-                                }
-                                $payLogoSrc = is_array($payLogo) ? ($payLogo['SRC'] ?? '') : '';
+                                // PSA_LOGOTIP — логотип из настроек платёжной системы, без него — общая иконка карты
+                                $payLogoSrc = $resolveLogoSrc($pay['PSA_LOGOTIP'] ?? ($pay['LOGOTIP'] ?? null));
                             ?>
                             <label class="option-card <?= ($pay['CHECKED'] ?? '') === 'Y' ? 'option-card--active' : '' ?>">
                                 <input type="radio" name="PAY_SYSTEM_ID" value="<?= $pay['ID'] ?>"
+                                       data-online="<?= isOnlinePaySystem((int)$pay['ID']) ? 'Y' : 'N' ?>"
                                        <?= ($pay['CHECKED'] ?? '') === 'Y' ? 'checked' : '' ?>>
                                 <div class="option-card__box">
                                     <?php if ($payLogoSrc !== ''): ?>
@@ -993,6 +1048,9 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
     .payment-grid { grid-template-columns: 1fr 1fr; }
     .payment-grid .option-card__box { flex-wrap: nowrap; padding: 14px 8px; }
 }
+.courier-address { margin-top: 16px; }
+.courier-address__title { font-weight: 800; font-size: 15px; color: var(--black); margin-bottom: 12px; display: flex; align-items: baseline; gap: 8px; }
+.courier-address__title span { font-weight: 400; font-size: 13px; color: var(--gray); }
 .pickup-map { width: 100%; height: 260px; border-radius: 16px; overflow: hidden; margin-top: 12px; border: 1px solid var(--border); }
 .pickup-map-fallback { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .pickup-map-fallback__link {
@@ -1055,7 +1113,32 @@ document.querySelectorAll('.receipt-method-radio').forEach(function (radio) {
     });
 });
 
+// Курьер: адрес обязателен только когда открыта вкладка "Курьер"; Яндекс
+// Доставка — только с онлайн-оплатой (сервер проверяет то же самое).
+function syncCourierState() {
+    var panel = document.getElementById('receipt-panel-courier');
+    var courierActive = !!panel && panel.style.display !== 'none';
+    document.querySelectorAll('.courier-address__input').forEach(function (input) {
+        input.required = courierActive && input.getAttribute('data-required') === 'Y';
+    });
+    var delivery = document.querySelector('input[name="DELIVERY_ID"]:checked');
+    var pay = document.querySelector('input[name="PAY_SYSTEM_ID"]:checked');
+    var mismatch = courierActive && delivery && delivery.getAttribute('data-card-only') === 'Y'
+        && !!pay && pay.getAttribute('data-online') !== 'Y';
+    var notice = document.getElementById('cardOnlyDeliveryNotice');
+    if (notice) notice.style.display = mismatch ? '' : 'none';
+    return !mismatch;
+}
+document.querySelectorAll('input[name="DELIVERY_ID"], input[name="PAY_SYSTEM_ID"], .receipt-method-radio').forEach(function (radio) {
+    radio.addEventListener('change', syncCourierState);
+});
+syncCourierState();
+
 function validateForm() {
+    if (!syncCourierState()) {
+        document.getElementById('cardOnlyDeliveryNotice').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return false;
+    }
     var phone = document.querySelector('input[type="tel"][required]');
     if (phone && !phone.value.trim()) {
         alert('Пожалуйста, укажите телефон');
