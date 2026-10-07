@@ -778,8 +778,10 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                                 }
                                 ymaps.ready(function () {
                                     var provider = {
+                                        // options от SuggestView содержат provider — передавать их в
+                                        // ymaps.suggest нельзя, иначе он вызовет этот же provider (рекурсия).
                                         suggest: function (request, options) {
-                                            var promise = ymaps.suggest('Елабуга, ' + request, options);
+                                            var promise = ymaps.suggest('Елабуга, ' + request, { results: (options && options.results) || 7 });
                                             promise.then(null, function (err) {
                                                 console.warn('Подсказки адреса (API Геосаджеста):', err && err.message ? err.message : err);
                                             });
