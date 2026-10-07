@@ -35,6 +35,17 @@ if (!function_exists('orderHasPaidPayment')) {
     }
 }
 
+if (!function_exists('isCashPaySystem')) {
+    /** Оплата наличными (флаг IS_CASH платёжной системы или обработчик cash). */
+    function isCashPaySystem(int $paySystemId): bool
+    {
+        if ($paySystemId <= 0) return false;
+        $ps = \Bitrix\Sale\PaySystem\Manager::getById($paySystemId);
+        if (!$ps) return false;
+        return ($ps['IS_CASH'] ?? 'N') === 'Y' || ($ps['ACTION_FILE'] ?? '') === 'cash';
+    }
+}
+
 if (!function_exists('getOrderCancelBlockReason')) {
     /**
      * null — покупатель может отменить заказ сам; иначе — почему нельзя

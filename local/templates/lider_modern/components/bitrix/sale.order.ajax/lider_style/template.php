@@ -112,6 +112,28 @@ if (!empty($basketItems) && !$hasSupplierItem) {
 $userProps = $arResult['ORDER_PROP']['USER_PROPS_Y'] ?? ($arResult['ORDER_PROP']['USER_PROPS_N'] ?? []);
 $deliveries = $arResult['DELIVERY'] ?? [];
 $payments = $arResult['PAY_SYSTEM'] ?? [];
+// Товар под заказ у поставщика — только онлайн-оплата картой: наличные при
+// получении убираем (сервер тоже не примет, см. order_create_handler.php).
+// Если отмеченный по умолчанию способ был наличным — отмечаем первый оставшийся.
+$cashHiddenForSupplier = false;
+if ($hasSupplierItem && $payments) {
+    $filteredPayments = [];
+    foreach ($payments as $pay) {
+        if (isCashPaySystem((int)($pay['ID'] ?? 0))) {
+            $cashHiddenForSupplier = true;
+            continue;
+        }
+        $filteredPayments[] = $pay;
+    }
+    $payments = $filteredPayments;
+    $hasChecked = false;
+    foreach ($payments as $pay) {
+        if (($pay['CHECKED'] ?? '') === 'Y') { $hasChecked = true; break; }
+    }
+    if (!$hasChecked && $payments) {
+        $payments[0]['CHECKED'] = 'Y';
+    }
+}
 
 // Номер заказа (если уже создан)
 $orderId = !empty($_GET["ORDER_ID"]) ? (int)$_GET["ORDER_ID"] : (int)($arResult["ORDER_ID"] ?? 0);
@@ -291,6 +313,12 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
         <div class="checkout-error">
             <svg class="icon"><use href="#icon-alert"></use></svg>
             Подтвердите, что вы ознакомлены с невозвратным товаром в заказе — без этого оформить заказ нельзя.
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($GLOBALS['orderCashForbiddenError'])): ?>
+        <div class="checkout-error">
+            <svg class="icon"><use href="#icon-alert"></use></svg>
+            В заказе есть товары под заказ у поставщика — такой заказ можно оплатить только картой онлайн.
         </div>
         <?php endif; ?>
         <?php if (!empty($orderPdConsentError)): ?>
@@ -676,6 +704,9 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                         <div class="checkout-block__title">
                             <span class="checkout-block__num">3</span> Оплата
                         </div>
+                        <?php if ($cashHiddenForSupplier): ?>
+                        <p class="checkout-hint" style="margin-bottom:10px;">В заказе есть товары под заказ у поставщика — мы заказываем их после оплаты, поэтому доступна только оплата картой онлайн.</p>
+                        <?php endif; ?>
                         <?php if (!empty($payments)): ?>
                         <div class="option-list payment-grid">
                             <?php foreach ($payments as $pay):
@@ -704,7 +735,7 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                             <?php endforeach; ?>
                         </div>
                         <?php else: ?>
-                        <p class="checkout-hint">Выберите доставку</p>
+                        <p class="checkout-hint"><?= $cashHiddenForSupplier ? 'Для выбранной доставки нет онлайн-оплаты картой — выберите другой способ доставки или свяжитесь с нами' : 'Выберите доставку' ?></p>
                         <?php endif; ?>
                     </div>
 

@@ -536,6 +536,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
         return;
     }
 
+    // Товар под заказ у поставщика заказываем только после оплаты — наличными
+    // при получении такой заказ оформить нельзя (форма прячет этот способ,
+    // здесь дублируем проверку на сервере). Через $GLOBALS — шаблон компонента
+    // выполняется не в глобальной области видимости.
+    if (basketHasSupplierItems($basket) && isCashPaySystem((int)($_POST['PAY_SYSTEM_ID'] ?? 0))) {
+        $GLOBALS['orderCashForbiddenError'] = true;
+        return;
+    }
+
     $order->setBasket($basket);
 
     // Доставка
