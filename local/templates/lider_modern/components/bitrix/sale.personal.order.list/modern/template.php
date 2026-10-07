@@ -519,7 +519,10 @@ if ($hasFilters) {
 .order-card__product-meta { font-size: 12px; color: var(--gray-light); display: block; margin-top: 2px; }
 .order-card__product-price { font-weight: 700; font-size: 14px; white-space: nowrap; flex-shrink: 0; }
 .order-card__info { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; padding: 12px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; }
-.order-card__info-item { display: flex; flex-direction: column; gap: 2px; }
+.order-card__info-item { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* Длинные статусы ("Оплата поступила, заказ обрабатывается") не должны
+   вылезать в соседнюю колонку — .status-pill по умолчанию nowrap. */
+.order-card__info-value .status-pill { white-space: normal; max-width: 100%; text-align: left; }
 .order-card__info-label { font-size: 12px; color: var(--gray-light); font-weight: 700; }
 .order-card__info-value { font-size: 13px; font-weight: 600; color: var(--black); }
 .order-card__actions { display: flex; gap: 8px; padding-top: 12px; flex-wrap: wrap; }
