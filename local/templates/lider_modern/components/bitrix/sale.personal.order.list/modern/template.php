@@ -90,6 +90,37 @@ if (!empty($arResult['ORDERS']) && CModule::IncludeModule('iblock')) {
     }
 }
 
+// Отмена заказа покупателем (POST cancel_order, см. order_actions.php).
+handleCustomerOrderCancelRequest();
+$cancelFlash = (string)($_GET['order_cancel'] ?? '');
+$cancelFlashOrder = (int)($_GET['order_cancel_id'] ?? 0);
+
+// Заказы с позициями "под заказ" у поставщика (свойство корзины SUPPLIER_NAME)
+// — их покупатель отменить сам не может. Одним запросом на всю страницу; сама
+// отмена всё равно перепроверяет условия на сервере (cancelOrderByCustomer()).
+$ordersWithSupplierItems = [];
+if (!empty($arResult['ORDERS'])) {
+    $basketToOrder = [];
+    foreach ($arResult['ORDERS'] as $o2) {
+        foreach (($o2['BASKET_ITEMS'] ?? []) as $bi) {
+            $bid = (int)($bi['ID'] ?? 0);
+            if ($bid) $basketToOrder[$bid] = (int)($o2['ORDER']['ID'] ?? 0);
+        }
+    }
+    if ($basketToOrder) {
+        try {
+            $rows = \Bitrix\Main\Application::getConnection()->query(
+                "SELECT DISTINCT BASKET_ID FROM b_sale_basket_props
+                 WHERE CODE = 'SUPPLIER_NAME' AND VALUE <> ''
+                   AND BASKET_ID IN (" . implode(',', array_keys($basketToOrder)) . ")"
+            )->fetchAll();
+            foreach ($rows as $row) {
+                $ordersWithSupplierItems[$basketToOrder[(int)$row['BASKET_ID']] ?? 0] = true;
+            }
+        } catch (\Throwable $e) {}
+    }
+}
+
 // Поставщики "у которых оформлены заказы" — список берём из уже загруженной
 // сводки по текущему набору заказов, а не из полного реестра коннекторов:
 // в фильтр должны попадать только реально встречающиеся варианты.
@@ -257,6 +288,17 @@ if ($hasFilters) {
         <?php endif; ?>
     </div>
 <?php else: ?>
+    <?php if ($cancelFlash === 'ok'): ?>
+    <div class="status-banner status-banner--ok" style="margin-bottom: 16px;">
+        <span class="status-banner__icon">✓</span>
+        <span>Заказ №<?= $cancelFlashOrder ?> отменён.</span>
+    </div>
+    <?php elseif ($cancelFlash !== ''): ?>
+    <div class="status-banner status-banner--refused" style="margin-bottom: 16px;">
+        <span class="status-banner__icon">⚠</span>
+        <span>Не удалось отменить заказ №<?= $cancelFlashOrder ?>: <?= htmlspecialchars($cancelFlash) ?></span>
+    </div>
+    <?php endif; ?>
     <div class="orders-list">
         <?php foreach ($ordersToShow as $order):
             $o = $order['ORDER'];
@@ -270,6 +312,13 @@ if ($hasFilters) {
             $supplierItems = $supplierItemsByOrder[$orderId] ?? [];
             $supplierItemsForBasket = $supplierItemsByBasketId[$orderId] ?? [];
             $isRefused = !$isCanceled && $o['STATUS_ID'] === 'SX';
+            $isOrderPaid = $o['PAYED'] === 'Y';
+            foreach (($order['PAYMENT'] ?? []) as $p2) {
+                if (($p2['PAID'] ?? 'N') === 'Y') { $isOrderPaid = true; break; }
+            }
+            $isOwnOrder = (int)($o['USER_ID'] ?? 0) === (int)$USER->GetID();
+            $canCancel = $isOwnOrder && !$isCanceled && !$isOrderPaid
+                && $o['STATUS_ID'] !== 'F' && empty($ordersWithSupplierItems[$orderId]);
         ?>
         <div class="order-card<?= $isMgr ? ' order-card--open' : '' ?>">
             <div class="order-card__header" onclick="this.closest('.order-card').classList.toggle('order-card--open')">
@@ -379,11 +428,19 @@ if ($hasFilters) {
                     <?php if (!empty($o['URL_TO_COPY'])): ?>
                         <a href="<?= htmlspecialcharsbx($o['URL_TO_COPY']) ?>" class="btn btn--outline btn--sm"><svg class="icon"><use href="#icon-refresh"></use></svg> Повторить</a>
                     <?php endif; ?>
-                    <?php if (!$isCanceled && $o['PAYED'] !== 'Y' && !empty($payment['PSA_ACTION_FILE'])): ?>
-                        <a href="<?= htmlspecialcharsbx($payment['PSA_ACTION_FILE']) ?>" class="btn btn--primary btn--sm"><svg class="icon"><use href="#icon-card"></use></svg> Оплатить</a>
+                    <?php if (!$isCanceled && !$isOrderPaid && $orderId > 0 && ($payment['PAY_SYSTEM']['IS_CASH'] ?? $payment['IS_CASH'] ?? 'N') !== 'Y' && !empty($payment['PSA_ACTION_FILE'])): ?>
+                        <?php /* Форма оплаты — на странице заказа (getOrderOnlinePayForms()), а не на старой /personal/order/payment/ */ ?>
+                        <a href="/personal/orders/?ID=<?= $orderId ?>#pay" class="btn btn--primary btn--sm"><svg class="icon"><use href="#icon-card"></use></svg> Оплатить</a>
                     <?php endif; ?>
                     <?php if ($orderId > 0): ?>
                         <a href="/personal/orders/?ID=<?= $orderId ?>" class="btn btn--white btn--sm"><svg class="icon"><use href="#icon-list"></use></svg> Подробнее</a>
+                    <?php endif; ?>
+                    <?php if ($canCancel): ?>
+                        <form method="post" class="order-card__cancel-form" onsubmit="return confirm('Отменить заказ №<?= htmlspecialcharsbx($o['ACCOUNT_NUMBER']) ?>?');">
+                            <?= bitrix_sessid_post() ?>
+                            <input type="hidden" name="cancel_order" value="<?= $orderId ?>">
+                            <button type="submit" class="btn btn--sm order-card__cancel-btn">Отменить</button>
+                        </form>
                     <?php endif; ?>
                 </div>
             </div>
@@ -466,6 +523,10 @@ if ($hasFilters) {
 .order-card__info-label { font-size: 12px; color: var(--gray-light); font-weight: 700; }
 .order-card__info-value { font-size: 13px; font-weight: 600; color: var(--black); }
 .order-card__actions { display: flex; gap: 8px; padding-top: 12px; flex-wrap: wrap; }
+.order-card__cancel-form { margin: 0 0 0 auto; }
+.order-card__cancel-btn { background: transparent; border: 1.5px solid var(--border); color: var(--red, #e53935); cursor: pointer; font-family: inherit; }
+.order-card__cancel-btn:hover { border-color: var(--red, #e53935); background: rgba(229,57,53,0.05); }
+.status-banner--ok { background: rgba(46,160,67,0.08); color: #1f7a33; }
 @media (max-width: 600px) {
     .order-card__header { flex-direction: column; align-items: flex-start; }
     .order-card__header-right { width: 100%; justify-content: space-between; }

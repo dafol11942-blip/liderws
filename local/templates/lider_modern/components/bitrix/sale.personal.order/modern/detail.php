@@ -46,6 +46,10 @@ if (!$order || (!$isMgr && (int)$order->getField('USER_ID') !== (int)$USER->GetI
     return;
 }
 
+// Отмена заказа покупателем (POST cancel_order, см. order_actions.php) —
+// редиректит обратно на эту же страницу с итогом в ?order_cancel=.
+handleCustomerOrderCancelRequest();
+
 $statusMap = getOrderStatusNameMap();
 $statusName = $statusMap[$order->getField('STATUS_ID')] ?? $order->getField('STATUS_ID');
 
@@ -206,6 +210,13 @@ $statusName = $isCanceled ? 'Отменён' : $statusName;
 $statusColor = $isCanceled ? 'red' : getOrderStatusColor($order->getField('STATUS_ID'));
 $isRefused = !$isCanceled && $order->getField('STATUS_ID') === 'SX';
 
+// Онлайн-оплата и отмена — только владельцу заказа (менеджер видит чужие
+// заказы, но платить/отменять за клиента отсюда не должен случайно).
+$isOwner = (int)$order->getField('USER_ID') === (int)$USER->GetID();
+$payForms = ($isOwner && !$isCanceled) ? getOrderOnlinePayForms($order) : [];
+$cancelBlockReason = getOrderCancelBlockReason($order);
+$cancelFlash = ((int)($_GET['order_cancel_id'] ?? 0) === $orderId) ? (string)($_GET['order_cancel'] ?? '') : '';
+
 $dateInsert = $order->getField('DATE_INSERT');
 if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
     $dateFmt = $dateInsert->format('d.m.Y H:i');
@@ -223,6 +234,18 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
         <div class="status-pill status-pill--<?= $statusColor ?> order-detail-status"><?= htmlspecialchars($statusName) ?></div>
     </div>
     <a href="<?= htmlspecialchars($pathToList) ?>" class="order-detail-back">← К списку заказов</a>
+
+    <?php if ($cancelFlash === 'ok'): ?>
+    <div class="status-banner status-banner--ok" style="margin-bottom: 20px;">
+        <span class="status-banner__icon">✓</span>
+        <span>Заказ отменён.</span>
+    </div>
+    <?php elseif ($cancelFlash !== ''): ?>
+    <div class="status-banner status-banner--refused" style="margin-bottom: 20px;">
+        <span class="status-banner__icon">⚠</span>
+        <span>Не удалось отменить заказ: <?= htmlspecialchars($cancelFlash) ?></span>
+    </div>
+    <?php endif; ?>
 
     <?php if ($isCanceled): ?>
     <div class="status-banner status-banner--refused" style="margin-bottom: 20px;">
@@ -323,6 +346,26 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
                 </ul>
                 <?php endif; ?>
             </div>
+
+            <?php if ($payForms): ?>
+            <div class="order-detail-pay" id="pay">
+                <?php renderOrderOnlinePayForms($payForms); ?>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($isOwner && !$isCanceled): ?>
+            <div class="order-detail-cancel">
+                <?php if ($cancelBlockReason === null): ?>
+                <form method="post" onsubmit="return confirm('Отменить заказ №<?= (int)$orderId ?>?');">
+                    <?= bitrix_sessid_post() ?>
+                    <input type="hidden" name="cancel_order" value="<?= (int)$orderId ?>">
+                    <button type="submit" class="order-detail-cancel__btn">Отменить заказ</button>
+                </form>
+                <?php elseif ($order->getField('STATUS_ID') !== 'F'): ?>
+                <p class="order-detail-cancel__hint">Отмена недоступна: <?= htmlspecialchars(mb_strtolower(mb_substr($cancelBlockReason, 0, 1)) . mb_substr($cancelBlockReason, 1)) ?></p>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -369,4 +412,17 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
 .order-detail-summary__total { display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; padding-top: 14px; border-top: 2px solid var(--border); color: var(--black); }
 .order-detail-props { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--black); }
 .order-detail-props__name { color: var(--gray); }
+
+.order-detail-pay { margin-top: 16px; }
+.order-detail-pay .confirm-pay { max-width: none; margin: 0 0 12px; box-shadow: var(--shadow); border-color: var(--border); }
+.order-detail-cancel { margin-top: 12px; text-align: center; }
+.order-detail-cancel__btn {
+    width: 100%; padding: 12px 16px; border-radius: 14px; cursor: pointer;
+    background: transparent; border: 1.5px solid var(--border); color: var(--red, #e53935);
+    font-family: inherit; font-size: 14px; font-weight: 700;
+    transition: border-color var(--transition), background var(--transition);
+}
+.order-detail-cancel__btn:hover { border-color: var(--red, #e53935); background: rgba(229,57,53,0.05); }
+.order-detail-cancel__hint { margin: 0; font-size: 12px; color: var(--gray); line-height: 1.45; }
+.status-banner--ok { background: rgba(46,160,67,0.08); color: #1f7a33; }
 </style>

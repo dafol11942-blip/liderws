@@ -148,95 +148,19 @@ if ($orderConfirmed && $orderId > 0) {
     }
     $sessionOrderIds = array_map('intval', (array)($_SESSION['SALE_ORDER_ID'] ?? []));
     $canPay = $confirmOrder
-        && $confirmOrder->getField('CANCELED') !== 'Y'
         && (
             ($USER->IsAuthorized() && (int)$confirmOrder->getUserId() === (int)$USER->GetID())
             || in_array($orderId, $sessionOrderIds, true)
         );
     if ($canPay) {
-        foreach ($confirmOrder->getPaymentCollection() as $confirmPayment) {
-            if ($confirmPayment->isPaid() || $confirmPayment->isInner()) continue;
-            $paySvc = \Bitrix\Sale\PaySystem\Manager::getObjectById($confirmPayment->getPaymentSystemId());
-            if (!$paySvc || $paySvc->getField('IS_CASH') === 'Y' || $paySvc->getField('ACTION_FILE') === 'cash') continue;
-            $payLogoFile = (int)$paySvc->getField('LOGOTIP') > 0 ? CFile::GetFileArray((int)$paySvc->getField('LOGOTIP')) : null;
-            $payLogoUrl = is_array($payLogoFile) ? (string)($payLogoFile['SRC'] ?? '') : '';
-            try {
-                $initResult = $paySvc->initiatePay($confirmPayment, null, \Bitrix\Sale\PaySystem\BaseServiceHandler::STRING);
-                if ($initResult->isSuccess()) {
-                    $confirmPayHtml[] = [
-                        'name' => (string)$paySvc->getField('NAME'),
-                        'logo' => $payLogoUrl,
-                        'html' => (string)$initResult->getTemplate(),
-                        'error' => '',
-                    ];
-                } else {
-                    $confirmPayHtml[] = [
-                        'name' => (string)$paySvc->getField('NAME'),
-                        'logo' => $payLogoUrl,
-                        'html' => '',
-                        'error' => implode('; ', $initResult->getErrorMessages()),
-                    ];
-                }
-            } catch (\Throwable $e) {
-                $confirmPayHtml[] = ['name' => (string)$paySvc->getField('NAME'), 'logo' => $payLogoUrl, 'html' => '', 'error' => $e->getMessage()];
-            }
-        }
+        // см. local/php_interface/include/order_actions.php
+        $confirmPayHtml = getOrderOnlinePayForms($confirmOrder);
     }
 }
 $renderConfirmPay = function () use ($confirmPayHtml) {
-    foreach ($confirmPayHtml as $cp): ?>
-            <div class="confirm-pay">
-                <div class="confirm-pay__head">
-                    <?php if ($cp['logo'] !== ''): ?>
-                    <img class="confirm-pay__logo" src="<?= htmlspecialcharsbx($cp['logo']) ?>" alt="<?= htmlspecialcharsbx($cp['name']) ?>">
-                    <?php endif; ?>
-                    <div class="confirm-pay__title"><?= htmlspecialcharsbx($cp['name']) ?></div>
-                </div>
-                <?php if ($cp['html'] !== ''): ?>
-                <div class="confirm-pay__body"><?= $cp['html'] ?></div>
-                <?php else: ?>
-                <p class="confirm-pay__error">Не удалось подготовить оплату<?= $cp['error'] !== '' ? ': ' . htmlspecialcharsbx($cp['error']) : '' ?>. Свяжитесь с нами, и мы поможем оплатить заказ.</p>
-                <?php endif; ?>
-            </div>
-    <?php endforeach;
+    renderOrderOnlinePayForms($confirmPayHtml);
 };
 ?>
-<style>
-.confirm-pay { max-width: 480px; margin: 0 auto 24px; padding: 20px; border: 1.5px solid var(--border); border-radius: 16px; text-align: center; }
-.confirm-pay__head { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 14px; }
-.confirm-pay__logo { display: block; max-width: 140px; max-height: 44px; object-fit: contain; }
-.confirm-pay__title { font-weight: 700; font-size: 15px; }
-.confirm-pay__body input[type="submit"], .confirm-pay__body button, .confirm-pay__body .btn {
-    display: inline-block; padding: 12px 28px; border: 0; border-radius: 14px; cursor: pointer;
-    background: var(--blue); color: #fff; font-weight: 700; font-size: 15px; text-decoration: none;
-}
-.confirm-pay__error { color: var(--red); font-size: 14px; margin: 0; }
-/* Шаблон модуля rbs.payment (Альфа-Банк) приходит со своими стилями
-   (Arial, зелёная кнопка, серая рамка) — приводим к дизайну сайта.
-   Специфичность .confirm-pay .rbs__* выше, чем у body .rbs__* модуля. */
-.confirm-pay .rbs__wrapper, .confirm-pay .rbs__wrapper * { font-family: inherit; }
-.confirm-pay .rbs__wrapper { margin: 0; text-align: center; }
-.confirm-pay .rbs__content {
-    max-width: none; padding: 0; border: 0; margin: 0 0 12px;
-    display: flex; flex-direction: column; align-items: center; gap: 10px;
-}
-.confirm-pay .rbs__price-string { font-size: 14px; font-weight: 400; color: var(--gray); }
-.confirm-pay .rbs__price-string b { display: block; margin-top: 4px; font-size: 26px; font-weight: 800; color: var(--black); }
-.confirm-pay .rbs__payment-link {
-    display: block; width: 100%; max-width: 320px; margin: 4px 0 0; box-sizing: border-box;
-    padding: 14px 24px; border-radius: 14px;
-    background: var(--blue) !important; color: #fff !important;
-    font-size: 15px; font-weight: 700; line-height: 1.3;
-    box-shadow: 0 6px 18px rgba(102,139,234,0.35);
-    transition: transform var(--transition), box-shadow var(--transition), filter var(--transition);
-}
-.confirm-pay .rbs__payment-link:hover { filter: brightness(1.05); transform: translateY(-1px); box-shadow: 0 8px 22px rgba(102,139,234,0.45); }
-.confirm-pay .rbs__payment-description { font-size: 12px; color: var(--gray); }
-.confirm-pay .rbs__footer { padding-top: 12px; border-top: 1px dashed var(--border); }
-.confirm-pay .rbs__description { max-width: none; font-size: 12px; line-height: 1.45; color: var(--gray); text-align: center; }
-.confirm-pay .rbs__error-message { font-size: 14px; color: var(--black); }
-.confirm-pay .rbs__error-code { font-size: 16px; color: var(--red); }
-</style>
 
 <?php if ($orderConfirmed && $orderId > 0): ?>
     <!-- Заказ создан -->
