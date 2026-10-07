@@ -158,23 +158,27 @@ if ($orderConfirmed && $orderId > 0) {
             if ($confirmPayment->isPaid() || $confirmPayment->isInner()) continue;
             $paySvc = \Bitrix\Sale\PaySystem\Manager::getObjectById($confirmPayment->getPaymentSystemId());
             if (!$paySvc || $paySvc->getField('IS_CASH') === 'Y' || $paySvc->getField('ACTION_FILE') === 'cash') continue;
+            $payLogoFile = (int)$paySvc->getField('LOGOTIP') > 0 ? CFile::GetFileArray((int)$paySvc->getField('LOGOTIP')) : null;
+            $payLogoUrl = is_array($payLogoFile) ? (string)($payLogoFile['SRC'] ?? '') : '';
             try {
                 $initResult = $paySvc->initiatePay($confirmPayment, null, \Bitrix\Sale\PaySystem\BaseServiceHandler::STRING);
                 if ($initResult->isSuccess()) {
                     $confirmPayHtml[] = [
                         'name' => (string)$paySvc->getField('NAME'),
+                        'logo' => $payLogoUrl,
                         'html' => (string)$initResult->getTemplate(),
                         'error' => '',
                     ];
                 } else {
                     $confirmPayHtml[] = [
                         'name' => (string)$paySvc->getField('NAME'),
+                        'logo' => $payLogoUrl,
                         'html' => '',
                         'error' => implode('; ', $initResult->getErrorMessages()),
                     ];
                 }
             } catch (\Throwable $e) {
-                $confirmPayHtml[] = ['name' => (string)$paySvc->getField('NAME'), 'html' => '', 'error' => $e->getMessage()];
+                $confirmPayHtml[] = ['name' => (string)$paySvc->getField('NAME'), 'logo' => $payLogoUrl, 'html' => '', 'error' => $e->getMessage()];
             }
         }
     }
@@ -182,7 +186,12 @@ if ($orderConfirmed && $orderId > 0) {
 $renderConfirmPay = function () use ($confirmPayHtml) {
     foreach ($confirmPayHtml as $cp): ?>
             <div class="confirm-pay">
-                <div class="confirm-pay__title">Оплата: <?= htmlspecialcharsbx($cp['name']) ?></div>
+                <div class="confirm-pay__head">
+                    <?php if ($cp['logo'] !== ''): ?>
+                    <img class="confirm-pay__logo" src="<?= htmlspecialcharsbx($cp['logo']) ?>" alt="<?= htmlspecialcharsbx($cp['name']) ?>">
+                    <?php endif; ?>
+                    <div class="confirm-pay__title"><?= htmlspecialcharsbx($cp['name']) ?></div>
+                </div>
                 <?php if ($cp['html'] !== ''): ?>
                 <div class="confirm-pay__body"><?= $cp['html'] ?></div>
                 <?php else: ?>
@@ -194,7 +203,9 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
 ?>
 <style>
 .confirm-pay { max-width: 480px; margin: 0 auto 24px; padding: 20px; border: 1.5px solid var(--border); border-radius: 16px; text-align: center; }
-.confirm-pay__title { font-weight: 700; font-size: 15px; margin-bottom: 12px; }
+.confirm-pay__head { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 14px; }
+.confirm-pay__logo { display: block; max-width: 140px; max-height: 44px; object-fit: contain; }
+.confirm-pay__title { font-weight: 700; font-size: 15px; }
 .confirm-pay__body input[type="submit"], .confirm-pay__body button, .confirm-pay__body .btn {
     display: inline-block; padding: 12px 28px; border: 0; border-radius: 14px; cursor: pointer;
     background: var(--blue); color: #fff; font-weight: 700; font-size: 15px; text-decoration: none;
