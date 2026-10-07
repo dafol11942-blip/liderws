@@ -660,6 +660,7 @@ function getOrderStatusColor(string $statusId): string
 {
     static $colors = [
         'N'  => 'blue',   // Принят, ожидается оплата
+        'PA' => 'green',  // Оплата поступила, заказ обрабатывается (rbs.payment)
         'S'  => 'blue',   // Ожидает обработки
         'SO' => 'indigo', // Заказан у поставщика
         'ST' => 'purple', // Товар в пути от поставщика
