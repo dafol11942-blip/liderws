@@ -772,11 +772,18 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                             <script>
                             // Подсказки адреса (API Геосаджеста) — только по Елабуге.
                             (function () {
-                                if (typeof ymaps === 'undefined') return;
+                                if (typeof ymaps === 'undefined') {
+                                    console.warn('Подсказки адреса: API Яндекс Карт не загрузился');
+                                    return;
+                                }
                                 ymaps.ready(function () {
                                     var provider = {
                                         suggest: function (request, options) {
-                                            return ymaps.suggest('Елабуга, ' + request, options);
+                                            var promise = ymaps.suggest('Елабуга, ' + request, options);
+                                            promise.then(null, function (err) {
+                                                console.warn('Подсказки адреса (API Геосаджеста):', err && err.message ? err.message : err);
+                                            });
+                                            return promise;
                                         }
                                     };
                                     document.querySelectorAll('.courier-address__input[data-suggest="Y"]').forEach(function (input) {
@@ -1248,7 +1255,13 @@ function recalcDeliveryPrice() {
         var formData = new FormData(document.getElementById('ORDER_FORM'));
         formData.delete('confirmorder');
         fetch('/local/ajax/delivery_price.php', { method: 'POST', body: formData })
-            .then(function (r) { return r.json(); })
+            .then(function (r) {
+                return r.text().then(function (text) {
+                    try { return JSON.parse(text); } catch (e) {
+                        return { ok: false, error: 'Ошибка сервера при расчёте доставки (HTTP ' + r.status + ')' };
+                    }
+                });
+            })
             .then(function (data) {
                 if (seq !== deliveryPrice.seq) return;
                 if (data.ok) {
