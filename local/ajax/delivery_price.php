@@ -52,14 +52,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !check_bitrix_sessid()) {
     return;
 }
 
+CModule::IncludeModule('sale');
+CModule::IncludeModule('catalog');
+
 $deliveryId = (int)($_POST['DELIVERY_ID'] ?? 0);
 if (!isYandexExpressDelivery($deliveryId)) {
     respondDeliveryPrice(['ok' => false, 'error' => 'Расчёт доступен только для Яндекс Доставки']);
     return;
 }
-
-CModule::IncludeModule('sale');
-CModule::IncludeModule('catalog');
 
 try {
     $fullBasket = \Bitrix\Sale\Basket::loadItemsForFUser(\CSaleBasket::GetBasketUserID(), SITE_ID);
