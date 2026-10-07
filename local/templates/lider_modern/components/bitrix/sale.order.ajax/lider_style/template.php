@@ -1266,7 +1266,7 @@ function recalcDeliveryPrice() {
                 if (seq !== deliveryPrice.seq) return;
                 if (data.ok) {
                     deliveryPrice.state = 'ok';
-                    renderDeliveryPrice(delivery.value, data.priceFormatted, data.period || '', false, data.price);
+                    renderDeliveryPrice(delivery.value, data.priceFormatted, '', false, data.price);
                     var period = document.querySelector('[data-delivery-period="' + delivery.value + '"]');
                     if (period) period.textContent = data.period || '';
                 } else {
