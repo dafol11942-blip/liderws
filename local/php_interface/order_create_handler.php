@@ -115,6 +115,48 @@ if (!function_exists('buildOrderBasketFromSelected')) {
     }
 }
 
+// Общие для оформления заказа и расчёта стоимости доставки на лету
+// (/local/ajax/delivery_price.php) — заказ собирается одинаково.
+if (!function_exists('addCheckoutShipment')) {
+    function addCheckoutShipment(\Bitrix\Sale\Order $order, \Bitrix\Sale\Basket $basket, int $deliveryId): ?\Bitrix\Sale\Shipment
+    {
+        $service = \Bitrix\Sale\Delivery\Services\Manager::getObjectById($deliveryId);
+        if (!$service) return null;
+        $shipment = $order->getShipmentCollection()->createItem();
+        $shipment->setFields([
+            'DELIVERY_ID' => $service->getId(),
+            'DELIVERY_NAME' => $service->getName(),
+        ]);
+        $shipmentItemCollection = $shipment->getShipmentItemCollection();
+        foreach ($basket as $basketItem) {
+            $item = $shipmentItemCollection->createItem($basketItem);
+            $item->setQuantity($basketItem->getQuantity());
+        }
+        return $shipment;
+    }
+}
+
+if (!function_exists('applyCheckoutOrderProps')) {
+    /** Свойства заказа из полей ORDER_PROP_<ID> формы оформления. */
+    function applyCheckoutOrderProps(\Bitrix\Sale\Order $order, array $post): void
+    {
+        foreach ($order->getPropertyCollection() as $property) {
+            $value = $post['ORDER_PROP_' . $property->getPropertyId()] ?? '';
+            if ($value !== '') {
+                $property->setValue($value);
+            } elseif (($property->getProperty()['TYPE'] ?? '') === 'LOCATION' && (string)$property->getValue() === '') {
+                // Город в форме не выбирается (магазин в одном городе, см.
+                // order_location_handler.php), но службы доставки — в т.ч. Яндекс —
+                // берут населённый пункт из этого свойства.
+                $defaultLocationCode = getDefaultShopLocationCode();
+                if ($defaultLocationCode !== '') {
+                    $property->setValue($defaultLocationCode);
+                }
+            }
+        }
+    }
+}
+
 // Есть ли в корзине хоть одна позиция "под заказ" у поставщика (свойство
 // SUPPLIER_NAME) — та же проверка, что в начале dispatchSupplierOrders(),
 // но без реальной отправки: нужна ДО решения, отправлять заказ сразу или
@@ -566,23 +608,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
 
     // Доставка
     $deliveryId = (int)($_POST['DELIVERY_ID'] ?? 0);
-    if ($deliveryId > 0) {
-        $shipmentCollection = $order->getShipmentCollection();
-        $shipment = $shipmentCollection->createItem();
-        $service = \Bitrix\Sale\Delivery\Services\Manager::getObjectById($deliveryId);
-        if ($service) {
-            $shipment->setFields([
-                'DELIVERY_ID' => $service->getId(),
-                'DELIVERY_NAME' => $service->getName(),
-            ]);
-            // Привязываем корзину к отгрузке
-            $shipmentItemCollection = $shipment->getShipmentItemCollection();
-            foreach ($basket as $basketItem) {
-                $item = $shipmentItemCollection->createItem($basketItem);
-                $item->setQuantity($basketItem->getQuantity());
-            }
-        }
-    }
+    $orderShipment = $deliveryId > 0 ? addCheckoutShipment($order, $basket, $deliveryId) : null;
 
     // Оплата
     $paymentId = (int)($_POST['PAY_SYSTEM_ID'] ?? 0);
@@ -595,21 +621,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
         }
     }
 
-    // Свойства заказа
-    $propertyCollection = $order->getPropertyCollection();
-    foreach ($propertyCollection as $property) {
-        $propId = $property->getPropertyId();
-        if (isset($_POST['ORDER_PROP_' . $propId]) && $_POST['ORDER_PROP_' . $propId] !== '') {
-            $property->setValue($_POST['ORDER_PROP_' . $propId]);
-        } elseif (($property->getProperty()['TYPE'] ?? '') === 'LOCATION' &&(string)$property->getValue() === '') {
-            // Город в форме не выбирается (магазин в одном городе, см.
-            // order_location_handler.php), но службы доставки — в т.ч. Яндекс —
-            // берут населённый пункт из этого свойства.
-            $defaultLocationCode = getDefaultShopLocationCode();
-            if ($defaultLocationCode !== '') {
-                $property->setValue($defaultLocationCode);
-            }
+    applyCheckoutOrderProps($order, $_POST);
+
+    // Стоимость Яндекс Доставки считает сам модуль по адресу из свойств заказа
+    // (поэтому — после них). Без расчёта доставка ушла бы в заказ бесплатной.
+    if ($orderShipment && isYandexExpressDelivery($deliveryId)) {
+        $deliveryCalc = $orderShipment->calculateDelivery();
+        if (!$deliveryCalc->isSuccess()) {
+            $GLOBALS['orderDeliveryCalcError'] = implode('; ', $deliveryCalc->getErrorMessages()) ?: 'не удалось рассчитать стоимость';
+            return;
         }
+        $orderShipment->setBasePriceDelivery($deliveryCalc->getPrice(), true);
     }
 
     // Комментарий

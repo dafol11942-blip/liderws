@@ -347,6 +347,12 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
             Укажите адрес доставки для курьера.
         </div>
         <?php endif; ?>
+        <?php if (!empty($GLOBALS['orderDeliveryCalcError'])): ?>
+        <div class="checkout-error">
+            <svg class="icon"><use href="#icon-alert"></use></svg>
+            Не удалось рассчитать стоимость доставки: <?= htmlspecialchars($GLOBALS['orderDeliveryCalcError']) ?>. Проверьте адрес или выберите самовывоз.
+        </div>
+        <?php endif; ?>
         <?php if (!empty($orderPdConsentError)): ?>
         <div class="checkout-error">
             <svg class="icon"><use href="#icon-alert"></use></svg>
@@ -717,11 +723,17 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                                             <?php endif; ?>
                                             <?php if ($delCardOnly): ?>
                                             <div class="option-card__desc">Только при оплате картой на сайте</div>
+                                            <div class="option-card__desc delivery-period" data-delivery-period="<?= $del['ID'] ?>"></div>
                                             <?php endif; ?>
                                         </div>
+                                        <?php if ($delCardOnly): ?>
+                                        <!-- Цену считает модуль Яндекса по адресу, см. /local/ajax/delivery_price.php -->
+                                        <div class="option-card__price option-card__price--pending" data-delivery-price="<?= $del['ID'] ?>">Укажите адрес</div>
+                                        <?php else: ?>
                                         <div class="option-card__price">
                                             <?= !empty($del['PRICE_FORMATTED']) ? $del['PRICE_FORMATTED'] : 'Бесплатно' ?>
                                         </div>
+                                        <?php endif; ?>
                                     </div>
                                 </label>
                                 <?php endforeach; ?>
@@ -744,6 +756,7 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                                     <?php endif; ?>
                                 </div>
                                 <?php endforeach; ?>
+                                <div class="courier-address__status" id="deliveryPriceStatus"></div>
                             </div>
                             <?php endif; ?>
                         </div>
@@ -855,10 +868,14 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                                 <span>Доставка</span>
                                 <span><?= htmlspecialchars($checkoutDeliveryFmt) ?></span>
                             </div>
+                            <div class="checkout-summary__row" id="summaryDeliveryPriceRow" style="display:none;">
+                                <span>Стоимость доставки</span>
+                                <span id="summaryDeliveryPrice"></span>
+                            </div>
                         </div>
                         <div class="checkout-summary__total">
                             <span>Итого</span>
-                            <span><?= $totalBasketFmt ?></span>
+                            <span id="summaryTotal" data-basket-total="<?= (float)$totalBasket ?>"><?= $totalBasketFmt ?></span>
                         </div>
 
                         <?php if ($hasNonReturnableItem): ?>
@@ -1051,6 +1068,9 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
 .courier-address { margin-top: 16px; }
 .courier-address__title { font-weight: 800; font-size: 15px; color: var(--black); margin-bottom: 12px; display: flex; align-items: baseline; gap: 8px; }
 .courier-address__title span { font-weight: 400; font-size: 13px; color: var(--gray); }
+.courier-address__status { font-size: 13px; color: var(--gray); }
+.courier-address__status--error { color: var(--red); }
+.option-card__price--pending { font-weight: 600; font-size: 13px; color: var(--gray); }
 .pickup-map { width: 100%; height: 260px; border-radius: 16px; overflow: hidden; margin-top: 12px; border: 1px solid var(--border); }
 .pickup-map-fallback { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .pickup-map-fallback__link {
@@ -1129,14 +1149,117 @@ function syncCourierState() {
     if (notice) notice.style.display = mismatch ? '' : 'none';
     return !mismatch;
 }
+
+// Стоимость Яндекс Доставки — считает модуль по адресу (/local/ajax/delivery_price.php).
+// Итог в сводке = товары + доставка; при оформлении сервер пересчитывает заново.
+var deliveryPrice = { state: 'none', key: '', timer: null, seq: 0 };
+
+function formatRubJs(n) {
+    n = Math.round(n * 100) / 100;
+    var d = Math.abs(n - Math.round(n)) >= 0.005 ? 2 : 0;
+    return n.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/ /g, ' ') + ' ₽';
+}
+
+function selectedCalcDelivery() {
+    var panel = document.getElementById('receipt-panel-courier');
+    if (!panel || panel.style.display === 'none') return null;
+    var delivery = document.querySelector('input[name="DELIVERY_ID"]:checked');
+    return delivery && delivery.getAttribute('data-card-only') === 'Y' ? delivery : null;
+}
+
+function renderDeliveryPrice(deliveryId, priceText, statusText, isError, summaryPrice) {
+    document.querySelectorAll('[data-delivery-price]').forEach(function (el) {
+        var own = el.getAttribute('data-delivery-price') === String(deliveryId);
+        el.textContent = own && priceText ? priceText : 'Укажите адрес';
+        el.classList.toggle('option-card__price--pending', !(own && summaryPrice !== null));
+    });
+    var status = document.getElementById('deliveryPriceStatus');
+    if (status) {
+        status.textContent = statusText || '';
+        status.classList.toggle('courier-address__status--error', !!isError);
+    }
+    var row = document.getElementById('summaryDeliveryPriceRow');
+    var total = document.getElementById('summaryTotal');
+    var basketTotal = parseFloat(total.getAttribute('data-basket-total')) || 0;
+    if (summaryPrice !== null) {
+        row.style.display = '';
+        document.getElementById('summaryDeliveryPrice').textContent = formatRubJs(summaryPrice);
+        total.textContent = formatRubJs(basketTotal + summaryPrice);
+    } else {
+        row.style.display = 'none';
+        total.textContent = formatRubJs(basketTotal);
+    }
+}
+
+function recalcDeliveryPrice() {
+    clearTimeout(deliveryPrice.timer);
+    var delivery = selectedCalcDelivery();
+    if (!delivery) {
+        deliveryPrice.state = 'none';
+        renderDeliveryPrice(null, '', '', false, null);
+        return;
+    }
+    var inputs = Array.prototype.slice.call(document.querySelectorAll('.courier-address__input'));
+    var missing = inputs.some(function (i) { return i.getAttribute('data-required') === 'Y' && i.value.trim().length < 3; });
+    if (missing) {
+        deliveryPrice.state = 'none';
+        renderDeliveryPrice(delivery.value, '', 'Стоимость доставки рассчитается после ввода адреса', false, null);
+        return;
+    }
+    var key = delivery.value + '|' + inputs.map(function (i) { return i.value.trim(); }).join('|');
+    if (key === deliveryPrice.key && deliveryPrice.state !== 'error') return;
+    deliveryPrice.key = key;
+    deliveryPrice.state = 'pending';
+    renderDeliveryPrice(delivery.value, '…', 'Рассчитываем стоимость доставки…', false, null);
+    var seq = ++deliveryPrice.seq;
+    deliveryPrice.timer = setTimeout(function () {
+        var formData = new FormData(document.getElementById('ORDER_FORM'));
+        formData.delete('confirmorder');
+        fetch('/local/ajax/delivery_price.php', { method: 'POST', body: formData })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (seq !== deliveryPrice.seq) return;
+                if (data.ok) {
+                    deliveryPrice.state = 'ok';
+                    renderDeliveryPrice(delivery.value, data.priceFormatted, data.period || '', false, data.price);
+                    var period = document.querySelector('[data-delivery-period="' + delivery.value + '"]');
+                    if (period) period.textContent = data.period || '';
+                } else {
+                    deliveryPrice.state = 'error';
+                    renderDeliveryPrice(delivery.value, '', data.error || 'Не удалось рассчитать доставку по этому адресу', true, null);
+                }
+            })
+            .catch(function () {
+                if (seq !== deliveryPrice.seq) return;
+                deliveryPrice.state = 'error';
+                renderDeliveryPrice(delivery.value, '', 'Не удалось рассчитать доставку, попробуйте ещё раз', true, null);
+            });
+    }, 800);
+}
+
 document.querySelectorAll('input[name="DELIVERY_ID"], input[name="PAY_SYSTEM_ID"], .receipt-method-radio').forEach(function (radio) {
     radio.addEventListener('change', syncCourierState);
 });
+document.querySelectorAll('input[name="DELIVERY_ID"], .receipt-method-radio').forEach(function (radio) {
+    radio.addEventListener('change', recalcDeliveryPrice);
+});
+document.querySelectorAll('.courier-address__input').forEach(function (input) {
+    input.addEventListener('input', recalcDeliveryPrice);
+});
 syncCourierState();
+recalcDeliveryPrice();
 
 function validateForm() {
     if (!syncCourierState()) {
         document.getElementById('cardOnlyDeliveryNotice').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return false;
+    }
+    if (selectedCalcDelivery() && deliveryPrice.state !== 'ok') {
+        var status = document.getElementById('deliveryPriceStatus');
+        alert(deliveryPrice.state === 'pending'
+            ? 'Дождитесь расчёта стоимости доставки'
+            : 'Стоимость доставки не рассчитана — проверьте адрес');
+        if (status) status.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return false;
     }
     var phone = document.querySelector('input[type="tel"][required]');
