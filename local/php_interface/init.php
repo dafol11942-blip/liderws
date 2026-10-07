@@ -371,15 +371,24 @@ function getFavoritedSupplierKeys(int $userId): array
     }
 }
 
+function getYandexMapsConfig(): array
+{
+    static $config = null;
+    if ($config === null) {
+        $configFile = __DIR__ . '/config/yandex_maps_config.php';
+        $config = is_file($configFile) ? (array)require $configFile : [];
+    }
+    return $config;
+}
+
 function getYandexMapsApiKey(): string
 {
-    static $key = null;
-    if ($key === null) {
-        $configFile = __DIR__ . '/config/yandex_maps_config.php';
-        $config = is_file($configFile) ? require $configFile : [];
-        $key = (string)($config['API_KEY'] ?? '');
-    }
-    return $key;
+    return (string)(getYandexMapsConfig()['API_KEY'] ?? '');
+}
+
+function getYandexSuggestApiKey(): string
+{
+    return (string)(getYandexMapsConfig()['SUGGEST_API_KEY'] ?? '');
 }
 
 function getSmsClient(): \Lider\Sms\SmsRuClient

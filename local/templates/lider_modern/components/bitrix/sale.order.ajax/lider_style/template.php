@@ -502,6 +502,11 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                                 if (mb_stripos($del['NAME'], 'Нефтяников') !== false) { $defaultPickupId = $did; break; }
                             }
                             $yandexMapsApiKey = function_exists('getYandexMapsApiKey') ? getYandexMapsApiKey() : '';
+                            $yandexSuggestApiKey = $yandexMapsApiKey !== '' && function_exists('getYandexSuggestApiKey') ? getYandexSuggestApiKey() : '';
+                            // Один скрипт API Карт на страницу — и для карты самовывоза, и для подсказок адреса.
+                            $yandexMapsScriptUrl = 'https://api-maps.yandex.ru/2.1/?apikey=' . urlencode($yandexMapsApiKey) . '&lang=ru_RU'
+                                . ($yandexSuggestApiKey !== '' ? '&suggest_apikey=' . urlencode($yandexSuggestApiKey) : '');
+                            $yandexMapsScriptPrinted = false;
                             // Для геокодинга и ссылки на карту нужен чистый адрес, а не
                             // служебное имя вида "Самовывоз с Магазина (Елабуга, ...)" —
                             // если в имени есть скобки, берём текст внутри них.
@@ -587,7 +592,8 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                                      $addr = $extractPickupAddress($del);
                                      return ['address' => $addr, 'coords' => $pickupKnownCoords[$addr] ?? null];
                                  }, array_values($pickupDeliveries))), ENT_QUOTES) ?>'></div>
-                            <script src="https://api-maps.yandex.ru/2.1/?apikey=<?= urlencode($yandexMapsApiKey) ?>&lang=ru_RU"></script>
+                            <script src="<?= htmlspecialchars($yandexMapsScriptUrl) ?>"></script>
+                            <?php $yandexMapsScriptPrinted = true; ?>
                             <script>
                             (function () {
                                 var mapEl = document.getElementById('pickup-map');
@@ -751,6 +757,7 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                                     <textarea name="ORDER_PROP_<?= $prop['ID'] ?>" class="courier-address__input" data-required="<?= $addrReq ? 'Y' : 'N' ?>"><?= htmlspecialchars((string)($prop['VALUE'] ?? '')) ?></textarea>
                                     <?php else: ?>
                                     <input type="text" name="ORDER_PROP_<?= $prop['ID'] ?>" class="courier-address__input" data-required="<?= $addrReq ? 'Y' : 'N' ?>"
+                                           <?= preg_match('/адрес|улиц/iu', $prop['NAME']) ? 'data-suggest="Y" autocomplete="off"' : '' ?>
                                            value="<?= htmlspecialchars((string)($prop['VALUE'] ?? '')) ?>"
                                            placeholder="<?= mb_stripos($prop['NAME'], 'адрес') !== false ? 'Улица, дом, подъезд, этаж, квартира' : htmlspecialchars($prop['NAME']) ?>">
                                     <?php endif; ?>
@@ -758,6 +765,31 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                                 <?php endforeach; ?>
                                 <div class="courier-address__status" id="deliveryPriceStatus"></div>
                             </div>
+                            <?php if ($yandexSuggestApiKey !== ''): ?>
+                            <?php if (!$yandexMapsScriptPrinted): ?>
+                            <script src="<?= htmlspecialchars($yandexMapsScriptUrl) ?>"></script>
+                            <?php endif; ?>
+                            <script>
+                            // Подсказки адреса (API Геосаджеста) — только по Елабуге.
+                            (function () {
+                                if (typeof ymaps === 'undefined') return;
+                                ymaps.ready(function () {
+                                    var provider = {
+                                        suggest: function (request, options) {
+                                            return ymaps.suggest('Елабуга, ' + request, options);
+                                        }
+                                    };
+                                    document.querySelectorAll('.courier-address__input[data-suggest="Y"]').forEach(function (input) {
+                                        var view = new ymaps.SuggestView(input, { provider: provider, results: 7 });
+                                        view.events.add('select', function (e) {
+                                            input.value = e.get('item').value;
+                                            input.dispatchEvent(new Event('input'));
+                                        });
+                                    });
+                                });
+                            })();
+                            </script>
+                            <?php endif; ?>
                             <?php endif; ?>
                         </div>
                         <?php endif; ?>
