@@ -198,17 +198,6 @@ if (!function_exists('handleCustomerPaySystemChangeRequest')) {
     }
 }
 
-if (!function_exists('isOnlinePaySystem')) {
-    /** Онлайн-оплата на сайте: не наличные и не карта курьеру при получении (IS_CASH = 'A'). */
-    function isOnlinePaySystem(int $paySystemId): bool
-    {
-        if ($paySystemId <= 0) return false;
-        $ps = \Bitrix\Sale\PaySystem\Manager::getById($paySystemId);
-        if (!$ps) return false;
-        return !isCashPaySystem($paySystemId) && ($ps['IS_CASH'] ?? 'N') !== 'A';
-    }
-}
-
 if (!function_exists('isYandexExpressDelivery')) {
     /**
      * Служба модуля twinpx.yaexpress ("Экспресс-доставка от Яндекс Доставка").
@@ -244,6 +233,260 @@ if (!function_exists('isCourierAddressRequiredPropName')) {
     function isCourierAddressRequiredPropName(string $name): bool
     {
         return (bool)preg_match('/адрес|улиц|^дом/iu', trim($name));
+    }
+}
+
+if (!function_exists('isPickupDelivery')) {
+    /** Самовывоз — по имени службы, как и в форме оформления (других признаков у этих служб нет). */
+    function isPickupDelivery(int $deliveryId): bool
+    {
+        if ($deliveryId <= 0) return false;
+        $d = \Bitrix\Sale\Delivery\Services\Manager::getById($deliveryId);
+        return $d && mb_stripos((string)($d['NAME'] ?? ''), 'самовывоз') !== false;
+    }
+}
+
+if (!function_exists('getYandexExpressDeliveryId')) {
+    /** ID активной службы Яндекс Доставки или 0. */
+    function getYandexExpressDeliveryId(): int
+    {
+        static $id = null;
+        if ($id === null) {
+            $id = 0;
+            foreach (\Bitrix\Sale\Delivery\Services\Manager::getActiveList() as $serviceId => $row) {
+                if (isYandexExpressDelivery((int)$serviceId)) { $id = (int)$serviceId; break; }
+            }
+        }
+        return $id;
+    }
+}
+
+if (!function_exists('getOrderMainShipment')) {
+    function getOrderMainShipment(Order $order): ?\Bitrix\Sale\Shipment
+    {
+        foreach ($order->getShipmentCollection() as $shipment) {
+            if (!$shipment->isSystem()) return $shipment;
+        }
+        return null;
+    }
+}
+
+if (!function_exists('getOrderDeliveryRequestBlockReason')) {
+    /**
+     * null — покупатель может оформить Яндекс Доставку уже оформленного заказа;
+     * иначе — почему нельзя. Заказной товар от поставщика — когда заказ в статусе
+     * SR «Товар готов к выдаче», товар из наличия — когда заказ полностью оплачен.
+     */
+    function getOrderDeliveryRequestBlockReason(Order $order): ?string
+    {
+        if ($order->getField('CANCELED') === 'Y') return 'Заказ отменён';
+        $status = (string)$order->getField('STATUS_ID');
+        if ($status === 'F') return 'Заказ уже выполнен';
+        if ($status === 'SX') return 'Заказ отменён поставщиком';
+        $shipment = getOrderMainShipment($order);
+        if (!$shipment) return 'В заказе нет отгрузки';
+        if (isYandexExpressDelivery((int)$shipment->getDeliveryId())) return 'Доставка уже оформлена';
+        if ($shipment->isShipped()) return 'Заказ уже выдан';
+        if (getYandexExpressDeliveryId() <= 0) return 'Доставка временно недоступна';
+        if (orderHasSupplierItems($order)) {
+            if ($status !== 'SR') return 'Доставку можно будет оформить, когда товар будет готов к выдаче';
+        } elseif (!$order->isPaid()) {
+            return 'Доставку можно оформить после полной оплаты заказа';
+        }
+        return null;
+    }
+}
+
+if (!function_exists('getOrderCourierAddressProps')) {
+    /** Свойства заказа с адресом для курьера (см. isCourierAddressPropName()). */
+    function getOrderCourierAddressProps(Order $order): array
+    {
+        $props = [];
+        foreach ($order->getPropertyCollection() as $property) {
+            $row = $property->getProperty();
+            if (($row['TYPE'] ?? '') === 'LOCATION' || !isCourierAddressPropName((string)$property->getName())) continue;
+            $props[] = $property;
+        }
+        return $props;
+    }
+}
+
+if (!function_exists('prepareOrderYandexDelivery')) {
+    /**
+     * Переводит отгрузку заказа на Яндекс Доставку с адресом из $post
+     * (ORDER_PROP_<ID>) и ценой, рассчитанной модулем. Заказ НЕ сохраняет —
+     * так же считается цена для показа. data: price, period.
+     */
+    function prepareOrderYandexDelivery(Order $order, array $post): \Bitrix\Main\Result
+    {
+        $result = new \Bitrix\Main\Result();
+        $reason = getOrderDeliveryRequestBlockReason($order);
+        if ($reason !== null) {
+            $result->addError(new \Bitrix\Main\Error($reason));
+            return $result;
+        }
+
+        foreach (getOrderCourierAddressProps($order) as $property) {
+            $value = trim((string)($post['ORDER_PROP_' . $property->getPropertyId()] ?? ''));
+            $required = isCourierAddressRequiredPropName((string)$property->getName())
+                || ($property->getProperty()['REQUIRED'] ?? 'N') === 'Y';
+            if ($required && $value === '') {
+                $result->addError(new \Bitrix\Main\Error('Укажите адрес доставки'));
+                return $result;
+            }
+            $property->setValue($value);
+        }
+        // Город в форме не выбирается — службы доставки берут его отсюда.
+        foreach ($order->getPropertyCollection() as $property) {
+            if (($property->getProperty()['TYPE'] ?? '') === 'LOCATION' && (string)$property->getValue() === '') {
+                $code = function_exists('getDefaultShopLocationCode') ? getDefaultShopLocationCode() : '';
+                if ($code !== '') $property->setValue($code);
+            }
+        }
+
+        $deliveryId = getYandexExpressDeliveryId();
+        $service = \Bitrix\Sale\Delivery\Services\Manager::getObjectById($deliveryId);
+        $shipment = getOrderMainShipment($order);
+        $setResult = $shipment->setFields([
+            'DELIVERY_ID' => $deliveryId,
+            'DELIVERY_NAME' => $service ? $service->getName() : 'Яндекс Доставка',
+        ]);
+        if (!$setResult->isSuccess()) {
+            $result->addErrors($setResult->getErrors());
+            return $result;
+        }
+
+        $calc = $shipment->calculateDelivery();
+        if (!$calc->isSuccess()) {
+            $result->addError(new \Bitrix\Main\Error(implode('; ', $calc->getErrorMessages()) ?: 'Не удалось рассчитать доставку по этому адресу'));
+            return $result;
+        }
+        $price = (float)$calc->getPrice();
+        $shipment->setBasePriceDelivery($price, true);
+        $result->setData(['price' => $price, 'period' => (string)$calc->getPeriodDescription()]);
+        return $result;
+    }
+}
+
+if (!function_exists('getOnlinePaySystemIdForOrder')) {
+    /** Способ онлайн-оплаты для доплаты: тот же, что уже в заказе, иначе первый активный. */
+    function getOnlinePaySystemIdForOrder(Order $order): int
+    {
+        foreach ($order->getPaymentCollection() as $payment) {
+            $id = (int)$payment->getPaymentSystemId();
+            if (isOnlinePaySystem($id)) return $id;
+        }
+        $res = \Bitrix\Sale\PaySystem\Manager::getList(['filter' => ['=ACTIVE' => 'Y'], 'select' => ['ID'], 'order' => ['SORT' => 'ASC']]);
+        while ($row = $res->fetch()) {
+            if (isOnlinePaySystem((int)$row['ID'])) return (int)$row['ID'];
+        }
+        return 0;
+    }
+}
+
+if (!function_exists('requestOrderYandexDelivery')) {
+    /**
+     * Оформление Яндекс Доставки покупателем для уже оформленного заказа:
+     * отгрузка → Яндекс с ценой модуля, отдельная оплата картой на сумму
+     * доставки (модуль работает только с предоплатой), пометка менеджеру.
+     */
+    function requestOrderYandexDelivery(Order $order, array $post): \Bitrix\Main\Result
+    {
+        $result = prepareOrderYandexDelivery($order, $post);
+        if (!$result->isSuccess()) return $result;
+        $price = (float)$result->getData()['price'];
+
+        if ($price > 0) {
+            $paySystemId = getOnlinePaySystemIdForOrder($order);
+            $paySystem = $paySystemId > 0 ? \Bitrix\Sale\PaySystem\Manager::getObjectById($paySystemId) : null;
+            if (!$paySystem) {
+                $result->addError(new \Bitrix\Main\Error('Нет доступного способа онлайн-оплаты'));
+                return $result;
+            }
+            $payment = $order->getPaymentCollection()->createItem($paySystem);
+            $payment->setField('SUM', $price);
+        }
+
+        $note = date('d.m.Y H:i') . ': покупатель оформил Яндекс Доставку из личного кабинета, стоимость '
+            . number_format($price, 2, ',', ' ') . ' ₽ (отдельная оплата картой). Если после оплаты заявка '
+            . 'не появилась в «Активных заявках» модуля — создайте её в заказе кнопкой «Экспресс-доставка от Яндекс Доставка».';
+        $order->setField('COMMENTS', trim((string)$order->getField('COMMENTS') . "\n" . $note));
+
+        $saveResult = $order->save();
+        if (!$saveResult->isSuccess()) {
+            $result->addErrors($saveResult->getErrors());
+        }
+        return $result;
+    }
+}
+
+if (!function_exists('handleCustomerDeliveryRequest')) {
+    /**
+     * POST request_delivery=<ID заказа> + ORDER_PROP_<ID> со страницы заказа.
+     * Только владелец. Успех — к форме оплаты доставки (#pay), ошибка — к блоку
+     * доставки (#delivery) с текстом в ?delivery_request=.
+     */
+    function handleCustomerDeliveryRequest(): void
+    {
+        global $USER, $APPLICATION;
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['request_delivery']) || !check_bitrix_sessid()) {
+            return;
+        }
+        $orderId = (int)$_POST['request_delivery'];
+        $order = $orderId > 0 ? Order::load($orderId) : null;
+        if (!$order || !$USER->IsAuthorized() || (int)$order->getUserId() !== (int)$USER->GetID()) {
+            $status = 'Заказ не найден';
+        } else {
+            $requestResult = requestOrderYandexDelivery($order, $_POST);
+            $status = $requestResult->isSuccess() ? 'ok' : implode('; ', $requestResult->getErrorMessages());
+        }
+        LocalRedirect($APPLICATION->GetCurPageParam('delivery_request=' . urlencode($status), ['delivery_request', 'pay_change', 'order_cancel', 'order_cancel_id']) . ($status === 'ok' ? '#pay' : '#delivery'));
+    }
+}
+
+if (!function_exists('renderYandexAddressSuggest')) {
+    /**
+     * Подсказки адреса (API Геосаджеста) по Елабуге для полей
+     * .courier-address__input[data-suggest="Y"]. $loadApi — подключить скрипт
+     * API Карт (если на странице его ещё нет). Без ключа — ничего не выводит.
+     */
+    function renderYandexAddressSuggest(bool $loadApi): void
+    {
+        $mapsKey = function_exists('getYandexMapsApiKey') ? getYandexMapsApiKey() : '';
+        $suggestKey = function_exists('getYandexSuggestApiKey') ? getYandexSuggestApiKey() : '';
+        if ($mapsKey === '' || $suggestKey === '') return;
+        if ($loadApi): ?>
+<script src="<?= htmlspecialcharsbx('https://api-maps.yandex.ru/2.1/?apikey=' . urlencode($mapsKey) . '&lang=ru_RU&suggest_apikey=' . urlencode($suggestKey)) ?>"></script>
+        <?php endif; ?>
+<script>
+(function () {
+    if (typeof ymaps === 'undefined') {
+        console.warn('Подсказки адреса: API Яндекс Карт не загрузился');
+        return;
+    }
+    ymaps.ready(function () {
+        var provider = {
+            // options от SuggestView содержат provider — передавать их в
+            // ymaps.suggest нельзя, иначе он вызовет этот же provider (рекурсия).
+            suggest: function (request, options) {
+                var promise = ymaps.suggest('Елабуга, ' + request, { results: (options && options.results) || 7 });
+                promise.then(null, function (err) {
+                    console.warn('Подсказки адреса (API Геосаджеста):', err && err.message ? err.message : err);
+                });
+                return promise;
+            }
+        };
+        document.querySelectorAll('.courier-address__input[data-suggest="Y"]').forEach(function (input) {
+            var view = new ymaps.SuggestView(input, { provider: provider, results: 7 });
+            view.events.add('select', function (e) {
+                input.value = e.get('item').value;
+                input.dispatchEvent(new Event('input'));
+            });
+        });
+    });
+})();
+</script>
+        <?php
     }
 }
 

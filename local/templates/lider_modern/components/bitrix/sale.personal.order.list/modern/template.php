@@ -439,6 +439,22 @@ if ($hasFilters) {
                     <?php if ($showPayButton): ?>
                         <a href="/personal/orders/?ID=<?= $orderId ?>#pay" class="btn btn--primary btn--sm"><svg class="icon"><use href="#icon-card"></use></svg> <?= isCashPaySystem($listPaySystemId) ? 'Оплатить картой' : 'Оплатить' ?></a>
                     <?php endif; ?>
+                    <?php
+                    // Доставка курьером из заказа: заказной товар — в статусе «Товар готов
+                    // к выдаче», товар из наличия — после полной оплаты. Дешёвый отсев по
+                    // данным списка, полная проверка — getOrderDeliveryRequestBlockReason().
+                    $canRequestDelivery = false;
+                    if ($isOwnOrder && !$isCanceled && $orderId > 0
+                        && (!empty($ordersWithSupplierItems[$orderId]) ? $o['STATUS_ID'] === 'SR' : $o['PAYED'] === 'Y')) {
+                        try {
+                            $deliveryOrder = \Bitrix\Sale\Order::load($orderId);
+                            $canRequestDelivery = $deliveryOrder && getOrderDeliveryRequestBlockReason($deliveryOrder) === null;
+                        } catch (\Throwable $e) {}
+                    }
+                    ?>
+                    <?php if ($canRequestDelivery): ?>
+                        <a href="/personal/orders/?ID=<?= $orderId ?>#delivery" class="btn btn--primary btn--sm"><svg class="icon"><use href="#icon-truck"></use></svg> Оформить доставку</a>
+                    <?php endif; ?>
                     <?php if ($orderId > 0): ?>
                         <a href="/personal/orders/?ID=<?= $orderId ?>" class="btn btn--white btn--sm"><svg class="icon"><use href="#icon-list"></use></svg> Подробнее</a>
                     <?php endif; ?>

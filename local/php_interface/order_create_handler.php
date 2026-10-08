@@ -597,6 +597,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
     // Яндекс Доставка (модуль twinpx.yaexpress) работает только с предоплатой
     // на сайте, и курьеру нужен адрес — форма проверяет то же самое в JS.
     $postedDeliveryId = (int)($_POST['DELIVERY_ID'] ?? 0);
+
+    // Заказной товар от поставщика — только самовывоз: доставку покупатель
+    // оформляет из личного кабинета, когда товар готов к выдаче
+    // (см. getOrderDeliveryRequestBlockReason()).
+    if (basketHasSupplierItems($basket) && !isPickupDelivery($postedDeliveryId)) {
+        $GLOBALS['orderSupplierDeliveryError'] = true;
+        return;
+    }
+
     if (isYandexExpressDelivery($postedDeliveryId)) {
         if (!isOnlinePaySystem((int)($_POST['PAY_SYSTEM_ID'] ?? 0))) {
             $GLOBALS['orderYandexCardOnlyError'] = true;

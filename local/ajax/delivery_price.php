@@ -55,6 +55,38 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !check_bitrix_sessid()) {
 CModule::IncludeModule('sale');
 CModule::IncludeModule('catalog');
 
+// Доставка для уже оформленного заказа (страница заказа в ЛК) — заказ меняется
+// только в памяти, сохраняет его requestOrderYandexDelivery() по кнопке.
+$orderId = (int)($_POST['ORDER_ID'] ?? 0);
+if ($orderId > 0) {
+    global $USER;
+    try {
+        $order = \Bitrix\Sale\Order::load($orderId);
+        if (!$order || !$USER->IsAuthorized() || (int)$order->getUserId() !== (int)$USER->GetID()) {
+            respondDeliveryPrice(['ok' => false, 'error' => 'Заказ не найден']);
+            return;
+        }
+        $prep = prepareOrderYandexDelivery($order, $_POST);
+        if (!$prep->isSuccess()) {
+            $reason = implode('; ', $prep->getErrorMessages());
+            logDeliveryPrice('Расчёт для заказа ' . $orderId . ' не удался: ' . $reason);
+            respondDeliveryPrice(['ok' => false, 'error' => $reason]);
+            return;
+        }
+        $price = (float)$prep->getData()['price'];
+        respondDeliveryPrice([
+            'ok' => true,
+            'price' => $price,
+            'priceFormatted' => formatRub($price),
+            'period' => (string)$prep->getData()['period'],
+        ]);
+    } catch (\Throwable $e) {
+        logDeliveryPrice('Исключение (заказ ' . $orderId . '): ' . get_class($e) . ': ' . $e->getMessage() . ' в ' . $e->getFile() . ':' . $e->getLine());
+        respondDeliveryPrice(['ok' => false, 'error' => 'Не удалось рассчитать доставку, попробуйте позже']);
+    }
+    return;
+}
+
 $deliveryId = (int)($_POST['DELIVERY_ID'] ?? 0);
 if (!isYandexExpressDelivery($deliveryId)) {
     respondDeliveryPrice(['ok' => false, 'error' => 'Расчёт доступен только для Яндекс Доставки']);

@@ -360,6 +360,12 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
             Доставка Яндекс доступна только при оплате картой на сайте — выберите другой способ оплаты.
         </div>
         <?php endif; ?>
+        <?php if (!empty($GLOBALS['orderSupplierDeliveryError'])): ?>
+        <div class="checkout-error">
+            <svg class="icon"><use href="#icon-alert"></use></svg>
+            В заказе есть товары под заказ у поставщика — доступен только самовывоз. Доставку можно оформить в личном кабинете, когда товар будет готов к выдаче.
+        </div>
+        <?php endif; ?>
         <?php if (!empty($GLOBALS['orderCourierAddressError'])): ?>
         <div class="checkout-error">
             <svg class="icon"><use href="#icon-alert"></use></svg>
@@ -494,10 +500,13 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                             foreach ($deliveries as $did => $del) {
                                 if (mb_stripos($del['NAME'], 'самовывоз') !== false) {
                                     $pickupDeliveries[$did] = $del;
-                                } else {
+                                } elseif (!$hasSupplierItem) {
+                                    // Заказной товар — только самовывоз, доставку покупатель
+                                    // оформит из заказа, когда товар будет готов к выдаче.
                                     $courierDeliveries[$did] = $del;
                                 }
                             }
+                            $courierHiddenForSupplier = $hasSupplierItem && count($pickupDeliveries) < count($deliveries);
                             $hasPickup = !empty($pickupDeliveries);
                             $hasCourier = !empty($courierDeliveries);
                             $pickupChecked = false;
@@ -547,6 +556,9 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                             require_once $_SERVER['DOCUMENT_ROOT'] . '/local/php_interface/include/shop_locations.php';
                         ?>
 
+                        <?php if ($courierHiddenForSupplier): ?>
+                        <p class="checkout-hint" style="margin-bottom:12px;">В заказе есть товары под заказ у поставщика — доступен самовывоз. Доставку курьером можно будет оформить в личном кабинете, когда товар будет готов к выдаче.</p>
+                        <?php endif; ?>
                         <?php if ($hasPickup && $hasCourier): ?>
                         <div class="option-list receipt-method-list">
                             <label class="option-card <?= $activeMethod === 'pickup' ? 'option-card--active' : '' ?>">
@@ -784,40 +796,7 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                                 <?php endforeach; ?>
                                 <div class="courier-address__status" id="deliveryPriceStatus"></div>
                             </div>
-                            <?php if ($yandexSuggestApiKey !== ''): ?>
-                            <?php if (!$yandexMapsScriptPrinted): ?>
-                            <script src="<?= htmlspecialchars($yandexMapsScriptUrl) ?>"></script>
-                            <?php endif; ?>
-                            <script>
-                            // Подсказки адреса (API Геосаджеста) — только по Елабуге.
-                            (function () {
-                                if (typeof ymaps === 'undefined') {
-                                    console.warn('Подсказки адреса: API Яндекс Карт не загрузился');
-                                    return;
-                                }
-                                ymaps.ready(function () {
-                                    var provider = {
-                                        // options от SuggestView содержат provider — передавать их в
-                                        // ymaps.suggest нельзя, иначе он вызовет этот же provider (рекурсия).
-                                        suggest: function (request, options) {
-                                            var promise = ymaps.suggest('Елабуга, ' + request, { results: (options && options.results) || 7 });
-                                            promise.then(null, function (err) {
-                                                console.warn('Подсказки адреса (API Геосаджеста):', err && err.message ? err.message : err);
-                                            });
-                                            return promise;
-                                        }
-                                    };
-                                    document.querySelectorAll('.courier-address__input[data-suggest="Y"]').forEach(function (input) {
-                                        var view = new ymaps.SuggestView(input, { provider: provider, results: 7 });
-                                        view.events.add('select', function (e) {
-                                            input.value = e.get('item').value;
-                                            input.dispatchEvent(new Event('input'));
-                                        });
-                                    });
-                                });
-                            })();
-                            </script>
-                            <?php endif; ?>
+                            <?php renderYandexAddressSuggest(!$yandexMapsScriptPrinted); ?>
                             <?php endif; ?>
                         </div>
                         <?php endif; ?>

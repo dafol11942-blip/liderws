@@ -51,6 +51,8 @@ if (!$order || (!$isMgr && (int)$order->getField('USER_ID') !== (int)$USER->GetI
 handleCustomerOrderCancelRequest();
 // Смена способа оплаты с наличных на карту (POST change_pay_system).
 handleCustomerPaySystemChangeRequest();
+// Оформление Яндекс Доставки для заказа (POST request_delivery).
+handleCustomerDeliveryRequest();
 
 $statusMap = getOrderStatusNameMap();
 $statusName = $statusMap[$order->getField('STATUS_ID')] ?? $order->getField('STATUS_ID');
@@ -221,6 +223,17 @@ $switchPaySystems = ($isOwner && !$payForms) ? getOrderSwitchablePaySystems($ord
 $payChangeFlash = (string)($_GET['pay_change'] ?? '');
 // Окно оплаты (15 минут) — до какого времени оплатить, иначе автоотмена.
 $payDeadlineTs = ($payForms && !$isCanceled) ? getOrderPaymentHoldDeadline($orderId) : null;
+// Доставка курьером (Яндекс) для уже оформленного заказа: заказной товар —
+// когда готов к выдаче, товар из наличия — когда заказ полностью оплачен.
+$mainShipment = getOrderMainShipment($order);
+$deliveryBlockReason = getOrderDeliveryRequestBlockReason($order);
+$canRequestDelivery = $isOwner && $deliveryBlockReason === null;
+$showDeliveryHint = $isOwner && !$canRequestDelivery && !$isCanceled
+    && !in_array($order->getField('STATUS_ID'), ['F', 'SX'], true)
+    && $mainShipment && !$mainShipment->isShipped()
+    && !isYandexExpressDelivery((int)$mainShipment->getDeliveryId());
+$deliveryAddressProps = $canRequestDelivery ? getOrderCourierAddressProps($order) : [];
+$deliveryRequestFlash = (string)($_GET['delivery_request'] ?? '');
 $cancelBlockReason = getOrderCancelBlockReason($order);
 $cancelFlash = ((int)($_GET['order_cancel_id'] ?? 0) === $orderId) ? (string)($_GET['order_cancel'] ?? '') : '';
 
@@ -361,6 +374,100 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
             </div>
             <?php endif; ?>
 
+            <?php if ($deliveryRequestFlash === 'ok'): ?>
+            <div class="status-banner status-banner--ok" style="margin-top: 16px;">
+                <span class="status-banner__icon">✓</span>
+                <span>Доставка оформлена — оплатите её картой ниже. После оплаты мы передадим заказ курьеру Яндекс Доставки.</span>
+            </div>
+            <?php elseif ($deliveryRequestFlash !== ''): ?>
+            <div class="status-banner status-banner--refused" style="margin-top: 16px;">
+                <span class="status-banner__icon">⚠</span>
+                <span>Не удалось оформить доставку: <?= htmlspecialchars($deliveryRequestFlash) ?></span>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($canRequestDelivery): ?>
+            <div class="order-delivery" id="delivery">
+                <form method="post" class="order-delivery__form" id="orderDeliveryForm">
+                    <?= bitrix_sessid_post() ?>
+                    <input type="hidden" name="request_delivery" value="<?= (int)$orderId ?>">
+                    <input type="hidden" name="ORDER_ID" value="<?= (int)$orderId ?>">
+                    <div class="order-delivery__title">Доставка курьером</div>
+                    <p class="order-delivery__text">Яндекс Доставка по Елабуге. Стоимость рассчитается по адресу, оплата доставки — картой на сайте.</p>
+                    <?php foreach ($deliveryAddressProps as $prop):
+                        $propName = (string)$prop->getName();
+                    ?>
+                    <label class="order-delivery__label"><?= htmlspecialchars($propName) ?></label>
+                    <input type="text" class="courier-address__input order-delivery__input" name="ORDER_PROP_<?= (int)$prop->getPropertyId() ?>"
+                           value="<?= htmlspecialchars((string)$prop->getValue()) ?>" autocomplete="off"
+                           <?= preg_match('/адрес|улиц/iu', $propName) ? 'data-suggest="Y" placeholder="Улица, дом, подъезд, этаж, квартира"' : '' ?>
+                           <?= isCourierAddressRequiredPropName($propName) ? 'required' : '' ?>>
+                    <?php endforeach; ?>
+                    <div class="order-delivery__price">
+                        <span>Стоимость доставки</span>
+                        <b id="orderDeliveryPrice">укажите адрес</b>
+                    </div>
+                    <div class="order-delivery__status" id="orderDeliveryStatus"></div>
+                    <button type="submit" class="pay-switch__btn" id="orderDeliverySubmit" disabled>Оформить и оплатить доставку</button>
+                </form>
+            </div>
+            <?php renderYandexAddressSuggest(true); ?>
+            <script>
+            (function () {
+                var form = document.getElementById('orderDeliveryForm');
+                var priceEl = document.getElementById('orderDeliveryPrice');
+                var statusEl = document.getElementById('orderDeliveryStatus');
+                var submit = document.getElementById('orderDeliverySubmit');
+                var inputs = form.querySelectorAll('.order-delivery__input');
+                var timer = null, seq = 0, lastKey = '';
+
+                function setState(price, status, isError, ready) {
+                    priceEl.textContent = price;
+                    statusEl.textContent = status || '';
+                    statusEl.classList.toggle('order-delivery__status--error', !!isError);
+                    submit.disabled = !ready;
+                }
+
+                function recalc() {
+                    clearTimeout(timer);
+                    var missing = Array.prototype.some.call(inputs, function (i) { return i.required && i.value.trim().length < 3; });
+                    if (missing) { lastKey = ''; setState('укажите адрес', '', false, false); return; }
+                    var key = Array.prototype.map.call(inputs, function (i) { return i.value.trim(); }).join('|');
+                    if (key === lastKey) return;
+                    lastKey = key;
+                    setState('…', 'Рассчитываем стоимость доставки…', false, false);
+                    var my = ++seq;
+                    timer = setTimeout(function () {
+                        var data = new FormData(form);
+                        data.delete('request_delivery');
+                        fetch('/local/ajax/delivery_price.php', { method: 'POST', body: data })
+                            .then(function (r) {
+                                return r.text().then(function (t) {
+                                    try { return JSON.parse(t); } catch (e) { return { ok: false, error: 'Ошибка сервера при расчёте доставки (HTTP ' + r.status + ')' }; }
+                                });
+                            })
+                            .then(function (res) {
+                                if (my !== seq) return;
+                                if (res.ok) setState(res.priceFormatted, res.period || '', false, true);
+                                else { lastKey = ''; setState('—', res.error || 'Не удалось рассчитать доставку по этому адресу', true, false); }
+                            })
+                            .catch(function () {
+                                if (my !== seq) return;
+                                lastKey = '';
+                                setState('—', 'Не удалось рассчитать доставку, попробуйте ещё раз', true, false);
+                            });
+                    }, 800);
+                }
+
+                inputs.forEach(function (i) { i.addEventListener('input', recalc); });
+                form.addEventListener('submit', function () { submit.disabled = true; });
+                recalc();
+            })();
+            </script>
+            <?php elseif ($showDeliveryHint): ?>
+            <p class="order-delivery__hint">Доставка курьером: <?= htmlspecialchars(mb_strtolower(mb_substr($deliveryBlockReason, 0, 1)) . mb_substr($deliveryBlockReason, 1)) ?>.</p>
+            <?php endif; ?>
+
             <?php if ($payForms): ?>
             <div class="order-detail-pay" id="pay">
                 <?php if ($payDeadlineTs): ?>
@@ -488,6 +595,22 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
 }
 .pay-switch__btn:hover { filter: brightness(1.05); }
 .order-detail-pay .confirm-pay { max-width: none; margin: 0 0 12px; box-shadow: var(--shadow); border-color: var(--border); }
+.order-delivery { margin-top: 16px; }
+.order-delivery__form { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+.order-delivery__title { font-size: 15px; font-weight: 700; color: var(--black); margin-bottom: 6px; }
+.order-delivery__text { font-size: 13px; color: var(--gray); margin: 0 0 14px; line-height: 1.45; }
+.order-delivery__label { display: block; font-size: 12px; font-weight: 700; color: var(--gray); margin-bottom: 6px; }
+.order-delivery__input {
+    width: 100%; box-sizing: border-box; padding: 11px 14px; margin-bottom: 12px;
+    border: 1.5px solid var(--border); border-radius: 12px; font-family: inherit; font-size: 14px; color: var(--black);
+}
+.order-delivery__input:focus { border-color: var(--blue); outline: none; box-shadow: 0 0 0 4px rgba(102,139,234,0.12); }
+.order-delivery__price { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 13px; color: var(--gray); }
+.order-delivery__price b { font-size: 16px; color: var(--black); }
+.order-delivery__status { min-height: 18px; margin: 4px 0 12px; font-size: 12px; color: var(--gray); }
+.order-delivery__status--error { color: var(--red); }
+.order-delivery .pay-switch__btn:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+.order-delivery__hint { margin: 16px 0 0; font-size: 12px; color: var(--gray); line-height: 1.45; text-align: center; }
 .order-detail-cancel { margin-top: 12px; text-align: center; }
 .order-detail-cancel__btn {
     width: 100%; padding: 12px 16px; border-radius: 14px; cursor: pointer;
