@@ -57,7 +57,7 @@ class OrderSmsNotifier
             case self::EVENT_IN_TRANSIT:
                 return "Лидер: заказ №{$orderId} в пути от поставщика.";
             case self::EVENT_READY:
-                return "Лидер: заказ №{$orderId} готов к выдаче.";
+                return "Лидер: заказ №{$orderId} готов к выдаче. Доставка курьером — liderws.ru/personal/orders/";
             case self::EVENT_CANCELLED:
                 return "Лидер: заказ №{$orderId} отменён. Подробности — liderws.ru/personal/orders/";
             default:

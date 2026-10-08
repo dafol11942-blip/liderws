@@ -444,12 +444,24 @@ if ($hasFilters) {
                     // к выдаче», товар из наличия — после полной оплаты. Дешёвый отсев по
                     // данным списка, полная проверка — getOrderDeliveryRequestBlockReason().
                     $canRequestDelivery = false;
+                    $hasSupplierInOrder = !empty($ordersWithSupplierItems[$orderId]);
                     if ($isOwnOrder && !$isCanceled && $orderId > 0
-                        && (!empty($ordersWithSupplierItems[$orderId]) ? $o['STATUS_ID'] === 'SR' : $o['PAYED'] === 'Y')) {
+                        && ($hasSupplierInOrder ? $o['STATUS_ID'] === 'SR' : $o['PAYED'] === 'Y')) {
                         try {
                             $deliveryOrder = \Bitrix\Sale\Order::load($orderId);
                             $canRequestDelivery = $deliveryOrder && getOrderDeliveryRequestBlockReason($deliveryOrder) === null;
                         } catch (\Throwable $e) {}
+                    }
+                    // Пока доставка недоступна — подсказываем, когда станет (только для
+                    // заказов на самовывоз, ещё не выданных и не отменённых).
+                    $deliveryHint = '';
+                    if (!$canRequestDelivery && $isOwnOrder && !$isCanceled && !in_array($o['STATUS_ID'], ['F', 'SX'], true)
+                        && ($shipment['DEDUCTED'] ?? 'N') !== 'Y' && isPickupDelivery((int)($shipment['DELIVERY_ID'] ?? 0))) {
+                        if ($hasSupplierInOrder && $o['STATUS_ID'] !== 'SR') {
+                            $deliveryHint = 'Доставку курьером можно будет оформить, когда товар будет готов к выдаче';
+                        } elseif (!$hasSupplierInOrder && $o['PAYED'] !== 'Y') {
+                            $deliveryHint = 'Оплатите заказ картой — после оплаты можно оформить доставку курьером';
+                        }
                     }
                     ?>
                     <?php if ($canRequestDelivery): ?>
@@ -464,6 +476,9 @@ if ($hasFilters) {
                             <input type="hidden" name="cancel_order" value="<?= $orderId ?>">
                             <button type="submit" class="btn btn--sm order-card__cancel-btn">Отменить</button>
                         </form>
+                    <?php endif; ?>
+                    <?php if ($deliveryHint !== ''): ?>
+                        <div class="order-card__delivery-hint"><svg class="icon"><use href="#icon-truck"></use></svg> <?= htmlspecialchars($deliveryHint) ?></div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -553,6 +568,8 @@ if ($hasFilters) {
 .order-card__cancel-btn { background: transparent; border: 1.5px solid var(--border); color: var(--red, #e53935); cursor: pointer; font-family: inherit; }
 .order-card__cancel-btn:hover { border-color: var(--red, #e53935); background: rgba(229,57,53,0.05); }
 .status-banner--ok { background: rgba(46,160,67,0.08); color: #1f7a33; }
+.order-card__delivery-hint { flex-basis: 100%; order: -1; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--gray); }
+.order-card__delivery-hint .icon { width: 14px; height: 14px; flex-shrink: 0; color: var(--blue); }
 @media (max-width: 600px) {
     .order-card__header { flex-direction: column; align-items: flex-start; }
     .order-card__header-right { width: 100%; justify-content: space-between; }
