@@ -587,6 +587,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
         return;
     }
 
+    // "Без оплаты (менеджер)" — только для группы менеджеров (форма её прячет
+    // от остальных, здесь — проверка на сервере).
+    if (isManagerPaySystem((int)($_POST['PAY_SYSTEM_ID'] ?? 0)) && !isManager()) {
+        $GLOBALS['orderManagerPaySystemError'] = true;
+        return;
+    }
+
     // Яндекс Доставка (модуль twinpx.yaexpress) работает только с предоплатой
     // на сайте, и курьеру нужен адрес — форма проверяет то же самое в JS.
     $postedDeliveryId = (int)($_POST['DELIVERY_ID'] ?? 0);
@@ -758,14 +765,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
         // "Оплата в течение 15 минут"). Менеджеры (оформляют заказы за клиентов
         // по телефону/в офисе) и заказы только своим складом — прежнее поведение,
         // отправка сразу.
-        $requiresPaymentHold = !isManager() && basketHasSupplierItems($basket);
+        // То же окно оплаты — для обычного покупателя, выбравшего оплату картой
+        // онлайн (даже без заказного товара): не оплатил за 15 минут — заказ
+        // автоматически отменяется (cron payment_hold_sweep.php).
+        $orderHasSupplierItems = basketHasSupplierItems($basket);
+        $requiresPaymentHold = !isManager() && ($orderHasSupplierItems || isOnlinePaySystem($paymentId));
 
         $redirectUrl = '/order/?ORDER_ID=' . $orderId . '&ORDER_CONFIRMED=Y';
 
         if ($requiresPaymentHold) {
             $deadlineTs = createOrderPaymentHold($orderId, ORDER_PAYMENT_HOLD_MINUTES);
-            logSupplierOrderDispatch("Заказ №{$orderId}: отправка поставщику отложена до оплаты (окно " . ORDER_PAYMENT_HOLD_MINUTES . " мин).");
+            logSupplierOrderDispatch("Заказ №{$orderId}: ожидает оплаты картой (окно " . ORDER_PAYMENT_HOLD_MINUTES . " мин" . ($orderHasSupplierItems ? ", отправка поставщику отложена" : "") . ").");
             $redirectUrl .= '&PAYMENT_HOLD=Y&HOLD_MIN=' . ORDER_PAYMENT_HOLD_MINUTES;
+            if ($orderHasSupplierItems) {
+                $redirectUrl .= '&HOLD_SUPPLIER=Y';
+            }
             if ($deadlineTs > 0) {
                 $redirectUrl .= '&DEADLINE=' . $deadlineTs;
             }

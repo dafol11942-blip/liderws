@@ -49,6 +49,8 @@ if (!$order || (!$isMgr && (int)$order->getField('USER_ID') !== (int)$USER->GetI
 // Отмена заказа покупателем (POST cancel_order, см. order_actions.php) —
 // редиректит обратно на эту же страницу с итогом в ?order_cancel=.
 handleCustomerOrderCancelRequest();
+// Смена способа оплаты с наличных на карту (POST change_pay_system).
+handleCustomerPaySystemChangeRequest();
 
 $statusMap = getOrderStatusNameMap();
 $statusName = $statusMap[$order->getField('STATUS_ID')] ?? $order->getField('STATUS_ID');
@@ -214,6 +216,11 @@ $isRefused = !$isCanceled && $order->getField('STATUS_ID') === 'SX';
 // заказы, но платить/отменять за клиента отсюда не должен случайно).
 $isOwner = (int)$order->getField('USER_ID') === (int)$USER->GetID();
 $payForms = ($isOwner && !$isCanceled) ? getOrderOnlinePayForms($order) : [];
+// Заказ на наличных — предлагаем переключиться на оплату картой.
+$switchPaySystems = ($isOwner && !$payForms) ? getOrderSwitchablePaySystems($order) : [];
+$payChangeFlash = (string)($_GET['pay_change'] ?? '');
+// Окно оплаты (15 минут) — до какого времени оплатить, иначе автоотмена.
+$payDeadlineTs = ($payForms && !$isCanceled) ? getOrderPaymentHoldDeadline($orderId) : null;
 $cancelBlockReason = getOrderCancelBlockReason($order);
 $cancelFlash = ((int)($_GET['order_cancel_id'] ?? 0) === $orderId) ? (string)($_GET['order_cancel'] ?? '') : '';
 
@@ -347,9 +354,61 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
                 <?php endif; ?>
             </div>
 
+            <?php if ($payChangeFlash !== '' && $payChangeFlash !== 'ok'): ?>
+            <div class="status-banner status-banner--refused" style="margin-top: 16px;">
+                <span class="status-banner__icon">⚠</span>
+                <span>Не удалось сменить способ оплаты: <?= htmlspecialchars($payChangeFlash) ?></span>
+            </div>
+            <?php endif; ?>
+
             <?php if ($payForms): ?>
             <div class="order-detail-pay" id="pay">
+                <?php if ($payDeadlineTs): ?>
+                <p class="order-detail-pay__deadline">
+                    Оплатите заказ до <b><?= date('H:i', $payDeadlineTs) ?></b><?php if ($payDeadlineTs > time()): ?> (осталось <b id="payDeadlineLeft">--:--</b>)<?php endif; ?> — иначе он будет автоматически отменён.
+                </p>
+                <script>
+                (function () {
+                    var el = document.getElementById('payDeadlineLeft');
+                    if (!el) return;
+                    var deadline = <?= (int)$payDeadlineTs ?> * 1000;
+                    function tick() {
+                        var left = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+                        el.textContent = Math.floor(left / 60) + ':' + ('0' + left % 60).slice(-2);
+                        if (left <= 0) { clearInterval(timer); setTimeout(function () { location.reload(); }, 90000); }
+                    }
+                    var timer = setInterval(tick, 1000);
+                    tick();
+                })();
+                </script>
+                <?php endif; ?>
                 <?php renderOrderOnlinePayForms($payForms); ?>
+            </div>
+            <?php elseif ($switchPaySystems): ?>
+            <div class="order-detail-pay" id="pay">
+                <form method="post" class="pay-switch">
+                    <?= bitrix_sessid_post() ?>
+                    <input type="hidden" name="pay_order" value="<?= (int)$orderId ?>">
+                    <div class="pay-switch__title">Оплатить картой онлайн</div>
+                    <p class="pay-switch__text">Сейчас выбрана оплата при получении. Можно оплатить заказ картой прямо сейчас.</p>
+                    <?php if (count($switchPaySystems) === 1): $sp = $switchPaySystems[0]; ?>
+                    <input type="hidden" name="change_pay_system" value="<?= (int)$sp['ID'] ?>">
+                    <?php if ($sp['LOGO'] !== ''): ?>
+                    <img class="pay-switch__logo" src="<?= htmlspecialchars($sp['LOGO']) ?>" alt="<?= htmlspecialchars($sp['NAME']) ?>">
+                    <?php endif; ?>
+                    <?php else: ?>
+                    <div class="pay-switch__options">
+                        <?php foreach ($switchPaySystems as $i => $sp): ?>
+                        <label class="pay-switch__option">
+                            <input type="radio" name="change_pay_system" value="<?= (int)$sp['ID'] ?>" <?= $i === 0 ? 'checked' : '' ?>>
+                            <?php if ($sp['LOGO'] !== ''): ?><img src="<?= htmlspecialchars($sp['LOGO']) ?>" alt=""><?php endif; ?>
+                            <span><?= htmlspecialchars($sp['NAME']) ?></span>
+                        </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+                    <button type="submit" class="pay-switch__btn">Оплатить картой</button>
+                </form>
             </div>
             <?php endif; ?>
 
@@ -414,6 +473,20 @@ if ($dateInsert instanceof \Bitrix\Main\Type\DateTime) {
 .order-detail-props__name { color: var(--gray); }
 
 .order-detail-pay { margin-top: 16px; }
+.order-detail-pay__deadline { margin: 0 0 10px; padding: 10px 14px; border-radius: 12px; background: rgba(230,162,60,0.12); color: #8a5a00; font-size: 13px; line-height: 1.45; }
+.pay-switch { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); text-align: center; }
+.pay-switch__title { font-size: 15px; font-weight: 700; color: var(--black); margin-bottom: 6px; }
+.pay-switch__text { font-size: 13px; color: var(--gray); margin: 0 0 14px; line-height: 1.45; }
+.pay-switch__logo { display: block; max-width: 140px; max-height: 44px; object-fit: contain; margin: 0 auto 14px; }
+.pay-switch__options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; text-align: left; }
+.pay-switch__option { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 12px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.pay-switch__option img { max-width: 56px; max-height: 24px; object-fit: contain; }
+.pay-switch__btn {
+    width: 100%; padding: 14px 20px; border: 0; border-radius: 14px; cursor: pointer;
+    background: var(--blue); color: #fff; font-family: inherit; font-size: 15px; font-weight: 700;
+    box-shadow: 0 6px 18px rgba(102,139,234,0.35);
+}
+.pay-switch__btn:hover { filter: brightness(1.05); }
 .order-detail-pay .confirm-pay { max-width: none; margin: 0 0 12px; box-shadow: var(--shadow); border-color: var(--border); }
 .order-detail-cancel { margin-top: 12px; text-align: center; }
 .order-detail-cancel__btn {

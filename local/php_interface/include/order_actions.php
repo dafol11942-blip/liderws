@@ -35,14 +35,166 @@ if (!function_exists('orderHasPaidPayment')) {
     }
 }
 
+// Платёжная система "Без оплаты (менеджер)" — видна и доступна только группе
+// менеджеров, работает в обход правил для заказного товара (создаётся
+// скриптом local/scripts/add_manager_pay_system.php).
+if (!defined('MANAGER_PAY_SYSTEM_CODE')) define('MANAGER_PAY_SYSTEM_CODE', 'manager_no_payment');
+
+if (!function_exists('getPaySystemRow')) {
+    function getPaySystemRow(int $paySystemId): ?array
+    {
+        static $cache = [];
+        if ($paySystemId <= 0) return null;
+        if (!array_key_exists($paySystemId, $cache)) {
+            $row = \Bitrix\Sale\PaySystem\Manager::getById($paySystemId);
+            $cache[$paySystemId] = $row ?: null;
+        }
+        return $cache[$paySystemId];
+    }
+}
+
+if (!function_exists('isManagerPaySystem')) {
+    function isManagerPaySystem(int $paySystemId): bool
+    {
+        $ps = getPaySystemRow($paySystemId);
+        return $ps && (string)($ps['CODE'] ?? '') === MANAGER_PAY_SYSTEM_CODE;
+    }
+}
+
 if (!function_exists('isCashPaySystem')) {
-    /** Оплата наличными (флаг IS_CASH платёжной системы или обработчик cash). */
+    /**
+     * Оплата наличными (флаг IS_CASH платёжной системы или обработчик cash).
+     * Менеджерская "Без оплаты" наличной не считается — на неё правила для
+     * заказного товара не распространяются.
+     */
     function isCashPaySystem(int $paySystemId): bool
     {
-        if ($paySystemId <= 0) return false;
-        $ps = \Bitrix\Sale\PaySystem\Manager::getById($paySystemId);
-        if (!$ps) return false;
+        $ps = getPaySystemRow($paySystemId);
+        if (!$ps || isManagerPaySystem($paySystemId)) return false;
         return ($ps['IS_CASH'] ?? 'N') === 'Y' || ($ps['ACTION_FILE'] ?? '') === 'cash';
+    }
+}
+
+if (!function_exists('isOnlinePaySystem')) {
+    /** Онлайн-оплата картой (Альфа-Банк и т.п.) — всё, что не наличные и не менеджерская. */
+    function isOnlinePaySystem(int $paySystemId): bool
+    {
+        $ps = getPaySystemRow($paySystemId);
+        return $ps && !isManagerPaySystem($paySystemId) && !isCashPaySystem($paySystemId)
+            && ($ps['ACTION_FILE'] ?? '') !== 'inner';
+    }
+}
+
+if (!function_exists('getOrderPaymentHoldDeadline')) {
+    /** Unix-время, до которого надо оплатить заказ (окно оплаты), или null. */
+    function getOrderPaymentHoldDeadline(int $orderId): ?int
+    {
+        if ($orderId <= 0) return null;
+        try {
+            $row = \Bitrix\Main\Application::getConnection()->query(
+                "SELECT UNIX_TIMESTAMP(DEADLINE) AS TS FROM b_supplier_order_payment_hold
+                 WHERE ORDER_ID = {$orderId} AND DISPATCHED = 0 AND CANCELED = 0"
+            )->fetch();
+        } catch (\Throwable $e) {
+            return null;
+        }
+        return $row ? (int)$row['TS'] : null;
+    }
+}
+
+if (!function_exists('getOrderUnpaidPayment')) {
+    function getOrderUnpaidPayment(Order $order): ?\Bitrix\Sale\Payment
+    {
+        foreach ($order->getPaymentCollection() as $payment) {
+            if (!$payment->isPaid() && !$payment->isInner()) return $payment;
+        }
+        return null;
+    }
+}
+
+if (!function_exists('getOrderSwitchablePaySystems')) {
+    /**
+     * Онлайн-способы оплаты, на которые покупатель может переключить заказ
+     * с наличных (с учётом ограничений платёжных систем — по доставке и т.п.).
+     * Пусто, если заказ оплачен/отменён или уже оплачивается онлайн.
+     */
+    function getOrderSwitchablePaySystems(Order $order): array
+    {
+        if ($order->getField('CANCELED') === 'Y' || orderHasPaidPayment($order)) return [];
+        $payment = getOrderUnpaidPayment($order);
+        if (!$payment) return [];
+        $currentId = (int)$payment->getPaymentSystemId();
+        if (isOnlinePaySystem($currentId) || isManagerPaySystem($currentId)) return [];
+
+        $result = [];
+        try {
+            $available = \Bitrix\Sale\PaySystem\Manager::getListWithRestrictions($payment);
+        } catch (\Throwable $e) {
+            $available = [];
+        }
+        foreach ($available as $ps) {
+            $id = (int)($ps['ID'] ?? 0);
+            if ($id <= 0 || $id === $currentId || ($ps['ACTIVE'] ?? 'Y') !== 'Y' || !isOnlinePaySystem($id)) continue;
+            $logo = (int)($ps['LOGOTIP'] ?? 0) > 0 ? CFile::GetFileArray((int)$ps['LOGOTIP']) : null;
+            $result[] = [
+                'ID' => $id,
+                'NAME' => (string)($ps['NAME'] ?? ''),
+                'LOGO' => is_array($logo) ? (string)($logo['SRC'] ?? '') : '',
+            ];
+        }
+        return $result;
+    }
+}
+
+if (!function_exists('changeOrderPaySystem')) {
+    /** Переключение неоплаченной оплаты заказа на онлайн-способ (с перепроверкой на сервере). */
+    function changeOrderPaySystem(Order $order, int $paySystemId): \Bitrix\Main\Result
+    {
+        $result = new \Bitrix\Main\Result();
+        $allowedIds = array_column(getOrderSwitchablePaySystems($order), 'ID');
+        $payment = getOrderUnpaidPayment($order);
+        if (!$payment || !in_array($paySystemId, $allowedIds, true)) {
+            $result->addError(new \Bitrix\Main\Error('Этот способ оплаты недоступен для заказа'));
+            return $result;
+        }
+        $ps = getPaySystemRow($paySystemId);
+        $setResult = $payment->setFields([
+            'PAY_SYSTEM_ID' => $paySystemId,
+            'PAY_SYSTEM_NAME' => (string)($ps['NAME'] ?? ''),
+        ]);
+        if (!$setResult->isSuccess()) {
+            $result->addErrors($setResult->getErrors());
+            return $result;
+        }
+        $saveResult = $order->save();
+        if (!$saveResult->isSuccess()) {
+            $result->addErrors($saveResult->getErrors());
+        }
+        return $result;
+    }
+}
+
+if (!function_exists('handleCustomerPaySystemChangeRequest')) {
+    /**
+     * POST change_pay_system=<ID платёжной системы> + pay_order=<ID заказа> со
+     * страницы заказа. Только владелец заказа. После смены — обратно на
+     * страницу заказа к форме оплаты (#pay).
+     */
+    function handleCustomerPaySystemChangeRequest(): void
+    {
+        global $USER, $APPLICATION;
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['change_pay_system']) || !check_bitrix_sessid()) {
+            return;
+        }
+        $orderId = (int)($_POST['pay_order'] ?? 0);
+        $order = $orderId > 0 ? Order::load($orderId) : null;
+        if (!$order || !$USER->IsAuthorized() || (int)$order->getUserId() !== (int)$USER->GetID()) {
+            $status = 'Заказ не найден';
+        } else {
+            $changeResult = changeOrderPaySystem($order, (int)$_POST['change_pay_system']);
+            $status = $changeResult->isSuccess() ? 'ok' : implode('; ', $changeResult->getErrorMessages());
+        }
+        LocalRedirect($APPLICATION->GetCurPageParam('pay_change=' . urlencode($status), ['pay_change', 'order_cancel', 'order_cancel_id']) . '#pay');
     }
 }
 

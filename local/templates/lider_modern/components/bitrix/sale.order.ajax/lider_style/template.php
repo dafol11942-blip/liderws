@@ -129,6 +129,12 @@ $payments = $arResult['PAY_SYSTEM'] ?? [];
 // Товар под заказ у поставщика — только онлайн-оплата картой: наличные при
 // получении убираем (сервер тоже не примет, см. order_create_handler.php).
 // Если отмеченный по умолчанию способ был наличным — отмечаем первый оставшийся.
+// "Без оплаты (менеджер)" видят только менеджеры (см. order_actions.php).
+if (!$isMgr && $payments) {
+    $payments = array_values(array_filter($payments, function ($pay) {
+        return !isManagerPaySystem((int)($pay['ID'] ?? 0));
+    }));
+}
 $cashHiddenForSupplier = false;
 if ($hasSupplierItem && $payments) {
     $filteredPayments = [];
@@ -140,11 +146,14 @@ if ($hasSupplierItem && $payments) {
         $filteredPayments[] = $pay;
     }
     $payments = $filteredPayments;
+}
+// Если отмеченный по умолчанию способ скрыт — отмечаем первый оставшийся.
+if ($payments) {
     $hasChecked = false;
     foreach ($payments as $pay) {
         if (($pay['CHECKED'] ?? '') === 'Y') { $hasChecked = true; break; }
     }
-    if (!$hasChecked && $payments) {
+    if (!$hasChecked) {
         $payments[0]['CHECKED'] = 'Y';
     }
 }
@@ -210,7 +219,11 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
 
             <div id="paymentHoldStatePending">
                 <h2 style="font-size:20px;margin-bottom:8px;">Заказ создан, требуется оплата</h2>
+                <?php if (($_GET['HOLD_SUPPLIER'] ?? 'N') === 'Y'): ?>
                 <p style="color:var(--gray);margin-bottom:4px;max-width:480px;margin-left:auto;margin-right:auto;">В заказе есть позиции под заказ у поставщика — резерв действует ограниченное время.</p>
+                <?php else: ?>
+                <p style="color:var(--gray);margin-bottom:4px;max-width:480px;margin-left:auto;margin-right:auto;">Вы выбрали оплату картой онлайн — товар зарезервирован за вами на время оплаты.</p>
+                <?php endif; ?>
                 <p style="color:var(--gray);margin-bottom:24px;">Оплатите заказ в течение <strong id="paymentHoldTimer" style="color:var(--black);">--:--</strong>, иначе он будет автоматически отменён.</p>
                 <?php if (!empty($confirmPayHtml)): ?>
                 <?php $renderConfirmPay(); ?>
@@ -327,6 +340,12 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
         <div class="checkout-error">
             <svg class="icon"><use href="#icon-alert"></use></svg>
             Подтвердите, что вы ознакомлены с невозвратным товаром в заказе — без этого оформить заказ нельзя.
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($GLOBALS['orderManagerPaySystemError'])): ?>
+        <div class="checkout-error">
+            <svg class="icon"><use href="#icon-alert"></use></svg>
+            Выбранный способ оплаты недоступен — выберите другой.
         </div>
         <?php endif; ?>
         <?php if (!empty($GLOBALS['orderCashForbiddenError'])): ?>

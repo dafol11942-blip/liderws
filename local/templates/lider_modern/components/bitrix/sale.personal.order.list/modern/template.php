@@ -428,9 +428,16 @@ if ($hasFilters) {
                     <?php if (!empty($o['URL_TO_COPY'])): ?>
                         <a href="<?= htmlspecialcharsbx($o['URL_TO_COPY']) ?>" class="btn btn--outline btn--sm"><svg class="icon"><use href="#icon-refresh"></use></svg> Повторить</a>
                     <?php endif; ?>
-                    <?php if (!$isCanceled && !$isOrderPaid && $orderId > 0 && ($payment['PAY_SYSTEM']['IS_CASH'] ?? $payment['IS_CASH'] ?? 'N') !== 'Y' && !empty($payment['PSA_ACTION_FILE'])): ?>
-                        <?php /* Форма оплаты — на странице заказа (getOrderOnlinePayForms()), а не на старой /personal/order/payment/ */ ?>
-                        <a href="/personal/orders/?ID=<?= $orderId ?>#pay" class="btn btn--primary btn--sm"><svg class="icon"><use href="#icon-card"></use></svg> Оплатить</a>
+                    <?php
+                    // Форма оплаты — на странице заказа (getOrderOnlinePayForms()), а не на
+                    // старой /personal/order/payment/. Заказ на наличных там же можно
+                    // переключить на карту (getOrderSwitchablePaySystems()).
+                    $listPaySystemId = (int)($payment['PAY_SYSTEM_ID'] ?? 0);
+                    $showPayButton = $isOwnOrder && !$isCanceled && !$isOrderPaid && $orderId > 0
+                        && $o['STATUS_ID'] !== 'F' && !isManagerPaySystem($listPaySystemId);
+                    ?>
+                    <?php if ($showPayButton): ?>
+                        <a href="/personal/orders/?ID=<?= $orderId ?>#pay" class="btn btn--primary btn--sm"><svg class="icon"><use href="#icon-card"></use></svg> <?= isCashPaySystem($listPaySystemId) ? 'Оплатить картой' : 'Оплатить' ?></a>
                     <?php endif; ?>
                     <?php if ($orderId > 0): ?>
                         <a href="/personal/orders/?ID=<?= $orderId ?>" class="btn btn--white btn--sm"><svg class="icon"><use href="#icon-list"></use></svg> Подробнее</a>
