@@ -71,7 +71,8 @@ if (!function_exists('isCashPaySystem')) {
     {
         $ps = getPaySystemRow($paySystemId);
         if (!$ps || isManagerPaySystem($paySystemId)) return false;
-        return ($ps['IS_CASH'] ?? 'N') === 'Y' || ($ps['ACTION_FILE'] ?? '') === 'cash';
+        return ($ps['IS_CASH'] ?? 'N') === 'Y'
+            || in_array((string)($ps['ACTION_FILE'] ?? ''), ['cash', 'cashondelivery', 'cashondeliverycalc'], true);
     }
 }
 
@@ -564,7 +565,7 @@ if (!function_exists('getOrderOnlinePayForms')) {
         foreach ($order->getPaymentCollection() as $payment) {
             if ($payment->isPaid() || $payment->isInner()) continue;
             $paySvc = \Bitrix\Sale\PaySystem\Manager::getObjectById($payment->getPaymentSystemId());
-            if (!$paySvc || $paySvc->getField('IS_CASH') === 'Y' || $paySvc->getField('ACTION_FILE') === 'cash') continue;
+            if (!$paySvc || !isOnlinePaySystem((int)$payment->getPaymentSystemId())) continue;
 
             $logoFile = (int)$paySvc->getField('LOGOTIP') > 0 ? CFile::GetFileArray((int)$paySvc->getField('LOGOTIP')) : null;
             $form = [

@@ -304,7 +304,14 @@ if ($hasFilters) {
             $o = $order['ORDER'];
             $basketItems = $order['BASKET_ITEMS'] ?? [];
             $shipment = $order['SHIPMENT'][0] ?? [];
-            $payment = $order['PAYMENT'][0] ?? [];
+            $payment = $order['PAYMENT'] ? (reset($order['PAYMENT']) ?: []) : [];
+            // У заказов, оформленных до 06.10.2026, оплата сохранялась только с
+            // PAY_SYSTEM_ID, без PAY_SYSTEM_NAME (NULL в базе) — берём название
+            // самой платёжной системы по её ID.
+            $paymentName = trim((string)($payment['PAY_SYSTEM_NAME'] ?? ''));
+            if ($paymentName === '' && (int)($payment['PAY_SYSTEM_ID'] ?? 0) > 0) {
+                $paymentName = (string)(getPaySystemRow((int)$payment['PAY_SYSTEM_ID'])['NAME'] ?? '');
+            }
             $isCanceled = ($o['CANCELED'] ?? 'N') === 'Y';
             $statusName = $isCanceled ? 'Отменён' : ($statusList[$o['STATUS_ID']] ?? $o['STATUS_ID']);
             $statusColor = $isCanceled ? 'red' : getOrderStatusColor($o['STATUS_ID']);
@@ -421,7 +428,7 @@ if ($hasFilters) {
                     </div>
                     <div class="order-card__info-item">
                         <span class="order-card__info-label">Способ оплаты</span>
-                        <span class="order-card__info-value"><?= htmlspecialchars($payment['PAY_SYSTEM_NAME'] ?? '—') ?></span>
+                        <span class="order-card__info-value"><?= htmlspecialchars($paymentName !== '' ? $paymentName : '—') ?></span>
                     </div>
                 </div>
                 <div class="order-card__actions">
