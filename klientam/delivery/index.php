@@ -45,11 +45,6 @@ if (CModule::IncludeModule('sale') && function_exists('getYandexExpressDeliveryI
 			<div class="pay-info__method-title">Курьер Яндекс Доставки</div>
 			<p>Экспресс-доставка по Елабуге в день заказа, до двери. Стоимость — по тарифу Яндекс Доставки, рассчитывается по адресу. Только с оплатой картой онлайн.</p>
 		</div>
-		<div class="pay-info__method">
-			<div class="delivery-info__logo delivery-info__logo--icon"><svg class="icon"><use href="#icon-truck"></use></svg></div>
-			<div class="pay-info__method-title">В другие города</div>
-			<p>Отправка транспортной компанией — по согласованию с менеджером. Стоимость и сроки рассчитываются индивидуально.</p>
-		</div>
 	</div>
 
 	<div class="delivery-info__shops">
@@ -110,10 +105,7 @@ if (CModule::IncludeModule('sale') && function_exists('getYandexExpressDeliveryI
 		<h3>5. Где следить за заказом</h3>
 		<p>Статус заказа и статус доставки отображаются в <a href="/personal/orders/">личном кабинете</a>. О готовности заказа с товарами под заказ мы сообщаем по SMS.</p>
 
-		<h3>6. Доставка в другие города</h3>
-		<p>Отправка в другие населённые пункты выполняется транспортной компанией по согласованию с менеджером. Стоимость заказа складывается из цены товаров и стоимости доставки; предварительную стоимость доставки менеджер сообщит до передачи заказа в работу, точная стоимость определяется по тарифам транспортной компании. Свяжитесь с нами по телефонам магазинов, указанным выше.</p>
-
-		<h3>7. Отмена и возврат</h3>
+		<h3>6. Отмена и возврат</h3>
 		<p>Порядок отмены заказа и возврата денег, в том числе за доставку, описан на страницах <a href="/klientam/oplata/">«Оплата»</a> и <a href="/klientam/garantiya-i-vozvrat/">«Гарантия и возврат»</a>.</p>
 
 		<p class="pay-info__note">Оформляя заказ, вы подтверждаете, что ознакомились с условиями доставки, <a href="/klientam/oplata/">оплаты</a> и <a href="/klientam/garantiya-i-vozvrat/">гарантии и возврата</a>.</p>
@@ -125,7 +117,7 @@ if (CModule::IncludeModule('sale') && function_exists('getYandexExpressDeliveryI
 /* Карточки и текст — общие стили страницы «Оплата» (те же классы pay-info). */
 .pay-info { width: 100%; margin-bottom: 40px; }
 .pay-info__lead { font-size: 15px; line-height: 1.6; color: var(--black); margin: 0 0 20px; max-width: none; }
-.pay-info__methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.pay-info__methods { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
 .pay-info__method {
 	background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg, 16px);
 	padding: 22px 24px; box-shadow: var(--shadow-sm); min-width: 0;
@@ -160,8 +152,6 @@ if (CModule::IncludeModule('sale') && function_exists('getYandexExpressDeliveryI
 .delivery-info__shop-link { color: var(--blue); text-decoration: underline; }
 
 @media (max-width: 1024px) {
-	.pay-info__methods { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-	.pay-info__methods .pay-info__method:first-child { grid-column: 1 / -1; }
 	.pay-info .legal-text.pay-info__text { padding: 28px 28px 32px; }
 }
 @media (max-width: 640px) {
