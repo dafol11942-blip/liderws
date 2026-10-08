@@ -3,23 +3,27 @@ require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
 $APPLICATION->SetPageProperty("title", "Оплата заказа — автозапчасти ЛИДЕР в Елабуге");
 $APPLICATION->SetPageProperty("description", "Способы оплаты в интернет-магазине автозапчастей ЛИДЕР: банковской картой онлайн через АО «Альфа-Банк», при получении, безналичный расчёт для юрлиц. Сроки оплаты, чеки, возврат денег.");
 $APPLICATION->SetTitle("Оплата");
-?><?$APPLICATION->IncludeComponent(
-	"bitrix:menu",
-	"Left_menu",
-	Array(
-		"ALLOW_MULTI_SELECT" => "N",
-		"CHILD_MENU_TYPE" => "left",
-		"COMPONENT_TEMPLATE" => "Left_menu",
-		"DELAY" => "N",
-		"MAX_LEVEL" => "1",
-		"MENU_CACHE_GET_VARS" => array(),
-		"MENU_CACHE_TIME" => "3600",
-		"MENU_CACHE_TYPE" => "N",
-		"MENU_CACHE_USE_GROUPS" => "Y",
-		"ROOT_MENU_TYPE" => "left",
-		"USE_EXT" => "N"
-	)
-);?>
+
+// Логотипы способов оплаты. "Мир" и СБП — официальные SVG (общественное
+// достояние, Wikimedia Commons). AlfaPay — показывается, только когда файл
+// логотипа из брендбука Альфа-Банка положен в эту же папку (alfapay.svg или
+// alfapay.png): рисовать чужой товарный знак "на глаз" нельзя.
+$payLogoDir = SITE_TEMPLATE_PATH . '/assets/images/payment/';
+$payLogos = [
+    ['file' => 'mir.svg', 'alt' => 'Платёжная система «Мир»'],
+    ['file' => 'sbp.svg', 'alt' => 'Система быстрых платежей'],
+];
+foreach (['alfapay.svg', 'alfapay.png'] as $alfaPayFile) {
+    if (is_file($_SERVER['DOCUMENT_ROOT'] . $payLogoDir . $alfaPayFile)) {
+        $payLogos[] = ['file' => $alfaPayFile, 'alt' => 'AlfaPay'];
+        break;
+    }
+}
+?><?= \Lider\Seo\Seo::breadcrumbs([['NAME' => 'Главная', 'LINK' => '/'], ['NAME' => 'Оплата', 'LINK' => '']]) ?>
+<div class="container">
+	<h1 style="font-size:26px;font-weight:800;margin:8px 0 20px;">Оплата заказа</h1>
+</div>
+<div class="container">
 <div class="pay-info">
 
 	<p class="pay-info__lead">
@@ -29,8 +33,12 @@ $APPLICATION->SetTitle("Оплата");
 	<div class="pay-info__methods">
 		<div class="pay-info__method">
 			<div class="pay-info__method-title">Банковской картой онлайн</div>
-			<div class="pay-info__chips"><span>Мир</span><span>Visa</span><span>Mastercard</span></div>
-			<p>Оплата на сайте сразу после оформления заказа. Платёж принимает АО «Альфа-Банк».</p>
+			<div class="pay-info__logos">
+				<?php foreach ($payLogos as $logo): ?>
+				<img src="<?= $payLogoDir . $logo['file'] ?>" alt="<?= htmlspecialchars($logo['alt']) ?>" title="<?= htmlspecialchars($logo['alt']) ?>" loading="lazy">
+				<?php endforeach; ?>
+			</div>
+			<p>Картой «Мир», Visa, Mastercard российских банков, через СБП или AlfaPay — на защищённой странице АО «Альфа-Банк».</p>
 		</div>
 		<div class="pay-info__method">
 			<div class="pay-info__method-title">При получении</div>
@@ -46,11 +54,12 @@ $APPLICATION->SetTitle("Оплата");
 
 		<h3>1. Оплата банковской картой на сайте</h3>
 		<p>К оплате принимаются банковские карты платёжных систем «Мир», Visa и Mastercard, выпущенные российскими банками. Карты, выпущенные иностранными банками, к оплате не принимаются.</p>
+		<p>На платёжной странице банка также можно оплатить заказ через <b>Систему быстрых платежей (СБП)</b> — по QR-коду или ссылке в приложении вашего банка, без ввода данных карты, — или через <b>AlfaPay</b> (для клиентов Альфа-Банка). Набор доступных вариантов показывается на платёжной странице банка.</p>
 		<p>Как оплатить:</p>
 		<ol>
 			<li>Оформите заказ и выберите способ оплаты «Оплата банковской картой».</li>
 			<li>На странице подтверждения заказа нажмите кнопку «Оплатить» — вы будете перенаправлены на защищённую платёжную страницу АО «Альфа-Банк».</li>
-			<li>Введите данные карты и подтвердите платёж. Если ваш банк поддерживает технологию 3-D Secure (Mir Accept, Visa Secure, Mastercard ID Check), банк попросит подтвердить оплату одноразовым кодом из SMS или в мобильном приложении.</li>
+			<li>Выберите способ: карта, СБП или AlfaPay. При оплате картой введите её данные и подтвердите платёж. Если ваш банк поддерживает технологию 3-D Secure (Mir Accept, Visa Secure, Mastercard ID Check), банк попросит подтвердить оплату одноразовым кодом из SMS или в мобильном приложении.</li>
 			<li>После успешной оплаты вы вернётесь на сайт, статус заказа изменится на «Оплата поступила, заказ обрабатывается», а на электронную почту придёт уведомление.</li>
 		</ol>
 		<p>Если оплатить сразу не получилось, это можно сделать позже в <a href="/personal/orders/">личном кабинете</a> — кнопка «Оплатить» на странице заказа (с учётом срока оплаты, см. раздел 3). Там же заказ, оформленный с оплатой при получении, можно переключить на оплату картой онлайн.</p>
@@ -111,9 +120,10 @@ $APPLICATION->SetTitle("Оплата");
 		<p class="pay-info__note">Полные реквизиты — на странице <a href="/rekvizity/">«Юридическая информация»</a>. Оформляя и оплачивая заказ, вы подтверждаете, что ознакомились с настоящими условиями оплаты и условиями <a href="/klientam/garantiya-i-vozvrat/">гарантии и возврата</a>.</p>
 	</div>
 </div>
+</div>
 
 <style>
-.pay-info { max-width: 900px; }
+.pay-info { max-width: 900px; margin-bottom: 32px; }
 .pay-info__lead { font-size: 15px; line-height: 1.6; color: var(--black); margin: 0 0 20px; }
 .pay-info__methods { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .pay-info__method {
@@ -122,8 +132,8 @@ $APPLICATION->SetTitle("Оплата");
 }
 .pay-info__method-title { font-size: 15px; font-weight: 800; color: var(--black); margin-bottom: 8px; }
 .pay-info__method p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--gray); }
-.pay-info__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.pay-info__chips span { padding: 3px 10px; border-radius: 999px; background: rgba(102,139,234,0.1); color: var(--blue); font-size: 12px; font-weight: 700; }
+.pay-info__logos { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 10px; }
+.pay-info__logos img { height: 26px; width: auto; display: block; }
 .pay-info__text ol, .pay-info__text ul { margin: 0 0 12px; padding-left: 22px; }
 .pay-info__text li { margin-bottom: 6px; }
 .pay-info__text p { margin: 0 0 12px; }
