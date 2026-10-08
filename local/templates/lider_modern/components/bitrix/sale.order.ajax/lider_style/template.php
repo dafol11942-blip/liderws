@@ -512,7 +512,31 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                                     $courierDeliveries[$did] = $del;
                                 }
                             }
-                            $courierHiddenForSupplier = $hasSupplierItem && count($pickupDeliveries) < count($deliveries);
+                            // Ограничения служб самовывоза в Битриксе (наличие на складе
+                            // магазина) прячут их, когда в корзине товар под заказ, — а для
+                            // него самовывоз как раз единственный способ: товар приедет в
+                            // магазин. Заказ создаёт наш order_create_handler.php, эти
+                            // ограничения он не проверяет, поэтому добираем точки сами.
+                            $pickupCountFromBitrix = count($pickupDeliveries);
+                            if ($hasSupplierItem) {
+                                $shownPickupIds = array_map('intval', array_column($pickupDeliveries, 'ID'));
+                                foreach (\Bitrix\Sale\Delivery\Services\Manager::getActiveList() as $serviceId => $service) {
+                                    $serviceId = (int)($service['ID'] ?? $serviceId);
+                                    if (in_array($serviceId, $shownPickupIds, true)
+                                        || mb_stripos((string)($service['NAME'] ?? ''), 'самовывоз') === false
+                                        || is_a((string)($service['CLASS_NAME'] ?? ''), \Bitrix\Sale\Delivery\Services\Group::class, true)) {
+                                        continue;
+                                    }
+                                    $pickupDeliveries['extra_' . $serviceId] = [
+                                        'ID' => $serviceId,
+                                        'NAME' => (string)$service['NAME'],
+                                        'DESCRIPTION' => (string)($service['DESCRIPTION'] ?? ''),
+                                        'LOGOTIP' => $service['LOGOTIP'] ?? null,
+                                        'CHECKED' => (int)($_POST['DELIVERY_ID'] ?? 0) === $serviceId ? 'Y' : 'N',
+                                    ];
+                                }
+                            }
+                            $courierHiddenForSupplier = $hasSupplierItem && count($deliveries) > $pickupCountFromBitrix;
                             $hasPickup = !empty($pickupDeliveries);
                             $hasCourier = !empty($courierDeliveries);
                             $pickupChecked = false;
@@ -534,6 +558,9 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                             $defaultPickupId = null;
                             foreach ($pickupDeliveries as $did => $del) {
                                 if (mb_stripos($del['NAME'], 'Нефтяников') !== false) { $defaultPickupId = $did; break; }
+                            }
+                            if ($defaultPickupId === null && $pickupDeliveries) {
+                                $defaultPickupId = array_key_first($pickupDeliveries);
                             }
                             $yandexMapsApiKey = function_exists('getYandexMapsApiKey') ? getYandexMapsApiKey() : '';
                             $yandexSuggestApiKey = $yandexMapsApiKey !== '' && function_exists('getYandexSuggestApiKey') ? getYandexSuggestApiKey() : '';
