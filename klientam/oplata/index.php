@@ -123,23 +123,42 @@ foreach (['alfapay.svg', 'alfapay.png'] as $alfaPayFile) {
 </div>
 
 <style>
-.pay-info { max-width: 900px; margin-bottom: 32px; }
-.pay-info__lead { font-size: 15px; line-height: 1.6; color: var(--black); margin: 0 0 20px; }
-.pay-info__methods { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 20px; }
+/* На всю ширину .container — без ограничений max-width (в т.ч. общего .legal-text). */
+.pay-info { width: 100%; margin-bottom: 40px; }
+.pay-info__lead { font-size: 15px; line-height: 1.6; color: var(--black); margin: 0 0 20px; max-width: none; }
+.pay-info__methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
 .pay-info__method {
 	background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg, 16px);
-	padding: 18px 20px; box-shadow: var(--shadow-sm);
+	padding: 22px 24px; box-shadow: var(--shadow-sm); min-width: 0;
 }
-.pay-info__method-title { font-size: 15px; font-weight: 800; color: var(--black); margin-bottom: 8px; }
-.pay-info__method p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--gray); }
-.pay-info__logos { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 10px; }
-.pay-info__logos img { height: 26px; width: auto; display: block; }
-.pay-info__text ol, .pay-info__text ul { margin: 0 0 12px; padding-left: 22px; }
-.pay-info__text li { margin-bottom: 6px; }
+.pay-info__method-title { font-size: 16px; font-weight: 800; color: var(--black); margin-bottom: 10px; }
+.pay-info__method p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--gray); }
+.pay-info__logos { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-bottom: 12px; }
+.pay-info__logos img { height: 28px; width: auto; max-width: 100%; display: block; }
+.pay-info .legal-text.pay-info__text { max-width: none; width: 100%; box-sizing: border-box; padding: 32px 40px 40px; }
+/* Глобальные стили сбрасывают маркеры списков — возвращаем нумерацию шагов. */
+.pay-info__text ol, .pay-info__text ul { margin: 0 0 14px; padding-left: 24px; }
+.pay-info__text ol { list-style: decimal; }
+.pay-info__text ul { list-style: disc; }
+.pay-info__text li { margin-bottom: 8px; padding-left: 4px; }
+.pay-info__text li::marker { color: var(--blue); font-weight: 700; }
 .pay-info__text p { margin: 0 0 12px; }
 .pay-info__note { font-size: 13px; color: var(--gray); margin-top: 16px !important; }
-@media (max-width: 600px) {
-	.pay-info__text { padding: 20px 18px 24px; }
+
+@media (max-width: 1024px) {
+	.pay-info__methods { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.pay-info__methods .pay-info__method:first-child { grid-column: 1 / -1; }
+	.pay-info .legal-text.pay-info__text { padding: 28px 28px 32px; }
+}
+@media (max-width: 640px) {
+	.pay-info__lead { font-size: 14px; }
+	.pay-info__methods { grid-template-columns: 1fr; gap: 10px; }
+	.pay-info__method { padding: 18px; }
+	.pay-info__logos img { height: 24px; }
+	.pay-info .legal-text.pay-info__text { padding: 20px 16px 24px; font-size: 14px; line-height: 1.6; border-radius: var(--radius, 12px); }
+	.pay-info__text h3 { font-size: 15px; line-height: 1.35; }
+	.pay-info__text ol, .pay-info__text ul { padding-left: 20px; }
+	.pay-info__text a { word-break: break-word; }
 }
 </style>
 <?require($_SERVER["DOCUMENT_ROOT"]."/bitrix/footer.php");?>
