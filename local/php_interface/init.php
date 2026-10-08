@@ -2,6 +2,11 @@
 require_once __DIR__ . '/lib/autoload.php';
 require_once __DIR__ . '/events/order_location_handler.php';
 require_once __DIR__ . '/include/order_actions.php';
+require_once __DIR__ . '/include/supply_agreement.php';
+
+// Подписанное при оформлении Соглашение на поставку — вложением в письмо о
+// новом заказе (SALE_NEW_ORDER), см. include/supply_agreement.php.
+AddEventHandler("main", "OnBeforeEventAdd", "attachSupplyAgreementToOrderMail");
 
 AddEventHandler("catalog", "OnProductUpdate", "syncInStockProperty");
 AddEventHandler("catalog", "OnProductAdd", "syncInStockProperty");

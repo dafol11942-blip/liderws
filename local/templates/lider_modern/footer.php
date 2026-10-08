@@ -29,6 +29,7 @@
                 <a href="/klientam/delivery/">Доставка</a>
                 <a href="/klientam/oplata/">Оплата</a>
                 <a href="/klientam/garantiya-i-vozvrat/">Гарантия и возврат</a>
+                <a href="/klientam/soglashenie-o-postavke/">Соглашение на поставку</a>
                 <a href="/podbor-po-vin/">Подбор по VIN</a>
                 <a href="/soglasie/">Обработка персональных данных</a>
                 <a href="/rekvizity/">Юридическая информация</a>

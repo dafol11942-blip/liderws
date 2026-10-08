@@ -578,6 +578,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
         return;
     }
 
+    // Соглашение на поставку (include/supply_agreement.php) — подписывается
+    // простой электронной подписью этим же чекбоксом, обязательно для любого
+    // заказа. Через $GLOBALS — шаблон выполняется не в глобальной области.
+    if (($_POST['agree_supply'] ?? '') !== 'Y') {
+        $GLOBALS['orderSupplyAgreementError'] = true;
+        return;
+    }
+
     // Товар под заказ у поставщика заказываем только после оплаты — наличными
     // при получении такой заказ оформить нельзя (форма прячет этот способ,
     // здесь дублируем проверку на сервере). Через $GLOBALS — шаблон компонента
@@ -665,6 +673,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
         $orderPayment->setField('SUM', $order->getPrice());
     }
 
+    // Реквизиты подписания Соглашения — снимаем сейчас: письмо о новом заказе
+    // уходит прямо внутри $order->save(), и обработчик OnBeforeEventAdd
+    // (attachSupplyAgreementToOrderMail()) прикладывает к нему экземпляр.
+    $GLOBALS['SUPPLY_AGREEMENT_PENDING'] = [
+        'ORDER'      => $order,
+        'ACCEPTANCE' => buildSupplyAgreementAcceptance(),
+    ];
+
     // Сохраняем
     $result = $order->save();
 
@@ -735,6 +751,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirmorder']) && $_
                 logSupplierOrderDispatch("Заказ №{$orderId}: не удалось записать согласие на невозврат в историю — " . $e->getMessage());
             }
         }
+
+        // Подписанный экземпляр Соглашения — если письмо о заказе не ушло
+        // (уведомления выключены и т.п.), сохраняем его здесь. Контрольная сумма
+        // файла — в историю заказа: по ней доказывается неизменность экземпляра.
+        $supplyAgreement = ensureSupplyAgreementStored() ?? [];
+        $supplyAcceptance = $GLOBALS['SUPPLY_AGREEMENT_PENDING']['ACCEPTANCE'] ?? [];
+        try {
+            CModule::IncludeModule('sale');
+            \Bitrix\Sale\OrderHistory::addAction(
+                'SALE_ORDER',
+                $orderId,
+                'SUPPLY_AGREEMENT_SIGNED',
+                $orderId,
+                null,
+                [
+                    'MESSAGE'    => 'Клиент подписал Соглашение на поставку (ред. ' . ($supplyAcceptance['VERSION'] ?? '') . ') простой электронной подписью при оформлении заказа.',
+                    'SIGNED_AT'  => $supplyAcceptance['SIGNED_AT'] ?? '',
+                    'IP'         => $supplyAcceptance['IP'] ?? '',
+                    'USER_ID'    => $supplyAcceptance['USER_ID'] ?? 0,
+                    'TERMS_HASH' => $supplyAcceptance['TERMS_HASH'] ?? '',
+                    'FILE_ID'    => $supplyAgreement['FILE_ID'] ?? 0,
+                    'FILE_HASH'  => $supplyAgreement['HASH'] ?? '',
+                    'MAILED'     => !empty($GLOBALS['SUPPLY_AGREEMENT_PENDING']['MAILED']),
+                    'ERROR'      => $supplyAgreement['ERROR'] ?? '',
+                ]
+            );
+        } catch (\Throwable $e) {
+            logSupplierOrderDispatch("Заказ №{$orderId}: не удалось записать подписание Соглашения в историю — " . $e->getMessage());
+        }
+        if (empty($supplyAgreement['FILE_ID'])) {
+            logSupplierOrderDispatch("Заказ №{$orderId}: экземпляр Соглашения не сохранён — " . ($supplyAgreement['ERROR'] ?? 'неизвестная ошибка'));
+        }
+        unset($GLOBALS['SUPPLY_AGREEMENT_PENDING']);
 
         file_put_contents(
             $_SERVER['DOCUMENT_ROOT'] . '/upload/debug_order.log',

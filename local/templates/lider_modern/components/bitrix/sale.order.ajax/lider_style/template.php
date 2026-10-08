@@ -384,6 +384,12 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
             Для оформления заказа необходимо согласие на обработку персональных данных.
         </div>
         <?php endif; ?>
+        <?php if (!empty($GLOBALS['orderSupplyAgreementError'])): ?>
+        <div class="checkout-error">
+            <svg class="icon"><use href="#icon-alert"></use></svg>
+            Для оформления заказа необходимо согласие с Соглашением на поставку автозапчастей и аксессуаров.
+        </div>
+        <?php endif; ?>
 
         <form name="ORDER_FORM" id="ORDER_FORM" method="post" action=""
               onsubmit="return validateForm()">
@@ -928,6 +934,11 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                         </label>
                         <?php endif; ?>
 
+                        <label class="pd-consent" id="agree_supply_label">
+                            <input type="checkbox" name="agree_supply" id="agree_supply" value="Y" required>
+                            <span>Я ознакомлен(а) и согласен(на) с условиями <a href="<?= SUPPLY_AGREEMENT_URL ?>" target="_blank">Соглашения на поставку автозапчастей и аксессуаров</a> и подписываю его простой электронной подписью. Экземпляр придёт на e-mail вместе с письмом о заказе</span>
+                        </label>
+
                         <label class="pd-consent" id="agree_pd_label">
                             <input type="checkbox" name="agree_pd" id="agree_pd" value="Y" required>
                             <span>Я согласен(на) с условиями <a href="/soglasie/" target="_blank">Политики обработки персональных данных</a> и даю согласие на обработку моих персональных данных</span>
@@ -938,7 +949,7 @@ $renderConfirmPay = function () use ($confirmPayHtml) {
                             Оформить заказ
                         </button>
                         <p class="checkout-agreement">
-                            Нажимая «Оформить заказ», вы соглашаетесь с условиями <a href="/soglasie/" target="_blank">обработки персональных данных</a>
+                            Нажимая «Оформить заказ», вы соглашаетесь с условиями <a href="<?= SUPPLY_AGREEMENT_URL ?>" target="_blank">Соглашения на поставку</a> и <a href="/soglasie/" target="_blank">обработки персональных данных</a>
                         </p>
                     </div>
                 </div>
@@ -1317,6 +1328,12 @@ function validateForm() {
     if (agreeNoReturn && !agreeNoReturn.checked) {
         alert('Подтвердите, что вы ознакомлены с невозвратным товаром в заказе');
         agreeNoReturn.focus();
+        return false;
+    }
+    var agreeSupply = document.getElementById('agree_supply');
+    if (agreeSupply && !agreeSupply.checked) {
+        alert('Подтвердите согласие с Соглашением на поставку автозапчастей и аксессуаров');
+        agreeSupply.focus();
         return false;
     }
     var agreePd = document.getElementById('agree_pd');
