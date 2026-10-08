@@ -131,7 +131,21 @@ if (!function_exists('getOrderSwitchablePaySystems')) {
         try {
             $available = \Bitrix\Sale\PaySystem\Manager::getListWithRestrictions($payment);
         } catch (\Throwable $e) {
+            // Штатная проверка ограничений упала целиком — проверяем каждую
+            // активную систему по отдельности; если не удаётся проверить и её,
+            // ограничения не учитываем (лучше дать оплатить, чем не дать вовсе).
             $available = [];
+            $psRes = \Bitrix\Sale\PaySystem\Manager::getList(['filter' => ['=ACTIVE' => 'Y', '=ENTITY_REGISTRY_TYPE' => 'ORDER']]);
+            while ($ps = $psRes->fetch()) {
+                try {
+                    $severity = \Bitrix\Sale\Services\PaySystem\Restrictions\Manager::checkService((int)$ps['ID'], $payment);
+                } catch (\Throwable $e2) {
+                    $severity = \Bitrix\Sale\Services\PaySystem\Restrictions\Manager::SEVERITY_NONE;
+                }
+                if ($severity === \Bitrix\Sale\Services\PaySystem\Restrictions\Manager::SEVERITY_NONE) {
+                    $available[$ps['ID']] = $ps;
+                }
+            }
         }
         foreach ($available as $ps) {
             $id = (int)($ps['ID'] ?? 0);
