@@ -147,29 +147,6 @@ if ($hasSupplierItem && $payments) {
     }
     $payments = $filteredPayments;
 }
-// Список способов оплаты Битрикс строит под доставку, которую считает
-// выбранной (для заказного товара самовывоз он мог отсеять — см. выше — и
-// взять курьера), и ограничения платёжных систем по доставке оставляют там
-// только наличные, которые мы убрали. Заказ создаёт наш обработчик, эти
-// ограничения он не проверяет — добираем онлайн-оплату напрямую.
-if ($hasSupplierItem) {
-    $hasOnlinePay = false;
-    foreach ($payments as $pay) {
-        if (isOnlinePaySystem((int)($pay['ID'] ?? 0))) { $hasOnlinePay = true; break; }
-    }
-    if (!$hasOnlinePay) {
-        $psRes = \Bitrix\Sale\PaySystem\Manager::getList([
-            'filter' => ['=ACTIVE' => 'Y'],
-            'select' => ['ID', 'NAME', 'LOGOTIP'],
-            'order'  => ['SORT' => 'ASC'],
-        ]);
-        while ($psRow = $psRes->fetch()) {
-            if (isOnlinePaySystem((int)$psRow['ID'])) {
-                $payments[] = ['ID' => $psRow['ID'], 'NAME' => $psRow['NAME'], 'LOGOTIP' => $psRow['LOGOTIP'], 'CHECKED' => 'N'];
-            }
-        }
-    }
-}
 // Если отмеченный по умолчанию способ скрыт — отмечаем первый оставшийся.
 if ($payments) {
     $hasChecked = false;
