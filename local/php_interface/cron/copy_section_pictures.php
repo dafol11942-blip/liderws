@@ -13,10 +13,14 @@
  * Правила:
  *  - трогаем только разделы новых веток БЕЗ своей картинки — загруженное
  *    вручную или из 1С не перезаписываем;
- *  - имена сравниваются без учёта регистра, ё/е и лишних пробелов;
+ *  - имена сравниваются без учёта регистра, ё/е и лишних пробелов; если
+ *    точной пары нет — ещё раз без слов «ВАЗ»/«Иномарки» (в старом каталоге
+ *    «Детали ДВС», в новом — «Детали ДВС ВАЗ»);
  *  - если в старом каталоге несколько разделов с таким именем (например,
  *    «Комплектующие» в разных ветках), берём тот, у кого больше совпадает
- *    цепочка родителей; при равенстве с разными картинками — пропускаем
+ *    цепочка родителей (сначала подряд от ближайшего, затем — сколько
+ *    вообще общих имён среди предков); при равенстве с разными картинками —
+ *    пропускаем
  *    и пишем в отчёт, чтобы решить вручную;
  *  - разделы без пары или без картинки в старом каталоге остаются как есть —
  *    сайт покажет для них иконку по названию (catalogSectionIcon()).
@@ -81,25 +85,40 @@ function loadSections(int $iblockId): array
     return $sections;
 }
 
-/** Сколько ближайших предков совпадает по имени подряд. */
+/** Имя без слов-меток ветки: «Детали ДВС ВАЗ» → «детали двс». */
+function looseSectionName(string $name): string
+{
+    $name = preg_replace('/(^|\s)(ваз|иномарки)(?=\s|$)/u', ' ', normSectionName($name));
+    return trim(preg_replace('/\s+/u', ' ', $name));
+}
+
+/**
+ * Похожесть цепочек предков: сколько ближайших совпадает подряд, при
+ * равенстве — сколько имён общих вообще (100 > максимальной глубины).
+ */
 function chainScore(array $a, array $b): int
 {
     $n = 0;
     while (isset($a[$n], $b[$n]) && $a[$n] === $b[$n]) {
         $n++;
     }
-    return $n;
+    return $n * 100 + count(array_intersect($a, $b));
 }
 
 echo ($apply ? '=== ПРИМЕНЕНИЕ ===' : '=== ПРОБНЫЙ ЗАПУСК (без --apply ничего не пишется) ===') . PHP_EOL;
 
 $old = loadSections(OLD_IBLOCK_ID);
 $oldByName = [];
+$oldByLooseName = [];
 foreach ($old as $id => $s) {
     if ($s['PICTURE'] > 0) {
         $oldByName[normSectionName($s['NAME'])][] = $id;
+        if (looseSectionName($s['NAME']) !== '') {
+            $oldByLooseName[looseSectionName($s['NAME'])][] = $id;
+        }
     }
 }
+$usedOld = [];
 echo 'Старый каталог: разделов ' . count($old) . ', с картинкой ' . array_sum(array_map('count', $oldByName)) . PHP_EOL;
 
 $stats = ['copied' => 0, 'has_own' => 0, 'no_match' => 0, 'ambiguous' => 0, 'error' => 0];
@@ -114,7 +133,9 @@ foreach (CATALOG_BRANCHES as $slug => $branch) {
             $stats['has_own']++;
             continue;
         }
-        $candidates = $oldByName[normSectionName($s['NAME'])] ?? [];
+        $candidates = $oldByName[normSectionName($s['NAME'])]
+            ?? $oldByLooseName[looseSectionName($s['NAME'])]
+            ?? [];
         if (!$candidates) {
             $stats['no_match']++;
             echo "  [нет пары]   #$id {$s['NAME']}" . PHP_EOL;
@@ -136,13 +157,15 @@ foreach (CATALOG_BRANCHES as $slug => $branch) {
         $pictures = array_unique(array_map(fn($oldId) => $old[$oldId]['PICTURE'], $best));
         if (count($pictures) > 1) {
             $stats['ambiguous']++;
-            echo "  [неоднозн.]  #$id {$s['NAME']} — подходят старые разделы #" . implode(', #', $best) . PHP_EOL;
+            $names = array_map(fn($oldId) => "#$oldId " . implode(' / ', array_reverse($old[$oldId]['CHAIN'])), $best);
+            echo "  [неоднозн.]  #$id {$s['NAME']} — подходят старые разделы в: " . implode('; ', $names) . PHP_EOL;
             continue;
         }
 
         $oldId = $best[0];
+        $usedOld[$oldId] = true;
         $path = CFile::GetPath($old[$oldId]['PICTURE']);
-        echo "  [копия]      #$id {$s['NAME']} ← старый #$oldId ($path)" . PHP_EOL;
+        echo "  [копия]      #$id {$s['NAME']} ← старый #$oldId «{$old[$oldId]['NAME']}» ($path)" . PHP_EOL;
         if (!$apply) {
             $stats['copied']++;
             continue;
@@ -160,6 +183,16 @@ foreach (CATALOG_BRANCHES as $slug => $branch) {
         } else {
             $stats['error']++;
             echo '    ОШИБКА: ' . $section->LAST_ERROR . PHP_EOL;
+        }
+    }
+}
+
+echo PHP_EOL . '--- Старые разделы с картинкой, которым не нашлось пары ---' . PHP_EOL;
+foreach ($oldByName as $ids) {
+    foreach ($ids as $oldId) {
+        if (empty($usedOld[$oldId])) {
+            $chain = implode(' / ', array_reverse($old[$oldId]['CHAIN']));
+            echo "  #$oldId {$old[$oldId]['NAME']}" . ($chain !== '' ? "  (в: $chain)" : '') . PHP_EOL;
         }
     }
 }
