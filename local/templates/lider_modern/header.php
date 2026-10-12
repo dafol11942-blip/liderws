@@ -193,7 +193,7 @@ function pickCatalogNavIcon(string $name): string {
                                     <?php if (!empty($sub['PICTURE'])): ?>
                                         <img src="<?= CFile::GetPath($sub['PICTURE']) ?>" alt="">
                                     <?php else: ?>
-                                        <svg class="icon"><use href="#icon-box"></use></svg>
+                                        <svg class="icon"><use href="#<?= catalogSectionIcon((string)$sub['~NAME']) ?>"></use></svg>
                                     <?php endif; ?>
                                 </span>
                                 <span class="catalog-dropdown__tile-name"><?= htmlspecialchars($sub['NAME']) ?></span>
