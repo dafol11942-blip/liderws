@@ -338,7 +338,13 @@ function getFavoritesCount(int $userId): int
     if ($userId <= 0) return 0;
     try {
         $db  = \Bitrix\Main\Application::getConnection();
-        $row = $db->query("SELECT COUNT(*) AS CNT FROM b_user_favorites WHERE USER_ID = {$userId}")->fetch();
+        // Позиции каталога считаем только по активным товарам — personal/favorites/index.php
+        // удалённые/снятые с публикации тихо пропускает, иначе счётчик в шапке не совпадает со списком.
+        $row = $db->query(
+            "SELECT COUNT(*) AS CNT FROM b_user_favorites f"
+            . " LEFT JOIN b_iblock_element e ON e.ID = f.PRODUCT_ID"
+            . " WHERE f.USER_ID = {$userId} AND (f.TYPE <> 'catalog' OR e.ACTIVE = 'Y')"
+        )->fetch();
         return (int)($row['CNT'] ?? 0);
     } catch (\Throwable $e) {
         return 0;
