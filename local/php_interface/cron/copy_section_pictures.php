@@ -20,13 +20,20 @@
  *    «Комплектующие» в разных ветках), берём тот, у кого больше совпадает
  *    цепочка родителей (сначала подряд от ближайшего, затем — сколько
  *    вообще общих имён среди предков); при равенстве с разными картинками —
- *    пропускаем
- *    и пишем в отчёт, чтобы решить вручную;
+ *    пропускаем и пишем в отчёт, чтобы решить вручную;
+ *  - в старом каталоге запчасти ВАЗ лежат под «ВАЗ» #1499, а иномарки — под
+ *    «Каталог товаров … / ВАЗ» #1730 (так назвала 1С, хотя внутри иномарки —
+ *    «Электрика Иномарки», «Ковры» и т.п.), поэтому раздел из своей старой
+ *    ветки важнее совпадения цепочки имён (OLD_BRANCH_ROOTS);
+ *  - корневые и служебные разделы веток («Товарный запас», «ВАЗ»,
+ *    «Иномарки», «Масла и технические жидкости [ВАЗ|Иномарки]») не трогаем:
+ *    оформление корня каталога задаётся в catalog/branches.php;
  *  - разделы без пары или без картинки в старом каталоге остаются как есть —
  *    сайт покажет для них иконку по названию (catalogSectionIcon()).
  */
 
 const OLD_IBLOCK_ID = 42;
+const OLD_BRANCH_ROOTS = ['vaz' => 1499, 'inomarki' => 1730];
 
 $docRoot = realpath(__DIR__ . '/../../..');
 $apply = in_array('--apply', $argv ?? [], true);
@@ -53,8 +60,8 @@ function normSectionName(string $name): string
 }
 
 /**
- * Все разделы инфоблока: [id => ['NAME', 'PARENT', 'PICTURE', 'CHAIN']],
- * CHAIN — нормализованные имена предков от ближайшего к корню.
+ * Все разделы инфоблока: [id => ['NAME', 'PARENT', 'PICTURE', 'CHAIN', 'ANCESTORS']],
+ * CHAIN — нормализованные имена предков от ближайшего к корню, ANCESTORS — их ID.
  */
 function loadSections(int $iblockId): array
 {
@@ -74,12 +81,15 @@ function loadSections(int $iblockId): array
     }
     foreach ($sections as $id => &$s) {
         $chain = [];
+        $ancestors = [];
         $p = $s['PARENT'];
         while ($p && isset($sections[$p]) && count($chain) < 20) {
             $chain[] = normSectionName($sections[$p]['NAME']);
+            $ancestors[] = $p;
             $p = $sections[$p]['PARENT'];
         }
         $s['CHAIN'] = $chain;
+        $s['ANCESTORS'] = $ancestors;
     }
     unset($s);
     return $sections;
@@ -124,11 +134,22 @@ echo 'Старый каталог: разделов ' . count($old) . ', с ка
 $stats = ['copied' => 0, 'has_own' => 0, 'no_match' => 0, 'ambiguous' => 0, 'error' => 0];
 $section = new CIBlockSection();
 
+// Корневые/служебные разделы веток — без картинок из старого каталога.
+$skipLooseNames = ['', 'товарный запас'];
+foreach (CATALOG_BRANCHES as $branch) {
+    $skipLooseNames[] = looseSectionName($branch['name']);
+}
+
 foreach (CATALOG_BRANCHES as $slug => $branch) {
     $new = loadSections((int)$branch['id']);
+    $oldRoot = OLD_BRANCH_ROOTS[$slug] ?? 0;
     echo PHP_EOL . '--- ' . $branch['name'] . ' (инфоблок ' . $branch['id'] . ', разделов ' . count($new) . ') ---' . PHP_EOL;
 
     foreach ($new as $id => $s) {
+        if (in_array(looseSectionName($s['NAME']), $skipLooseNames, true)) {
+            echo "  [корень]     #$id {$s['NAME']} — пропуск" . PHP_EOL;
+            continue;
+        }
         if ($s['PICTURE'] > 0) {
             $stats['has_own']++;
             continue;
@@ -142,11 +163,12 @@ foreach (CATALOG_BRANCHES as $slug => $branch) {
             continue;
         }
 
-        // Лучший кандидат по совпадению цепочки родителей.
+        // Лучший кандидат: сначала из своей старой ветки, затем по цепочке родителей.
         $best = [];
         $bestScore = -1;
         foreach ($candidates as $oldId) {
-            $score = chainScore($s['CHAIN'], $old[$oldId]['CHAIN']);
+            $inOwnBranch = $oldRoot && ($oldId === $oldRoot || in_array($oldRoot, $old[$oldId]['ANCESTORS'], true));
+            $score = ($inOwnBranch ? 100000 : 0) + chainScore($s['CHAIN'], $old[$oldId]['CHAIN']);
             if ($score > $bestScore) {
                 $bestScore = $score;
                 $best = [$oldId];
