@@ -122,6 +122,65 @@ function catalogElementUrl(string $branch, array $element): string
     return $prefix . $code . '/';
 }
 
+// Иконка плитки раздела каталога, если у раздела нет картинки: подбираем
+// символ из svg-sprite.php по ключевому слову в названии. Порядок важен —
+// "Фаркоп и комплектующие" должен уйти в фаркоп, а не в общие
+// "Комплектующие", поэтому общие слова стоят в конце списка.
+function catalogSectionIcon(string $name): string
+{
+    static $map = [
+        'распродаж' => 'icon-tag',
+        'фаркоп'    => 'icon-cat-hitch',
+        'трансмисс' => 'icon-cat-gearbox',
+        'кпп'       => 'icon-cat-gearbox',
+        'раздат'    => 'icon-cat-gearbox',
+        'сцеплен'   => 'icon-cat-gearbox',
+        'тормоз'    => 'icon-disc',
+        'охлажд'    => 'icon-cat-cooling',
+        'радиатор'  => 'icon-cat-cooling',
+        'отоплен'   => 'icon-cat-heat',
+        'впуск'     => 'icon-cat-intake',
+        'выпуск'    => 'icon-cat-exhaust',
+        'глушит'    => 'icon-cat-exhaust',
+        'зажиган'   => 'icon-cat-spark',
+        'свеч'      => 'icon-cat-spark',
+        'двс'       => 'icon-cat-engine',
+        'двигател'  => 'icon-cat-engine',
+        'замок'     => 'icon-cat-lock',
+        'замки'     => 'icon-cat-lock',
+        'инструмент'=> 'icon-wrench',
+        'крепеж'    => 'icon-cat-bolt',
+        'крепёж'    => 'icon-cat-bolt',
+        'метиз'     => 'icon-cat-bolt',
+        'кузов'     => 'icon-car',
+        'насос'     => 'icon-cat-pump',
+        'подвеск'   => 'icon-cat-suspension',
+        'амортиз'   => 'icon-cat-suspension',
+        'привод'    => 'icon-cat-cv',
+        'шрус'      => 'icon-cat-cv',
+        'проклад'   => 'icon-cat-seal',
+        'сальник'   => 'icon-cat-seal',
+        'рулев'     => 'icon-cat-steering',
+        'пыльник'   => 'icon-cat-boot',
+        'электр'    => 'icon-cat-electric',
+        'датчик'    => 'icon-cat-electric',
+        'ламп'      => 'icon-cat-bulb',
+        'оптик'     => 'icon-cat-bulb',
+        'фильтр'    => 'icon-filter',
+        'масл'      => 'icon-droplet',
+        'жидкост'   => 'icon-droplet',
+        'аккумулят' => 'icon-battery',
+        'аксессуар' => 'icon-cat-accessory',
+        'комплект'  => 'icon-settings',
+    ];
+    foreach ($map as $needle => $icon) {
+        if (mb_stripos($name, $needle) !== false) {
+            return $icon;
+        }
+    }
+    return 'icon-folder';
+}
+
 // Инфоблок для служебных товаров-заглушек заказов у поставщиков (см.
 // local/ajax/order_from_supplier.php) — не связан с 1С-обменом, чтобы
 // синхронизация каталога не деактивировала/не удаляла эти элементы.

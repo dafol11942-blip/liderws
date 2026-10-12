@@ -456,7 +456,7 @@ $arrFilter['>=CATALOG_QUANTITY'] = 1;
                 }
                 $subSectionsHtml .= '
                 <a href="' . $subUrl . '" class="category-card">
-                    <span class="category-card__icon">' . ($imgTag ?: '<svg class="icon"><use href="#icon-folder"></use></svg>') . '</span>
+                    <span class="category-card__icon">' . ($imgTag ?: '<svg class="icon"><use href="#' . catalogSectionIcon((string)$sub['~NAME']) . '"></use></svg>') . '</span>
                     <span class="category-card__name">' . $sub['NAME'] . '</span>
                 </a>';
             }
@@ -536,7 +536,7 @@ $arrFilter['>=CATALOG_QUANTITY'] = 1;
                 }
                 $topHtml .= '
                 <a href="' . $topUrl . '" class="category-card">
-                    <span class="category-card__icon">' . ($imgTag ?: '<svg class="icon"><use href="#icon-folder"></use></svg>') . '</span>
+                    <span class="category-card__icon">' . ($imgTag ?: '<svg class="icon"><use href="#' . catalogSectionIcon((string)$top['~NAME']) . '"></use></svg>') . '</span>
                     <span class="category-card__name">' . $top['NAME'] . '</span>
                 </a>';
             }

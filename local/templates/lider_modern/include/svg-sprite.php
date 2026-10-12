@@ -184,4 +184,107 @@
         <rect x="3.5" y="13.5" width="7" height="7" rx="2"/>
         <rect x="13.5" y="13.5" width="7" height="7" rx="2"/>
     </symbol>
+    <!-- Иконки разделов каталога (см. catalogSectionIcon() в init.php) -->
+    <symbol id="icon-cat-engine" viewBox="0 0 24 24">
+        <rect x="5" y="8" width="13" height="11" rx="1"/>
+        <path d="M8 8V5h7v3"/>
+        <path d="M18 11h3v5h-3"/>
+        <path d="M5 11H2v5h3"/>
+        <line x1="9" y1="12" x2="14" y2="12"/>
+        <line x1="9" y1="15" x2="14" y2="15"/>
+    </symbol>
+    <symbol id="icon-cat-lock" viewBox="0 0 24 24">
+        <rect x="5" y="11" width="14" height="10" rx="2"/>
+        <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+        <line x1="12" y1="15" x2="12" y2="17"/>
+    </symbol>
+    <symbol id="icon-cat-gearbox" viewBox="0 0 24 24">
+        <circle cx="5" cy="5" r="2"/>
+        <circle cx="12" cy="5" r="2"/>
+        <circle cx="19" cy="5" r="2"/>
+        <circle cx="5" cy="19" r="2"/>
+        <circle cx="12" cy="19" r="2"/>
+        <path d="M5 7v10M12 7v10M19 7v5H5"/>
+    </symbol>
+    <symbol id="icon-cat-bolt" viewBox="0 0 24 24">
+        <path d="M8 2h8l2 3-2 3H8L6 5z"/>
+        <path d="M10 8v13h4V8"/>
+        <path d="M10 12l4-1M10 15l4-1M10 18l4-1"/>
+    </symbol>
+    <symbol id="icon-cat-pump" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9"/>
+        <circle cx="12" cy="12" r="2"/>
+        <path d="M12 10c0-3 2-5 4-5M14 12c3 0 5 2 5 4M12 14c0 3-2 5-4 5M10 12c-3 0-5-2-5-4"/>
+    </symbol>
+    <symbol id="icon-cat-heat" viewBox="0 0 24 24">
+        <path d="M7 3c-1.5 1.7-1.5 3.3 0 5s1.5 3.3 0 5"/>
+        <path d="M12 3c-1.5 1.7-1.5 3.3 0 5s1.5 3.3 0 5"/>
+        <path d="M17 3c-1.5 1.7-1.5 3.3 0 5s1.5 3.3 0 5"/>
+        <rect x="3" y="16" width="18" height="5" rx="1"/>
+    </symbol>
+    <symbol id="icon-cat-cooling" viewBox="0 0 24 24">
+        <path d="M14 14.76V4a2 2 0 0 0-4 0v10.76a4 4 0 1 0 4 0z"/>
+        <line x1="12" y1="9" x2="12" y2="16"/>
+        <path d="M17 6h3M17 10h3M17 14h2"/>
+    </symbol>
+    <symbol id="icon-cat-suspension" viewBox="0 0 24 24">
+        <line x1="6" y1="3" x2="18" y2="3"/>
+        <line x1="6" y1="21" x2="18" y2="21"/>
+        <path d="M8 5l8 2-8 2.5 8 2.5-8 2.5 8 2.5-8 2"/>
+    </symbol>
+    <symbol id="icon-cat-cv" viewBox="0 0 24 24">
+        <circle cx="5" cy="12" r="3"/>
+        <circle cx="19" cy="12" r="3"/>
+        <line x1="8" y1="12" x2="16" y2="12"/>
+        <path d="M2 8v8M22 8v8"/>
+    </symbol>
+    <symbol id="icon-cat-seal" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9"/>
+        <circle cx="12" cy="12" r="5"/>
+    </symbol>
+    <symbol id="icon-cat-steering" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9"/>
+        <circle cx="12" cy="12" r="2"/>
+        <path d="M3 12h7M14 12h7M12 14v7"/>
+    </symbol>
+    <symbol id="icon-cat-electric" viewBox="0 0 24 24">
+        <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>
+    </symbol>
+    <symbol id="icon-cat-boot" viewBox="0 0 24 24">
+        <line x1="8" y1="3" x2="16" y2="3"/>
+        <line x1="8" y1="21" x2="16" y2="21"/>
+        <path d="M8 3 6 6l4 3-5 3 5 3-4 3 2 3"/>
+        <path d="M16 3l2 3-4 3 5 3-5 3 4 3-2 3"/>
+    </symbol>
+    <symbol id="icon-cat-intake" viewBox="0 0 24 24">
+        <path d="M3 8h11a3 3 0 1 0-3-3"/>
+        <path d="M3 12h16a3 3 0 1 1-3 3"/>
+        <path d="M3 16h7"/>
+    </symbol>
+    <symbol id="icon-cat-exhaust" viewBox="0 0 24 24">
+        <rect x="2" y="12" width="12" height="6" rx="3"/>
+        <path d="M14 15h4"/>
+        <circle cx="20" cy="11" r="1.5"/>
+        <circle cx="21" cy="6" r="1"/>
+    </symbol>
+    <symbol id="icon-cat-spark" viewBox="0 0 24 24">
+        <path d="M11 2h2v3h-2z"/>
+        <path d="M9.5 5h5l-.5 6h-4z"/>
+        <path d="M8 11h8v3H8z"/>
+        <path d="M10 14v5h4v-5"/>
+        <path d="M12 19v2h2"/>
+    </symbol>
+    <symbol id="icon-cat-hitch" viewBox="0 0 24 24">
+        <circle cx="17" cy="6" r="3"/>
+        <path d="M17 9v5H4"/>
+        <path d="M4 10v8"/>
+    </symbol>
+    <symbol id="icon-cat-bulb" viewBox="0 0 24 24">
+        <path d="M9 18h6M10 21h4"/>
+        <path d="M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/>
+    </symbol>
+    <symbol id="icon-cat-accessory" viewBox="0 0 24 24">
+        <path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z"/>
+        <path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>
+    </symbol>
 </svg>
