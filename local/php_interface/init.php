@@ -122,6 +122,38 @@ function catalogElementUrl(string $branch, array $element): string
     return $prefix . $code . '/';
 }
 
+// Картинка раздела для товара без своего фото: берём PICTURE раздела товара,
+// а если её нет — ближайшего родителя с картинкой. Ничего не пишем в товар:
+// как только 1С зальёт товару своё фото, шаблоны покажут его. Кэш на запрос —
+// в листинге у товаров обычно один-два общих раздела.
+function catalogSectionPicture(int $sectionId): string
+{
+    static $cache = [];
+    $visited = [];
+    $src = '';
+    $id = $sectionId;
+    while ($id > 0 && count($visited) < 20) {
+        if (array_key_exists($id, $cache)) {
+            $src = $cache[$id];
+            break;
+        }
+        $visited[] = $id;
+        $row = CIBlockSection::GetList([], ['ID' => $id, 'CHECK_PERMISSIONS' => 'N'], false, ['ID', 'IBLOCK_SECTION_ID', 'PICTURE'])->Fetch();
+        if (!$row) {
+            break;
+        }
+        if ((int)$row['PICTURE'] > 0) {
+            $src = (string)CFile::GetPath((int)$row['PICTURE']);
+            break;
+        }
+        $id = (int)$row['IBLOCK_SECTION_ID'];
+    }
+    foreach ($visited as $v) {
+        $cache[$v] = $src;
+    }
+    return $src;
+}
+
 // Иконка плитки раздела каталога, если у раздела нет картинки: подбираем
 // символ из svg-sprite.php по ключевому слову в названии. Порядок важен —
 // "Фаркоп и комплектующие" должен уйти в фаркоп, а не в общие

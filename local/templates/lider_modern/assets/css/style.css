@@ -1905,6 +1905,14 @@ body.catalog-filter-locked { overflow: hidden; }
 .lightbox__nav--prev .icon { transform: rotate(90deg); }
 .lightbox__nav--next { right: 16px; }
 .lightbox__nav--next .icon { transform: rotate(-90deg); }
+.lightbox--single .lightbox__nav { display: none; }
+.lightbox__caption { position: absolute; left: 16px; right: 16px; bottom: 16px; display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; color: #fff; font-size: 14px; text-align: center; }
+.lightbox--open .lightbox__img { touch-action: pinch-zoom; }
+.lightbox--single .lightbox__img { max-height: 76vh; }
+/* Увеличение фото товара (лайтбокс выше): курсор-лупа на фото в списке и на детальной */
+.js-zoom { cursor: zoom-in; }
+.product-detail__zoom { display: flex; align-items: center; justify-content: center; position: relative; }
+.product-detail__zoom-hint { position: absolute; right: 0; bottom: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--blue-soft); color: var(--blue); display: flex; align-items: center; justify-content: center; }
 
 @media (max-width: 768px) {
     .photo-gallery { grid-template-columns: repeat(2, 1fr); gap: 8px; }

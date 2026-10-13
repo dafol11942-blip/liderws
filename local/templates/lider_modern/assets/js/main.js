@@ -366,6 +366,10 @@ function updateBasketItem(id, quantity) {
 
 // Лайтбокс для фотогалерей: клик по миниатюре в любом .photo-gallery
 // открывает полноразмерное фото с навигацией стрелками/клавиатурой.
+// Он же — увеличение одиночного фото товара (.js-zoom: карточка в списке и
+// детальная). Фото берётся из data-zoom-src (иначе из href); если задан
+// data-product-href — в лайтбоксе кнопка «Перейти к товару» (в списке клик
+// по фото открывает увеличение, а не карточку).
 (function() {
     var gallery = null;
     var items = [];
@@ -379,7 +383,8 @@ function updateBasketItem(id, quantity) {
             '<button type="button" class="lightbox__close" aria-label="Закрыть"><svg class="icon"><use href="#icon-x"></use></svg></button>' +
             '<button type="button" class="lightbox__nav lightbox__nav--prev" aria-label="Предыдущее фото"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>' +
             '<img class="lightbox__img" src="" alt="">' +
-            '<button type="button" class="lightbox__nav lightbox__nav--next" aria-label="Следующее фото"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>';
+            '<button type="button" class="lightbox__nav lightbox__nav--next" aria-label="Следующее фото"><svg class="icon"><use href="#icon-chevron-down"></use></svg></button>' +
+            '<div class="lightbox__caption"><span class="lightbox__title"></span><a class="lightbox__link btn btn--primary btn--sm" href="">Перейти к товару</a></div>';
         document.body.appendChild(overlay);
 
         overlay.addEventListener('click', function(e) {
@@ -393,13 +398,20 @@ function updateBasketItem(id, quantity) {
     function show(i) {
         index = (i + items.length) % items.length;
         var link = items[index];
-        overlay.querySelector('.lightbox__img').src = link.getAttribute('href');
-        overlay.querySelector('.lightbox__img').alt = link.getAttribute('data-caption') || '';
+        var caption = link.getAttribute('data-caption') || '';
+        var productHref = link.getAttribute('data-product-href') || '';
+        overlay.querySelector('.lightbox__img').src = link.getAttribute('data-zoom-src') || link.getAttribute('href');
+        overlay.querySelector('.lightbox__img').alt = caption;
+        overlay.querySelector('.lightbox__title').textContent = link.classList.contains('js-zoom') ? caption : '';
+        overlay.querySelector('.lightbox__link').href = productHref || '#';
+        overlay.querySelector('.lightbox__link').style.display = productHref ? '' : 'none';
+        overlay.querySelector('.lightbox__caption').style.display = (productHref || link.classList.contains('js-zoom')) && (caption || productHref) ? '' : 'none';
     }
 
     function open(clickedItems, startIndex) {
         if (!overlay) build();
         items = clickedItems;
+        overlay.classList.toggle('lightbox--single', items.length < 2);
         show(startIndex);
         overlay.classList.add('lightbox--open');
         document.body.style.overflow = 'hidden';
@@ -412,6 +424,12 @@ function updateBasketItem(id, quantity) {
     }
 
     document.addEventListener('click', function(e) {
+        var zoom = e.target.closest('.js-zoom');
+        if (zoom) {
+            e.preventDefault();
+            open([zoom], 0);
+            return;
+        }
         var link = e.target.closest('.photo-gallery__item');
         if (!link) return;
         e.preventDefault();

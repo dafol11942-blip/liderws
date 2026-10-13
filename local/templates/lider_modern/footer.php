@@ -81,7 +81,7 @@
         <span>Наверх</span>
     </button>
 
-    <script src="<?= SITE_TEMPLATE_PATH ?>/assets/js/main.js"></script>
+    <script src="<?= SITE_TEMPLATE_PATH ?>/assets/js/main.js?v=<?= @filemtime($_SERVER['DOCUMENT_ROOT'] . SITE_TEMPLATE_PATH . '/assets/js/main.js') ?: '1' ?>"></script>
     <script src="<?= SITE_TEMPLATE_PATH ?>/assets/js/favorites.js"></script>
 </body>
 </html>

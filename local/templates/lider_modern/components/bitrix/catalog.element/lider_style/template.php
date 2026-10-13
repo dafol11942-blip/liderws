@@ -2,12 +2,18 @@
 
 $item = $arResult;
 
-$img = SITE_TEMPLATE_PATH . '/assets/images/no-photo.png';
+// Нет своего фото — картинка раздела (catalogSectionPicture() в init.php):
+// показываем, но не увеличиваем и не отдаём в schema.org как фото товара.
+// Появится фото из 1С — оно сразу займёт место картинки раздела.
+$ownImg = '';
 if (!empty($item['DETAIL_PICTURE']['SRC'])) {
-    $img = $item['DETAIL_PICTURE']['SRC'];
+    $ownImg = $item['DETAIL_PICTURE']['SRC'];
 } elseif (!empty($item['PREVIEW_PICTURE']['SRC'])) {
-    $img = $item['PREVIEW_PICTURE']['SRC'];
+    $ownImg = $item['PREVIEW_PICTURE']['SRC'];
 }
+$img = $ownImg
+    ?: catalogSectionPicture((int)($item['IBLOCK_SECTION_ID'] ?? 0))
+    ?: SITE_TEMPLATE_PATH . '/assets/images/no-photo.png';
 
 $price    = $item['ITEM_PRICES'][0]['PRICE'] ?? 0;
 $oldPrice = $item['ITEM_PRICES'][0]['BASE_PRICE'] ?? 0;
@@ -51,8 +57,8 @@ $productLd = [
     'url' => $productUrl,
     'category' => \Lider\Seo\Seo::text($item['SECTION']['NAME'] ?? ''),
 ];
-if (strpos($img, 'no-photo') === false) {
-    $productLd['image'] = \Lider\Seo\Seo::absUrl($img);
+if ($ownImg !== '') {
+    $productLd['image'] = \Lider\Seo\Seo::absUrl($ownImg);
 }
 if ($article !== '') {
     $productLd['sku'] = \Lider\Seo\Seo::text($article);
@@ -85,7 +91,14 @@ $productLd = array_filter($productLd, static function ($v) { return $v !== '' &&
 
 <div class="product-detail">
     <div class="product-detail__gallery">
-        <img src="<?= $img ?>" alt="<?= htmlspecialchars($item['NAME']) ?>">
+        <?php if ($ownImg !== ''): ?>
+            <a href="<?= htmlspecialchars($ownImg) ?>" class="product-detail__zoom js-zoom" data-caption="<?= htmlspecialchars($item['~NAME'] ?? $item['NAME']) ?>" title="Увеличить фото">
+                <img src="<?= $img ?>" alt="<?= htmlspecialchars($item['NAME']) ?>">
+                <span class="product-detail__zoom-hint"><svg class="icon"><use href="#icon-search"></use></svg></span>
+            </a>
+        <?php else: ?>
+            <img src="<?= $img ?>" alt="<?= htmlspecialchars($item['NAME']) ?>">
+        <?php endif; ?>
     </div>
 
     <div class="product-detail__info">

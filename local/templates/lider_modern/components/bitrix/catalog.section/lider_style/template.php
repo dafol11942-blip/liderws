@@ -19,12 +19,17 @@ $favCatalogIds = $USER->IsAuthorized()
         // старого импорта в низком разрешении, а DETAIL_PICTURE позже
         // перезалит нормальным фото (см. import_images.php) — так же
         // выбирается картинка и на детальной (catalog.element).
-        $img = SITE_TEMPLATE_PATH . '/assets/images/no-photo.png';
+        // Нет своего фото — картинка раздела (catalogSectionPicture() в
+        // init.php), её не увеличиваем: клик ведёт в карточку товара.
+        $ownImg = '';
         if (!empty($item['DETAIL_PICTURE']['SRC'])) {
-            $img = $item['DETAIL_PICTURE']['SRC'];
+            $ownImg = $item['DETAIL_PICTURE']['SRC'];
         } elseif (!empty($item['PREVIEW_PICTURE']['SRC'])) {
-            $img = $item['PREVIEW_PICTURE']['SRC'];
+            $ownImg = $item['PREVIEW_PICTURE']['SRC'];
         }
+        $img = $ownImg
+            ?: catalogSectionPicture((int)($item['IBLOCK_SECTION_ID'] ?: ($arResult['ID'] ?? 0)))
+            ?: SITE_TEMPLATE_PATH . '/assets/images/no-photo.png';
 
         $price = $item['ITEM_PRICES'][0]['PRICE'] ?? 0;
         $oldPrice = $item['ITEM_PRICES'][0]['BASE_PRICE'] ?? 0;
@@ -45,9 +50,16 @@ $favCatalogIds = $USER->IsAuthorized()
                     title="В избранное" onclick="toggleFavorite(this)">
                 <svg class="icon<?= in_array($item['ID'], $favCatalogIds) ? ' icon--fill' : '' ?>"><use href="#icon-heart"></use></svg>
             </button>
+            <?php if ($ownImg !== ''): ?>
+            <a href="<?= $item['DETAIL_PAGE_URL'] ?>" class="js-zoom" data-zoom-src="<?= htmlspecialchars($ownImg) ?>"
+               data-product-href="<?= $item['DETAIL_PAGE_URL'] ?>" data-caption="<?= htmlspecialchars($item['~NAME'] ?? $item['NAME']) ?>">
+                <img src="<?= $img ?>" alt="<?= htmlspecialchars($item['NAME']) ?>" loading="lazy">
+            </a>
+            <?php else: ?>
             <a href="<?= $item['DETAIL_PAGE_URL'] ?>">
                 <img src="<?= $img ?>" alt="<?= htmlspecialchars($item['NAME']) ?>" loading="lazy">
             </a>
+            <?php endif; ?>
         </div>
         <div class="product-card__body">
             <?php if ($brand !== ''): ?>
