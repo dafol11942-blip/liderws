@@ -14,10 +14,14 @@
  * Запуск:
  *   /usr/bin/php /var/www/u3564357/data/www/liderws.ru/local/php_interface/cron/diag_catalog_sections.php
  *   ... diag_catalog_sections.php maslo     — только одна ветка
+ *   ... diag_catalog_sections.php maslo --tree — плюс всё дерево разделов
+ *       с числом товаров: с подразделами / прямо в разделе / в наличии
  */
 
 $docRoot = realpath(__DIR__ . '/../../..');
-$onlyBranch = $argv[1] ?? '';
+$args = array_slice($argv ?? [], 1);
+$showTree = in_array('--tree', $args, true);
+$onlyBranch = (string)(array_values(array_diff($args, ['--tree']))[0] ?? '');
 
 ob_start();
 try {
@@ -79,6 +83,16 @@ foreach (CATALOG_BRANCHES as $slug => $branch) {
     echo PHP_EOL . '-- Верхний уровень --' . PHP_EOL;
     foreach ($sections as $id => $s) {
         if ((int)$s['IBLOCK_SECTION_ID'] === 0) echo '  ' . $line($id) . PHP_EOL;
+    }
+
+    if ($showTree) {
+        echo PHP_EOL . '-- Дерево разделов: с подразделами / прямо в разделе / в наличии --' . PHP_EOL;
+        foreach ($sections as $id => $s) {
+            $direct = (int)CIBlockElement::GetList([], ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => $id, 'ACTIVE' => 'Y'], []);
+            printf("%s#%d «%s» code=%s active=%s | %d / %d / %d\n",
+                str_repeat('  ', (int)$s['DEPTH_LEVEL']), $id, $s['NAME'], $s['CODE'] ?: '—', $s['ACTIVE'],
+                diagCount($iblockId, $id, false), $direct, diagCount($iblockId, $id, true));
+        }
     }
 
     echo PHP_EOL . '-- Разделы с одинаковым CODE --' . PHP_EOL;

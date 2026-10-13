@@ -12,11 +12,11 @@
  * Применить:
  *   ... deactivate_old_maslo_sections.php --apply
  *
- * Что делает --apply: ставит этим разделам ACTIVE=N. Товары не трогает —
- * пробный запуск показывает по каждому товару, есть ли такой же (по
- * артикулу) в новом дереве любой ветки и когда товар последний раз
- * обновлялся: по этому видно, живые ли это позиции или остатки прежней
- * выгрузки. Старые адреса разделов после отключения уводятся 301-м на
+ * Что делает --apply: ставит этим разделам ACTIVE=N. С --apply --elements
+ * отключает и товары внутри них. Пробный запуск 13.10.2026 показал, что все
+ * 66 товаров — копии прежней выгрузки: последний раз обновлялись 28.09 (до
+ * нового обмена), у 60 есть живой двойник с тем же артикулом в ВАЗ /
+ * Иномарках, так что их остатки неактуальны. Старые адреса разделов после отключения уводятся 301-м на
  * раздел с тем же названием (catalog/index.php, $redirectOrNotFound).
  */
 
@@ -25,6 +25,7 @@ const OLD_SECTION_IDS = [2694, 2695, 2696, 2697, 2698, 2699];
 
 $docRoot = realpath(__DIR__ . '/../../..');
 $apply = in_array('--apply', $argv ?? [], true);
+$applyElements = $apply && in_array('--elements', $argv ?? [], true);
 
 ob_start();
 try {
@@ -81,6 +82,8 @@ function oldSectionTwins(int $elementId, string $article, string $name): array
 }
 
 $section = new CIBlockSection();
+$element = new CIBlockElement();
+$elementsOff = 0;
 $total = 0;
 $withTwin = 0;
 foreach (OLD_SECTION_IDS as $sectionId) {
@@ -106,6 +109,13 @@ foreach (OLD_SECTION_IDS as $sectionId) {
         printf("  #%d %s | арт. %s | остаток %s | обновлён %s | active=%s | %s\n",
             $el['ID'], $el['NAME'], $article ?: '—', (string)$el['CATALOG_QUANTITY'], $el['TIMESTAMP_X'], $el['ACTIVE'],
             $twins ? 'есть такой же: ' . implode(', ', $twins) : 'ДУБЛЯ НЕТ');
+        if ($applyElements && $el['ACTIVE'] === 'Y') {
+            if ($element->Update((int)$el['ID'], ['ACTIVE' => 'N'])) {
+                $elementsOff++;
+            } else {
+                echo '    ОШИБКА отключения товара: ' . $element->LAST_ERROR . PHP_EOL;
+            }
+        }
     }
 
     if ($apply && $s['ACTIVE'] === 'Y') {
@@ -118,6 +128,9 @@ foreach (OLD_SECTION_IDS as $sectionId) {
 }
 
 echo PHP_EOL . "Итого товаров в старых разделах: $total, из них есть такой же в новом дереве: $withTwin" . PHP_EOL;
+if ($applyElements) {
+    echo "Отключено товаров: $elementsOff" . PHP_EOL;
+}
 if (!$apply) {
     echo 'Разделы не тронуты. Для отключения запустите с --apply.' . PHP_EOL;
 }
