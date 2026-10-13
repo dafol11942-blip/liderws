@@ -1850,6 +1850,13 @@ body.catalog-filter-locked { overflow: hidden; }
     border-top: 1px solid var(--border) !important; margin-top: 6px;
     padding-top: 12px !important;
 }
+/* Фильтры / колодки: группы «ВАЗ» и «Иномарки» через разделитель */
+.nav-dropdown__group + .nav-dropdown__group { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
+.nav-dropdown a.nav-dropdown__group-title {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--black);
+}
+.nav-dropdown__group-title span { font-size: 12px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--blue); }
 
 /* =============================================
    УСЛУГИ АВТОСЕРВИСА (/autoservice/)

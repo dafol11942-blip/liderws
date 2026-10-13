@@ -285,29 +285,68 @@ function pickCatalogNavIcon(string $name): string {
                         <a href="/catalog/maslo/" class="nav-dropdown__all">Все масла и жидкости →</a>
                     </div>
                 </div>
+                <?php
+                // Фильтры и колодки есть и у ВАЗ, и у Иномарок — отдельными
+                // разделами в разных инфоблоках. Меню собираем из реальных
+                // подразделов (раньше адреса были прописаны вручную и часть не
+                // совпадала с кодами из 1С) и группируем по ветке: заголовок
+                // «ВАЗ» / «Иномарки» со ссылкой на родительский раздел, между
+                // группами разделитель. Родитель ищется среди разделов верхнего
+                // уровня ветки ($catalogNavSections из мегаменю выше) по имени
+                // без учёта регистра/пробелов; у колодок берём только колодки
+                // и диски — остальные узлы тормозной системы есть в каталоге.
+                $headerNavGroups = function (array $parentNames, string $itemPattern = '') use ($catalogNavSections): array {
+                    $norm = static fn($s) => mb_strtolower(trim(preg_replace('/\s+/u', ' ', (string)$s)));
+                    $groups = [];
+                    foreach ($catalogNavSections as $top) {
+                        $wanted = $parentNames[$top['SLUG']] ?? null;
+                        if ($wanted === null) continue;
+                        $parent = null;
+                        foreach ($top['SUBS'] as $sub) {
+                            if ($norm($sub['~NAME']) === $norm($wanted)) { $parent = $sub; break; }
+                        }
+                        if (!$parent) continue;
+                        $items = [];
+                        $res = CIBlockSection::GetList(
+                            ['SORT' => 'ASC', 'NAME' => 'ASC'],
+                            ['IBLOCK_ID' => CATALOG_BRANCHES[$top['SLUG']]['id'], 'SECTION_ID' => $parent['ID'], 'ACTIVE' => 'Y'],
+                            false,
+                            ['ID', 'NAME', 'CODE']
+                        );
+                        while ($row = $res->Fetch()) {
+                            if ($itemPattern !== '' && !preg_match($itemPattern, $row['NAME'])) continue;
+                            // «Передние колодки ВАЗ» под заголовком «ВАЗ» — без повтора ветки.
+                            $label = trim(preg_replace('/\s+/u', ' ', preg_replace('/(^|\s)(ВАЗ|Иномарки)(?=\s|$)/iu', ' ', $row['NAME'])));
+                            $items[] = ['NAME' => $label !== '' ? $label : $row['NAME'], 'URL' => '/catalog/' . $top['SLUG'] . '/' . $row['CODE'] . '/'];
+                        }
+                        $groups[] = [
+                            'TITLE' => $top['NAME'],
+                            'URL'   => '/catalog/' . $top['SLUG'] . '/' . $parent['CODE'] . '/',
+                            'ITEMS' => $items,
+                        ];
+                    }
+                    return $groups;
+                };
+                $headerNavMenus = [
+                    ['TITLE' => 'Фильтры', 'GROUPS' => $headerNavGroups(['vaz' => 'Фильтры ВАЗ', 'inomarki' => 'Фильтры'])],
+                    ['TITLE' => 'Тормозные колодки', 'GROUPS' => $headerNavGroups(['vaz' => 'Тормозная система ВАЗ', 'inomarki' => 'Тормозная система'], '/колодк|диск/iu')],
+                ];
+                ?>
+                <?php foreach ($headerNavMenus as $navMenu): if (!$navMenu['GROUPS']) continue; ?>
                 <div class="nav-dropdown-wrapper">
-                    <a href="/catalog/inomarki/filtry/">Фильтры</a>
-                    <div class="nav-dropdown">
-                        <a href="/catalog/inomarki/maslyanye_filtry/">Масляные фильтры</a>
-                        <a href="/catalog/inomarki/vozdushnye_filtry/">Воздушные фильтры</a>
-                        <a href="/catalog/inomarki/toplivnye_filtry/">Топливные фильтры</a>
-                        <a href="/catalog/inomarki/salonnye_filtry/">Салонные фильтры</a>
-                        <a href="/catalog/inomarki/akpp_filtry/">Фильтры АКПП</a>
-                        <a href="/catalog/vaz/filtry_vaz/">Фильтры ВАЗ</a>
-                        <a href="/catalog/inomarki/filtry/" class="nav-dropdown__all">Все фильтры →</a>
+                    <a href="<?= $navMenu['GROUPS'][0]['URL'] ?>"><?= $navMenu['TITLE'] ?></a>
+                    <div class="nav-dropdown nav-dropdown--grouped">
+                        <?php foreach ($navMenu['GROUPS'] as $group): ?>
+                            <div class="nav-dropdown__group">
+                                <a href="<?= $group['URL'] ?>" class="nav-dropdown__group-title"><?= htmlspecialchars($group['TITLE']) ?> <span>все →</span></a>
+                                <?php foreach ($group['ITEMS'] as $navItem): ?>
+                                    <a href="<?= htmlspecialchars($navItem['URL']) ?>"><?= htmlspecialchars($navItem['NAME']) ?></a>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endforeach; ?>
                     </div>
                 </div>
-                <div class="nav-dropdown-wrapper">
-                    <a href="/catalog/inomarki/tormoznaya_sistema/">Тормозные колодки</a>
-                    <div class="nav-dropdown">
-                        <a href="/catalog/inomarki/perednie_kolodki/">Передние колодки</a>
-                        <a href="/catalog/inomarki/zadnie_kolodki/">Задние колодки</a>
-                        <a href="/catalog/inomarki/kolodki_ruchnika/">Колодки ручника</a>
-                        <a href="/catalog/inomarki/diski_tormoznye/">Тормозные диски</a>
-                        <a href="/catalog/vaz/tormoznaya_sistema_vaz/">Тормозная система ВАЗ</a>
-                        <a href="/catalog/inomarki/tormoznaya_sistema/" class="nav-dropdown__all">Вся тормозная система →</a>
-                    </div>
-                </div>
+                <?php endforeach; ?>
                 <a href="/catalog/vaz/akb/">Аккумуляторы</a>
                 <div class="nav-dropdown-wrapper">
                     <a href="/autoservice/">Автосервис</a>
