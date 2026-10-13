@@ -273,43 +273,38 @@ function pickCatalogNavIcon(string $name): string {
             <nav class="header-nav__menu">
                 <a href="/podbor-po-vin/" class="header-nav__accent"><svg class="icon"><use href="#icon-car"></use></svg> Подбор по VIN</a>
                 <a href="/service-parts/" class="header-nav__accent"><svg class="icon"><use href="#icon-wrench"></use></svg> Запчасти для ТО</a>
-                <div class="nav-dropdown-wrapper">
-                    <a href="/catalog/maslo/">Масла</a>
-                    <div class="nav-dropdown">
-                        <a href="/catalog/maslo/maslo_motornoe/">Масло моторное</a>
-                        <a href="/catalog/maslo/maslo_transmissionnoe/">Масло трансмиссионное</a>
-                        <a href="/catalog/maslo/tormoznaya_zhidkost/">Тормозная жидкость</a>
-                        <a href="/catalog/maslo/okhlazhdayushchaya_zhidkost/">Охлаждающая жидкость</a>
-                        <a href="/catalog/maslo/zhidkost_gur/">Жидкость ГУР</a>
-                        <a href="/catalog/maslo/stekloomyvayushchaya_zhidkost/">Стеклоомывающая жидкость</a>
-                        <a href="/catalog/maslo/" class="nav-dropdown__all">Все масла и жидкости →</a>
-                    </div>
-                </div>
                 <?php
-                // Фильтры и колодки есть и у ВАЗ, и у Иномарок — отдельными
-                // разделами в разных инфоблоках. Меню собираем из реальных
-                // подразделов (раньше адреса были прописаны вручную и часть не
-                // совпадала с кодами из 1С) и группируем по ветке: заголовок
-                // «ВАЗ» / «Иномарки» со ссылкой на родительский раздел, между
-                // группами разделитель. Родитель ищется среди разделов верхнего
-                // уровня ветки ($catalogNavSections из мегаменю выше) по имени
-                // без учёта регистра/пробелов; у колодок берём только колодки
-                // и диски — остальные узлы тормозной системы есть в каталоге.
-                $headerNavGroups = function (array $parentNames, string $itemPattern = '') use ($catalogNavSections): array {
+                // Масла, фильтры и колодки есть и у ВАЗ, и у Иномарок — отдельными
+                // разделами (у масел — внутри одного инфоблока, у фильтров и
+                // колодок — в разных). Меню собираем из реальных подразделов
+                // (раньше адреса были прописаны вручную и вели на старые разделы
+                // прежней выгрузки, где товаров в разы меньше) и группируем по
+                // ветке: заголовок «ВАЗ» / «Иномарки» со ссылкой на родительский
+                // раздел, между группами разделитель. Родитель ищется по имени
+                // (без учёта регистра/пробелов) на первых уровнях ветки — самый
+                // верхний из совпавших; $itemPattern оставляет только нужные
+                // подразделы (у колодок — колодки и диски, у масел — масла и
+                // жидкости, остальное есть в каталоге по ссылке «все →»).
+                $headerNavGroups = function (array $groupSpecs, string $itemPattern = ''): array {
                     $norm = static fn($s) => mb_strtolower(trim(preg_replace('/\s+/u', ' ', (string)$s)));
                     $groups = [];
-                    foreach ($catalogNavSections as $top) {
-                        $wanted = $parentNames[$top['SLUG']] ?? null;
-                        if ($wanted === null) continue;
+                    foreach ($groupSpecs as [$slug, $parentName, $title]) {
+                        $iblockId = CATALOG_BRANCHES[$slug]['id'];
                         $parent = null;
-                        foreach ($top['SUBS'] as $sub) {
-                            if ($norm($sub['~NAME']) === $norm($wanted)) { $parent = $sub; break; }
+                        $res = CIBlockSection::GetList(
+                            ['DEPTH_LEVEL' => 'ASC', 'SORT' => 'ASC'],
+                            ['IBLOCK_ID' => $iblockId, 'ACTIVE' => 'Y', '<=DEPTH_LEVEL' => 4],
+                            false,
+                            ['ID', 'NAME', 'CODE']
+                        );
+                        while ($row = $res->Fetch()) {
+                            if ($norm($row['NAME']) === $norm($parentName)) { $parent = $row; break; }
                         }
                         if (!$parent) continue;
                         $items = [];
                         $res = CIBlockSection::GetList(
                             ['SORT' => 'ASC', 'NAME' => 'ASC'],
-                            ['IBLOCK_ID' => CATALOG_BRANCHES[$top['SLUG']]['id'], 'SECTION_ID' => $parent['ID'], 'ACTIVE' => 'Y'],
+                            ['IBLOCK_ID' => $iblockId, 'SECTION_ID' => $parent['ID'], 'ACTIVE' => 'Y'],
                             false,
                             ['ID', 'NAME', 'CODE']
                         );
@@ -317,24 +312,34 @@ function pickCatalogNavIcon(string $name): string {
                             if ($itemPattern !== '' && !preg_match($itemPattern, $row['NAME'])) continue;
                             // «Передние колодки ВАЗ» под заголовком «ВАЗ» — без повтора ветки.
                             $label = trim(preg_replace('/\s+/u', ' ', preg_replace('/(^|\s)(ВАЗ|Иномарки)(?=\s|$)/iu', ' ', $row['NAME'])));
-                            $items[] = ['NAME' => $label !== '' ? $label : $row['NAME'], 'URL' => '/catalog/' . $top['SLUG'] . '/' . $row['CODE'] . '/'];
+                            $items[] = ['NAME' => $label !== '' ? $label : $row['NAME'], 'URL' => '/catalog/' . $slug . '/' . $row['CODE'] . '/'];
                         }
                         $groups[] = [
-                            'TITLE' => $top['NAME'],
-                            'URL'   => '/catalog/' . $top['SLUG'] . '/' . $parent['CODE'] . '/',
+                            'TITLE' => $title,
+                            'URL'   => '/catalog/' . $slug . '/' . $parent['CODE'] . '/',
                             'ITEMS' => $items,
                         ];
                     }
                     return $groups;
                 };
                 $headerNavMenus = [
-                    ['TITLE' => 'Фильтры', 'GROUPS' => $headerNavGroups(['vaz' => 'Фильтры ВАЗ', 'inomarki' => 'Фильтры'])],
-                    ['TITLE' => 'Тормозные колодки', 'GROUPS' => $headerNavGroups(['vaz' => 'Тормозная система ВАЗ', 'inomarki' => 'Тормозная система'], '/колодк|диск/iu')],
+                    ['TITLE' => 'Масла', 'URL' => '/catalog/maslo/', 'GROUPS' => $headerNavGroups([
+                        ['maslo', 'Масла и технические жидкости ВАЗ', 'ВАЗ'],
+                        ['maslo', 'Масла и технические жидкости Иномарки', 'Иномарки'],
+                    ], '/масл|жидкост|антифриз|тосол/iu')],
+                    ['TITLE' => 'Фильтры', 'GROUPS' => $headerNavGroups([
+                        ['vaz', 'Фильтры ВАЗ', 'ВАЗ'],
+                        ['inomarki', 'Фильтры', 'Иномарки'],
+                    ])],
+                    ['TITLE' => 'Тормозные колодки', 'GROUPS' => $headerNavGroups([
+                        ['vaz', 'Тормозная система ВАЗ', 'ВАЗ'],
+                        ['inomarki', 'Тормозная система', 'Иномарки'],
+                    ], '/колодк|диск/iu')],
                 ];
                 ?>
                 <?php foreach ($headerNavMenus as $navMenu): if (!$navMenu['GROUPS']) continue; ?>
                 <div class="nav-dropdown-wrapper">
-                    <a href="<?= $navMenu['GROUPS'][0]['URL'] ?>"><?= $navMenu['TITLE'] ?></a>
+                    <a href="<?= $navMenu['URL'] ?? $navMenu['GROUPS'][0]['URL'] ?>"><?= $navMenu['TITLE'] ?></a>
                     <div class="nav-dropdown nav-dropdown--grouped">
                         <?php foreach ($navMenu['GROUPS'] as $group): ?>
                             <div class="nav-dropdown__group">

@@ -40,6 +40,20 @@ $redirectOrNotFound = function (string $code) {
                 LocalRedirect('/catalog/' . $slug . '/' . $code . '/', false, '301 Moved Permanently');
             }
         }
+        // Отключённый раздел (например, старые «Масло моторное», «Жидкость ГУР»
+        // прежней выгрузки в ветке масел) — уводим на активный раздел с тем же
+        // названием в той же ветке, самый верхний из совпавших.
+        $norm = static fn($s) => mb_strtolower(trim(preg_replace('/\s+/u', ' ', (string)$s)));
+        foreach (CATALOG_BRANCHES as $slug => $info) {
+            $old = CIBlockSection::GetList([], ['IBLOCK_ID' => $info['id'], 'CODE' => $code, 'ACTIVE' => 'N'], false, ['ID', 'NAME'])->Fetch();
+            if (!$old) continue;
+            $res = CIBlockSection::GetList(['DEPTH_LEVEL' => 'ASC', 'SORT' => 'ASC'], ['IBLOCK_ID' => $info['id'], 'ACTIVE' => 'Y'], false, ['ID', 'NAME', 'CODE']);
+            while ($row = $res->Fetch()) {
+                if ($row['CODE'] !== '' && $norm($row['NAME']) === $norm($old['NAME'])) {
+                    LocalRedirect('/catalog/' . $slug . '/' . $row['CODE'] . '/', false, '301 Moved Permanently');
+                }
+            }
+        }
     }
     \Bitrix\Iblock\Component\Tools::process404('', true, true, true);
 };
@@ -100,7 +114,7 @@ if (count($segments) >= 1) {
 
 $sectionId = 0;
 if ($sectionCode) {
-    $res = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'CODE' => end($segments)], false, ['ID', 'NAME', 'DESCRIPTION', 'PICTURE']);
+    $res = CIBlockSection::GetList([], ['IBLOCK_ID' => $iblockId, 'CODE' => end($segments), 'ACTIVE' => 'Y'], false, ['ID', 'NAME', 'DESCRIPTION', 'PICTURE']);
     if ($arSection = $res->GetNext()) {
         $sectionId = $arSection['ID'];
     }
