@@ -485,6 +485,15 @@ $arrFilter['>=CATALOG_QUANTITY'] = 1;
                 </div>
             <?php endif; ?>
 
+            <?php
+            // «Подбор аккумуляторов» — только там, где у товаров заполнены свойства AKB_*.
+            $akbFilter = akbFilterState((int)$iblockId, (int)$sectionId, $_GET);
+            if ($akbFilter) {
+                $arrFilter = array_merge($arrFilter, $akbFilter['FILTER']);
+                echo akbFilterRender($akbFilter);
+            }
+            ?>
+
             <div class="catalog-toolbar">
                 <span class="catalog-toolbar__count">Товары в разделе</span>
                 <div class="catalog-toolbar__sort">

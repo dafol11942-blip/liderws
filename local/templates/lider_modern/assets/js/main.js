@@ -206,6 +206,38 @@ function updateBasketItem(id, quantity) {
 
     function initSliders() {
         filterPanel.querySelectorAll('.filter__price-range').forEach(updateSliderFill);
+        mainPanel.querySelectorAll('.filter__price-range').forEach(updateSliderFill);
+    }
+
+    // Связка ползунка и полей «от/до» диапазона. true — событие было от диапазона.
+    function syncRange(target) {
+        if (target.matches('.filter__slider-input')) {
+            var slider = target.closest('.filter__slider');
+            var wrap = target.closest('.filter__price-range');
+            var minInput = slider.querySelector('[data-role="min"]');
+            var maxInput = slider.querySelector('[data-role="max"]');
+            if (parseFloat(minInput.value) > parseFloat(maxInput.value)) {
+                if (target.dataset.role === 'min') minInput.value = maxInput.value;
+                else maxInput.value = minInput.value;
+            }
+            updateSliderFill(wrap);
+            var textMin = wrap.querySelector('.filter__range [data-role="min"]');
+            var textMax = wrap.querySelector('.filter__range [data-role="max"]');
+            if (textMin) textMin.value = minInput.value;
+            if (textMax) textMax.value = maxInput.value;
+            return true;
+        }
+        if (target.matches('.filter__range .filter__input--half')) {
+            var wrap2 = target.closest('.filter__price-range');
+            if (wrap2 && target.value !== '') {
+                var slider2 = wrap2.querySelector('.filter__slider');
+                var sInput = slider2.querySelector('[data-role="' + target.dataset.role + '"]');
+                if (sInput) sInput.value = target.value;
+                updateSliderFill(wrap2);
+            }
+            return true;
+        }
+        return false;
     }
 
     function currentParams() {
@@ -258,33 +290,7 @@ function updateBasketItem(id, quantity) {
     filterPanel.addEventListener('input', function(e) {
         var target = e.target;
 
-        if (target.matches('.filter__slider-input')) {
-            var slider = target.closest('.filter__slider');
-            var wrap = target.closest('.filter__price-range');
-            var minInput = slider.querySelector('[data-role="min"]');
-            var maxInput = slider.querySelector('[data-role="max"]');
-            if (parseFloat(minInput.value) > parseFloat(maxInput.value)) {
-                if (target.dataset.role === 'min') minInput.value = maxInput.value;
-                else maxInput.value = minInput.value;
-            }
-            updateSliderFill(wrap);
-            var textMin = wrap.querySelector('.filter__range [data-role="min"]');
-            var textMax = wrap.querySelector('.filter__range [data-role="max"]');
-            if (textMin) textMin.value = minInput.value;
-            if (textMax) textMax.value = maxInput.value;
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(submitFilter, 400);
-            return;
-        }
-
-        if (target.matches('.filter__range .filter__input--half')) {
-            var wrap2 = target.closest('.filter__price-range');
-            if (wrap2 && target.value !== '') {
-                var slider2 = wrap2.querySelector('.filter__slider');
-                var sInput = slider2.querySelector('[data-role="' + target.dataset.role + '"]');
-                if (sInput) sInput.value = target.value;
-                updateSliderFill(wrap2);
-            }
+        if (syncRange(target)) {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(submitFilter, 400);
             return;
@@ -355,6 +361,37 @@ function updateBasketItem(id, quantity) {
         params.set('sort', sortParams.get('sort'));
         params.delete('PAGEN_1');
         loadUrl(window.location.pathname + '?' + params.toString());
+    });
+
+    // «Подбор аккумуляторов» над товарами (include/akb_filter.php): свои
+    // параметры akb_*, по кнопке «Подобрать»; умный фильтр сайдбара сохраняется.
+    function akbParams() {
+        var params = currentParams();
+        Array.from(params.keys()).forEach(function(key) {
+            if (key.indexOf('akb_') === 0) params.delete(key);
+        });
+        params.delete('PAGEN_1');
+        return params;
+    }
+
+    mainPanel.addEventListener('input', function(e) {
+        if (e.target.closest('#akbFilterForm')) syncRange(e.target);
+    });
+
+    mainPanel.addEventListener('submit', function(e) {
+        if (e.target.id !== 'akbFilterForm') return;
+        e.preventDefault();
+        var params = akbParams();
+        new FormData(e.target).forEach(function(value, key) {
+            if (String(value).trim() !== '') params.append(key, value);
+        });
+        loadUrl(window.location.pathname + '?' + params.toString());
+    });
+
+    mainPanel.addEventListener('click', function(e) {
+        if (!e.target.closest('.akb-filter__reset')) return;
+        e.preventDefault();
+        loadUrl(window.location.pathname + '?' + akbParams().toString());
     });
 
     window.addEventListener('popstate', function() {

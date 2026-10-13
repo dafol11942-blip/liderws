@@ -2062,3 +2062,19 @@ body.catalog-filter-locked { overflow: hidden; }
     .catalog-h1 { font-size: 22px; }
     .facts { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* «Подбор аккумуляторов» над товарами раздела АКБ (include/akb_filter.php) */
+.akb-filter { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px 24px; margin-bottom: 16px; }
+.akb-filter__title { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700; margin-bottom: 18px; }
+.akb-filter__title .icon { color: var(--blue); width: 22px; height: 22px; }
+.akb-filter__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px 28px; }
+.akb-filter__label { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.akb-filter__checks { display: flex; flex-direction: column; gap: 2px; }
+.akb-filter__sizes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.akb-filter__size span { display: block; font-size: 11px; color: var(--gray); margin-bottom: 4px; }
+.akb-filter__buttons { display: flex; gap: 10px; margin-top: 18px; }
+.akb-filter__buttons .btn { min-width: 140px; }
+@media (max-width: 768px) {
+    .akb-filter { padding: 16px; border-radius: var(--radius); }
+    .akb-filter__buttons .btn { flex: 1; min-width: 0; }
+}

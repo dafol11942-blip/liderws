@@ -17,6 +17,9 @@ if (empty($arResult['ITEMS'])) {
         <?php foreach ($arResult['ITEMS'] as $key => $arItem):
     $isRange = isset($arItem['VALUES']['MIN']['VALUE']); // цена или числовое свойство
 
+    // Свойства аккумуляторов — в блоке «Подбор аккумуляторов» над товарами (include/akb_filter.php).
+    if (strpos((string)($arItem['CODE'] ?? ''), 'AKB_') === 0) continue;
+
     // Списочные: пропускаем, если нет значений
     if (!$isRange && empty($arItem['VALUES'])) continue;
 
