@@ -271,8 +271,8 @@ function pickCatalogNavIcon(string $name): string {
     <div class="header-nav">
         <div class="container">
             <nav class="header-nav__menu">
-                <a href="/podbor-po-vin/" class="header-nav__accent"><svg class="icon"><use href="#icon-car"></use></svg> <span class="hn-full">Подбор по VIN</span><span class="hn-short">По VIN</span></a>
-                <a href="/service-parts/" class="header-nav__accent"><svg class="icon"><use href="#icon-wrench"></use></svg> <span class="hn-full">Запчасти для ТО</span><span class="hn-short">Для ТО</span></a>
+                <a href="/podbor-po-vin/" class="header-nav__accent"><svg class="icon"><use href="#icon-car"></use></svg> Подбор по VIN</a>
+                <a href="/service-parts/" class="header-nav__accent"><svg class="icon"><use href="#icon-wrench"></use></svg> Запчасти для ТО</a>
                 <?php
                 // Масла, фильтры и колодки есть и у ВАЗ, и у Иномарок — отдельными
                 // разделами (у масел — внутри одного инфоблока, у фильтров и
@@ -353,8 +353,8 @@ function pickCatalogNavIcon(string $name): string {
                 </div>
                 <?php endforeach; ?>
                 <a href="/catalog/vaz/akb/"><span class="hn-full">Аккумуляторы</span><span class="hn-short">АКБ</span></a>
-                <div class="nav-dropdown-wrapper">
-                    <a href="/autoservice/"><span class="hn-full">Автосервис</span><span class="hn-short">Сервис</span></a>
+                <div class="nav-dropdown-wrapper header-nav__wide">
+                    <a href="/autoservice/">Автосервис</a>
                     <div class="nav-dropdown">
                         <a href="/autoservice/diagnostika-i-remont-podveski/">Диагностика и ремонт подвески</a>
                         <a href="/autoservice/zamena-masla-v-dvigatele/">Замена масла в двигателе</a>
@@ -366,7 +366,7 @@ function pickCatalogNavIcon(string $name): string {
                         <a href="/autoservice/" class="nav-dropdown__all">Все услуги автосервиса →</a>
                     </div>
                 </div>
-                <a href="/shinomontazh/" class="header-nav__cta"><span class="hn-full">Запись на шиномонтаж</span><span class="hn-short">Шиномонтаж</span> <span class="header-nav__cta-arrow"><svg class="icon"><use href="#icon-arrow-up-right"></use></svg></span></a>
+                <a href="/shinomontazh/" class="header-nav__cta">Запись на шиномонтаж <span class="header-nav__cta-arrow"><svg class="icon"><use href="#icon-arrow-up-right"></use></svg></span></a>
             </nav>
         </div>
     </div>

@@ -1284,9 +1284,11 @@ body.catalog-filter-locked { overflow: hidden; }
     .search-form input { font-size: 16px; padding: 0 10px 0 14px; }
     .search-form button { width: 36px; height: 36px; font-size: 16px; }
 
-    /* Мобильная навигация разделов: сетка 4×2 с короткими подписями —
-       все разделы видны сразу, без горизонтальной прокрутки, которую
-       пользователи не замечают. Шиномонтаж выделен заливкой. */
+    /* Мобильная навигация разделов: сетка на 4 колонки — все разделы видны
+       сразу, без горизонтальной прокрутки, которую пользователи не замечают.
+       Подбор по VIN, ТО, автосервис и шиномонтаж — на половину ширины с
+       полными подписями; масла, фильтры, колодки, АКБ — ряд коротких.
+       Шиномонтаж выделен заливкой. */
     .header-nav .container { padding: 0; }
     .header-nav__menu {
         display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1299,7 +1301,11 @@ body.catalog-filter-locked { overflow: hidden; }
     }
     .header-nav__menu > a .hn-short, .nav-dropdown-wrapper > a .hn-short { display: inline; }
     .header-nav__menu > a .hn-full, .nav-dropdown-wrapper > a .hn-full { display: none; }
-    .header-nav__menu > a .icon, .header-nav__cta-arrow { display: none; }
+    .header-nav__menu > a.header-nav__accent, .header-nav__menu > a.header-nav__cta,
+    .header-nav__wide { grid-column: span 2; }
+    .header-nav__menu > a.header-nav__accent { gap: 6px; }
+    .header-nav__menu > a .icon { width: 16px; height: 16px; flex-shrink: 0; }
+    .header-nav__cta-arrow { display: none; }
     .header-nav__menu a.header-nav__cta {
         margin-left: 0; padding: 7px 4px; gap: 0;
         background: var(--blue); border-color: var(--blue); color: #fff;
