@@ -271,8 +271,8 @@ function pickCatalogNavIcon(string $name): string {
     <div class="header-nav">
         <div class="container">
             <nav class="header-nav__menu">
-                <a href="/podbor-po-vin/" class="header-nav__accent"><svg class="icon"><use href="#icon-car"></use></svg> Подбор по VIN</a>
-                <a href="/service-parts/" class="header-nav__accent"><svg class="icon"><use href="#icon-wrench"></use></svg> Запчасти для ТО</a>
+                <a href="/podbor-po-vin/" class="header-nav__accent"><svg class="icon"><use href="#icon-car"></use></svg> <span class="hn-full">Подбор по VIN</span><span class="hn-short">По VIN</span></a>
+                <a href="/service-parts/" class="header-nav__accent"><svg class="icon"><use href="#icon-wrench"></use></svg> <span class="hn-full">Запчасти для ТО</span><span class="hn-short">Для ТО</span></a>
                 <?php
                 // Масла, фильтры и колодки есть и у ВАЗ, и у Иномарок — отдельными
                 // разделами (у масел — внутри одного инфоблока, у фильтров и
@@ -331,7 +331,7 @@ function pickCatalogNavIcon(string $name): string {
                         ['vaz', 'Фильтры ВАЗ', 'ВАЗ'],
                         ['inomarki', 'Фильтры', 'Иномарки'],
                     ])],
-                    ['TITLE' => 'Тормозные колодки', 'GROUPS' => $headerNavGroups([
+                    ['TITLE' => 'Тормозные колодки', 'SHORT' => 'Колодки', 'GROUPS' => $headerNavGroups([
                         ['vaz', 'Тормозная система ВАЗ', 'ВАЗ'],
                         ['inomarki', 'Тормозная система', 'Иномарки'],
                     ], '/колодк|диск/iu')],
@@ -339,7 +339,7 @@ function pickCatalogNavIcon(string $name): string {
                 ?>
                 <?php foreach ($headerNavMenus as $navMenu): if (!$navMenu['GROUPS']) continue; ?>
                 <div class="nav-dropdown-wrapper">
-                    <a href="<?= $navMenu['URL'] ?? $navMenu['GROUPS'][0]['URL'] ?>"><?= $navMenu['TITLE'] ?></a>
+                    <a href="<?= $navMenu['URL'] ?? $navMenu['GROUPS'][0]['URL'] ?>"><?php if (!empty($navMenu['SHORT'])): ?><span class="hn-full"><?= $navMenu['TITLE'] ?></span><span class="hn-short"><?= $navMenu['SHORT'] ?></span><?php else: ?><?= $navMenu['TITLE'] ?><?php endif; ?></a>
                     <div class="nav-dropdown nav-dropdown--grouped">
                         <?php foreach ($navMenu['GROUPS'] as $group): ?>
                             <div class="nav-dropdown__group">
@@ -352,9 +352,9 @@ function pickCatalogNavIcon(string $name): string {
                     </div>
                 </div>
                 <?php endforeach; ?>
-                <a href="/catalog/vaz/akb/">Аккумуляторы</a>
+                <a href="/catalog/vaz/akb/"><span class="hn-full">Аккумуляторы</span><span class="hn-short">АКБ</span></a>
                 <div class="nav-dropdown-wrapper">
-                    <a href="/autoservice/">Автосервис</a>
+                    <a href="/autoservice/"><span class="hn-full">Автосервис</span><span class="hn-short">Сервис</span></a>
                     <div class="nav-dropdown">
                         <a href="/autoservice/diagnostika-i-remont-podveski/">Диагностика и ремонт подвески</a>
                         <a href="/autoservice/zamena-masla-v-dvigatele/">Замена масла в двигателе</a>
@@ -366,7 +366,7 @@ function pickCatalogNavIcon(string $name): string {
                         <a href="/autoservice/" class="nav-dropdown__all">Все услуги автосервиса →</a>
                     </div>
                 </div>
-                <a href="/shinomontazh/" class="header-nav__cta">Запись на шиномонтаж <span class="header-nav__cta-arrow"><svg class="icon"><use href="#icon-arrow-up-right"></use></svg></span></a>
+                <a href="/shinomontazh/" class="header-nav__cta"><span class="hn-full">Запись на шиномонтаж</span><span class="hn-short">Шиномонтаж</span> <span class="header-nav__cta-arrow"><svg class="icon"><use href="#icon-arrow-up-right"></use></svg></span></a>
             </nav>
         </div>
     </div>

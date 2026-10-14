@@ -372,6 +372,8 @@ ul, ol { list-style: none; }
 .header-nav__menu a .icon { width: 18px; height: 18px; }
 .header-nav__menu a:hover, .header-nav__menu a.active { background: var(--bg); color: var(--blue); }
 .header-nav__menu a.header-nav__accent { color: var(--blue); }
+/* Короткие подписи пунктов — только для мобильной сетки (≤768px) */
+.header-nav__menu .hn-short { display: none; }
 .header-nav__menu a.header-nav__cta { margin-left: auto; padding: 6px 6px 6px 18px; gap: 10px; background: var(--blue-soft); color: var(--blue-dark); font-weight: 700; }
 .header-nav__menu a.header-nav__cta:hover { background: var(--blue); color: #fff; }
 .header-nav__cta-arrow { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--blue); color: #fff; transition: background var(--transition), color var(--transition), transform var(--transition); }
@@ -1282,23 +1284,28 @@ body.catalog-filter-locked { overflow: hidden; }
     .search-form input { font-size: 16px; padding: 0 10px 0 14px; }
     .search-form button { width: 36px; height: 36px; font-size: 16px; }
 
-    /* Мобильная навигация разделов: вместо переноса ссылок в несколько
-       "нагромождённых" строк — одна горизонтально прокручиваемая лента
-       чипов (тот же приём, что уже используется для .catalog-dropdown__nav). */
+    /* Мобильная навигация разделов: сетка 4×2 с короткими подписями —
+       все разделы видны сразу, без горизонтальной прокрутки, которую
+       пользователи не замечают. Шиномонтаж выделен заливкой. */
     .header-nav .container { padding: 0; }
     .header-nav__menu {
-        flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
-        scrollbar-width: none; gap: 8px; padding: 10px 16px;
+        display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px; padding: 8px 16px;
     }
-    .header-nav__menu::-webkit-scrollbar { display: none; }
-    .header-nav__menu a {
-        flex-shrink: 0; white-space: nowrap;
-        padding: 7px 14px; font-size: 13px;
+    .header-nav__menu > a, .nav-dropdown-wrapper > a {
+        justify-content: center; min-width: 0; white-space: nowrap;
+        padding: 7px 4px; font-size: 12.5px; line-height: 1.2;
         background: #fff; border: 1px solid var(--border);
     }
-    .header-nav__menu a.header-nav__cta { margin-left: 0; padding: 4px 4px 4px 14px; border-color: transparent; }
-    .header-nav__cta-arrow { width: 24px; height: 24px; }
-    .nav-dropdown-wrapper { flex-shrink: 0; }
+    .header-nav__menu > a .hn-short, .nav-dropdown-wrapper > a .hn-short { display: inline; }
+    .header-nav__menu > a .hn-full, .nav-dropdown-wrapper > a .hn-full { display: none; }
+    .header-nav__menu > a .icon, .header-nav__cta-arrow { display: none; }
+    .header-nav__menu a.header-nav__cta {
+        margin-left: 0; padding: 7px 4px; gap: 0;
+        background: var(--blue); border-color: var(--blue); color: #fff;
+    }
+    .nav-dropdown-wrapper { min-width: 0; }
+    .nav-dropdown-wrapper > a { width: 100%; }
     /* Флайаут подменю на мобильном якорим к низу экрана (над нижней панелью)
        на всю ширину — иначе горизонтальный скролл родителя обрезает его. */
     .nav-dropdown-wrapper:hover .nav-dropdown,
@@ -1399,9 +1406,8 @@ body.catalog-filter-locked { overflow: hidden; }
     .container, .catalog-layout, .lk-layout { padding: 0 12px; }
     .header__inner { gap: 10px; }
     .logo img { height: 36px; }
-    .header-nav__menu { padding: 8px 12px; }
-    .header-nav__menu a { padding: 7px 12px; font-size: 12.5px; gap: 5px; }
-    .header-nav__menu a .icon { width: 15px; height: 15px; }
+    .header-nav__menu { padding: 8px 12px; gap: 5px; }
+    .header-nav__menu > a, .nav-dropdown-wrapper > a, .header-nav__menu a.header-nav__cta { padding: 7px 2px; font-size: 12px; }
     .hero__content { padding: 20px 18px; }
     .hero__title { font-size: 23px; }
     .hero__buttons .btn { width: 100%; }
@@ -1436,6 +1442,8 @@ body.catalog-filter-locked { overflow: hidden; }
 
 /* ≤360px */
 @media (max-width: 360px) {
+    /* «Шиномонтаж» и «Колодки» должны влезать в четверть ширины */
+    .header-nav__menu > a, .nav-dropdown-wrapper > a, .header-nav__menu a.header-nav__cta { font-size: 11px; letter-spacing: -0.2px; }
     .products-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
     .catalog-section { grid-template-columns: 1fr 1fr; gap: 4px; }
     .product-card__img { height: 110px; }
