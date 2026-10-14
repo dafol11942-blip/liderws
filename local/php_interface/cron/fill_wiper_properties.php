@@ -11,7 +11,11 @@
  *   «… 650 мм б/к BOSCH AERO TWIN (AP650U) (4 крепления)» → «Универсальное»
  *   «… (Side pin)», «(Pinch Tab)», «(Push Button)», «(BayonnetArm)» → соответствующее
  * Серии Bosch без пометки в названии: AP…U — универсальное (Multi-Clip),
- * AR…U / AR…S — крючок (Aerotwin Retrofit). Не распознано — не пишем.
+ * AR…U / AR…S — крючок (Aerotwin Retrofit); каркасные и гибридные без пометки
+ * — крючок. Не распознано — не пишем.
+ * Расположение: «зад.», rear, у BOSCH серии Hxxx / AxxxH — задняя. Задним и
+ * наборам Bosch под конкретную машину (A187S, AM466S) крепление не нужно —
+ * их подбор идёт по артикулу.
  *
  * Разделы — «Щетки стеклоочистителя…» в каждой ветке каталога. Свойства
  * создаются с SMART_FILTER=Y; 1С их не знает и не затирает. Повторный запуск
@@ -51,7 +55,13 @@ const WIPER_MOUNTS = [
     'push_button' => 'Push Button',
     'bayonet'     => 'Bayonet',
     'top_lock'    => 'Top Lock',
+    'vatl'        => 'VATL5.1',
     'multi'       => 'Универсальное (несколько адаптеров)',
+];
+
+const WIPER_POSITIONS = [
+    'front' => 'Передняя',
+    'rear'  => 'Задняя',
 ];
 
 // Крепление по наименованию: XML_ID => шаблон. Совпало несколько — «Универсальное».
@@ -62,6 +72,7 @@ const WIPER_MOUNT_PATTERNS = [
     'push_button' => '/push\s*-?\s*button/iu',
     'bayonet'     => '/bayon+et|байонет/iu',
     'top_lock'    => '/top\s*-?\s*lock/iu',
+    'vatl'        => '/VATL\s*5/iu',
     'multi'       => '/\d\s*креплен|мульти|multi\s*-?\s*clip|универсальн|\bAP\d{3}U\b/iu',
 ];
 
@@ -76,7 +87,18 @@ const WIPER_PROPERTIES = [
     'WIPER_LENGTH'  => ['name' => 'Длина щётки, мм',               'type' => 'N', 'sort' => 100],
     'WIPER_LENGTH2' => ['name' => 'Длина второй щётки, мм',        'type' => 'N', 'sort' => 110],
     'WIPER_MOUNT'   => ['name' => 'Тип крепления щётки',           'type' => 'L', 'sort' => 120],
+    'WIPER_POSITION'=> ['name' => 'Расположение щётки',            'type' => 'L', 'sort' => 90],
 ];
+// Варианты списочных свойств: CODE => [XML_ID => значение].
+const WIPER_LIST_VALUES = [
+    'WIPER_MOUNT'    => WIPER_MOUNTS,
+    'WIPER_POSITION' => WIPER_POSITIONS,
+];
+
+// Задняя: «зад.», «задняя», rear; у BOSCH — ещё серии Hxxx и AxxxH (без BOSCH «H100» — это Hyundai).
+const WIPER_REAR_PATTERN = '/(?<![а-яё])зад(?:н(?:яя|ий|ие|\.)?)?(?![а-яё])|(?<![a-z])rear(?![a-z])|^(?=.*bosch).*\b(?:H\d{3}|A\d{3}H)\b/iu';
+// Наборы Bosch под конкретную машину (A187S, AM466S) — «родное» крепление, подбор по артикулу.
+const WIPER_BOSCH_OE_SET_PATTERN = '/\bAM?\d{3}S\b/u';
 
 echo ($apply ? '=== ПРИМЕНЕНИЕ ===' : '=== ПРОБНЫЙ ЗАПУСК (без --apply ничего не пишется) ===') . PHP_EOL;
 
@@ -86,8 +108,8 @@ function wiperParseName(string $name): array
     $result = [];
     $n = str_replace("\xC2\xA0", ' ', $name);
 
-    // «650/450 мм», «650 мм», «650мм»; комплект — две длины через «/» или «+».
-    if (preg_match('/(?<!\d)(\d{3,4})\s*(?:мм)?\s*[\/+]\s*(\d{3,4})\s*мм/iu', $n, $m)) {
+    // «650/450 мм», «500/500 Renault», «650 мм», «650мм»; комплект — две длины через «/» или «+».
+    if (preg_match('/(?<![\d.,])(\d{3})\s*(?:мм)?\s*[\/+]\s*(\d{3})(?![\d.,])/iu', $n, $m)) {
         $result['WIPER_LENGTH'] = (int)$m[1];
         $result['WIPER_LENGTH2'] = (int)$m[2];
     } elseif (preg_match('/(?<![\d\/])(\d{3,4})\s*мм/iu', $n, $m)) {
@@ -96,12 +118,22 @@ function wiperParseName(string $name): array
         $result['WIPER_LENGTH'] = WIPER_INCHES[(int)$m[1]];
     }
 
+    // Задние подбираются по артикулу Bosch — крепление не определяем.
+    if (preg_match(WIPER_REAR_PATTERN, $n)) {
+        $result['WIPER_POSITION'] = 'rear';
+        return $result;
+    }
+    $result['WIPER_POSITION'] = 'front';
+
     $mounts = [];
     foreach (WIPER_MOUNT_PATTERNS as $xml => $rx) {
         if (preg_match($rx, $n)) $mounts[] = $xml;
     }
     if ($mounts) {
         $result['WIPER_MOUNT'] = count($mounts) === 1 ? $mounts[0] : 'multi';
+    } elseif (preg_match('/(?<![а-яё])каркасн|гибрид|hybrid/iu', $n)) {
+        // Универсальные каркасные и гибридные без пометки — на крючок («бескаркасн» сюда не попадает).
+        $result['WIPER_MOUNT'] = 'hook';
     }
 
     return $result;
@@ -149,7 +181,7 @@ function wiperEnsureProperties(int $iblockId, bool $apply, array $sections): arr
             $fields['LIST_TYPE'] = 'L';
             $fields['VALUES'] = [];
             $sort = 10;
-            foreach (WIPER_MOUNTS as $xml => $value) {
+            foreach (WIPER_LIST_VALUES[$code] as $xml => $value) {
                 $fields['VALUES'][] = ['VALUE' => $value, 'XML_ID' => $xml, 'SORT' => $sort, 'DEF' => 'N'];
                 $sort += 10;
             }
@@ -168,13 +200,15 @@ function wiperEnsureProperties(int $iblockId, bool $apply, array $sections): arr
         }
     }
 
+    // [CODE => [XML_ID => ID варианта]]; варианты, которых нет (добавлены в код позже), — дописываем.
     $enumIds = [];
-    if (isset($ids['WIPER_MOUNT'])) {
-        $rs = CIBlockPropertyEnum::GetList([], ['PROPERTY_ID' => $ids['WIPER_MOUNT']]);
-        while ($e = $rs->Fetch()) $enumIds[$e['XML_ID']] = (int)$e['ID'];
-        foreach (WIPER_MOUNTS as $xml => $value) {
-            if (isset($enumIds[$xml]) || !$apply) continue;
-            $enumIds[$xml] = (int)(new CIBlockPropertyEnum())->Add(['PROPERTY_ID' => $ids['WIPER_MOUNT'], 'VALUE' => $value, 'XML_ID' => $xml]);
+    foreach (WIPER_LIST_VALUES as $code => $values) {
+        if (!isset($ids[$code])) continue;
+        $rs = CIBlockPropertyEnum::GetList([], ['PROPERTY_ID' => $ids[$code]]);
+        while ($e = $rs->Fetch()) $enumIds[$code][$e['XML_ID']] = (int)$e['ID'];
+        foreach ($values as $xml => $value) {
+            if (isset($enumIds[$code][$xml]) || !$apply) continue;
+            $enumIds[$code][$xml] = (int)(new CIBlockPropertyEnum())->Add(['PROPERTY_ID' => $ids[$code], 'VALUE' => $value, 'XML_ID' => $xml]);
         }
     }
 
@@ -225,17 +259,21 @@ foreach (CATALOG_BRANCHES as $slug => $branch) {
             }
 
             $parsed = wiperParseName($name);
-            if (!isset($parsed['WIPER_LENGTH']) || !isset($parsed['WIPER_MOUNT'])) {
-                $unparsed[] = "#$id $name — нет: " . implode(', ', array_diff(['WIPER_LENGTH', 'WIPER_MOUNT'], array_keys($parsed)));
+            // Крепление нужно только передним щёткам, которые подбираются по размеру
+            // (не задним и не наборам Bosch под конкретную машину — те по артикулу).
+            $required = ['WIPER_LENGTH'];
+            if ($parsed['WIPER_POSITION'] === 'front' && !preg_match(WIPER_BOSCH_OE_SET_PATTERN, $name)) $required[] = 'WIPER_MOUNT';
+            if ($missing = array_diff($required, array_keys($parsed))) {
+                $unparsed[] = "#$id $name — нет: " . implode(', ', $missing);
             }
 
             $write = [];
             $shown = [];
             foreach ($parsed as $code => $value) {
                 if (!$overwrite && isset($current[$code]) && $current[$code] !== '' && $current[$code] !== null) continue;
-                if ($code === 'WIPER_MOUNT') {
-                    $shown[] = 'крепление ' . WIPER_MOUNTS[$value];
-                    if (isset($enumIds[$value])) $write[$code] = $enumIds[$value];
+                if (isset(WIPER_LIST_VALUES[$code])) {
+                    $shown[] = WIPER_PROPERTIES[$code]['name'] . ' ' . WIPER_LIST_VALUES[$code][$value];
+                    if (isset($enumIds[$code][$value])) $write[$code] = $enumIds[$code][$value];
                 } else {
                     $shown[] = WIPER_PROPERTIES[$code]['name'] . ' ' . $value;
                     $write[$code] = $value;
