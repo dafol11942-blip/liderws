@@ -1,7 +1,7 @@
 <?php
 /**
- * Свойства аккумуляторов из наименования: ёмкость, пусковой ток, полярность,
- * длина / ширина / высота. 1С выгружает АКБ без этих свойств, а всё нужное
+ * Свойства аккумуляторов из наименования: бренд, ёмкость, пусковой ток,
+ * полярность, длина / ширина / высота. 1С выгружает АКБ без этих свойств, а всё нужное
  * есть в названии:
  *   «Аккумулятор 6 СТ 62 о.п. L ТАЗ (Тюмень Стандарт) (580А) (242х175х190)»
  *     6 СТ 62      → ёмкость 62 А·ч
@@ -53,10 +53,95 @@ const AKB_LIST_VALUES = [
         'european' => 'Европейский',
         'asian'    => 'Азиатский',
     ],
+    'AKB_BRAND' => [
+        'tubor' => 'TUBOR',
+        'titan' => 'TITAN',
+        'tyumen' => 'TYUMEN BATTERY',
+        'varta' => 'VARTA',
+        'bosch' => 'BOSCH',
+        'mutlu' => 'MUTLU',
+        'delta' => 'DELTA',
+        'space' => 'SPACE',
+        'akom' => 'АКОМ',
+        'zubr' => 'ЗУБР',
+        'russtar' => 'РУССКАЯ ЗВЕЗДА',
+        'avtofan' => 'АВТОФАН',
+        'aktex' => 'AKTEX',
+        'akbmax' => 'AKBMAX',
+        'howter' => 'HOWTER',
+        'bost' => 'BOST',
+        'exide' => 'EXIDE',
+        'topla' => 'TOPLA',
+        'rocket' => 'ROCKET',
+        'medalist' => 'MEDALIST',
+        'furukawa' => 'FURUKAWA BATTERY',
+        'solite' => 'SOLITE',
+        'atlas' => 'ATLASBX',
+        'delkor' => 'DELKOR',
+        'alphaline' => 'ALPHALINE',
+        'yuasa' => 'YUASA',
+        'amaron' => 'AMARON',
+        'hankook' => 'HANKOOK',
+        'sznajder' => 'SZNAJDER',
+        'moll' => 'MOLL',
+        'banner' => 'BANNER',
+        'fiamm' => 'FIAMM',
+        'centra' => 'CENTRA',
+        'westa' => 'WESTA',
+        'optima' => 'OPTIMA',
+        'kainar' => 'KAINAR',
+        'podolsk' => 'ПОДОЛЬСК',
+        'istok' => 'ИСТОК',
+    ],
+];
+
+// Бренд по наименованию: XML_ID => шаблон (латиница, кириллица, названия серий).
+// Проверяются по порядку, первое совпадение. Новый бренд — строка здесь и в
+// AKB_LIST_VALUES['AKB_BRAND']: повторный запуск добавит вариант в свойство.
+const AKB_BRAND_PATTERNS = [
+    'tubor' => '/tubor|тубор/iu',
+    'titan' => '/titan|титан/iu',
+    'tyumen' => '/tyumen|тюмен|(?<![a-zа-яё])l?\s*таз(?![a-zа-яё])/iu',
+    'varta' => '/varta|варта/iu',
+    'bosch' => '/bosch|бош(?![a-zа-яё])/iu',
+    'mutlu' => '/mutlu|мутлу/iu',
+    'delta' => '/delta|дельта/iu',
+    'space' => '/(?<![a-z])space(?![a-z])/iu',
+    'akom' => '/akom|аком(?![a-zа-яё])/iu',
+    'zubr' => '/zubr|зубр/iu',
+    'russtar' => '/русская\s+звезда/iu',
+    'avtofan' => '/avtofan|автофан/iu',
+    'aktex' => '/aktex|актех/iu',
+    'akbmax' => '/akbmax/iu',
+    'howter' => '/howter/iu',
+    'bost' => '/(?<![a-z])bost(?![a-z])/iu',
+    'exide' => '/exide/iu',
+    'topla' => '/topla/iu',
+    'rocket' => '/rocket/iu',
+    'medalist' => '/medalist/iu',
+    'furukawa' => '/furukawa/iu',
+    'solite' => '/solite/iu',
+    'atlas' => '/atlas/iu',
+    'delkor' => '/delkor/iu',
+    'alphaline' => '/alphaline/iu',
+    'yuasa' => '/yuasa/iu',
+    'amaron' => '/amaron/iu',
+    'hankook' => '/hankook/iu',
+    'sznajder' => '/sznajder/iu',
+    'moll' => '/(?<![a-z])moll(?![a-z])/iu',
+    'banner' => '/banner/iu',
+    'fiamm' => '/fiamm/iu',
+    'centra' => '/centra(?![a-z])/iu',
+    'westa' => '/westa/iu',
+    'optima' => '/(?<![a-z])optima(?![a-z])/iu',
+    'kainar' => '/kainar|кайнар/iu',
+    'podolsk' => '/podolsk|подольск/iu',
+    'istok' => '/(?<![a-zа-яё])исток(?![a-zа-яё])/iu',
 ];
 
 // Порядок = порядок в «Характеристиках» и в фильтре.
 const AKB_PROPERTIES = [
+    'AKB_BRAND'    => ['name' => 'Бренд АКБ',           'type' => 'L', 'sort' => 95],
     'AKB_CAPACITY' => ['name' => 'Ёмкость, А·ч',        'type' => 'N', 'sort' => 100],
     'AKB_CURRENT'  => ['name' => 'Пусковой ток, А',     'type' => 'N', 'sort' => 110],
     'AKB_POLARITY' => ['name' => 'Полярность',          'type' => 'L', 'sort' => 120],
@@ -96,6 +181,10 @@ function akbParseName(string $name): array
     $direct  = preg_match('/(?<![а-яё])п\s*[.\/]?\s*п(?![а-яё])|прям(?:ая|ой)\s+полярн/iu', $n);
     if ($reverse xor $direct) {
         $result['AKB_POLARITY'] = $reverse ? 'reverse' : 'direct';
+    }
+
+    foreach (AKB_BRAND_PATTERNS as $xml => $rx) {
+        if (preg_match($rx, $n)) { $result['AKB_BRAND'] = $xml; break; }
     }
 
     // Размер: «(242х175х190)» — кириллическая/латинская х, *, ×.
