@@ -1,7 +1,8 @@
 <?php
 /**
  * «Подбор аккумуляторов» — блок над товарами раздела АКБ: ёмкость и пусковой
- * ток ползунками, полярность чекбоксами с числом товаров, габариты «не больше».
+ * ток ползунками, полярность и тип корпуса чекбоксами с числом товаров,
+ * габариты «не больше».
  * Свойства AKB_* заполняет cron/fill_akb_properties.php из наименования.
  *
  * Блок появляется в любом разделе, где у товаров в наличии заполнено хотя бы
@@ -18,9 +19,10 @@ const AKB_FILTER_SIZES = [
     'wid' => ['code' => 'AKB_WIDTH',  'title' => 'Ширина'],
     'hei' => ['code' => 'AKB_HEIGHT', 'title' => 'Высота'],
 ];
-const AKB_FILTER_POLARITY_LABELS = [
-    'reverse' => 'Обратная (о.п.)',
-    'direct'  => 'Прямая (п.п.)',
+// Списочные свойства: ключ параметра запроса (akb_{key}[]) => свойство и подписи вариантов по XML_ID.
+const AKB_FILTER_LISTS = [
+    'pol'  => ['code' => 'AKB_POLARITY',  'title' => 'Полярность',  'labels' => ['reverse' => 'Обратная (о.п.)', 'direct' => 'Прямая (п.п.)']],
+    'case' => ['code' => 'AKB_CASE_TYPE', 'title' => 'Тип корпуса', 'labels' => ['european' => 'Европейский', 'asian' => 'Азиатский']],
 ];
 
 /**
@@ -31,17 +33,19 @@ function akbFilterState(int $iblockId, int $sectionId, array $request): ?array
 {
     if ($sectionId <= 0) return null;
     $propIds = [];
-    foreach (array_merge(array_column(AKB_FILTER_RANGES + AKB_FILTER_SIZES, 'code'), ['AKB_POLARITY']) as $code) {
+    foreach (array_column(AKB_FILTER_RANGES + AKB_FILTER_SIZES + AKB_FILTER_LISTS, 'code') as $code) {
         $p = CIBlockProperty::GetList([], ['IBLOCK_ID' => $iblockId, 'CODE' => $code, 'ACTIVE' => 'Y'])->Fetch();
         if ($p) $propIds[$code] = (int)$p['ID'];
     }
     if (!isset($propIds['AKB_CAPACITY'])) return null;
 
+    // [ключ списка => [XML_ID => [ID, LABEL, COUNT]]]
     $enums = [];
-    if (isset($propIds['AKB_POLARITY'])) {
-        $rs = CIBlockPropertyEnum::GetList(['SORT' => 'ASC'], ['PROPERTY_ID' => $propIds['AKB_POLARITY']]);
+    foreach (AKB_FILTER_LISTS as $key => $def) {
+        if (!isset($propIds[$def['code']])) continue;
+        $rs = CIBlockPropertyEnum::GetList(['SORT' => 'ASC'], ['PROPERTY_ID' => $propIds[$def['code']]]);
         while ($e = $rs->Fetch()) {
-            $enums[$e['XML_ID']] = ['ID' => (int)$e['ID'], 'LABEL' => AKB_FILTER_POLARITY_LABELS[$e['XML_ID']] ?? $e['VALUE'], 'COUNT' => 0];
+            $enums[$key][$e['XML_ID']] = ['ID' => (int)$e['ID'], 'LABEL' => $def['labels'][$e['XML_ID']] ?? $e['VALUE'], 'COUNT' => 0];
         }
     }
 
@@ -50,7 +54,7 @@ function akbFilterState(int $iblockId, int $sectionId, array $request): ?array
     foreach ($numeric as $code) {
         if (isset($propIds[$code])) $select[] = 'PROPERTY_' . $code;
     }
-    if ($enums) $select[] = 'PROPERTY_AKB_POLARITY';
+    foreach (array_keys($enums) as $key) $select[] = 'PROPERTY_' . AKB_FILTER_LISTS[$key]['code'];
 
     $bounds = [];
     $hasData = false;
@@ -66,11 +70,14 @@ function akbFilterState(int $iblockId, int $sectionId, array $request): ?array
             $bounds[$code] = isset($bounds[$code]) ? [min($bounds[$code][0], $v), max($bounds[$code][1], $v)] : [$v, $v];
             $hasData = true;
         }
-        $pol = (string)($row['PROPERTY_AKB_POLARITY_ENUM_ID'] ?? '');
-        foreach ($enums as &$e) {
-            if ($pol !== '' && (int)$pol === $e['ID']) { $e['COUNT']++; $hasData = true; }
+        foreach ($enums as $key => &$values) {
+            $enumId = (int)($row['PROPERTY_' . AKB_FILTER_LISTS[$key]['code'] . '_ENUM_ID'] ?? 0);
+            foreach ($values as &$e) {
+                if ($enumId === $e['ID']) { $e['COUNT']++; $hasData = true; }
+            }
+            unset($e);
         }
-        unset($e);
+        unset($values);
     }
     if (!$hasData) return null;
 
@@ -94,13 +101,18 @@ function akbFilterState(int $iblockId, int $sectionId, array $request): ?array
         $max = $num($request["akb_{$key}"] ?? '');
         if ($max !== null && $max < $bounds[$def['code']][1]) { $filter['<=PROPERTY_' . $def['code']] = $max; $selected["akb_{$key}"] = $max; }
     }
-    $pol = array_intersect(array_keys($enums), (array)($request['akb_pol'] ?? []));
-    if ($pol) {
-        $filter['PROPERTY_AKB_POLARITY'] = array_map(fn($x) => $enums[$x]['ID'], array_values($pol));
-        $selected['akb_pol'] = array_values($pol);
+    $lists = [];
+    foreach ($enums as $key => $values) {
+        $chosen = array_values(array_intersect(array_keys($values), (array)($request["akb_{$key}"] ?? [])));
+        if ($chosen) {
+            $filter['PROPERTY_' . AKB_FILTER_LISTS[$key]['code']] = array_map(fn($x) => $values[$x]['ID'], $chosen);
+            $selected["akb_{$key}"] = $chosen;
+        }
+        $values = array_filter($values, fn($e) => $e['COUNT'] > 0);
+        if ($values) $lists[$key] = $values;
     }
 
-    return ['BOUNDS' => $bounds, 'POLARITY' => array_filter($enums, fn($e) => $e['COUNT'] > 0), 'SELECTED' => $selected, 'FILTER' => $filter];
+    return ['BOUNDS' => $bounds, 'LISTS' => $lists, 'SELECTED' => $selected, 'FILTER' => $filter];
 }
 
 function akbFilterRender(array $state): string
@@ -136,13 +148,13 @@ function akbFilterRender(array $state): string
                     </div>
                 <?php endforeach; ?>
 
-                <?php if ($state['POLARITY']): ?>
+                <?php foreach ($state['LISTS'] as $key => $values): ?>
                     <div class="akb-filter__field">
-                        <div class="akb-filter__label">Полярность</div>
+                        <div class="akb-filter__label"><?= AKB_FILTER_LISTS[$key]['title'] ?></div>
                         <div class="akb-filter__checks">
-                            <?php foreach ($state['POLARITY'] as $xml => $e): ?>
+                            <?php foreach ($values as $xml => $e): ?>
                                 <label class="filter__checkbox">
-                                    <input type="checkbox" name="akb_pol[]" value="<?= $h($xml) ?>"<?= in_array($xml, $sel['akb_pol'] ?? [], true) ? ' checked' : '' ?>>
+                                    <input type="checkbox" name="akb_<?= $key ?>[]" value="<?= $h($xml) ?>"<?= in_array($xml, $sel["akb_{$key}"] ?? [], true) ? ' checked' : '' ?>>
                                     <span class="filter__checkmark"></span>
                                     <span class="filter__label"><?= $h($e['LABEL']) ?></span>
                                     <span class="filter__count"><?= $e['COUNT'] ?></span>
@@ -150,7 +162,7 @@ function akbFilterRender(array $state): string
                             <?php endforeach; ?>
                         </div>
                     </div>
-                <?php endif; ?>
+                <?php endforeach; ?>
 
                 <?php $sizes = array_filter(AKB_FILTER_SIZES, fn($d) => isset($state['BOUNDS'][$d['code']])); ?>
                 <?php if ($sizes): ?>

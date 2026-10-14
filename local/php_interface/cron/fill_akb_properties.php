@@ -8,6 +8,8 @@
  *     о.п. / п.п.  → полярность обратная / прямая
  *     (580А)       → пусковой ток 580 А
  *     (242х175х190)→ длина 242, ширина 175, высота 190 мм
+ * Тип корпуса — по высоте (из названия или уже записанной): 175–190 мм —
+ * европейский, от 220 — азиатский; без высоты, ниже 175 и 191–219 — пропуск.
  *
  * Свойства создаются в каждом инфоблоке ветки, где есть раздел АКБ (CODE akb
  * или название «АКБ…»/«Аккумулятор…»), с SMART_FILTER=Y — появляются в фильтре
@@ -41,9 +43,16 @@ try {
     exit(1);
 }
 
-const AKB_POLARITY_VALUES = [
-    'reverse' => 'Обратная (о.п.)',
-    'direct'  => 'Прямая (п.п.)',
+// Варианты списочных свойств: XML_ID => значение.
+const AKB_LIST_VALUES = [
+    'AKB_POLARITY' => [
+        'reverse' => 'Обратная (о.п.)',
+        'direct'  => 'Прямая (п.п.)',
+    ],
+    'AKB_CASE_TYPE' => [
+        'european' => 'Европейский',
+        'asian'    => 'Азиатский',
+    ],
 ];
 
 // Порядок = порядок в «Характеристиках» и в фильтре.
@@ -51,6 +60,7 @@ const AKB_PROPERTIES = [
     'AKB_CAPACITY' => ['name' => 'Ёмкость, А·ч',        'type' => 'N', 'sort' => 100],
     'AKB_CURRENT'  => ['name' => 'Пусковой ток, А',     'type' => 'N', 'sort' => 110],
     'AKB_POLARITY' => ['name' => 'Полярность',          'type' => 'L', 'sort' => 120],
+    'AKB_CASE_TYPE'=> ['name' => 'Тип корпуса',         'type' => 'L', 'sort' => 125],
     'AKB_LENGTH'   => ['name' => 'Длина, мм',           'type' => 'N', 'sort' => 130],
     'AKB_WIDTH'    => ['name' => 'Ширина, мм',          'type' => 'N', 'sort' => 140],
     'AKB_HEIGHT'   => ['name' => 'Высота, мм',          'type' => 'N', 'sort' => 150],
@@ -98,6 +108,17 @@ function akbParseName(string $name): array
     return $result;
 }
 
+/**
+ * Тип корпуса по высоте: 175–190 мм — европейский, от 220 — азиатский.
+ * Ниже 175 (мото, буферные) и 191–219 — не определяем.
+ */
+function akbCaseType(int $height): ?string
+{
+    if ($height >= 175 && $height <= 190) return 'european';
+    if ($height >= 220) return 'asian';
+    return null;
+}
+
 /** Разделы АКБ ветки (верхние из найденных; подразделы берутся через INCLUDE_SUBSECTIONS). */
 function akbSections(int $iblockId): array
 {
@@ -117,7 +138,7 @@ function akbSections(int $iblockId): array
     return $found;
 }
 
-/** Создаёт недостающие свойства, возвращает [CODE => ID] и ID вариантов полярности. */
+/** Создаёт недостающие свойства, возвращает [CODE => ID] и [CODE => [XML_ID => ID варианта]] списочных. */
 function akbEnsureProperties(int $iblockId, bool $apply, array $sections): array
 {
     $ids = [];
@@ -145,7 +166,7 @@ function akbEnsureProperties(int $iblockId, bool $apply, array $sections): array
                 $fields['LIST_TYPE'] = 'L';
                 $fields['VALUES'] = [];
                 $sort = 10;
-                foreach (AKB_POLARITY_VALUES as $xml => $value) {
+                foreach (AKB_LIST_VALUES[$code] as $xml => $value) {
                     $fields['VALUES'][] = ['VALUE' => $value, 'XML_ID' => $xml, 'SORT' => $sort, 'DEF' => 'N'];
                     $sort += 10;
                 }
@@ -172,15 +193,16 @@ function akbEnsureProperties(int $iblockId, bool $apply, array $sections): array
         }
     }
 
-    if (isset($ids['AKB_POLARITY'])) {
-        $rs = CIBlockPropertyEnum::GetList([], ['PROPERTY_ID' => $ids['AKB_POLARITY']]);
+    foreach (AKB_LIST_VALUES as $code => $values) {
+        if (!isset($ids[$code])) continue;
+        $rs = CIBlockPropertyEnum::GetList([], ['PROPERTY_ID' => $ids[$code]]);
         while ($e = $rs->Fetch()) {
-            $enumIds[$e['XML_ID']] = (int)$e['ID'];
+            $enumIds[$code][$e['XML_ID']] = (int)$e['ID'];
         }
         // Свойство создано руками без нужных вариантов — добавляем.
-        foreach (AKB_POLARITY_VALUES as $xml => $value) {
-            if (isset($enumIds[$xml]) || !$apply) continue;
-            $enumIds[$xml] = (int)(new CIBlockPropertyEnum())->Add(['PROPERTY_ID' => $ids['AKB_POLARITY'], 'VALUE' => $value, 'XML_ID' => $xml]);
+        foreach ($values as $xml => $value) {
+            if (isset($enumIds[$code][$xml]) || !$apply) continue;
+            $enumIds[$code][$xml] = (int)(new CIBlockPropertyEnum())->Add(['PROPERTY_ID' => $ids[$code], 'VALUE' => $value, 'XML_ID' => $xml]);
         }
     }
 
@@ -219,11 +241,10 @@ foreach (CATALOG_BRANCHES as $slug => $branch) {
             $stats['total']++;
 
             $parsed = akbParseName($name);
-            $missing = array_diff(array_keys(AKB_PROPERTIES), array_keys($parsed));
+            $missing = array_diff(array_keys(AKB_PROPERTIES), array_keys($parsed), ['AKB_CASE_TYPE']);
             if ($missing) {
                 $unparsed[] = "#$id $name — нет: " . implode(', ', $missing);
             }
-            if (!$parsed) continue;
 
             // Текущие значения — чтобы не перетереть заполненное вручную.
             $current = [];
@@ -234,13 +255,18 @@ foreach (CATALOG_BRANCHES as $slug => $branch) {
                 }
             }
 
+            // Тип корпуса — из высоты: распознанной в названии или уже записанной.
+            $caseType = akbCaseType((int)($parsed['AKB_HEIGHT'] ?? $current['AKB_HEIGHT'] ?? 0));
+            if ($caseType !== null) $parsed['AKB_CASE_TYPE'] = $caseType;
+            if (!$parsed) continue;
+
             $write = [];
             $shown = [];
             foreach ($parsed as $code => $value) {
                 if (!$overwrite && isset($current[$code]) && $current[$code] !== '' && $current[$code] !== null) continue;
-                if ($code === 'AKB_POLARITY') {
-                    $shown[] = 'полярность ' . AKB_POLARITY_VALUES[$value];
-                    if (isset($enumIds[$value])) $write[$code] = $enumIds[$value];
+                if (isset(AKB_LIST_VALUES[$code])) {
+                    $shown[] = AKB_PROPERTIES[$code]['name'] . ' ' . AKB_LIST_VALUES[$code][$value];
+                    if (isset($enumIds[$code][$value])) $write[$code] = $enumIds[$code][$value];
                 } else {
                     $shown[] = AKB_PROPERTIES[$code]['name'] . ' ' . $value;
                     $write[$code] = $value;
