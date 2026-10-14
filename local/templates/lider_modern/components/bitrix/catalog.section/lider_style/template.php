@@ -50,6 +50,9 @@ $favCatalogIds = $USER->IsAuthorized()
                     title="В избранное" onclick="toggleFavorite(this)">
                 <svg class="icon<?= in_array($item['ID'], $favCatalogIds) ? ' icon--fill' : '' ?>"><use href="#icon-heart"></use></svg>
             </button>
+            <?php if (!empty($item['IS_WINTER'])): ?>
+                <span class="product-card__badge product-card__badge--winter">❄ Зимняя</span>
+            <?php endif; ?>
             <?php if ($ownImg !== ''): ?>
             <a href="<?= $item['DETAIL_PAGE_URL'] ?>" class="js-zoom" data-zoom-src="<?= htmlspecialchars($ownImg) ?>"
                data-product-href="<?= $item['DETAIL_PAGE_URL'] ?>" data-caption="<?= htmlspecialchars($item['~NAME'] ?? $item['NAME']) ?>">

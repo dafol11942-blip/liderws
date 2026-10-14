@@ -58,6 +58,24 @@ foreach ($arResult['ITEMS'] as $key => $item) {
     }
 }
 
+// Плашка «Зимняя» — свойство WIPER_WINTER (cron/fill_wiper_properties.php).
+// В PROPERTY_CODE списка его нет, поэтому дочитываем: один запрос на инфоблок,
+// и только там, где свойство заведено — фильтр по несуществующему свойству
+// Битрикс игнорирует и отдал бы все товары.
+$idsByIblock = [];
+foreach ($arResult['ITEMS'] as $item) {
+    $idsByIblock[(int)$item['IBLOCK_ID']][] = (int)$item['ID'];
+}
+$winterIds = [];
+foreach ($idsByIblock as $iblockId => $iblockItemIds) {
+    if (!CIBlockProperty::GetList([], ['IBLOCK_ID' => $iblockId, 'CODE' => 'WIPER_WINTER'])->Fetch()) continue;
+    $rs = CIBlockElement::GetList([], ['IBLOCK_ID' => $iblockId, 'ID' => $iblockItemIds, '!PROPERTY_WIPER_WINTER' => false], false, false, ['ID']);
+    while ($row = $rs->Fetch()) $winterIds[(int)$row['ID']] = true;
+}
+foreach ($arResult['ITEMS'] as $key => $item) {
+    $arResult['ITEMS'][$key]['IS_WINTER'] = isset($winterIds[(int)$item['ID']]);
+}
+
 if ($removedCount > 0 && isset($arResult['NAV_RESULT'])) {
     $nav = &$arResult['NAV_RESULT'];
     $nav->NavRecordCount = max(0, (int)$nav->NavRecordCount - $removedCount);

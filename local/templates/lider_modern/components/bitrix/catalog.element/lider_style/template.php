@@ -104,6 +104,13 @@ $productLd = array_filter($productLd, static function ($v) { return $v !== '' &&
     <div class="product-detail__info">
         <h1><?= $item['NAME'] ?></h1>
 
+        <?php // Плашка «Зимняя» — свойство WIPER_WINTER (cron/fill_wiper_properties.php) ?>
+        <?php if (!empty($item['PROPERTIES']['WIPER_WINTER']['VALUE'])): ?>
+            <div class="product-detail__badges">
+                <span class="product-badge product-badge--winter">❄ Зимняя</span>
+            </div>
+        <?php endif; ?>
+
         <?php if ($article || $brand): ?>
             <div class="product-detail__article">
                 <?php if ($article): ?>Артикул: <?= htmlspecialchars($article) ?><?php endif; ?>

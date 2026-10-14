@@ -526,6 +526,10 @@ ul, ol { list-style: none; }
 .product-card__badge { position: absolute; top: 12px; left: 12px; background: var(--red); color: #fff; padding: 4px 10px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 800; letter-spacing: 0.02em; z-index: 2; }
 .product-card__badge--hit { background: var(--red); }
 .product-card__badge--new { background: var(--green); }
+.product-card__badge--winter { background: #2f8fd8; }
+.product-detail__badges { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 12px; }
+.product-badge { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 800; letter-spacing: 0.02em; color: #fff; }
+.product-badge--winter { background: #2f8fd8; }
 .product-card__badge--sale { background: #F90; }
 
 /* Кнопка "В избранное" — переиспользуется на карточке каталога (оверлей над фото),

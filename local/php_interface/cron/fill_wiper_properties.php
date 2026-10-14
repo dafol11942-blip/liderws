@@ -1,7 +1,7 @@
 <?php
 /**
  * Свойства щёток стеклоочистителя из наименования: длина, вторая длина
- * комплекта, тип крепления. Нужны подбору по автомобилю для креплений
+ * комплекта, тип крепления, расположение, зимняя. Длина и крепление нужны подбору по автомобилю для креплений
  * «крючок»: машине с крючком подходят щётки нужной длины с креплением
  * «крючок» или универсальным (несколько адаптеров). Для остальных креплений
  * подбор идёт по артикулу Bosch (WiperArticles), эти свойства там не нужны.
@@ -13,6 +13,7 @@
  * Серии Bosch без пометки в названии: AP…U — универсальное (Multi-Clip),
  * AR…U / AR…S — крючок (Aerotwin Retrofit); каркасные и гибридные без пометки
  * — крючок. Не распознано — не пишем.
+ * Зимняя: «зимняя», Winter, Snow — «Да» (плашка «Зимняя» в списке и карточке).
  * Расположение: «зад.», rear, у BOSCH серии Hxxx / AxxxH — задняя. Задним и
  * наборам Bosch под конкретную машину (A187S, AM466S) крепление не нужно —
  * их подбор идёт по артикулу.
@@ -88,12 +89,17 @@ const WIPER_PROPERTIES = [
     'WIPER_LENGTH2' => ['name' => 'Длина второй щётки, мм',        'type' => 'N', 'sort' => 110],
     'WIPER_MOUNT'   => ['name' => 'Тип крепления щётки',           'type' => 'L', 'sort' => 120],
     'WIPER_POSITION'=> ['name' => 'Расположение щётки',            'type' => 'L', 'sort' => 90],
+    'WIPER_WINTER'  => ['name' => 'Зимняя щётка',                  'type' => 'L', 'sort' => 95],
 ];
 // Варианты списочных свойств: CODE => [XML_ID => значение].
 const WIPER_LIST_VALUES = [
     'WIPER_MOUNT'    => WIPER_MOUNTS,
     'WIPER_POSITION' => WIPER_POSITIONS,
+    'WIPER_WINTER'   => ['Y' => 'Да'],
 ];
+
+// Зимняя: «зимняя», Winter, Snow (NWB Graphite Snow, LYNXauto Winter).
+const WIPER_WINTER_PATTERN = '/зимн|(?<![a-z])(?:winter|snow)(?![a-z])/iu';
 
 // Задняя: «зад.», «задняя», rear; у BOSCH — ещё серии Hxxx и AxxxH (без BOSCH «H100» — это Hyundai).
 const WIPER_REAR_PATTERN = '/(?<![а-яё])зад(?:н(?:яя|ий|ие|\.)?)?(?![а-яё])|(?<![a-z])rear(?![a-z])|^(?=.*bosch).*\b(?:H\d{3}|A\d{3}H)\b/iu';
@@ -117,6 +123,9 @@ function wiperParseName(string $name): array
     } elseif (preg_match('/(?<!\d)(\d{2})\s*(?:"|”|″|дюйм)/u', $n, $m) && isset(WIPER_INCHES[(int)$m[1]])) {
         $result['WIPER_LENGTH'] = WIPER_INCHES[(int)$m[1]];
     }
+
+    // Не зимняя — свойство пустое (в фильтре только «Да»).
+    if (preg_match(WIPER_WINTER_PATTERN, $n)) $result['WIPER_WINTER'] = 'Y';
 
     // Задние подбираются по артикулу Bosch — крепление не определяем.
     if (preg_match(WIPER_REAR_PATTERN, $n)) {
