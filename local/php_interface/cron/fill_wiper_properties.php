@@ -99,7 +99,7 @@ const WIPER_LIST_VALUES = [
 ];
 
 // Зимняя: «зимняя», Winter, Snow (NWB Graphite Snow, LYNXauto Winter).
-const WIPER_WINTER_PATTERN = '/зимн|(?<![a-z])(?:winter|snow)(?![a-z])/iu';
+const WIPER_WINTER_PATTERN = '/зим(?:н|а(?![а-яё]))|(?<![a-z])(?:winter|snow|arctic)(?![a-z])/iu';
 
 // Задняя: «зад.», «задняя», rear; у BOSCH — ещё серии Hxxx и AxxxH (без BOSCH «H100» — это Hyundai).
 const WIPER_REAR_PATTERN = '/(?<![а-яё])зад(?:н(?:яя|ий|ие|\.)?)?(?![а-яё])|(?<![a-z])rear(?![a-z])|^(?=.*bosch).*\b(?:H\d{3}|A\d{3}H)\b/iu';
@@ -120,6 +120,12 @@ function wiperParseName(string $name): array
         $result['WIPER_LENGTH2'] = (int)$m[2];
     } elseif (preg_match('/(?<![\d\/])(\d{3,4})\s*мм/iu', $n, $m)) {
         $result['WIPER_LENGTH'] = (int)$m[1];
+    } elseif (preg_match('/(?<![\d.,])(\d{2})\s*(?:см)?\s*[\/+]\s*(\d{2})\s*см/iu', $n, $m)) {
+        // ВАЗ: «60/40 см», «40 см»
+        $result['WIPER_LENGTH'] = (int)$m[1] * 10;
+        $result['WIPER_LENGTH2'] = (int)$m[2] * 10;
+    } elseif (preg_match('/(?<![\d.,\/])(\d{2})\s*см/iu', $n, $m)) {
+        $result['WIPER_LENGTH'] = (int)$m[1] * 10;
     } elseif (preg_match('/(?<!\d)(\d{2})\s*(?:"|”|″|дюйм)/u', $n, $m) && isset(WIPER_INCHES[(int)$m[1]])) {
         $result['WIPER_LENGTH'] = WIPER_INCHES[(int)$m[1]];
     }
@@ -140,8 +146,11 @@ function wiperParseName(string $name): array
     }
     if ($mounts) {
         $result['WIPER_MOUNT'] = count($mounts) === 1 ? $mounts[0] : 'multi';
-    } elseif (preg_match('/(?<![а-яё])каркасн|гибрид|hybrid/iu', $n)) {
-        // Универсальные каркасные и гибридные без пометки — на крючок («бескаркасн» сюда не попадает).
+    } elseif (preg_match('/(?<![а-яё])каркасн|(?<![а-яё])к\/к(?![а-яё])|гибрид|hybrid/iu', $n)
+        || (!isset($result['WIPER_LENGTH2']) && !preg_match('/bosch/iu', $n))) {
+        // Без пометки — на крючок: каркасные («к/к», «бескаркасн» сюда не попадает),
+        // гибридные и одиночные универсальные (ALCA, CARCOM, HEYNER) — они идут с крючком.
+        // Комплекты под конкретную машину (BMW X5 650/500) и Bosch не угадываем.
         $result['WIPER_MOUNT'] = 'hook';
     }
 
@@ -155,7 +164,8 @@ function wiperSections(int $iblockId): array
     $rs = CIBlockSection::GetList(['LEFT_MARGIN' => 'ASC'], ['IBLOCK_ID' => $iblockId, 'ACTIVE' => 'Y'],
         false, ['ID', 'NAME', 'CODE', 'LEFT_MARGIN', 'RIGHT_MARGIN']);
     while ($s = $rs->Fetch()) {
-        if (!preg_match('/щ[её]тк\w*\s+стеклоочист|дворник/iu', (string)$s['NAME'])) continue;
+        // «Щетки стеклоочистителя», у ВАЗ — с опечаткой «стекоочистителя»
+        if (!preg_match('/щ[её]тк\w*\s+стекл?оочист|дворник/iu', (string)$s['NAME'])) continue;
         foreach ($found as $parent) {
             if ($s['LEFT_MARGIN'] > $parent['LEFT_MARGIN'] && $s['RIGHT_MARGIN'] < $parent['RIGHT_MARGIN']) continue 2;
         }
@@ -250,7 +260,8 @@ foreach (CATALOG_BRANCHES as $slug => $branch) {
             $name = (string)$el['NAME'];
 
             // Держатели, адаптеры, омыватель — не щётки.
-            if (!preg_match('/щ[её]тк|дворник|wiper/iu', $name)) {
+            // «Адаптер ALCA для дворников» — тоже не щётка.
+            if (!preg_match('/щ[её]тк|дворник|wiper/iu', $name) || preg_match('/^\s*(адаптер|переходник|держател)/iu', $name)) {
                 $stats['skipped']++;
                 continue;
             }
