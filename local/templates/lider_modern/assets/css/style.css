@@ -2078,20 +2078,20 @@ body.catalog-filter-locked { overflow: hidden; }
 }
 
 /* «Подбор аккумуляторов» над товарами раздела АКБ (include/akb_filter.php) */
-.akb-filter { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px 24px; margin-bottom: 16px; }
-.akb-filter__title { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700; margin-bottom: 18px; }
+.akb-filter { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 20px; margin-bottom: 16px; }
+.akb-filter__head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; margin-bottom: 14px; }
+.akb-filter__title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; }
 .akb-filter__title .icon { color: var(--blue); width: 22px; height: 22px; }
-.akb-filter__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px 28px; }
-.akb-filter__label { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
-.akb-filter__checks { display: flex; flex-direction: column; gap: 2px; max-height: 190px; overflow-y: auto; }
-.akb-filter__buttons { display: flex; gap: 10px; margin-top: 18px; }
+.akb-filter__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px 18px; align-items: start; }
+.akb-filter__label { font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--gray); }
+.akb-filter__buttons { display: flex; gap: 10px; margin-top: 14px; }
 .akb-filter__buttons .btn { min-width: 140px; }
 @media (max-width: 768px) {
     .akb-filter { padding: 16px; border-radius: var(--radius); }
     .akb-filter__buttons .btn { flex: 1; min-width: 0; }
 }
-.akb-filter__tabs { display: inline-flex; gap: 4px; padding: 4px; background: var(--bg); border-radius: var(--radius-pill); margin-bottom: 18px; }
-.akb-filter__tab { border: 0; background: transparent; padding: 8px 18px; border-radius: var(--radius-pill); font: inherit; font-size: 13px; font-weight: 600; color: var(--gray); cursor: pointer; }
+.akb-filter__tabs { display: inline-flex; gap: 4px; padding: 4px; background: var(--bg); border-radius: var(--radius-pill); }
+.akb-filter__tab { border: 0; background: transparent; padding: 6px 16px; border-radius: var(--radius-pill); font: inherit; font-size: 13px; font-weight: 600; color: var(--gray); cursor: pointer; }
 .akb-filter__tab.is-active { background: var(--white); color: var(--blue); box-shadow: var(--shadow-sm); }
 .akb-filter__car { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .akb-filter__select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--white); font: inherit; font-size: 13px; color: var(--text); }
@@ -2115,3 +2115,13 @@ body.catalog-filter-locked { overflow: hidden; }
     .home-finder__tabs { width: 100%; }
     .home-finder__tab { flex: 1; justify-content: center; padding: 10px 8px; font-size: 13px; }
 }
+
+/* Выпадающий список с чекбоксами в «Подборе аккумуляторов» */
+.akb-dd { position: relative; }
+.akb-dd__summary { display: flex; align-items: center; height: 38px; padding: 0 32px 0 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--white) url("data:image/svg+xml,%3Csvg width='10' height='6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E") no-repeat right 12px center; font-size: 13px; cursor: pointer; list-style: none; box-shadow: var(--shadow-sm); }
+.akb-dd__summary::-webkit-details-marker { display: none; }
+.akb-dd[open] .akb-dd__summary { border-color: var(--blue); }
+.akb-dd__value { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.akb-dd__panel { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 100%; width: max-content; max-width: 280px; max-height: 260px; overflow-y: auto; padding: 6px 12px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.akb-dd__panel .filter__checkbox { gap: 8px; }
+.akb-dd__panel .filter__count { margin-left: 12px; }

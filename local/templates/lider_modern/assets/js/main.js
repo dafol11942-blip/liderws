@@ -461,7 +461,25 @@ function akbCarInit() {
 // Отправку формы в каталоге перехватывает AJAX-фильтр выше; на главной форма
 // уходит обычным GET на страницу раздела АКБ.
 (function() {
+    // Подпись свёрнутого выпадающего списка: «Любой», выбранное или «Выбрано: N».
+    function ddSummary(dd) {
+        var checked = dd.querySelectorAll('input[type="checkbox"]:checked');
+        dd.querySelector('.akb-dd__value').textContent = !checked.length ? 'Любой'
+            : checked.length === 1 ? checked[0].dataset.label : 'Выбрано: ' + checked.length;
+    }
+    document.addEventListener('change', function(e) {
+        var dd = e.target.closest('.akb-dd');
+        if (dd) ddSummary(dd);
+    });
+    // Открыт только один список; клик мимо — закрыть.
+    document.addEventListener('toggle', function(e) {
+        if (!e.target.matches || !e.target.matches('.akb-dd') || !e.target.open) return;
+        document.querySelectorAll('.akb-dd[open]').forEach(function(d) { if (d !== e.target) d.open = false; });
+    }, true);
     document.addEventListener('click', function(e) {
+        if (!e.target.closest('.akb-dd')) {
+            document.querySelectorAll('.akb-dd[open]').forEach(function(d) { d.open = false; });
+        }
         var tab = e.target.closest('.akb-filter__tab');
         if (tab) {
             var box = tab.closest('.akb-filter');
@@ -484,7 +502,10 @@ function akbCarInit() {
     });
     document.addEventListener('reset', function(e) {
         if (!e.target.matches('.js-akb-form')) return;
-        setTimeout(function() { e.target.querySelectorAll('.filter__price-range').forEach(updateSliderFill); }, 0);
+        setTimeout(function() {
+            e.target.querySelectorAll('.filter__price-range').forEach(updateSliderFill);
+            e.target.querySelectorAll('.akb-dd').forEach(ddSummary);
+        }, 0);
     });
     document.querySelectorAll('.akb-filter .filter__price-range').forEach(updateSliderFill);
     akbCarInit();

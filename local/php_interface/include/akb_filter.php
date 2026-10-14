@@ -163,6 +163,37 @@ function akbHomeTarget(): ?array
 }
 
 /**
+ * Выпадающий список с чекбоксами (можно выбрать несколько): <details>, в
+ * свёрнутом виде — «Любой», выбранное значение или «Выбрано: N» (обновляет
+ * main.js при изменении). $options — значение => [подпись, число товаров].
+ */
+function akbFilterDropdown(string $title, string $name, array $options, array $selected): string
+{
+    $h = static fn($s) => htmlspecialcharsbx((string)$s);
+    $chosen = array_values(array_intersect(array_map('strval', array_keys($options)), $selected));
+    $summary = !$chosen ? 'Любой' : (count($chosen) === 1 ? $options[$chosen[0]][0] : 'Выбрано: ' . count($chosen));
+    ob_start(); ?>
+    <div class="akb-filter__field">
+        <div class="akb-filter__label"><?= $h($title) ?></div>
+        <details class="akb-dd">
+            <summary class="akb-dd__summary"><span class="akb-dd__value"><?= $h($summary) ?></span></summary>
+            <div class="akb-dd__panel">
+                <?php foreach ($options as $value => [$label, $count]): ?>
+                    <label class="filter__checkbox">
+                        <input type="checkbox" name="<?= $h($name) ?>" value="<?= $h($value) ?>" data-label="<?= $h($label) ?>"<?= in_array((string)$value, $chosen, true) ? ' checked' : '' ?>>
+                        <span class="filter__checkmark"></span>
+                        <span class="filter__label"><?= $h($label) ?></span>
+                        <span class="filter__count"><?= (int)$count ?></span>
+                    </label>
+                <?php endforeach; ?>
+            </div>
+        </details>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+
+/**
  * $action — адрес раздела АКБ, если блок выводится вне его (главная): формы
  * уходят туда обычным GET, «Сбросить» очищает форму на месте.
  */
@@ -175,10 +206,12 @@ function akbFilterRender(array $state, string $action = ''): string
     $tab = $car ? 'car' : 'params';
     ob_start(); ?>
     <div class="akb-filter">
-        <div class="akb-filter__title"><svg class="icon"><use href="#icon-battery"></use></svg> Подбор аккумуляторов</div>
-        <div class="akb-filter__tabs" role="tablist">
-            <button type="button" class="akb-filter__tab<?= $tab === 'params' ? ' is-active' : '' ?>" data-tab="params">По параметрам</button>
-            <button type="button" class="akb-filter__tab<?= $tab === 'car' ? ' is-active' : '' ?>" data-tab="car">По автомобилю</button>
+        <div class="akb-filter__head">
+            <div class="akb-filter__title"><svg class="icon"><use href="#icon-battery"></use></svg> Подбор аккумуляторов</div>
+            <div class="akb-filter__tabs" role="tablist">
+                <button type="button" class="akb-filter__tab<?= $tab === 'params' ? ' is-active' : '' ?>" data-tab="params">По параметрам</button>
+                <button type="button" class="akb-filter__tab<?= $tab === 'car' ? ' is-active' : '' ?>" data-tab="car">По автомобилю</button>
+            </div>
         </div>
         <form class="akb-filter__form js-akb-form" id="akbFilterForm" data-panel="params" method="get" action="<?= $h($action) ?>"<?= $tab !== 'params' ? ' hidden' : '' ?>>
             <div class="akb-filter__grid">
@@ -206,35 +239,13 @@ function akbFilterRender(array $state, string $action = ''): string
                 <?php endforeach; ?>
 
                 <?php foreach ($state['LISTS'] as $key => $values): ?>
-                    <div class="akb-filter__field">
-                        <div class="akb-filter__label"><?= AKB_FILTER_LISTS[$key]['title'] ?></div>
-                        <div class="akb-filter__checks">
-                            <?php foreach ($values as $xml => $e): ?>
-                                <label class="filter__checkbox">
-                                    <input type="checkbox" name="akb_<?= $key ?>[]" value="<?= $h($xml) ?>"<?= in_array($xml, $sel["akb_{$key}"] ?? [], true) ? ' checked' : '' ?>>
-                                    <span class="filter__checkmark"></span>
-                                    <span class="filter__label"><?= $h($e['LABEL']) ?></span>
-                                    <span class="filter__count"><?= $e['COUNT'] ?></span>
-                                </label>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
+                    <?= akbFilterDropdown(AKB_FILTER_LISTS[$key]['title'], "akb_{$key}[]",
+                        array_map(fn($e) => [$e['LABEL'], $e['COUNT']], $values), $sel["akb_{$key}"] ?? []) ?>
                 <?php endforeach; ?>
-
                 <?php if ($state['SIZES']): ?>
-                    <div class="akb-filter__field">
-                        <div class="akb-filter__label">Габариты (Д×Ш×В), мм</div>
-                        <div class="akb-filter__checks">
-                            <?php foreach ($state['SIZES'] as $sizeKey => $count): ?>
-                                <label class="filter__checkbox">
-                                    <input type="checkbox" name="akb_size[]" value="<?= $h($sizeKey) ?>"<?= in_array($sizeKey, $sel['akb_size'] ?? [], true) ? ' checked' : '' ?>>
-                                    <span class="filter__checkmark"></span>
-                                    <span class="filter__label"><?= $h(str_replace('x', '×', $sizeKey)) ?></span>
-                                    <span class="filter__count"><?= $count ?></span>
-                                </label>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
+                    <?php $sizeOptions = [];
+                    foreach ($state['SIZES'] as $sizeKey => $count) $sizeOptions[$sizeKey] = [str_replace('x', '×', $sizeKey), $count]; ?>
+                    <?= akbFilterDropdown('Габариты (Д×Ш×В), мм', 'akb_size[]', $sizeOptions, $sel['akb_size'] ?? []) ?>
                 <?php endif; ?>
             </div>
             <div class="akb-filter__buttons">
