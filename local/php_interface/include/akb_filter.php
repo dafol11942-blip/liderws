@@ -34,7 +34,7 @@ const AKB_FILTER_LISTS = [
  */
 function akbFilterState(int $iblockId, int $sectionId, array $request): ?array
 {
-    if ($sectionId <= 0) return null;
+    if ($sectionId <= 0 || !CModule::IncludeModule('iblock') || !CModule::IncludeModule('catalog')) return null;
     $propIds = [];
     foreach (array_column(AKB_FILTER_RANGES + AKB_FILTER_SIZES + AKB_FILTER_LISTS, 'code') as $code) {
         $p = CIBlockProperty::GetList([], ['IBLOCK_ID' => $iblockId, 'CODE' => $code, 'ACTIVE' => 'Y'])->Fetch();
@@ -132,7 +132,25 @@ function akbFilterState(int $iblockId, int $sectionId, array $request): ?array
     return ['BOUNDS' => $bounds, 'LISTS' => $lists, 'SELECTED' => $selected, 'FILTER' => $filter, 'CAR' => $car];
 }
 
-function akbFilterRender(array $state): string
+/**
+ * Раздел АКБ для блока на главной: первый активный раздел с кодом akb по
+ * веткам каталога (как пункт «Аккумуляторы» в меню). null — раздела нет.
+ */
+function akbHomeTarget(): ?array
+{
+    if (!CModule::IncludeModule('iblock')) return null;
+    foreach (CATALOG_BRANCHES as $slug => $branch) {
+        $s = CIBlockSection::GetList(['DEPTH_LEVEL' => 'ASC'], ['IBLOCK_ID' => $branch['id'], 'CODE' => 'akb', 'ACTIVE' => 'Y'], false, ['ID'])->Fetch();
+        if ($s) return ['IBLOCK_ID' => (int)$branch['id'], 'SECTION_ID' => (int)$s['ID'], 'URL' => '/catalog/' . $slug . '/akb/'];
+    }
+    return null;
+}
+
+/**
+ * $action — адрес раздела АКБ, если блок выводится вне его (главная): формы
+ * уходят туда обычным GET, «Сбросить» очищает форму на месте.
+ */
+function akbFilterRender(array $state, string $action = ''): string
 {
     $h = static fn($s) => htmlspecialcharsbx((string)$s);
     $fmt = static fn($v) => rtrim(rtrim(number_format((float)$v, 2, '.', ''), '0'), '.');
@@ -146,7 +164,7 @@ function akbFilterRender(array $state): string
             <button type="button" class="akb-filter__tab<?= $tab === 'params' ? ' is-active' : '' ?>" data-tab="params">По параметрам</button>
             <button type="button" class="akb-filter__tab<?= $tab === 'car' ? ' is-active' : '' ?>" data-tab="car">По автомобилю</button>
         </div>
-        <form class="akb-filter__form js-akb-form" id="akbFilterForm" data-panel="params" method="get" action=""<?= $tab !== 'params' ? ' hidden' : '' ?>>
+        <form class="akb-filter__form js-akb-form" id="akbFilterForm" data-panel="params" method="get" action="<?= $h($action) ?>"<?= $tab !== 'params' ? ' hidden' : '' ?>>
             <div class="akb-filter__grid">
                 <?php foreach (AKB_FILTER_RANGES as $key => $def):
                     if (!isset($state['BOUNDS'][$def['code']])) continue;
@@ -204,10 +222,14 @@ function akbFilterRender(array $state): string
             </div>
             <div class="akb-filter__buttons">
                 <button type="submit" class="btn btn--primary btn--sm">Подобрать</button>
-                <a href="?" class="btn btn--outline btn--sm akb-filter__reset">Сбросить</a>
+                <?php if ($action === ''): ?>
+                    <a href="?" class="btn btn--outline btn--sm akb-filter__reset">Сбросить</a>
+                <?php else: ?>
+                    <button type="reset" class="btn btn--outline btn--sm">Сбросить</button>
+                <?php endif; ?>
             </div>
         </form>
-        <form class="akb-filter__form js-akb-form" id="akbCarForm" data-panel="car" method="get" action=""<?= $tab !== 'car' ? ' hidden' : '' ?>
+        <form class="akb-filter__form js-akb-form" id="akbCarForm" data-panel="car" method="get" action="<?= $h($action) ?>"<?= $tab !== 'car' ? ' hidden' : '' ?>
               data-brand="<?= $car ? $car['BRAND_ID'] : '' ?>" data-model="<?= $car ? $car['MODEL_ID'] : '' ?>" data-mod="<?= $car ? $car['MOD_ID'] : '' ?>">
             <div class="akb-filter__car">
                 <select class="akb-filter__select" data-role="brand" aria-label="Марка"><option value="">— Марка —</option></select>
@@ -228,7 +250,11 @@ function akbFilterRender(array $state): string
             </div>
             <div class="akb-filter__buttons">
                 <button type="submit" class="btn btn--primary btn--sm">Подобрать</button>
-                <a href="?" class="btn btn--outline btn--sm akb-filter__reset">Сбросить</a>
+                <?php if ($action === ''): ?>
+                    <a href="?" class="btn btn--outline btn--sm akb-filter__reset">Сбросить</a>
+                <?php else: ?>
+                    <button type="reset" class="btn btn--outline btn--sm">Сбросить</button>
+                <?php endif; ?>
             </div>
         </form>
     </div>

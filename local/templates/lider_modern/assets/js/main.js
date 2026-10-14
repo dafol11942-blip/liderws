@@ -159,6 +159,111 @@ function updateBasketItem(id, quantity) {
     if (closeBtn) closeBtn.addEventListener('click', dismiss);
 })();
 
+// Диапазон «от–до» с двойным ползунком (.filter__price-range): умный фильтр
+// каталога и «Подбор аккумуляторов» (в каталоге и на главной).
+function updateSliderFill(wrap) {
+    var slider = wrap.querySelector('.filter__slider');
+    if (!slider) return;
+    var minInput = slider.querySelector('[data-role="min"]');
+    var maxInput = slider.querySelector('[data-role="max"]');
+    var fill = slider.querySelector('.filter__slider-fill');
+    var bMin = parseFloat(slider.dataset.boundMin);
+    var bMax = parseFloat(slider.dataset.boundMax);
+    var vMin = parseFloat(minInput.value);
+    var vMax = parseFloat(maxInput.value);
+    var span = (bMax - bMin) || 1;
+    var left = Math.max(0, Math.min(100, ((vMin - bMin) / span) * 100));
+    var right = Math.max(0, Math.min(100, ((bMax - vMax) / span) * 100));
+    fill.style.left = left + '%';
+    fill.style.right = right + '%';
+}
+
+// Связка ползунка и полей «от/до» диапазона. true — событие было от диапазона.
+function syncRange(target) {
+    if (target.matches('.filter__slider-input')) {
+        var slider = target.closest('.filter__slider');
+        var wrap = target.closest('.filter__price-range');
+        var minInput = slider.querySelector('[data-role="min"]');
+        var maxInput = slider.querySelector('[data-role="max"]');
+        if (parseFloat(minInput.value) > parseFloat(maxInput.value)) {
+            if (target.dataset.role === 'min') minInput.value = maxInput.value;
+            else maxInput.value = minInput.value;
+        }
+        updateSliderFill(wrap);
+        var textMin = wrap.querySelector('.filter__range [data-role="min"]');
+        var textMax = wrap.querySelector('.filter__range [data-role="max"]');
+        if (textMin) textMin.value = minInput.value;
+        if (textMax) textMax.value = maxInput.value;
+        return true;
+    }
+    if (target.matches('.filter__range .filter__input--half')) {
+        var wrap2 = target.closest('.filter__price-range');
+        if (wrap2 && target.value !== '') {
+            var slider2 = wrap2.querySelector('.filter__slider');
+            var sInput = slider2.querySelector('[data-role="' + target.dataset.role + '"]');
+            if (sInput) sInput.value = target.value;
+            updateSliderFill(wrap2);
+        }
+        return true;
+    }
+    return false;
+}
+
+// «Подбор аккумуляторов» (include/akb_filter.php).
+// Вкладка «По автомобилю»: марка → модель → модификация из базы ТО
+// (те же действия компонента, что у «Запчастей для ТО»). При повторном
+// показе выбранная машина восстанавливается из data-атрибутов формы.
+function akbCarInit() {
+    var form = document.getElementById('akbCarForm');
+    if (!form || form.dataset.ready || form.hidden || !window.BX || !BX.ajax) return;
+    form.dataset.ready = '1';
+    var COMP = 'mycompany:auto.to.catalog';
+    var selects = {
+        brand: form.querySelector('[data-role="brand"]'),
+        model: form.querySelector('[data-role="model"]'),
+        mod: form.querySelector('[data-role="mod"]')
+    };
+    function call(action, data) {
+        return BX.ajax.runComponentAction(COMP, action, { mode: 'class', data: data || {} }).then(function(r) { return r.data; });
+    }
+    function fill(select, items, value, text, selected) {
+        select.length = 1;
+        items.forEach(function(item) {
+            var o = document.createElement('option');
+            o.value = item[value];
+            o.textContent = text(item);
+            if (String(item[value]) === String(selected)) o.selected = true;
+            select.appendChild(o);
+        });
+        select.disabled = !items.length;
+    }
+    function loadModels(brandId, selected) {
+        fill(selects.mod, [], '', null);
+        if (!brandId) { fill(selects.model, [], '', null); return Promise.resolve(); }
+        return call('getModels', { brandId: parseInt(brandId, 10) }).then(function(d) {
+            fill(selects.model, d.models, 'UF_MODEL_ID', function(m) {
+                return m.UF_NAME + (m.UF_YEAR_FROM ? ' (' + m.UF_YEAR_FROM + '–' + (m.UF_YEAR_TO || 'н.в.') + ')' : '');
+            }, selected);
+        });
+    }
+    function loadMods(modelId, selected) {
+        if (!modelId) { fill(selects.mod, [], '', null); return Promise.resolve(); }
+        return call('getModifications', { modelId: parseInt(modelId, 10) }).then(function(d) {
+            fill(selects.mod, d.modifications, 'UF_MODIFICATION_ID', function(m) { return m.UF_FULL_NAME; }, selected);
+        });
+    }
+    call('getBrands').then(function(d) {
+        fill(selects.brand, d.brands, 'UF_BRAND_ID', function(b) { return b.UF_NAME; }, form.dataset.brand);
+        if (form.dataset.brand) {
+            loadModels(form.dataset.brand, form.dataset.model).then(function() {
+                if (form.dataset.model) loadMods(form.dataset.model, form.dataset.mod);
+            });
+        }
+    });
+    selects.brand.addEventListener('change', function() { loadModels(this.value); });
+    selects.model.addEventListener('change', function() { loadMods(this.value); });
+}
+
 // Мгновенный AJAX-фильтр каталога: чекбоксы, слайдер цены, сортировка,
 // пагинация — без перезагрузки страницы. #catalogFilterPanel/#catalogMain
 // не пересоздаются между запросами, меняется только их innerHTML, поэтому
@@ -187,57 +292,9 @@ function updateBasketItem(id, quantity) {
     var currentAbort = null;
     var debounceTimer = null;
 
-    function updateSliderFill(wrap) {
-        var slider = wrap.querySelector('.filter__slider');
-        if (!slider) return;
-        var minInput = slider.querySelector('[data-role="min"]');
-        var maxInput = slider.querySelector('[data-role="max"]');
-        var fill = slider.querySelector('.filter__slider-fill');
-        var bMin = parseFloat(slider.dataset.boundMin);
-        var bMax = parseFloat(slider.dataset.boundMax);
-        var vMin = parseFloat(minInput.value);
-        var vMax = parseFloat(maxInput.value);
-        var span = (bMax - bMin) || 1;
-        var left = Math.max(0, Math.min(100, ((vMin - bMin) / span) * 100));
-        var right = Math.max(0, Math.min(100, ((bMax - vMax) / span) * 100));
-        fill.style.left = left + '%';
-        fill.style.right = right + '%';
-    }
-
     function initSliders() {
         filterPanel.querySelectorAll('.filter__price-range').forEach(updateSliderFill);
         mainPanel.querySelectorAll('.filter__price-range').forEach(updateSliderFill);
-    }
-
-    // Связка ползунка и полей «от/до» диапазона. true — событие было от диапазона.
-    function syncRange(target) {
-        if (target.matches('.filter__slider-input')) {
-            var slider = target.closest('.filter__slider');
-            var wrap = target.closest('.filter__price-range');
-            var minInput = slider.querySelector('[data-role="min"]');
-            var maxInput = slider.querySelector('[data-role="max"]');
-            if (parseFloat(minInput.value) > parseFloat(maxInput.value)) {
-                if (target.dataset.role === 'min') minInput.value = maxInput.value;
-                else maxInput.value = minInput.value;
-            }
-            updateSliderFill(wrap);
-            var textMin = wrap.querySelector('.filter__range [data-role="min"]');
-            var textMax = wrap.querySelector('.filter__range [data-role="max"]');
-            if (textMin) textMin.value = minInput.value;
-            if (textMax) textMax.value = maxInput.value;
-            return true;
-        }
-        if (target.matches('.filter__range .filter__input--half')) {
-            var wrap2 = target.closest('.filter__price-range');
-            if (wrap2 && target.value !== '') {
-                var slider2 = wrap2.querySelector('.filter__slider');
-                var sInput = slider2.querySelector('[data-role="' + target.dataset.role + '"]');
-                if (sInput) sInput.value = target.value;
-                updateSliderFill(wrap2);
-            }
-            return true;
-        }
-        return false;
     }
 
     function currentParams() {
@@ -375,10 +432,6 @@ function updateBasketItem(id, quantity) {
         return params;
     }
 
-    mainPanel.addEventListener('input', function(e) {
-        if (e.target.closest('#akbFilterForm')) syncRange(e.target);
-    });
-
     mainPanel.addEventListener('submit', function(e) {
         if (!e.target.matches('.js-akb-form')) return;
         e.preventDefault();
@@ -390,6 +443,25 @@ function updateBasketItem(id, quantity) {
     });
 
     mainPanel.addEventListener('click', function(e) {
+        if (!e.target.closest('.akb-filter__reset')) return;
+        e.preventDefault();
+        loadUrl(window.location.pathname + '?' + akbParams().toString());
+    });
+
+
+    window.addEventListener('popstate', function() {
+        window.location.reload();
+    });
+
+    initSliders();
+})();
+
+// «Подбор аккумуляторов» — общее для раздела АКБ и главной: вкладки (в т.ч.
+// «Запчасти для ТО / Подбор аккумулятора» на главной), ползунки, списки машин.
+// Отправку формы в каталоге перехватывает AJAX-фильтр выше; на главной форма
+// уходит обычным GET на страницу раздела АКБ.
+(function() {
+    document.addEventListener('click', function(e) {
         var tab = e.target.closest('.akb-filter__tab');
         if (tab) {
             var box = tab.closest('.akb-filter');
@@ -398,70 +470,23 @@ function updateBasketItem(id, quantity) {
             if (tab.dataset.tab === 'car') akbCarInit();
             return;
         }
-        if (!e.target.closest('.akb-filter__reset')) return;
-        e.preventDefault();
-        loadUrl(window.location.pathname + '?' + akbParams().toString());
+        var homeTab = e.target.closest('[data-home-tab]');
+        if (homeTab) {
+            var finder = homeTab.closest('.home-finder');
+            finder.querySelectorAll('[data-home-tab]').forEach(function(t) { t.classList.toggle('is-active', t === homeTab); });
+            finder.querySelectorAll('[data-home-panel]').forEach(function(p) { p.hidden = p.dataset.homePanel !== homeTab.dataset.homeTab; });
+            finder.querySelectorAll('.akb-filter .filter__price-range').forEach(updateSliderFill);
+            akbCarInit();
+        }
     });
-
-    // Вкладка «По автомобилю»: марка → модель → модификация из базы ТО
-    // (те же действия компонента, что у «Запчастей для ТО»). При повторном
-    // показе выбранная машина восстанавливается из data-атрибутов формы.
-    function akbCarInit() {
-        var form = document.getElementById('akbCarForm');
-        if (!form || form.dataset.ready || form.hidden || !window.BX || !BX.ajax) return;
-        form.dataset.ready = '1';
-        var COMP = 'mycompany:auto.to.catalog';
-        var selects = {
-            brand: form.querySelector('[data-role="brand"]'),
-            model: form.querySelector('[data-role="model"]'),
-            mod: form.querySelector('[data-role="mod"]')
-        };
-        function call(action, data) {
-            return BX.ajax.runComponentAction(COMP, action, { mode: 'class', data: data || {} }).then(function(r) { return r.data; });
-        }
-        function fill(select, items, value, text, selected) {
-            select.length = 1;
-            items.forEach(function(item) {
-                var o = document.createElement('option');
-                o.value = item[value];
-                o.textContent = text(item);
-                if (String(item[value]) === String(selected)) o.selected = true;
-                select.appendChild(o);
-            });
-            select.disabled = !items.length;
-        }
-        function loadModels(brandId, selected) {
-            fill(selects.mod, [], '', null);
-            if (!brandId) { fill(selects.model, [], '', null); return Promise.resolve(); }
-            return call('getModels', { brandId: parseInt(brandId, 10) }).then(function(d) {
-                fill(selects.model, d.models, 'UF_MODEL_ID', function(m) {
-                    return m.UF_NAME + (m.UF_YEAR_FROM ? ' (' + m.UF_YEAR_FROM + '–' + (m.UF_YEAR_TO || 'н.в.') + ')' : '');
-                }, selected);
-            });
-        }
-        function loadMods(modelId, selected) {
-            if (!modelId) { fill(selects.mod, [], '', null); return Promise.resolve(); }
-            return call('getModifications', { modelId: parseInt(modelId, 10) }).then(function(d) {
-                fill(selects.mod, d.modifications, 'UF_MODIFICATION_ID', function(m) { return m.UF_FULL_NAME; }, selected);
-            });
-        }
-        call('getBrands').then(function(d) {
-            fill(selects.brand, d.brands, 'UF_BRAND_ID', function(b) { return b.UF_NAME; }, form.dataset.brand);
-            if (form.dataset.brand) {
-                loadModels(form.dataset.brand, form.dataset.model).then(function() {
-                    if (form.dataset.model) loadMods(form.dataset.model, form.dataset.mod);
-                });
-            }
-        });
-        selects.brand.addEventListener('change', function() { loadModels(this.value); });
-        selects.model.addEventListener('change', function() { loadMods(this.value); });
-    }
-
-    window.addEventListener('popstate', function() {
-        window.location.reload();
+    document.addEventListener('input', function(e) {
+        if (e.target.closest('.akb-filter')) syncRange(e.target);
     });
-
-    initSliders();
+    document.addEventListener('reset', function(e) {
+        if (!e.target.matches('.js-akb-form')) return;
+        setTimeout(function() { e.target.querySelectorAll('.filter__price-range').forEach(updateSliderFill); }, 0);
+    });
+    document.querySelectorAll('.akb-filter .filter__price-range').forEach(updateSliderFill);
     akbCarInit();
 })();
 

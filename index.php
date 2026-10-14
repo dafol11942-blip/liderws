@@ -20,16 +20,33 @@ $APPLICATION->SetTitle("ЛИДЕР — автозапчасти для ином�
     </div>
 </div>
 
-<!-- ПОДБОР ПО АВТО -->
-<?php $APPLICATION->IncludeComponent(
-    "mycompany:auto.to.catalog",
-    ".default",
-    [
-        'PAGE_MODE' => 'embed',
-        'DETAIL_PAGE' => '/service-parts/',
-    ],
-    false
-); ?>
+<!-- ПОДБОР: запчасти для ТО / аккумулятор (тот же блок, что в разделе АКБ) -->
+<?php $homeAkb = akbHomeTarget();
+$homeAkbState = $homeAkb ? akbFilterState($homeAkb['IBLOCK_ID'], $homeAkb['SECTION_ID'], []) : null; ?>
+<div class="home-finder">
+    <?php if ($homeAkbState): ?>
+    <div class="home-finder__tabs" role="tablist">
+        <button type="button" class="home-finder__tab is-active" data-home-tab="to"><svg class="icon"><use href="#icon-wrench"></use></svg> Запчасти для ТО</button>
+        <button type="button" class="home-finder__tab" data-home-tab="akb"><svg class="icon"><use href="#icon-battery"></use></svg> Подбор аккумулятора</button>
+    </div>
+    <?php endif; ?>
+    <div data-home-panel="to">
+        <?php $APPLICATION->IncludeComponent(
+            "mycompany:auto.to.catalog",
+            ".default",
+            [
+                'PAGE_MODE' => 'embed',
+                'DETAIL_PAGE' => '/service-parts/',
+            ],
+            false
+        ); ?>
+    </div>
+    <?php if ($homeAkbState): ?>
+    <div data-home-panel="akb" hidden>
+        <?= akbFilterRender($homeAkbState, $homeAkb['URL']) ?>
+    </div>
+    <?php endif; ?>
+</div>
 
 <!-- АВТОСЕРВИС -->
 <div class="hero mt-20">

@@ -2105,3 +2105,15 @@ body.catalog-filter-locked { overflow: hidden; }
     .akb-filter__tab { flex: 1; padding: 8px 10px; }
     .akb-filter__car { grid-template-columns: 1fr; }
 }
+
+/* Главная: переключатель «Запчасти для ТО / Подбор аккумулятора» над блоками подбора */
+.home-finder { margin-bottom: 20px; }
+.home-finder__tabs { display: flex; justify-content: center; gap: 6px; width: fit-content; margin: 0 auto 12px; padding: 5px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-pill); box-shadow: var(--shadow-sm); }
+.home-finder__tab { display: inline-flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 10px 22px; border-radius: var(--radius-pill); font: inherit; font-size: 14px; font-weight: 700; color: var(--gray); cursor: pointer; transition: background var(--transition), color var(--transition); }
+.home-finder__tab .icon { width: 18px; height: 18px; }
+.home-finder__tab.is-active { background: var(--blue); color: var(--white); }
+.home-finder .auto-finder, .home-finder .akb-filter { margin-bottom: 0; }
+@media (max-width: 768px) {
+    .home-finder__tabs { width: 100%; }
+    .home-finder__tab { flex: 1; justify-content: center; padding: 10px 8px; font-size: 13px; }
+}
