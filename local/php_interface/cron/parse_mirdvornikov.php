@@ -203,8 +203,10 @@ function mdvParseGeneration(string $html): array
     }
     $first = reset($variants) ?: [0, 0];
 
-    // Крепление — первый текст после подписи «Тип крепления», в каком бы теге он ни стоял.
-    $mount = preg_match('~Тип\s+крепления\s*:?\s*(?:<[^>]+>\s*)*([^<]+)~iu', $html, $mm)
+    // Крепление — из блока автомобиля: <span class="vi-sr vi-fit__sr">Тип крепления: Крючок 9x3</span>;
+    // запасной вариант — первый текст после подписи (в таблицах товаров там бывает не крепление машины).
+    $mount = preg_match('~vi-fit__sr[^>]*>\s*Тип\s+крепления\s*:?\s*([^<]+)~iu', $html, $mm)
+        || preg_match('~Тип\s+крепления\s*:?\s*(?:<[^>]+>\s*)*([^<]+)~iu', $html, $mm)
         ? mb_substr(trim(html_entity_decode($mm[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'), " :;,\t\n\r"), 0, 100) : '';
 
     $articles = [];
