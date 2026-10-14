@@ -264,6 +264,7 @@ function updateBasketItem(id, quantity) {
                 mainPanel.innerHTML = data.results;
                 history.pushState(null, '', url);
                 initSliders();
+                akbCarInit();
                 closeMobileFilter();
             })
             .catch(function(e) {
@@ -379,7 +380,7 @@ function updateBasketItem(id, quantity) {
     });
 
     mainPanel.addEventListener('submit', function(e) {
-        if (e.target.id !== 'akbFilterForm') return;
+        if (!e.target.matches('.js-akb-form')) return;
         e.preventDefault();
         var params = akbParams();
         new FormData(e.target).forEach(function(value, key) {
@@ -389,16 +390,79 @@ function updateBasketItem(id, quantity) {
     });
 
     mainPanel.addEventListener('click', function(e) {
+        var tab = e.target.closest('.akb-filter__tab');
+        if (tab) {
+            var box = tab.closest('.akb-filter');
+            box.querySelectorAll('.akb-filter__tab').forEach(function(t) { t.classList.toggle('is-active', t === tab); });
+            box.querySelectorAll('[data-panel]').forEach(function(p) { p.hidden = p.dataset.panel !== tab.dataset.tab; });
+            if (tab.dataset.tab === 'car') akbCarInit();
+            return;
+        }
         if (!e.target.closest('.akb-filter__reset')) return;
         e.preventDefault();
         loadUrl(window.location.pathname + '?' + akbParams().toString());
     });
+
+    // Вкладка «По автомобилю»: марка → модель → модификация из базы ТО
+    // (те же действия компонента, что у «Запчастей для ТО»). При повторном
+    // показе выбранная машина восстанавливается из data-атрибутов формы.
+    function akbCarInit() {
+        var form = document.getElementById('akbCarForm');
+        if (!form || form.dataset.ready || form.hidden || !window.BX || !BX.ajax) return;
+        form.dataset.ready = '1';
+        var COMP = 'mycompany:auto.to.catalog';
+        var selects = {
+            brand: form.querySelector('[data-role="brand"]'),
+            model: form.querySelector('[data-role="model"]'),
+            mod: form.querySelector('[data-role="mod"]')
+        };
+        function call(action, data) {
+            return BX.ajax.runComponentAction(COMP, action, { mode: 'class', data: data || {} }).then(function(r) { return r.data; });
+        }
+        function fill(select, items, value, text, selected) {
+            select.length = 1;
+            items.forEach(function(item) {
+                var o = document.createElement('option');
+                o.value = item[value];
+                o.textContent = text(item);
+                if (String(item[value]) === String(selected)) o.selected = true;
+                select.appendChild(o);
+            });
+            select.disabled = !items.length;
+        }
+        function loadModels(brandId, selected) {
+            fill(selects.mod, [], '', null);
+            if (!brandId) { fill(selects.model, [], '', null); return Promise.resolve(); }
+            return call('getModels', { brandId: parseInt(brandId, 10) }).then(function(d) {
+                fill(selects.model, d.models, 'UF_MODEL_ID', function(m) {
+                    return m.UF_NAME + (m.UF_YEAR_FROM ? ' (' + m.UF_YEAR_FROM + '–' + (m.UF_YEAR_TO || 'н.в.') + ')' : '');
+                }, selected);
+            });
+        }
+        function loadMods(modelId, selected) {
+            if (!modelId) { fill(selects.mod, [], '', null); return Promise.resolve(); }
+            return call('getModifications', { modelId: parseInt(modelId, 10) }).then(function(d) {
+                fill(selects.mod, d.modifications, 'UF_MODIFICATION_ID', function(m) { return m.UF_FULL_NAME; }, selected);
+            });
+        }
+        call('getBrands').then(function(d) {
+            fill(selects.brand, d.brands, 'UF_BRAND_ID', function(b) { return b.UF_NAME; }, form.dataset.brand);
+            if (form.dataset.brand) {
+                loadModels(form.dataset.brand, form.dataset.model).then(function() {
+                    if (form.dataset.model) loadMods(form.dataset.model, form.dataset.mod);
+                });
+            }
+        });
+        selects.brand.addEventListener('change', function() { loadModels(this.value); });
+        selects.model.addEventListener('change', function() { loadMods(this.value); });
+    }
 
     window.addEventListener('popstate', function() {
         window.location.reload();
     });
 
     initSliders();
+    akbCarInit();
 })();
 
 // Лайтбокс для фотогалерей: клик по миниатюре в любом .photo-gallery

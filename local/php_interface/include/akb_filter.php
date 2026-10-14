@@ -2,7 +2,9 @@
 /**
  * «Подбор аккумуляторов» — блок над товарами раздела АКБ: ёмкость и пусковой
  * ток ползунками, полярность и тип корпуса чекбоксами с числом товаров,
- * габариты «не больше».
+ * габариты «не больше». Вкладка «По автомобилю» — марка/модель/модификация из
+ * базы ТО, параметры считает include/akb_fitment.php (рекомендация, не точная
+ * применяемость): в фильтр уходят габариты корпуса, тип корпуса и полярность.
  * Свойства AKB_* заполняет cron/fill_akb_properties.php из наименования.
  *
  * Блок появляется в любом разделе, где у товаров в наличии заполнено хотя бы
@@ -112,7 +114,21 @@ function akbFilterState(int $iblockId, int $sectionId, array $request): ?array
         if ($values) $lists[$key] = $values;
     }
 
-    return ['BOUNDS' => $bounds, 'LISTS' => $lists, 'SELECTED' => $selected, 'FILTER' => $filter];
+    // Подбор по автомобилю (akb_car = ID модификации) заменяет фильтр по параметрам.
+    $car = akbFitmentForModification((int)($request['akb_car'] ?? 0));
+    if ($car) {
+        $filter = [
+            '>=PROPERTY_AKB_LENGTH' => $car['LENGTH'] - 10,
+            '<=PROPERTY_AKB_LENGTH' => $car['LENGTH'] + 5,
+            '<=PROPERTY_AKB_WIDTH'  => $car['WIDTH'] + 5,
+            '<=PROPERTY_AKB_HEIGHT' => $car['HEIGHT'] + 5,
+        ];
+        if (isset($enums['pol'][$car['POLARITY']])) $filter['PROPERTY_AKB_POLARITY'] = $enums['pol'][$car['POLARITY']]['ID'];
+        if (isset($enums['case'][$car['CASE']])) $filter['PROPERTY_AKB_CASE_TYPE'] = $enums['case'][$car['CASE']]['ID'];
+        $selected = [];
+    }
+
+    return ['BOUNDS' => $bounds, 'LISTS' => $lists, 'SELECTED' => $selected, 'FILTER' => $filter, 'CAR' => $car];
 }
 
 function akbFilterRender(array $state): string
@@ -120,10 +136,16 @@ function akbFilterRender(array $state): string
     $h = static fn($s) => htmlspecialcharsbx((string)$s);
     $fmt = static fn($v) => rtrim(rtrim(number_format((float)$v, 2, '.', ''), '0'), '.');
     $sel = $state['SELECTED'];
+    $car = $state['CAR'];
+    $tab = $car ? 'car' : 'params';
     ob_start(); ?>
     <div class="akb-filter">
-        <form class="akb-filter__form" id="akbFilterForm" method="get" action="">
-            <div class="akb-filter__title"><svg class="icon"><use href="#icon-battery"></use></svg> Подбор аккумуляторов</div>
+        <div class="akb-filter__title"><svg class="icon"><use href="#icon-battery"></use></svg> Подбор аккумуляторов</div>
+        <div class="akb-filter__tabs" role="tablist">
+            <button type="button" class="akb-filter__tab<?= $tab === 'params' ? ' is-active' : '' ?>" data-tab="params">По параметрам</button>
+            <button type="button" class="akb-filter__tab<?= $tab === 'car' ? ' is-active' : '' ?>" data-tab="car">По автомобилю</button>
+        </div>
+        <form class="akb-filter__form js-akb-form" id="akbFilterForm" data-panel="params" method="get" action=""<?= $tab !== 'params' ? ' hidden' : '' ?>>
             <div class="akb-filter__grid">
                 <?php foreach (AKB_FILTER_RANGES as $key => $def):
                     if (!isset($state['BOUNDS'][$def['code']])) continue;
@@ -178,6 +200,30 @@ function akbFilterRender(array $state): string
                         </div>
                     </div>
                 <?php endif; ?>
+            </div>
+            <div class="akb-filter__buttons">
+                <button type="submit" class="btn btn--primary btn--sm">Подобрать</button>
+                <a href="?" class="btn btn--outline btn--sm akb-filter__reset">Сбросить</a>
+            </div>
+        </form>
+        <form class="akb-filter__form js-akb-form" id="akbCarForm" data-panel="car" method="get" action=""<?= $tab !== 'car' ? ' hidden' : '' ?>
+              data-brand="<?= $car ? $car['BRAND_ID'] : '' ?>" data-model="<?= $car ? $car['MODEL_ID'] : '' ?>" data-mod="<?= $car ? $car['MOD_ID'] : '' ?>">
+            <div class="akb-filter__car">
+                <select class="akb-filter__select" data-role="brand" aria-label="Марка"><option value="">— Марка —</option></select>
+                <select class="akb-filter__select" data-role="model" aria-label="Модель" disabled><option value="">— Модель —</option></select>
+                <select class="akb-filter__select" name="akb_car" data-role="mod" aria-label="Модификация" disabled><option value="">— Модификация —</option></select>
+            </div>
+            <?php if ($car): ?>
+                <div class="akb-filter__result">
+                    Для <b><?= $h($car['CAR']) ?></b> рекомендуется: корпус <?= $car['LENGTH'] ?>×<?= $car['WIDTH'] ?>×<?= $car['HEIGHT'] ?> мм
+                    (<?= $h(AKB_FILTER_LISTS['case']['labels'][$car['CASE']]) ?>), полярность <?= $h(mb_strtolower(AKB_FILTER_LISTS['pol']['labels'][$car['POLARITY']])) ?>,
+                    ёмкость <?= $car['CAP_FROM'] ?>–<?= $car['CAP_TO'] ?> А·ч<?= $car['AGM'] ? '; при системе Start-Stop — AGM или EFB' : '' ?>.
+                </div>
+            <?php endif; ?>
+            <div class="akb-filter__notice">
+                Подбор по автомобилю носит рекомендательный характер: параметры рассчитаны по типовым данным для марки,
+                модели и двигателя. Перед покупкой сверьте размеры, полярность и ёмкость со старым аккумулятором
+                или с руководством по эксплуатации автомобиля.
             </div>
             <div class="akb-filter__buttons">
                 <button type="submit" class="btn btn--primary btn--sm">Подобрать</button>
