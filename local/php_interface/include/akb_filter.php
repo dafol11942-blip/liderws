@@ -2,7 +2,7 @@
 /**
  * «Подбор аккумуляторов» — блок над товарами раздела АКБ: ёмкость и пусковой
  * ток ползунками, бренд, полярность и тип корпуса чекбоксами с числом товаров,
- * габариты «не больше». Вкладка «По автомобилю» — марка/модель/модификация из
+ * габариты — список размеров корпусов, которые есть в разделе. Вкладка «По автомобилю» — марка/модель/модификация из
  * базы ТО, параметры считает include/akb_fitment.php (рекомендация, не точная
  * применяемость): в фильтр уходят габариты корпуса, тип корпуса и полярность.
  * Свойства AKB_* заполняет cron/fill_akb_properties.php из наименования.
@@ -60,6 +60,7 @@ function akbFilterState(int $iblockId, int $sectionId, array $request): ?array
     foreach (array_keys($enums) as $key) $select[] = 'PROPERTY_' . AKB_FILTER_LISTS[$key]['code'];
 
     $bounds = [];
+    $sizes = []; // «Д×Ш×В» => число товаров
     $hasData = false;
     $rs = CIBlockElement::GetList([], [
         'IBLOCK_ID' => $iblockId, 'ACTIVE' => 'Y', 'SECTION_ID' => $sectionId,
@@ -72,6 +73,11 @@ function akbFilterState(int $iblockId, int $sectionId, array $request): ?array
             $v = (float)$v;
             $bounds[$code] = isset($bounds[$code]) ? [min($bounds[$code][0], $v), max($bounds[$code][1], $v)] : [$v, $v];
             $hasData = true;
+        }
+        $dims = array_map(fn($code) => (int)($row['PROPERTY_' . $code . '_VALUE'] ?? 0), array_column(AKB_FILTER_SIZES, 'code'));
+        if (min($dims) > 0) {
+            $sizeKey = implode('x', $dims);
+            $sizes[$sizeKey] = ($sizes[$sizeKey] ?? 0) + 1;
         }
         foreach ($enums as $key => &$values) {
             $enumId = (int)($row['PROPERTY_' . AKB_FILTER_LISTS[$key]['code'] . '_ENUM_ID'] ?? 0);
@@ -99,10 +105,20 @@ function akbFilterState(int $iblockId, int $sectionId, array $request): ?array
         if ($min !== null && $min > $lo) { $filter['>=PROPERTY_' . $def['code']] = $min; $selected["akb_{$key}_min"] = $min; }
         if ($max !== null && $max < $hi) { $filter['<=PROPERTY_' . $def['code']] = $max; $selected["akb_{$key}_max"] = $max; }
     }
-    foreach (AKB_FILTER_SIZES as $key => $def) {
-        if (!isset($bounds[$def['code']])) continue;
-        $max = $num($request["akb_{$key}"] ?? '');
-        if ($max !== null && $max < $bounds[$def['code']][1]) { $filter['<=PROPERTY_' . $def['code']] = $max; $selected["akb_{$key}"] = $max; }
+    // Габариты — точные размеры корпусов, которые есть в разделе (любой из выбранных).
+    uksort($sizes, fn($a, $b) => array_map('intval', explode('x', $a)) <=> array_map('intval', explode('x', $b)));
+    $chosenSizes = array_values(array_intersect(array_keys($sizes), (array)($request['akb_size'] ?? [])));
+    if ($chosenSizes) {
+        $sizeFilter = ['LOGIC' => 'OR'];
+        foreach ($chosenSizes as $sizeKey) {
+            $sub = [];
+            foreach (array_combine(array_column(AKB_FILTER_SIZES, 'code'), explode('x', $sizeKey)) as $code => $v) {
+                $sub['=PROPERTY_' . $code] = (int)$v;
+            }
+            $sizeFilter[] = $sub;
+        }
+        $filter[] = $sizeFilter;
+        $selected['akb_size'] = $chosenSizes;
     }
     $lists = [];
     foreach ($enums as $key => $values) {
@@ -129,7 +145,7 @@ function akbFilterState(int $iblockId, int $sectionId, array $request): ?array
         $selected = [];
     }
 
-    return ['BOUNDS' => $bounds, 'LISTS' => $lists, 'SELECTED' => $selected, 'FILTER' => $filter, 'CAR' => $car];
+    return ['BOUNDS' => $bounds, 'SIZES' => $sizes, 'LISTS' => $lists, 'SELECTED' => $selected, 'FILTER' => $filter, 'CAR' => $car];
 }
 
 /**
@@ -205,15 +221,16 @@ function akbFilterRender(array $state, string $action = ''): string
                     </div>
                 <?php endforeach; ?>
 
-                <?php $sizes = array_filter(AKB_FILTER_SIZES, fn($d) => isset($state['BOUNDS'][$d['code']])); ?>
-                <?php if ($sizes): ?>
+                <?php if ($state['SIZES']): ?>
                     <div class="akb-filter__field">
-                        <div class="akb-filter__label">Габариты не больше, мм</div>
-                        <div class="akb-filter__sizes">
-                            <?php foreach ($sizes as $key => $def): ?>
-                                <label class="akb-filter__size">
-                                    <span><?= $def['title'] ?></span>
-                                    <input type="text" inputmode="numeric" class="filter__input" name="akb_<?= $key ?>" value="<?= isset($sel["akb_{$key}"]) ? $fmt($sel["akb_{$key}"]) : '' ?>" placeholder="до <?= $fmt($state['BOUNDS'][$def['code']][1]) ?>">
+                        <div class="akb-filter__label">Габариты (Д×Ш×В), мм</div>
+                        <div class="akb-filter__checks">
+                            <?php foreach ($state['SIZES'] as $sizeKey => $count): ?>
+                                <label class="filter__checkbox">
+                                    <input type="checkbox" name="akb_size[]" value="<?= $h($sizeKey) ?>"<?= in_array($sizeKey, $sel['akb_size'] ?? [], true) ? ' checked' : '' ?>>
+                                    <span class="filter__checkmark"></span>
+                                    <span class="filter__label"><?= $h(str_replace('x', '×', $sizeKey)) ?></span>
+                                    <span class="filter__count"><?= $count ?></span>
                                 </label>
                             <?php endforeach; ?>
                         </div>

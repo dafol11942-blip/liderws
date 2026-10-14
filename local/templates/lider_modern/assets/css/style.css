@@ -2084,8 +2084,6 @@ body.catalog-filter-locked { overflow: hidden; }
 .akb-filter__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px 28px; }
 .akb-filter__label { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
 .akb-filter__checks { display: flex; flex-direction: column; gap: 2px; max-height: 190px; overflow-y: auto; }
-.akb-filter__sizes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.akb-filter__size span { display: block; font-size: 11px; color: var(--gray); margin-bottom: 4px; }
 .akb-filter__buttons { display: flex; gap: 10px; margin-top: 18px; }
 .akb-filter__buttons .btn { min-width: 140px; }
 @media (max-width: 768px) {
