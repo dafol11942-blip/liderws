@@ -1,6 +1,6 @@
 <?
 require($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
-$APPLICATION->SetPageProperty("description", "Условия гарантии и возврата автозапчастей в магазине ЛИДЕР в Елабуге: возврат товара надлежащего качества в течение 30 дней.");
+$APPLICATION->SetPageProperty("description", "Условия гарантии и возврата автозапчастей в магазине ЛИДЕР в Елабуге: возврат товара надлежащего качества в течение 14 рабочих дней.");
 $APPLICATION->SetPageProperty("title", "Гарантия и возврат товара — автозапчасти ЛИДЕР");
 $APPLICATION->SetTitle("Гарантия и возврат");
 
@@ -16,7 +16,7 @@ $shops = getShopLocations();
 			<div class="warranty-info__highlight">
 				<div class="warranty-info__highlight-icon"><svg class="icon"><use href="#icon-refresh"></use></svg></div>
 				<div>
-					<div class="warranty-info__highlight-title">30 дней</div>
+					<div class="warranty-info__highlight-title">14 рабочих дней</div>
 					<p>на возврат товара надлежащего качества после получения</p>
 				</div>
 			</div>
@@ -46,7 +46,7 @@ $shops = getShopLocations();
 		<div class="legal-text warranty-info__text">
 			<section class="warranty-info__section" id="return">
 				<h2>1. Возврат товара надлежащего качества</h2>
-				<p>Вы вправе отказаться от товара в любое время до его передачи, а после получения — <b>в течение 30 календарных дней</b>. Этот срок больше установленного законом минимального срока в 7 дней для товаров, приобретённых дистанционно.</p>
+				<p>Вы вправе отказаться от товара в любое время до его передачи, а после получения — <b>в течение 14 рабочих дней</b>. Этот срок больше установленного законом минимального срока в 7 дней для товаров, приобретённых дистанционно.</p>
 				<p>Возврат возможен при соблюдении следующих условий:</p>
 				<ul>
 					<li>сохранены товарный вид и потребительские свойства товара;</li>
