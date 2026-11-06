@@ -189,6 +189,7 @@ $shops = getShopLocations();
 .warranty-info__shop-title { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; color: var(--black); font-size: 15px; font-weight: 800; }
 .warranty-info__shop-hours { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; color: var(--gray); }
 .warranty-info__contact-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.warranty-info__contact-actions .btn--primary, .warranty-info__contact-actions .btn--primary:hover { color: #fff; }
 .warranty-info__footer-note { margin: 0; color: var(--gray); font-size: 13px; line-height: 1.6; }
 .warranty-info__footer-note a { color: var(--blue); text-decoration: underline; }
 
